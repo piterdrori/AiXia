@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "contractId": "agentops-hermes-adapter-v1",
+  "contractVersion": "1.0.0",
+  "preparedAt": "2026-05-29",
+  "status": "design-only",
+  "runtimeExecution": false,
+  "description": "Future app-callable Hermes reasoning adapter contract for AgentOps Issue Workspace. Design/spec only — no runtime endpoint in Phase 5A.",
+  "promptStyleStandardPath": "qa-agent/prompt-standards/cursor-prompt-style-standard.md",
+  "fallbackLayer": "mock_response_layer",
+  "fallbackImplementation": "src/lib/agentops/agentResponseMock.ts",
+  "allowedModes": [
+    "issue_clarification",
+    "prompt_refinement",
+    "risk_review",
+    "next_step_recommendation",
+    "cursor_report_synthesis",
+    "archive_lesson_extraction"
+  ],
+  "disallowedModes": [
+    "auto_cursor_execution",
+    "direct_code_edit",
+    "production_action",
+    "secret_access",
+    "schema_rls_edit_without_approval",
+    "automatic_issue_closure",
+    "scheduler_activation",
+    "shell_execution_from_ui"
+  ],
+  "request": {
+    "type": "object",
+    "required": [
+      "requestId",
+      "mode",
+      "issueContext",
+      "agentContext",
+      "promptContext",
+      "lifecycleContext",
+      "safety",
+      "requestedOutput"
+    ],
+    "properties": {
+      "requestId": {
+        "type": "string",
+        "description": "UUID or deterministic id for audit correlation"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "issue_clarification",
+          "prompt_refinement",
+          "risk_review",
+          "next_step_recommendation",
+          "cursor_report_synthesis",
+          "archive_lesson_extraction"
+        ]
+      },
+      "issueContext": {
+        "type": "object",
+        "required": ["issueCode"],
+        "properties": {
+          "issueCode": { "type": "string" },
+          "title": { "type": "string" },
+          "severity": { "type": "string" },
+          "category": { "type": "string" },
+          "route": { "type": "string", "nullable": true },
+          "module": { "type": "string", "nullable": true },
+          "summary": { "type": "string" },
+          "evidence": { "type": "string" },
+          "likelyRootCause": { "type": "string", "nullable": true },
+          "recommendedFixStrategy": { "type": "string", "nullable": true }
+        }
+      },
+      "agentContext": {
+        "type": "object",
+        "properties": {
+          "agentId": { "type": "string", "nullable": true },
+          "agentSkillSpecialty": { "type": "string", "nullable": true },
+          "appRole": { "type": "string", "nullable": true },
+          "currentFocus": { "type": "string", "nullable": true },
+          "relevantMemory": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Redacted active memory snippets only"
+          }
+        }
+      },
+      "promptContext": {
+        "type": "object",
+        "properties": {
+          "currentPrompt": { "type": "string" },
+          "promptStyleStandard": {
+            "type": "string",
+            "default": "qa-agent/prompt-standards/cursor-prompt-style-standard.md"
+          },
+          "approvedPromptRequired": {
+            "type": "boolean",
+            "default": true,
+            "description": "Hermes may suggest; Piter must approve before handoff"
+          }
+        }
+      },
+      "lifecycleContext": {
+        "type": "object",
+        "properties": {
+          "executionState": { "type": "string" },
+          "latestCursorReport": { "type": "string", "nullable": true },
+          "verificationStatus": { "type": "string", "nullable": true },
+          "timelineSummary": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      },
+      "safety": {
+        "type": "object",
+        "required": [
+          "stagingOnly",
+          "noAutoCursor",
+          "noProduction",
+          "noSecrets",
+          "ownerApprovalRequired"
+        ],
+        "properties": {
+          "stagingOnly": { "type": "boolean", "const": true },
+          "noAutoCursor": { "type": "boolean", "const": true },
+          "noProduction": { "type": "boolean", "const": true },
+          "noSecrets": { "type": "boolean", "const": true },
+          "ownerApprovalRequired": { "type": "boolean", "const": true },
+          "environment": {
+            "type": "string",
+            "enum": ["local", "staging", "preview"],
+            "description": "Never production"
+          }
+        }
+      },
+      "requestedOutput": {
+        "type": "object",
+        "properties": {
+          "clarification": { "type": "boolean" },
+          "promptSuggestions": { "type": "boolean" },
+          "riskNotes": { "type": "boolean" },
+          "nextAction": { "type": "boolean" },
+          "lessonSummary": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "response": {
+    "type": "object",
+    "required": [
+      "responseId",
+      "mode",
+      "answer",
+      "confidence",
+      "limitations",
+      "safetyFlags",
+      "requiresOwnerApproval",
+      "shouldFallbackToMock"
+    ],
+    "properties": {
+      "responseId": { "type": "string" },
+      "mode": { "type": "string" },
+      "answer": { "type": "string" },
+      "promptSuggestions": { "type": "string" },
+      "riskNotes": { "type": "string" },
+      "nextRecommendedAction": { "type": "string" },
+      "confidence": {
+        "type": "string",
+        "enum": ["low", "medium", "high"]
+      },
+      "limitations": { "type": "string" },
+      "safetyFlags": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "e.g. staging_only, advisory_only, no_auto_cursor"
+      },
+      "memoryWriteSuggestions": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "memoryType": { "type": "string" },
+            "content": { "type": "string" },
+            "requiresOwnerApproval": { "type": "boolean", "const": true }
+          }
+        }
+      },
+      "requiresOwnerApproval": { "type": "boolean", "const": true },
+      "shouldFallbackToMock": {
+        "type": "boolean",
+        "description": "When true, caller must use generateAgentOpsMockResponse instead"
+      }
+    }
+  },
+  "modeMapping": {
+    "issue_clarification": {
+      "mockIntent": "clarification",
+      "requestedOutput": { "clarification": true, "riskNotes": true }
+    },
+    "prompt_refinement": {
+      "mockIntent": "prompt_improvement",
+      "requestedOutput": { "promptSuggestions": true }
+    },
+    "risk_review": {
+      "mockIntent": "risk_review",
+      "requestedOutput": { "riskNotes": true }
+    },
+    "next_step_recommendation": {
+      "mockIntent": "next_step",
+      "requestedOutput": { "nextAction": true }
+    },
+    "cursor_report_synthesis": {
+      "mockIntent": null,
+      "requestedOutput": { "clarification": true, "nextAction": true }
+    },
+    "archive_lesson_extraction": {
+      "mockIntent": null,
+      "requestedOutput": { "lessonSummary": true }
+    }
+  },
+  "uiReadiness": {
+    "hermesActive": false,
+    "currentResponseMode": "mock_status_based",
+    "contractPrepared": true,
+    "fallbackLayer": "mock_response_layer",
+    "ownerApprovalRequired": true
+  }
+}

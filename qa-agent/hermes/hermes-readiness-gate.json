@@ -1,0 +1,194 @@
+{
+  "gateId": "agentops-hermes-readiness-gate-v1",
+  "gateVersion": "1.1.0",
+  "updatedAt": "2026-05-29",
+  "hermesRole": "essential",
+  "hermesRoleSummary": "Hermes is a required future reasoning adapter for AgentOps memory, clarification, prompt refinement, and coordination. This gate prevents accidental or uncontrolled activation before the real adapter is connected correctly in staging.",
+  "currentActivationState": "staging_ready_pending_owner",
+  "allowedActivationStates": [
+    "not_configured",
+    "contract_ready",
+    "staging_ready_pending_owner",
+    "staging_enabled",
+    "disabled_by_safety",
+    "failed_health_check"
+  ],
+  "stateDescriptions": {
+    "not_configured": "Contract and policies missing — Hermes cannot be considered.",
+    "contract_ready": "Contract and policies exist; runtime not connected.",
+    "staging_ready_pending_owner": "Ready for intentional staging connection after owner approval and adapter endpoint identification.",
+    "staging_enabled": "Hermes runtime enabled in staging with safety gates active.",
+    "disabled_by_safety": "Hermes temporarily disabled by safety policy or rollback.",
+    "failed_health_check": "Health check failed — mock fallback remains default."
+  },
+  "requiredReadinessChecks": [
+    {
+      "id": "adapter_contract_exists",
+      "label": "Adapter contract exists",
+      "required": true,
+      "artifactPath": "qa-agent/hermes/hermes-adapter-contract.json",
+      "status": "pass"
+    },
+    {
+      "id": "safety_policy_exists",
+      "label": "Safety policy exists",
+      "required": true,
+      "artifactPath": "qa-agent/hermes/hermes-safety-policy.md",
+      "status": "pass"
+    },
+    {
+      "id": "fallback_policy_exists",
+      "label": "Fallback policy exists",
+      "required": true,
+      "artifactPath": "qa-agent/hermes/hermes-fallback-policy.md",
+      "status": "pass"
+    },
+    {
+      "id": "owner_approval_required",
+      "label": "Owner approval required for all Hermes outputs",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "staging_only_mode",
+      "label": "Staging-only mode enforced",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_production_main",
+      "label": "No production/main targets",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_secrets_passed",
+      "label": "No secrets in request payloads",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_auto_cursor",
+      "label": "No auto Cursor execution from Hermes",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_closure_without_verification",
+      "label": "No issue closure without verification",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "fallback_to_mock_on_failure",
+      "label": "Fallback to mock response if Hermes fails",
+      "required": true,
+      "implementationPath": "src/lib/agentops/agentResponseMock.ts",
+      "status": "pass"
+    },
+    {
+      "id": "preserve_prompt_style",
+      "label": "Output preserves Piter 12-section prompt style",
+      "required": true,
+      "artifactPath": "qa-agent/prompt-standards/cursor-prompt-style-standard.md",
+      "status": "pass"
+    },
+    {
+      "id": "no_forbidden_actions",
+      "label": "Output must not include forbidden actions",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "audit_metadata_available",
+      "label": "Logging/audit metadata on adapter calls",
+      "required": true,
+      "implementationPath": "agentops_owner_feedback metadata (issue_agent_message)",
+      "status": "pass"
+    },
+    {
+      "id": "runtime_disable_switch",
+      "label": "Runtime can be disabled quickly",
+      "required": true,
+      "implementationPath": "src/lib/agentops/hermesAdapter.ts HERMES_RUNTIME_ACTIVE flag",
+      "status": "pass"
+    },
+    {
+      "id": "advisory_only_visible",
+      "label": "Hermes response visible as advisory only",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "app_callable_endpoint",
+      "label": "App-callable Hermes adapter endpoint identified",
+      "required": true,
+      "artifactPath": "qa-agent/hermes/hermes-endpoint-config-design.md",
+      "status": "design_complete_not_configured",
+      "blocker": true,
+      "notes": "Phase 5E endpoint design complete — HERMES_STAGING_ENDPOINT not set outside repo"
+    },
+    {
+      "id": "health_check_passing",
+      "label": "Staging health check passing",
+      "required": true,
+      "artifactPath": "qa-agent/hermes/hermes-health-check-contract.json",
+      "implementationPath": "src/lib/agentops/hermesAdapter.ts checkHermesStagingHealth()",
+      "status": "stub_not_passing",
+      "blocker": true,
+      "notes": "Phase 5D stub implemented — returns not_configured until endpoint configured"
+    },
+    {
+      "id": "owner_staging_activation_approved",
+      "label": "Owner approves staging Hermes activation",
+      "required": true,
+      "artifactPath": "qa-agent/hermes/hermes-owner-signoff-template.md",
+      "status": "pending",
+      "blocker": true
+    },
+    {
+      "id": "endpoint_env_configured",
+      "label": "Staging env vars configured outside repo",
+      "required": true,
+      "artifactPath": "qa-agent/hermes/hermes-env-template.example",
+      "status": "pending",
+      "blocker": true,
+      "notes": "No secrets in repo — .env.local or Vercel staging only"
+    },
+    {
+      "id": "no_secrets_in_repo",
+      "label": "No Hermes secrets committed to git",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "runtime_inactive_until_signoff",
+      "label": "Runtime remains inactive until owner signoff",
+      "required": true,
+      "implementationPath": "src/lib/agentops/hermesAdapter.ts HERMES_RUNTIME_ACTIVE=false",
+      "status": "pass"
+    }
+  ],
+  "currentBlockers": [
+    "Hermes staging endpoint not configured (HERMES_STAGING_ENDPOINT outside repo)",
+    "Staging env vars not set in local/Vercel staging",
+    "Staging health check not ready or not passing",
+    "Owner staging activation signoff pending (HERMES_OWNER_APPROVED=false)"
+  ],
+  "canEnableInStaging": false,
+  "nextStep": "Configure staging endpoint outside repo per hermes-endpoint-config-design.md and complete owner signoff",
+  "relatedArtifacts": {
+    "contract": "qa-agent/hermes/hermes-adapter-contract.json",
+    "design": "qa-agent/hermes/hermes-adapter-design.md",
+    "safetyPolicy": "qa-agent/hermes/hermes-safety-policy.md",
+    "fallbackPolicy": "qa-agent/hermes/hermes-fallback-policy.md",
+    "activationChecklist": "qa-agent/hermes/hermes-activation-checklist.md",
+    "stagingActivationPlan": "qa-agent/hermes/hermes-staging-activation-plan.md",
+    "adapterWrapper": "src/lib/agentops/hermesAdapter.ts",
+    "healthCheckContract": "qa-agent/hermes/hermes-health-check-contract.json",
+    "healthCheckPlan": "qa-agent/hermes/hermes-health-check-plan.md",
+    "endpointConfigDesign": "qa-agent/hermes/hermes-endpoint-config-design.md",
+    "envTemplate": "qa-agent/hermes/hermes-env-template.example",
+    "ownerSignoffTemplate": "qa-agent/hermes/hermes-owner-signoff-template.md"
+  }
+}

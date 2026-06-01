@@ -1,0 +1,62 @@
+{
+  "contractId": "agentops-hermes-health-check-v1",
+  "contractVersion": "1.0.0",
+  "updatedAt": "2026-05-29",
+  "phase": "5D-stub",
+  "hermesRole": "essential",
+  "summary": "Future staging health check shape for Hermes adapter activation. Phase 5D stub returns not_configured without network calls.",
+  "currentExpectedStatus": "not_configured",
+  "allowedStatuses": [
+    "not_configured",
+    "blocked_by_gate",
+    "ready",
+    "unhealthy",
+    "timeout",
+    "disabled"
+  ],
+  "request": {
+    "checkId": "string — unique check run id",
+    "environment": {
+      "enum": ["staging", "production"],
+      "phase5dDefault": "staging"
+    },
+    "endpointConfigured": "boolean",
+    "runtimeActive": "boolean",
+    "appCallable": "boolean",
+    "ownerApproved": "boolean",
+    "timeoutMs": "number — max wait for ping",
+    "safeMode": "boolean — when true, no issue data in first ping"
+  },
+  "response": {
+    "checkId": "string — echoes request",
+    "status": {
+      "enum": ["not_configured", "blocked_by_gate", "ready", "unhealthy", "timeout", "disabled"],
+      "phase5dStub": "not_configured"
+    },
+    "endpointReachable": "boolean",
+    "runtimeAllowed": "boolean",
+    "fallbackAvailable": "boolean",
+    "latencyMs": "number | null — null when no network call",
+    "checkedAt": "ISO-8601 timestamp",
+    "blockers": "string[]",
+    "nextStep": "string"
+  },
+  "phase5dStubBehavior": {
+    "networkCall": false,
+    "hermesRuntimeCall": false,
+    "externalLlmCall": false,
+    "implementation": "src/lib/agentops/hermesAdapter.ts checkHermesStagingHealth()"
+  },
+  "safety": {
+    "noSecretsInReport": true,
+    "noProductionEndpoint": true,
+    "noIssueDataInFirstCheck": true,
+    "noCursorExecution": true,
+    "fallbackRemainsActive": true
+  },
+  "relatedArtifacts": {
+    "readinessGate": "qa-agent/hermes/hermes-readiness-gate.json",
+    "healthCheckPlan": "qa-agent/hermes/hermes-health-check-plan.md",
+    "adapterContract": "qa-agent/hermes/hermes-adapter-contract.json"
+  }
+}

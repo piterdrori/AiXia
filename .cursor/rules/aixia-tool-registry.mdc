@@ -1,0 +1,22 @@
+---
+description: AiXia external tool/repo registry — read before using sibling folders or MCP workflow tools
+alwaysApply: true
+---
+
+# AiXia Tool Registry
+
+Before using any external repo, MCP workflow tool, or sibling folder (`../reference`, `../tools`, `../repo-analysis`, `../archive`):
+
+1. Read `registry/README.md` and `registry/CURSOR_AUTO_TOOL_USE_RULES.md`.
+2. Select tools by ID from `registry/TOOL_REGISTRY.md` (design: `registry/DESIGN_REPO_REGISTRY.md`).
+3. State chosen registry IDs in the reply, for example: `Registry: codegraph, shadcn-admin`.
+
+When Piter provides a **new repo URL**, do **not** clone or install immediately. First follow `registry/REPO_IMPORT_RULES.md` **Mandatory Repo Intake Interview** and wait for explicit approval.
+
+**Authority:** `src/design-system/aixia-global/` → `.hermes.md` → `registry/` → current `qa-agent/` docs → `../repo-analysis/` → external tool outputs.
+
+* **App root:** `AiXia-github` only — product edits here only.
+* **Never** edit `../reference/`, `../tools/`, `../repo-analysis/`, or `../archive/` to fix AiXia.
+* **Never** use `../AiXia-staging/` because it is the blocked duplicate-staging folder.
+* **No** `package.json` changes without `registry/APP_DEPENDENCY_APPROVAL_RULES.md` and explicit Piter approval.
+* Registry does not override CodeGraph, Hermes, or real source files.

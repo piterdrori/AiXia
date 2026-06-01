@@ -4,3 +4,13 @@ node_modules/
 .vercel/
 dist/
 analytics-exports/
+
+# AiXia local generated/runtime artifacts
+.codegraph/
+build-*.txt
+qa*-exit.txt
+qa*-out.txt
+qa-agent/hermes/bin/
+qa-agent/hermes/.agentmemory-local/
+qa-agent/hermes/*.log
+supabase/.temp/

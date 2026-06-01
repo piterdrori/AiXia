@@ -1,0 +1,117 @@
+{
+  "version": "1.0.0",
+  "description": "Shape of a targeted AgentOps verification plan (Stage 12 foundation). Used by agentops-verification-runner.mjs and future queue integration.",
+  "verificationTypes": [
+    "route-access-verification",
+    "role-workflow-verification",
+    "write-draft-verification",
+    "static-guardrail-verification",
+    "build-verification",
+    "manual-evidence-verification"
+  ],
+  "resultStatuses": [
+    "verified_fixed",
+    "still_broken",
+    "needs_follow_up_fix",
+    "verification_blocked"
+  ],
+  "plan": {
+    "version": "string — schema version, e.g. 1.0.0",
+    "verificationId": "string — unique plan/run id",
+    "issueCode": "string|null — AgentOps issue_code when tied to one finding",
+    "issueTitle": "string|null",
+    "issueCategory": "string|null",
+    "severity": "string|null",
+    "sourceStage": "string — e.g. 10G, 11E, manual",
+    "verificationType": "one of verificationTypes",
+    "targetRoutes": ["string — paths under test"],
+    "syntheticUsers": ["string — qaUserId from synthetic-browser-users.json"],
+    "requiredCommands": [
+      {
+        "npmScript": "string — package.json script name without npm run",
+        "requiresDevServer": "boolean",
+        "optional": "boolean"
+      }
+    ],
+    "browserSuites": ["string — playwright or wrapper script ids"],
+    "expectedResults": {
+      "description": "Human-readable expectations keyed by role/route/command"
+    },
+    "blockedActions": ["string — actions that must not run during verification"],
+    "evidenceRequired": ["string — report paths, screenshots, command exit codes"],
+    "passCriteria": ["string — all must be satisfied for verified_fixed"],
+    "failCriteria": ["string — any triggers still_broken"],
+    "inconclusiveCriteria": ["string — triggers needs_follow_up_fix"],
+    "safetyRules": {
+      "environment": "staging-only",
+      "stagingProjectRef": "ydppcpbxrvvardeslzrk",
+      "baseUrl": "http://127.0.0.1:5173",
+      "noProduction": true,
+      "noDestructiveWrites": true,
+      "noAutomaticDbStatusUpdate": true
+    },
+    "reportPaths": {
+      "runnerJson": "qa-agent/reports/verification/verification-foundation-run.json",
+      "runnerMd": "qa-agent/reports/verification/verification-foundation-run.md",
+      "browserReports": ["string — paths to parse after suites run"]
+    }
+  },
+  "example": {
+    "version": "1.0.0",
+    "verificationId": "verify-quotation-create-shell-20260528",
+    "issueCode": "AIXIA-WRITE-WDS-1",
+    "issueTitle": "finance-viewer quotation create shell",
+    "issueCategory": "Security/Permission",
+    "severity": "Medium",
+    "sourceStage": "11E",
+    "verificationType": "write-draft-verification",
+    "targetRoutes": [
+      "/finance/transactions/quotations",
+      "/finance/transactions/quotations/new"
+    ],
+    "syntheticUsers": ["finance-viewer", "guest", "finance-admin"],
+    "requiredCommands": [
+      { "npmScript": "qa:agentops-write-draft-safe", "requiresDevServer": true, "optional": false }
+    ],
+    "browserSuites": ["agentops-synthetic-write-draft-safe"],
+    "expectedResults": {
+      "finance-viewer": "blocked from /quotations/new",
+      "guest": "blocked from /quotations/new",
+      "finance-admin": "loads /quotations/new without creating records"
+    },
+    "blockedActions": ["save-draft-submit", "hard-delete", "production-write"],
+    "evidenceRequired": [
+      "write-draft-safe-report.json",
+      "command exit codes",
+      "safetyConfirmations"
+    ],
+    "passCriteria": [
+      "write-draft-safe exits 0",
+      "criticalFindings length 0",
+      "viewer and guest blocked on /new",
+      "finance-admin loaded on /new",
+      "recordsCreated empty"
+    ],
+    "failCriteria": [
+      "viewer or guest loads usable create shell",
+      "critical security finding on quotation create routes"
+    ],
+    "inconclusiveCriteria": [
+      "non-critical findings remain",
+      "finance-admin list create visibility flaky but /new loads"
+    ],
+    "safetyRules": {
+      "environment": "staging-only",
+      "stagingProjectRef": "ydppcpbxrvvardeslzrk",
+      "baseUrl": "http://127.0.0.1:5173",
+      "noProduction": true,
+      "noDestructiveWrites": true,
+      "noAutomaticDbStatusUpdate": true
+    },
+    "reportPaths": {
+      "runnerJson": "qa-agent/reports/verification/verification-foundation-run.json",
+      "runnerMd": "qa-agent/reports/verification/verification-foundation-run.md",
+      "browserReports": ["qa-agent/reports/browser-qa/write-draft-safe-report.json"]
+    }
+  }
+}

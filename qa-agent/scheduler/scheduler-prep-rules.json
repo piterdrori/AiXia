@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "environment": "staging-only",
+  "stagingProjectRef": "ydppcpbxrvvardeslzrk",
+  "schedulerStatus": "preparation-only",
+  "active": false,
+  "allowedFutureRunModes": [
+    "foundation",
+    "browser-smoke",
+    "workflow-safe",
+    "verification-dry-run",
+    "low-backlog-check"
+  ],
+  "neverAutoRun": [
+    "production deploy",
+    "main Supabase",
+    "SQL migrations",
+    "RLS changes",
+    "Cursor fix execution",
+    "hard delete",
+    "payment execution",
+    "payroll execution",
+    "email sending",
+    "user invites",
+    "verification apply mode",
+    "DB imports without Owner approval",
+    "production/main GitHub",
+    "Hermes runtime automation",
+    "CodeGraph runtime automation",
+    "24/7 background worker",
+    "active cron"
+  ],
+  "futureCadenceOptions": [
+    "manual-only",
+    "daily",
+    "every-6-hours",
+    "low-backlog-triggered",
+    "open-slots-triggered"
+  ],
+  "recommendedInitialCadence": "manual-only",
+  "quietDays": ["Saturday", "Sunday"],
+  "quietModeRule": "If Piter does not mark items resolved, do not generate new issues just because time passed. If Active Top 10 remains full, no new scan needed. If Active Top 10 has open slots and backlog has items, refill can be suggested. If Active Top 10 has open slots and backlog is empty or low, suggest scan/import.",
+  "ownerApprovalRequiredFor": [
+    "turning scheduler on",
+    "changing cadence",
+    "importing findings",
+    "applying verification result",
+    "Cursor execution",
+    "production/main migration"
+  ],
+  "safetyChecklistPath": "qa-agent/scheduler/scheduler-safety-checklist.md",
+  "runbookPath": "qa-agent/scheduler/scheduler-runbook.md",
+  "prepRulesPath": "qa-agent/scheduler/scheduler-prep-rules.json"
+}

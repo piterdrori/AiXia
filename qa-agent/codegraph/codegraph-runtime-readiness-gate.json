@@ -1,0 +1,157 @@
+{
+  "gateId": "agentops-codegraph-runtime-readiness-gate-v1",
+  "gateVersion": "1.0.0",
+  "updatedAt": "2026-05-29",
+  "codegraphRole": "essential",
+  "codegraphRoleSummary": "CodeGraph is required for likely files, components, routes, shared source-of-truth, and related areas before Cursor work. This gate prevents accidental runtime activation, file mutation, or prompt auto-mutation until owner-approved read-only staging is configured.",
+  "currentActivationState": "staging_ready_pending_owner",
+  "allowedActivationStates": [
+    "not_configured",
+    "contract_ready",
+    "staging_ready_pending_owner",
+    "staging_enabled_read_only",
+    "disabled_by_safety",
+    "failed_health_check"
+  ],
+  "stateDescriptions": {
+    "not_configured": "Contract and policies missing — CodeGraph runtime cannot be considered.",
+    "contract_ready": "Contract and policies exist; runtime source not connected.",
+    "staging_ready_pending_owner": "Mock static hints active; read-only staging runtime path prepared pending owner signoff and sanitized artifact or endpoint.",
+    "staging_enabled_read_only": "Read-only CodeGraph discovery enabled in staging (artifact or endpoint) with safety gates active.",
+    "disabled_by_safety": "Runtime temporarily disabled by safety policy or rollback.",
+    "failed_health_check": "Health or artifact validation failed — mock static hints remain default."
+  },
+  "requiredReadinessChecks": [
+    {
+      "id": "contract_exists",
+      "label": "Discovery contract exists",
+      "required": true,
+      "artifactPath": "qa-agent/codegraph/codegraph-discovery-contract.json",
+      "status": "pass"
+    },
+    {
+      "id": "safety_policy_exists",
+      "label": "Safety policy exists",
+      "required": true,
+      "artifactPath": "qa-agent/codegraph/codegraph-safety-policy.md",
+      "status": "pass"
+    },
+    {
+      "id": "fallback_policy_exists",
+      "label": "Fallback policy exists",
+      "required": true,
+      "artifactPath": "qa-agent/codegraph/codegraph-fallback-policy.md",
+      "status": "pass"
+    },
+    {
+      "id": "owner_approval_required",
+      "label": "Owner approval required for all discovery outputs",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "staging_only_mode",
+      "label": "Staging-only mode enforced",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "read_only_mode",
+      "label": "Read-only discovery mode enforced",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_file_mutation",
+      "label": "No file mutation from CodeGraph path",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_prompt_auto_mutation",
+      "label": "No prompt auto-mutation on load",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_cursor_execution",
+      "label": "No Cursor auto-trigger from CodeGraph",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_production_main",
+      "label": "No production/main targets",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "no_secrets_exposed",
+      "label": "No secrets in discovery payloads or UI",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "fallback_to_mock_static_hints",
+      "label": "Fallback to mock static hints if runtime unavailable",
+      "required": true,
+      "implementationPath": "src/lib/agentops/codegraphDiscovery.ts runAgentOpsCodeGraphDiscoveryAdapter()",
+      "status": "pass"
+    },
+    {
+      "id": "runtime_disable_switch",
+      "label": "Runtime can be disabled quickly",
+      "required": true,
+      "implementationPath": "src/lib/agentops/codegraphDiscovery.ts CODEGRAPH_RUNTIME_ACTIVE flag",
+      "status": "pass"
+    },
+    {
+      "id": "no_browser_repository_scan_from_app",
+      "label": "No browser or live repository scan from Issue Workspace",
+      "required": true,
+      "status": "pass"
+    },
+    {
+      "id": "sanitized_artifact_source_identified",
+      "label": "Sanitized discovery artifact path or generator identified",
+      "required": true,
+      "artifactPath": "qa-agent/codegraph/codegraph-staging-runtime-plan.md",
+      "status": "design_complete_not_configured",
+      "blocker": true,
+      "notes": "Phase 6D — Option A artifact design; no artifact wired in app yet"
+    },
+    {
+      "id": "owner_staging_signoff",
+      "label": "Owner approves read-only staging CodeGraph activation",
+      "required": true,
+      "artifactPath": "qa-agent/codegraph/codegraph-owner-signoff-template.md",
+      "status": "pending",
+      "blocker": true
+    },
+    {
+      "id": "runtime_inactive_until_signoff",
+      "label": "Runtime remains inactive until owner signoff",
+      "required": true,
+      "implementationPath": "src/lib/agentops/codegraphDiscovery.ts CODEGRAPH_RUNTIME_ACTIVE=false",
+      "status": "pass"
+    }
+  ],
+  "currentBlockers": [
+    "CodeGraph runtime source is not configured.",
+    "Owner approval is required.",
+    "Read-only staging runtime has not been enabled.",
+    "Sanitized discovery artifact generator not wired (Phase 6E)."
+  ],
+  "canEnableReadOnlyStaging": false,
+  "nextStep": "Complete owner signoff and Phase 6E sanitized artifact design before CODEGRAPH_RUNTIME_ACTIVE=true",
+  "relatedArtifacts": {
+    "contract": "qa-agent/codegraph/codegraph-discovery-contract.json",
+    "design": "qa-agent/codegraph/codegraph-discovery-design.md",
+    "safetyPolicy": "qa-agent/codegraph/codegraph-safety-policy.md",
+    "fallbackPolicy": "qa-agent/codegraph/codegraph-fallback-policy.md",
+    "stagingRuntimePlan": "qa-agent/codegraph/codegraph-staging-runtime-plan.md",
+    "ownerSignoffTemplate": "qa-agent/codegraph/codegraph-owner-signoff-template.md",
+    "adapterModule": "src/lib/agentops/codegraphDiscovery.ts",
+    "phase6cSmokeReport": "qa-agent/agentops/AGENTOPS_PHASE_6C_CODEGRAPH_DISCOVERY_BROWSER_SMOKE_REPORT.md"
+  }
+}

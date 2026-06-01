@@ -1,0 +1,124 @@
+{
+  "version": "phase-5-6-architecture-draft",
+  "status": "design-only",
+  "notes": [
+    "No runtime activation in this phase",
+    "Supabase remains durable source of truth",
+    "Memory write requires explicit Yes approval"
+  ],
+  "enums": {
+    "chatScope": [
+      "council",
+      "individual_agent",
+      "issue"
+    ],
+    "hermesReasoningStatus": [
+      "inactive",
+      "planned",
+      "advisory_only",
+      "active"
+    ],
+    "yesNoApprovalState": [
+      "not_applicable",
+      "pending_owner_decision",
+      "approved_yes",
+      "rejected_no"
+    ]
+  },
+  "requestContract": {
+    "chatScope": "council | individual_agent | issue",
+    "message": "string",
+    "selectedAgentId": "string | null (required for individual_agent)",
+    "issueCode": "string | null (required for issue)",
+    "context": {
+      "route": "string",
+      "sessionId": "string",
+      "ownerId": "string",
+      "agentRoleContext": "object | null",
+      "issueContext": "object | null"
+    },
+    "memorySearchResults": [
+      {
+        "id": "string",
+        "memoryType": "string",
+        "scope": "agent | issue | shared",
+        "score": "number",
+        "content": "string"
+      }
+    ],
+    "retrievedLessons": [
+      {
+        "lessonId": "string",
+        "issueCode": "string",
+        "summary": "string",
+        "relevance": "number"
+      }
+    ],
+    "codegraphHints": [
+      {
+        "label": "string",
+        "confidence": "low | medium | high",
+        "source": "mock | runtime"
+      }
+    ],
+    "hermesReasoningStatus": "inactive | planned | advisory_only | active",
+    "cursorPrompt": "string | null",
+    "safetyFlags": {
+      "stagingOnly": true,
+      "allowAutoCursorExecution": false,
+      "allowAutoMemoryWrite": false,
+      "allowSchedulerActivation": false,
+      "allowProductionActions": false
+    }
+  },
+  "responseContract": {
+    "chatScope": "council | individual_agent | issue",
+    "response": "string | null (single-agent or issue scopes)",
+    "perAgentResponses": [
+      {
+        "agentId": "string",
+        "agentName": "string",
+        "role": "string",
+        "response": "string"
+      }
+    ],
+    "proposedMemoryUpdate": {
+      "targetScope": "agent | issue | shared",
+      "targetAgentId": "string | null",
+      "reason": "string",
+      "proposedText": "string"
+    },
+    "memoryIntentDetected": "boolean",
+    "memoryApprovalRequired": "boolean",
+    "yesNoApprovalState": "not_applicable | pending_owner_decision | approved_yes | rejected_no",
+    "safetyFlags": {
+      "cursorExecutionTriggered": false,
+      "memoryWriteCommitted": false,
+      "runtimeEscalationAttempted": false,
+      "productionMutationAttempted": false
+    }
+  },
+  "scopeExamples": {
+    "council": {
+      "chatScope": "council",
+      "selectedAgentId": null,
+      "issueCode": null,
+      "response": null,
+      "perAgentResponses": "required"
+    },
+    "individual_agent": {
+      "chatScope": "individual_agent",
+      "selectedAgentId": "required",
+      "issueCode": null,
+      "response": "required",
+      "perAgentResponses": "optional"
+    },
+    "issue": {
+      "chatScope": "issue",
+      "selectedAgentId": "optional",
+      "issueCode": "required",
+      "response": "required",
+      "perAgentResponses": "optional"
+    }
+  }
+}

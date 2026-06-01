@@ -1,0 +1,184 @@
+{
+  "contractId": "agentops-codegraph-discovery-v1",
+  "contractVersion": "1.0.0",
+  "preparedAt": "2026-05-29",
+  "status": "design-only",
+  "runtimeExecution": false,
+  "mcpFromApp": false,
+  "description": "Read-only CodeGraph discovery contract for AgentOps Issue Workspace. Design/spec only — no runtime, no MCP from app in Phase 6A.",
+  "relatedSpec": "qa-agent/agentops/AGENTOPS_HERMES_CODEGRAPH_SPEC.md",
+  "allowedModes": [
+    "issue_context_discovery",
+    "likely_files",
+    "route_ownership",
+    "component_impact",
+    "shared_source_of_truth",
+    "related_fix_lookup",
+    "recurrence_lookup",
+    "prompt_context_suggestions"
+  ],
+  "disallowedModes": [
+    "direct_code_edit",
+    "file_mutation",
+    "automatic_prompt_mutation",
+    "automatic_cursor_execution",
+    "production_action",
+    "schema_rls_edit_without_approval",
+    "secret_access",
+    "env_secret_scan_output_in_ui",
+    "scheduler_activation"
+  ],
+  "request": {
+    "type": "object",
+    "required": ["requestId", "mode", "issueContext", "searchHints", "safety"],
+    "properties": {
+      "requestId": {
+        "type": "string",
+        "description": "Unique id for audit correlation"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "issue_context_discovery",
+          "likely_files",
+          "route_ownership",
+          "component_impact",
+          "shared_source_of_truth",
+          "related_fix_lookup",
+          "recurrence_lookup",
+          "prompt_context_suggestions"
+        ]
+      },
+      "issueContext": {
+        "type": "object",
+        "required": ["issueCode"],
+        "properties": {
+          "issueCode": { "type": "string" },
+          "title": { "type": "string" },
+          "route": { "type": "string", "nullable": true },
+          "module": { "type": "string", "nullable": true },
+          "category": { "type": "string" },
+          "severity": { "type": "string" },
+          "summary": { "type": "string" },
+          "evidence": { "type": "string" },
+          "likelyRootCause": { "type": "string", "nullable": true },
+          "recommendedFixStrategy": { "type": "string", "nullable": true }
+        }
+      },
+      "searchHints": {
+        "type": "object",
+        "properties": {
+          "route": { "type": "string", "nullable": true },
+          "componentNames": { "type": "array", "items": { "type": "string" } },
+          "tableNames": { "type": "array", "items": { "type": "string" } },
+          "rpcNames": { "type": "array", "items": { "type": "string" } },
+          "fileNames": { "type": "array", "items": { "type": "string" } },
+          "keywords": { "type": "array", "items": { "type": "string" } },
+          "errorMessages": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "safety": {
+        "type": "object",
+        "required": [
+          "readOnly",
+          "stagingOnly",
+          "noFileMutation",
+          "noPromptAutoMutation",
+          "ownerApprovalRequired"
+        ],
+        "properties": {
+          "readOnly": { "const": true },
+          "stagingOnly": { "const": true },
+          "noFileMutation": { "const": true },
+          "noPromptAutoMutation": { "const": true },
+          "ownerApprovalRequired": { "const": true },
+          "environment": {
+            "type": "string",
+            "enum": ["local", "staging", "preview"]
+          }
+        }
+      }
+    }
+  },
+  "response": {
+    "type": "object",
+    "required": [
+      "responseId",
+      "mode",
+      "suggestions",
+      "confidence",
+      "limitations",
+      "safetyFlags",
+      "requiresOwnerReview",
+      "shouldFallbackToManualInspection"
+    ],
+    "properties": {
+      "responseId": { "type": "string" },
+      "mode": { "type": "string" },
+      "suggestions": {
+        "type": "object",
+        "properties": {
+          "likelyFiles": { "$ref": "#/$defs/suggestionList" },
+          "likelyComponents": { "$ref": "#/$defs/suggestionList" },
+          "likelyRoutes": { "$ref": "#/$defs/suggestionList" },
+          "sharedComponents": { "$ref": "#/$defs/suggestionList" },
+          "sharedStyles": { "$ref": "#/$defs/suggestionList" },
+          "likelyServices": { "$ref": "#/$defs/suggestionList" },
+          "likelyTypes": { "$ref": "#/$defs/suggestionList" },
+          "likelyTests": { "$ref": "#/$defs/suggestionList" },
+          "relatedPastIssues": { "$ref": "#/$defs/suggestionList" },
+          "recurrenceCandidates": { "$ref": "#/$defs/suggestionList" },
+          "promptContextHints": { "$ref": "#/$defs/suggestionList" }
+        }
+      },
+      "confidence": {
+        "type": "string",
+        "enum": ["low", "medium", "high"]
+      },
+      "limitations": { "type": "string" },
+      "safetyFlags": {
+        "type": "array",
+        "items": { "type": "string" }
+      },
+      "requiresOwnerReview": { "type": "boolean" },
+      "shouldFallbackToManualInspection": { "type": "boolean" }
+    }
+  },
+  "$defs": {
+    "suggestionItem": {
+      "type": "object",
+      "required": ["label", "reason", "confidence", "source", "safeToIncludeInPrompt"],
+      "properties": {
+        "label": { "type": "string" },
+        "path": { "type": "string", "nullable": true },
+        "reason": { "type": "string" },
+        "confidence": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "evidence": { "type": "string", "nullable": true },
+        "source": {
+          "type": "string",
+          "enum": [
+            "route_map",
+            "static_index",
+            "codegraph",
+            "prior_issue",
+            "manual_hint"
+          ]
+        },
+        "safeToIncludeInPrompt": { "type": "boolean" }
+      }
+    },
+    "suggestionList": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/suggestionItem" }
+    }
+  },
+  "phase6aStub": {
+    "runtimeActive": false,
+    "mcpFromApp": false,
+    "browserFileScan": false,
+    "currentStatus": "not_active"
+  }
+}

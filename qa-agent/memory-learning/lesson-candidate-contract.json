@@ -1,0 +1,97 @@
+{
+  "contractVersion": "phase-7a-v1",
+  "status": "planning-only",
+  "notes": [
+    "No automatic lesson approval",
+    "No durable memory write without Piter approval",
+    "Supabase remains source of truth"
+  ],
+  "enums": {
+    "lessonType": [
+      "ui_design",
+      "business_logic",
+      "permission",
+      "routing",
+      "data_flow",
+      "qa_workflow",
+      "prompt_quality",
+      "memory_rule",
+      "codegraph_hint",
+      "hermes_reasoning",
+      "other"
+    ],
+    "appliesTo": [
+      "agent_specific",
+      "issue_category",
+      "route_family",
+      "all_pages",
+      "finance_pages",
+      "agentops_pages",
+      "shared_design_system"
+    ],
+    "memoryScope": [
+      "agent_memory",
+      "issue_memory",
+      "shared_memory",
+      "design_system_memory",
+      "prompt_memory"
+    ],
+    "proposedBy": [
+      "agent",
+      "hermes",
+      "piter",
+      "verification",
+      "cursor_report"
+    ],
+    "approvalStatus": [
+      "draft",
+      "pending_review",
+      "approved",
+      "rejected",
+      "needs_cleanup"
+    ]
+  },
+  "lessonCandidate": {
+    "lessonId": "string",
+    "sourceIssueCode": "string",
+    "sourceIssueTitle": "string",
+    "sourceRoute": "string | null",
+    "sourceCategory": "string",
+    "sourceSeverity": "string",
+    "sourceAgentId": "string | null",
+    "sourceAgentRole": "string | null",
+    "sourceVerificationResult": "string",
+    "sourceCursorReportId": "string | null",
+    "sourceFixPlanId": "string | null",
+    "sourcePromptId": "string | null",
+    "lessonType": "ui_design | business_logic | permission | routing | data_flow | qa_workflow | prompt_quality | memory_rule | codegraph_hint | hermes_reasoning | other",
+    "lessonTitle": "string",
+    "problemPattern": "string",
+    "rootCauseSummary": "string",
+    "fixSummary": "string",
+    "filesOrComponentsAffected": [
+      "string"
+    ],
+    "reusableRule": "string",
+    "doNotRepeat": "string",
+    "appliesTo": [
+      "agent_specific | issue_category | route_family | all_pages | finance_pages | agentops_pages | shared_design_system"
+    ],
+    "targetAgents": [
+      "string"
+    ],
+    "memoryScope": "agent_memory | issue_memory | shared_memory | design_system_memory | prompt_memory",
+    "confidence": "number",
+    "proposedBy": "agent | hermes | piter | verification | cursor_report",
+    "requiresPiterApproval": true,
+    "approvalStatus": "draft | pending_review | approved | rejected | needs_cleanup",
+    "approvedBy": "string | null",
+    "approvedAt": "string | null",
+    "rejectionReason": "string | null",
+    "indexedInAgentMemory": false,
+    "indexedInHermesContext": false,
+    "indexedInAgentmemoryLayer": false,
+    "createdAt": "string",
+    "updatedAt": "string"
+  }
+}

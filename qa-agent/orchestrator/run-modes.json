@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "modes": {
+    "foundation": {
+      "description": "Core static and build validation pipeline.",
+      "requiresDevServer": false,
+      "writesAllowed": false,
+      "dbApplyAllowed": false,
+      "ownerApprovalRequired": false,
+      "expectedDurationHint": "8-20 minutes",
+      "steps": [
+        "npm run qa:validate-foundation",
+        "npm run build",
+        "npm run qa:static-discovery",
+        "npm run qa:static-design-guardrails",
+        "npm run qa:guardrail-action-plan"
+      ]
+    },
+    "browser-smoke": {
+      "description": "Browser smoke and synthetic user surface checks.",
+      "requiresDevServer": true,
+      "writesAllowed": false,
+      "dbApplyAllowed": false,
+      "ownerApprovalRequired": false,
+      "expectedDurationHint": "15-40 minutes",
+      "steps": [
+        "npm run qa:agentops-browser-foundation",
+        "npm run qa:agentops-browser-smoke",
+        "npm run qa:agentops-synthetic-users-smoke",
+        "npm run qa:agentops-owner-smoke"
+      ]
+    },
+    "workflow-safe": {
+      "description": "Role workflow and write/draft safe workflow checks.",
+      "requiresDevServer": true,
+      "writesAllowed": false,
+      "dbApplyAllowed": false,
+      "ownerApprovalRequired": false,
+      "expectedDurationHint": "18-45 minutes",
+      "steps": [
+        "npm run qa:agentops-role-workflow-safe",
+        "npm run qa:agentops-write-draft-safe"
+      ]
+    },
+    "verification-dry-run": {
+      "description": "Verification runner in dry-run and non-apply generic verification mode.",
+      "requiresDevServer": false,
+      "writesAllowed": false,
+      "dbApplyAllowed": false,
+      "ownerApprovalRequired": false,
+      "expectedDurationHint": "2-25 minutes",
+      "steps": [
+        "npm run qa:agentops-verify -- --dry-run",
+        "npm run qa:agentops-verify -- --target generic-build-and-smoke"
+      ]
+    },
+    "full-safe": {
+      "description": "Sequential safe orchestration across all manual Stage 13 mode groups.",
+      "requiresDevServer": true,
+      "writesAllowed": false,
+      "dbApplyAllowed": false,
+      "ownerApprovalRequired": false,
+      "expectedDurationHint": "45-120 minutes",
+      "steps": [
+        { "modeRef": "foundation" },
+        { "modeRef": "browser-smoke" },
+        { "modeRef": "workflow-safe" },
+        { "modeRef": "verification-dry-run" }
+      ]
+    }
+  }
+}

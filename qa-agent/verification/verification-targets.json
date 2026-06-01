@@ -1,0 +1,190 @@
+{
+  "version": "1.0.0",
+  "environment": "staging-only",
+  "stagingProjectRef": "ydppcpbxrvvardeslzrk",
+  "baseUrlDefault": "http://127.0.0.1:5173",
+  "targets": [
+    {
+      "targetId": "guest-finance-access",
+      "title": "Guest finance route access (Stage 10G fixes)",
+      "verificationType": "role-workflow-verification",
+      "sourceStage": "10G",
+      "issueCodes": ["AIXIA-WORKFLOW-RWF-28", "AIXIA-WORKFLOW-RWF-29"],
+      "targetRoutes": ["/finance/master-data", "/finance/reports"],
+      "syntheticUsers": ["guest", "finance-admin"],
+      "requiredCommands": [
+        {
+          "npmScript": "qa:agentops-role-workflow-safe",
+          "requiresDevServer": true,
+          "optional": false
+        }
+      ],
+      "browserSuites": ["agentops-role-workflow-safe"],
+      "reportPaths": {
+        "primary": "qa-agent/reports/browser-qa/role-workflow-safe-report.json",
+        "markdown": "qa-agent/reports/browser-qa/role-workflow-safe-report.md"
+      },
+      "expectedResults": {
+        "guest": {
+          "/finance/master-data": "redirected|access-denied|failed|timed-out — not loaded",
+          "/finance/reports": "redirected|access-denied|failed|timed-out — not loaded"
+        },
+        "finance-admin": {
+          "/finance": "loaded",
+          "/finance/master-data": "loaded",
+          "/finance/reports": "loaded"
+        },
+        "agentOpsIsolation": "passed"
+      },
+      "blockedActions": [
+        "form-submit",
+        "payment",
+        "invite",
+        "hard-delete",
+        "agentops-write"
+      ],
+      "passCriteria": [
+        "qa:agentops-role-workflow-safe exit code 0",
+        "role-workflow-safe-report.json exists",
+        "guest /finance/master-data status is not loaded",
+        "guest /finance/reports status is not loaded",
+        "criticalSecurityFindings length 0",
+        "agentOpsIsolation.status is passed"
+      ],
+      "failCriteria": [
+        "guest /finance/master-data status is loaded",
+        "guest /finance/reports status is loaded",
+        "critical guest finance access regression in findings"
+      ],
+      "inconclusiveCriteria": [
+        "role workflow suite failed for environment reasons but guest routes show blocked",
+        "non-critical unrelated findings in role-workflow report"
+      ],
+      "evidenceRequired": [
+        "role-workflow-safe-report.json",
+        "guest route rows in users[].routes",
+        "agentOpsIsolation block"
+      ]
+    },
+    {
+      "targetId": "quotation-create-shell-access",
+      "title": "Quotation create shell permissions (Stage 11E fixes)",
+      "verificationType": "write-draft-verification",
+      "sourceStage": "11E",
+      "issueCodes": ["AIXIA-WRITE-WDS-1", "AIXIA-WRITE-WDS-2"],
+      "targetRoutes": [
+        "/finance/transactions/quotations",
+        "/finance/transactions/quotations/new"
+      ],
+      "syntheticUsers": ["finance-viewer", "guest", "finance-admin"],
+      "requiredCommands": [
+        {
+          "npmScript": "qa:agentops-write-draft-safe",
+          "requiresDevServer": true,
+          "optional": false
+        }
+      ],
+      "browserSuites": ["agentops-synthetic-write-draft-safe"],
+      "reportPaths": {
+        "primary": "qa-agent/reports/browser-qa/write-draft-safe-report.json",
+        "markdown": "qa-agent/reports/browser-qa/write-draft-safe-report.md"
+      },
+      "expectedResults": {
+        "finance-viewer": {
+          "/finance/transactions/quotations/new": "redirected or access-denied — not usable create shell"
+        },
+        "guest": {
+          "/finance/transactions/quotations/new": "redirected or access-denied — not usable create shell"
+        },
+        "finance-admin": {
+          "/finance/transactions/quotations/new": "loaded with form shell",
+          "recordsCreated": "empty"
+        }
+      },
+      "blockedActions": ["save-draft-submit", "create-record", "hard-delete"],
+      "passCriteria": [
+        "qa:agentops-write-draft-safe exit code 0",
+        "write-draft-safe-report.json exists",
+        "safetyConfirmations include finance-viewer blocked from /quotations/new",
+        "safetyConfirmations include guest blocked from /quotations/new",
+        "finance-admin /new workflow outcome loaded",
+        "criticalFindings length 0",
+        "recordsCreated length 0"
+      ],
+      "failCriteria": [
+        "finance-viewer or guest loads usable create shell on /quotations/new",
+        "critical finding on quotation create permission"
+      ],
+      "inconclusiveCriteria": [
+        "list-page New Quotation visibility flaky but /new access correct",
+        "medium findings unrelated to WDS-1/WDS-2"
+      ],
+      "evidenceRequired": [
+        "write-draft-safe-report.json",
+        "safetyConfirmations",
+        "workflowsAttempted for finance-admin /new"
+      ]
+    },
+    {
+      "targetId": "generic-build-and-smoke",
+      "title": "Generic post-fix build and smoke gate",
+      "verificationType": "build-verification",
+      "sourceStage": "12",
+      "issueCodes": [],
+      "targetRoutes": [],
+      "syntheticUsers": ["agentops-owner"],
+      "requiredCommands": [
+        { "npmScript": "build", "requiresDevServer": false, "optional": false },
+        {
+          "npmScript": "qa:validate-foundation",
+          "requiresDevServer": false,
+          "optional": false
+        },
+        {
+          "npmScript": "qa:agentops-synthetic-users-smoke",
+          "requiresDevServer": true,
+          "optional": false
+        },
+        {
+          "npmScript": "qa:agentops-owner-smoke",
+          "requiresDevServer": true,
+          "optional": false
+        }
+      ],
+      "browserSuites": [
+        "agentops-synthetic-users-readonly-smoke",
+        "agentops-owner-readonly-smoke"
+      ],
+      "reportPaths": {
+        "syntheticSmoke": "qa-agent/reports/browser-qa/synthetic-users-smoke-report.json",
+        "ownerSmoke": "qa-agent/reports/browser-qa/owner-agentops-smoke-report.json"
+      },
+      "expectedResults": {
+        "build": "exit 0",
+        "foundation": "PASS",
+        "syntheticSmoke": "12 users tested, AgentOps owner-only isolation",
+        "ownerSmoke": "status passed, agentOpsHeadingVisible true"
+      },
+      "blockedActions": ["destructive-write", "production-deploy"],
+      "passCriteria": [
+        "npm run build exit code 0",
+        "qa:validate-foundation exit code 0",
+        "qa:agentops-synthetic-users-smoke exit code 0",
+        "qa:agentops-owner-smoke exit code 0",
+        "owner-agentops-smoke-report status passed"
+      ],
+      "failCriteria": [
+        "any required command non-zero exit",
+        "owner smoke login or AgentOps page failed"
+      ],
+      "inconclusiveCriteria": [
+        "synthetic smoke timed routes but AgentOps isolation intact"
+      ],
+      "evidenceRequired": [
+        "command exit codes",
+        "synthetic-users-smoke-report.json",
+        "owner-agentops-smoke-report.json"
+      ]
+    }
+  ]
+}

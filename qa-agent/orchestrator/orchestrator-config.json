@@ -1,0 +1,52 @@
+{
+  "version": "1.0.0",
+  "environment": "staging-only",
+  "baseUrlDefault": "http://localhost:5173",
+  "stagingProjectRef": "ydppcpbxrvvardeslzrk",
+  "outputFolder": "qa-agent/reports/orchestrator",
+  "allowedCommands": [
+    "npm run qa:validate-foundation",
+    "npm run build",
+    "npm run qa:static-discovery",
+    "npm run qa:static-design-guardrails",
+    "npm run qa:guardrail-action-plan",
+    "npm run qa:agentops-browser-foundation",
+    "npm run qa:agentops-browser-smoke",
+    "npm run qa:agentops-synthetic-users-smoke",
+    "npm run qa:agentops-owner-smoke",
+    "npm run qa:agentops-role-workflow-safe",
+    "npm run qa:agentops-write-draft-safe",
+    "npm run qa:agentops-verify -- --dry-run",
+    "npm run qa:agentops-verify -- --target generic-build-and-smoke"
+  ],
+  "blockedCommands": [
+    "production deploy",
+    "vercel production deploy",
+    "supabase production migrations",
+    "hard delete",
+    "service role frontend usage",
+    "cron/scheduler",
+    "automatic cursor fix",
+    "apply mode without owner-approved",
+    "any command touching main/prod"
+  ],
+  "reportInputs": [
+    "qa-agent/reports/static-app-discovery.json",
+    "qa-agent/reports/static-design-guardrails.json",
+    "qa-agent/reports/guardrail-action-plan.json",
+    "qa-agent/reports/browser-qa/browser-smoke-report.json",
+    "qa-agent/reports/browser-qa/synthetic-users-smoke-report.json",
+    "qa-agent/reports/browser-qa/role-workflow-safe-report.json",
+    "qa-agent/reports/browser-qa/write-draft-safe-report.json",
+    "qa-agent/reports/verification/verification-foundation-run.json"
+  ],
+  "safetyRules": {
+    "stagingOnly": true,
+    "noProductionOrMain": true,
+    "noDbImportApplyRefillClose": true,
+    "noSchedulerCron": true,
+    "noAutoFixes": true,
+    "noHermesRuntimeAutomation": true,
+    "noCodeGraphRuntimeAutomation": true
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "version": "1.0.0",
+  "environment": "staging-only",
+  "activeTarget": 10,
+  "lowActiveThreshold": 10,
+  "lowBacklogThreshold": 5,
+  "emptyBacklogThreshold": 0,
+  "recommendedActions": {
+    "activeBelowTargetBacklogAvailable": "refill_from_backlog",
+    "activeBelowTargetBacklogLow": "refill_and_generate_more_candidates",
+    "activeFullBacklogLow": "generate_more_candidates",
+    "activeFullBacklogHealthy": "no_action",
+    "backlogEmpty": "run_scan_import_plan"
+  },
+  "allowedManualCommands": [
+    "npm run qa:agentops-run -- --mode foundation",
+    "npm run qa:agentops-run -- --mode browser-smoke --continue-on-failure",
+    "npm run qa:agentops-run -- --mode workflow-safe --continue-on-failure",
+    "npm run qa:agentops-browser-findings-import-plan",
+    "npm run qa:agentops-role-workflow-review",
+    "npm run qa:agentops-write-draft-findings-import-plan"
+  ],
+  "blockedActions": [
+    "production",
+    "main-supabase",
+    "auto-import",
+    "auto-fix",
+    "auto-cursor",
+    "scheduler",
+    "cron"
+  ]
+}

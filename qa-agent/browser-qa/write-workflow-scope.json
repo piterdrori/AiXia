@@ -1,0 +1,123 @@
+{
+  "version": "1.0.0",
+  "environment": "staging-only",
+  "stagingProjectRef": "ydppcpbxrvvardeslzrk",
+  "baseUrlDefault": "http://localhost:5173",
+  "allowedRecordPrefix": "AIXIA-QA-",
+  "allowedSyntheticUsers": [
+    "agentops-owner",
+    "platform-admin",
+    "finance-admin",
+    "finance-viewer",
+    "employee",
+    "hr-admin",
+    "manager"
+  ],
+  "allowedWriteModes": [
+    "create-draft-test-record",
+    "edit-own-draft-test-record",
+    "save-draft-only",
+    "cancel-form",
+    "archive-own-synthetic-record",
+    "restore-own-synthetic-record",
+    "validation-error-check",
+    "permission-denied-check"
+  ],
+  "blockedWriteModes": [
+    "hard-delete",
+    "real-payment",
+    "real-email",
+    "real-invite",
+    "payroll-execution",
+    "production-write",
+    "non-synthetic-record-edit",
+    "non-synthetic-archive",
+    "non-synthetic-delete",
+    "cross-tenant-write",
+    "file-upload-real-sensitive"
+  ],
+  "testDataRules": {
+    "namePrefix": "AIXIA-QA-",
+    "descriptionMustMention": "synthetic QA test",
+    "neverUseRealCustomerVendorEmployeeNames": true,
+    "fakeAmountExample": 1.23,
+    "allowedEmailsPattern": "qa+.*@aixia.local"
+  },
+  "safeCandidateWorkflows": [
+    {
+      "id": "finance-quotations-list",
+      "route": "/finance/transactions/quotations",
+      "module": "finance-transactions",
+      "description": "Quotation registry — inspect create action visibility only",
+      "stage11Modes": ["permission-denied-check"],
+      "allowSaveDraft": false,
+      "allowSubmit": false,
+      "createButtonPattern": "New Quotation",
+      "expectedCreateVisible": {
+        "agentops-owner": true,
+        "platform-admin": true,
+        "finance-admin": true,
+        "finance-viewer": false
+      }
+    },
+    {
+      "id": "finance-quotations-new",
+      "route": "/finance/transactions/quotations/new",
+      "module": "finance-transactions",
+      "description": "Quotation draft form — validation + cancel only (no Save Draft submit in Stage 11 MVP)",
+      "stage11Modes": ["validation-error-check", "cancel-form"],
+      "allowSaveDraft": false,
+      "allowSubmit": false,
+      "expectedRouteAccess": {
+        "agentops-owner": "loaded",
+        "platform-admin": "loaded",
+        "finance-admin": "loaded",
+        "finance-viewer": "blocked",
+        "guest": "blocked"
+      }
+    },
+    {
+      "id": "finance-transactions-hub",
+      "route": "/finance/transactions",
+      "module": "finance-transactions",
+      "description": "Transactions hub — navigation only, no create submit",
+      "stage11Modes": ["permission-denied-check"],
+      "allowSaveDraft": false,
+      "allowSubmit": false,
+      "skippedReason": "list-only visibility; no isolated new form"
+    }
+  ],
+  "explicitlyBlockedModules": [
+    {
+      "module": "system-agent-ops",
+      "reason": "AgentOps issue actions excluded from Stage 11"
+    },
+    {
+      "module": "finance-master-data",
+      "reason": "Master data writes not approved for Stage 11 MVP"
+    },
+    {
+      "module": "finance-reports",
+      "reason": "Reports are read-only"
+    },
+    {
+      "module": "ai-management",
+      "reason": "No safe synthetic chat mutation workflow approved"
+    },
+    {
+      "module": "hr",
+      "reason": "HR write-safe routes not defined yet"
+    },
+    {
+      "module": "payments-payroll",
+      "routes": [
+        "/finance/transactions/payments-made/new",
+        "/finance/transactions/payments-received/new",
+        "/finance/transactions/payroll/new",
+        "/finance/transactions/expense-payments/new"
+      ],
+      "reason": "Payment and payroll routes blocked"
+    }
+  ],
+  "safetyStatement": "Stage 11: staging-only synthetic users; synthetic AIXIA-QA- data only; no real payments, emails, invites, payroll, hard delete, or non-test archive/delete."
+}

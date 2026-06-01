@@ -1,0 +1,52 @@
+{
+  "version": "1.0.0",
+  "description": "Schema shape for AgentOps browser QA run outputs.",
+  "run": {
+    "runId": "string",
+    "createdAt": "ISO-8601 string",
+    "environment": "local|staging|preview|production-read-only",
+    "baseUrl": "string",
+    "mode": "readonly-smoke|visual-navigation|functional-safe|role-visibility-readonly",
+    "summary": {
+      "routesVisited": "number",
+      "findingsCount": "number",
+      "consoleErrorCount": "number",
+      "networkErrorCount": "number",
+      "result": "PASS|PASS WITH FOLLOW-UP|FAILED"
+    }
+  },
+  "findings": [
+    {
+      "id": "string",
+      "runId": "string",
+      "createdAt": "ISO-8601 string",
+      "environment": "string",
+      "baseUrl": "string",
+      "route": "string",
+      "pageTitle": "string|null",
+      "userRole": "string",
+      "viewport": "string",
+      "category": "Design|Functional|Logical|Technical|Improvement|Security/Permission|Performance/Reliability",
+      "severity": "Critical|High|Medium|Low|Suggestion",
+      "title": "string",
+      "problem": "string",
+      "expectedResult": "string",
+      "actualResult": "string",
+      "steps": ["string"],
+      "evidence": {
+        "screenshotPath": "string|null",
+        "tracePath": "string|null",
+        "videoPath": "string|null",
+        "consoleLogPath": "string|null",
+        "networkLogPath": "string|null"
+      },
+      "consoleErrors": ["string"],
+      "networkErrors": ["string"],
+      "likelyRootCause": "string|null",
+      "suggestedFixPrompt": "string|null",
+      "agentReviewNeeded": "boolean",
+      "importEligible": "boolean",
+      "metadata": {}
+    }
+  ]
+}

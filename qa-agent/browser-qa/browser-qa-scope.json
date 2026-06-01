@@ -1,0 +1,29 @@
+{
+  "version": "1.0.0",
+  "allowedEnvironments": ["local", "staging", "preview"],
+  "productionPolicy": {
+    "mode": "read-only",
+    "enabledByDefault": false,
+    "notes": "Production browser QA is disabled by default and requires explicit approval."
+  },
+  "baseUrlEnvNames": ["VITE_APP_URL", "AGENTOPS_QA_BASE_URL"],
+  "defaultBaseUrl": "http://localhost:5173",
+  "evidenceOutputFolder": "qa-agent/reports/browser-qa",
+  "maxRoutesPerRun": 10,
+  "maxFindingsPerRun": 25,
+  "allowedTestModes": [
+    "readonly-smoke",
+    "visual-navigation",
+    "functional-safe",
+    "role-visibility-readonly"
+  ],
+  "blockedActions": [
+    "production-write",
+    "destructive-delete",
+    "real-payment",
+    "real-email-send",
+    "real-user-invite",
+    "archive-delete-real-record"
+  ],
+  "routeGroups": ["finance", "hr", "ai-management", "agentops", "dashboard"]
+}

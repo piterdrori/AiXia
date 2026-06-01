@@ -1,0 +1,205 @@
+{
+  "version": "1.0.0",
+  "environment": "staging-only",
+  "stagingProjectRef": "ydppcpbxrvvardeslzrk",
+  "baseUrlDefault": "http://localhost:5173",
+  "users": [
+    "agentops-owner",
+    "platform-admin",
+    "finance-admin",
+    "finance-viewer",
+    "employee",
+    "hr-admin",
+    "hr-employee",
+    "manager",
+    "ai-user",
+    "guest",
+    "vendor-external",
+    "tenant-admin"
+  ],
+  "workflowModes": {
+    "readonly-navigation": { "enabled": true, "stage": "10" },
+    "safe-ui-interaction": { "enabled": true, "stage": "10" },
+    "safe-form-open-no-submit": { "enabled": true, "stage": "10" },
+    "safe-search-filter-sort": { "enabled": true, "stage": "10" },
+    "safe-modal-open-close": { "enabled": true, "stage": "10" },
+    "safe-role-visibility": { "enabled": true, "stage": "10" },
+    "synthetic-draft-write-later": { "enabled": false, "stage": "11+" }
+  },
+  "blockedActions": [
+    "submit create forms",
+    "save draft",
+    "archive",
+    "delete",
+    "hard delete",
+    "send email",
+    "invite user",
+    "process payment",
+    "payroll execution",
+    "create real vendor/customer/company",
+    "upload sensitive file",
+    "refill queue",
+    "import static findings",
+    "import browser findings",
+    "mark fixed",
+    "reject finding",
+    "defer finding"
+  ],
+  "allowedActions": [
+    "login",
+    "navigate",
+    "open page",
+    "open modal",
+    "close modal",
+    "search type and clear",
+    "filter open",
+    "sort inspect",
+    "switch tabs",
+    "open create page without submit",
+    "inspect disabled or hidden actions",
+    "screenshot",
+    "collect console and network errors"
+  ],
+  "routes": [
+    {
+      "route": "/dashboard",
+      "safeInteractions": ["readonly-navigation", "safe-search-filter-sort", "safe-ui-interaction", "safe-role-visibility"],
+      "blockedInteractions": ["form-submit", "destructive-actions"],
+      "expectedAccess": {
+        "agentops-owner": "loaded",
+        "platform-admin": "loaded",
+        "finance-admin": "loaded",
+        "finance-viewer": "loaded",
+        "employee": "loaded",
+        "hr-admin": "loaded",
+        "hr-employee": "loaded",
+        "manager": "loaded",
+        "ai-user": "loaded",
+        "guest": "loaded",
+        "vendor-external": "loaded",
+        "tenant-admin": "loaded"
+      }
+    },
+    {
+      "route": "/system/agent-ops",
+      "safeInteractions": ["readonly-navigation", "safe-role-visibility"],
+      "blockedInteractions": ["refill-queue", "import-buttons", "row-actions", "form-submit"],
+      "agentOpsIsolation": true,
+      "expectedAccess": {
+        "agentops-owner": "loaded",
+        "platform-admin": "access-denied",
+        "finance-admin": "access-denied",
+        "finance-viewer": "access-denied",
+        "employee": "access-denied",
+        "hr-admin": "access-denied",
+        "hr-employee": "access-denied",
+        "manager": "access-denied",
+        "ai-user": "access-denied",
+        "guest": "access-denied",
+        "vendor-external": "access-denied",
+        "tenant-admin": "access-denied"
+      }
+    },
+    {
+      "route": "/finance",
+      "safeInteractions": [
+        "readonly-navigation",
+        "safe-search-filter-sort",
+        "safe-ui-interaction",
+        "safe-modal-open-close",
+        "safe-role-visibility"
+      ],
+      "blockedInteractions": ["form-submit", "create-submit"],
+      "expectedAccess": {
+        "agentops-owner": "loaded",
+        "platform-admin": "loaded",
+        "finance-admin": "loaded",
+        "finance-viewer": "loaded",
+        "employee": "access-denied",
+        "hr-admin": "redirected",
+        "hr-employee": "access-denied",
+        "manager": "access-denied",
+        "ai-user": "access-denied",
+        "guest": "access-denied",
+        "vendor-external": "access-denied",
+        "tenant-admin": "loaded"
+      }
+    },
+    {
+      "route": "/finance/master-data",
+      "safeInteractions": ["readonly-navigation", "safe-search-filter-sort", "safe-ui-interaction", "safe-role-visibility"],
+      "blockedInteractions": ["form-submit", "create-submit"],
+      "expectedAccess": {
+        "agentops-owner": "loaded",
+        "platform-admin": "loaded",
+        "finance-admin": "loaded",
+        "finance-viewer": "redirected",
+        "employee": "access-denied",
+        "hr-admin": "redirected",
+        "hr-employee": "access-denied",
+        "manager": "access-denied",
+        "ai-user": "access-denied",
+        "guest": "access-denied",
+        "vendor-external": "access-denied",
+        "tenant-admin": "loaded"
+      }
+    },
+    {
+      "route": "/finance/transactions",
+      "safeInteractions": ["readonly-navigation", "safe-search-filter-sort", "safe-ui-interaction", "safe-role-visibility"],
+      "blockedInteractions": ["form-submit", "payment-actions"],
+      "expectedAccess": {
+        "agentops-owner": "loaded",
+        "platform-admin": "loaded",
+        "finance-admin": "loaded",
+        "finance-viewer": "redirected",
+        "employee": "access-denied",
+        "hr-admin": "access-denied",
+        "hr-employee": "access-denied",
+        "manager": "access-denied",
+        "ai-user": "access-denied",
+        "guest": "access-denied",
+        "vendor-external": "access-denied",
+        "tenant-admin": "loaded"
+      }
+    },
+    {
+      "route": "/finance/reports",
+      "safeInteractions": ["readonly-navigation", "safe-search-filter-sort", "safe-ui-interaction", "safe-role-visibility"],
+      "blockedInteractions": ["form-submit"],
+      "expectedAccess": {
+        "agentops-owner": "loaded",
+        "platform-admin": "loaded",
+        "finance-admin": "loaded",
+        "finance-viewer": "loaded",
+        "employee": "access-denied",
+        "hr-admin": "access-denied",
+        "hr-employee": "access-denied",
+        "manager": "access-denied",
+        "ai-user": "access-denied",
+        "guest": "access-denied",
+        "vendor-external": "access-denied",
+        "tenant-admin": "loaded"
+      }
+    },
+    {
+      "route": "/ai-management",
+      "safeInteractions": ["readonly-navigation", "safe-search-filter-sort", "safe-ui-interaction", "safe-role-visibility"],
+      "blockedInteractions": ["form-submit", "agent-config-write"],
+      "expectedAccess": {
+        "agentops-owner": "loaded",
+        "platform-admin": "loaded",
+        "finance-admin": "access-denied",
+        "finance-viewer": "access-denied",
+        "employee": "access-denied",
+        "hr-admin": "access-denied",
+        "hr-employee": "access-denied",
+        "manager": "access-denied",
+        "ai-user": "loaded",
+        "guest": "access-denied",
+        "vendor-external": "access-denied",
+        "tenant-admin": "loaded"
+      }
+    }
+  ]
+}

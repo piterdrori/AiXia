@@ -1,0 +1,113 @@
+/**
+ * Unified AgentOps LLM handler — Council, Agent Workspace, and Issue chats.
+ */
+
+import {
+  AGENTOPS_OLLAMA_DEFAULT_MODEL,
+  mergeAgentOpsOllamaModelOptions,
+} from "./modelCatalog";
+import {
+  callOllamaChat,
+  getAgentOpsOllamaConfig,
+  isAgentOpsLlmRuntimeEnabled,
+  jsonResponse,
+  listOllamaInstalledModels,
+  readOptionalInternalSecret,
+} from "./ollamaProxy";
+
+export type AgentOpsLlmChatScope = "council" | "individual_agent" | "issue";
+
+export interface AgentOpsLlmRunBody {
+  requestId?: string;
+  systemPrompt?: string;
+  userMessage?: string;
+  chatScope?: AgentOpsLlmChatScope;
+  agentId?: string | null;
+  model?: string | null;
+}
+
+export async function handleAgentOpsLlmRequest(request: Request): Promise<Response> {
+  if (request.method === "GET") {
+    const runtimeActive = isAgentOpsLlmRuntimeEnabled();
+    const config = getAgentOpsOllamaConfig();
+    const installed = await listOllamaInstalledModels();
+    const models =
+      installed.ok ?
+        mergeAgentOpsOllamaModelOptions(installed.models)
+      : mergeAgentOpsOllamaModelOptions([]);
+
+    return jsonResponse({
+      runtimeActive,
+      appCallable: true,
+      ollamaReachable: installed.ok ? true : false,
+      ollamaError: installed.ok ? null : installed.error,
+      model: config.model,
+      defaultModel: AGENTOPS_OLLAMA_DEFAULT_MODEL,
+      models,
+      baseUrl: config.baseUrl,
+      stagingOnly: true,
+    });
+  }
+
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  if (!readOptionalInternalSecret(request)) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+
+  if (!isAgentOpsLlmRuntimeEnabled()) {
+    return jsonResponse(
+      {
+        source: "unavailable",
+        error:
+          "AgentOps LLM runtime inactive. Set HERMES_RUNTIME_ACTIVE=true (or AGENTOPS_LLM_RUNTIME_ACTIVE=true) and ensure Ollama is running.",
+      },
+      503,
+    );
+  }
+
+  let body: AgentOpsLlmRunBody;
+  try {
+    body = (await request.json()) as AgentOpsLlmRunBody;
+  } catch {
+    return jsonResponse({ error: "Invalid JSON body" }, 400);
+  }
+
+  const userMessage = body.userMessage?.trim();
+  const systemPrompt = body.systemPrompt?.trim();
+  if (!userMessage) {
+    return jsonResponse({ error: "userMessage is required" }, 400);
+  }
+  if (!systemPrompt) {
+    return jsonResponse({ error: "systemPrompt is required" }, 400);
+  }
+
+  const llmResult = await callOllamaChat(systemPrompt, userMessage, body.model);
+  const requestId = body.requestId ?? `agentops-llm-${Date.now()}`;
+
+  if (!llmResult.ok) {
+    return jsonResponse(
+      {
+        source: "unavailable",
+        error: llmResult.error,
+        requestId,
+        chatScope: body.chatScope ?? null,
+        agentId: body.agentId ?? null,
+      },
+      502,
+    );
+  }
+
+  return jsonResponse({
+    source: "local_llm",
+    response: llmResult.content,
+    requestId,
+    model: llmResult.model,
+    chatScope: body.chatScope ?? null,
+    agentId: body.agentId ?? null,
+    limitations: "Live Ollama response via AgentOps server proxy (staging).",
+    safetyFlags: ["staging_only", "local_llm", "no_auto_cursor", "memory_approval_required"],
+  });
+}

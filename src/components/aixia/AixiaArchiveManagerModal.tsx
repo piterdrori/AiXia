@@ -4,9 +4,9 @@ import { AixiaBadge } from "./AixiaBadge";
 import { AixiaButton } from "./AixiaButton";
 import { AixiaModal } from "./AixiaModal";
 
-type AixiaArchiveManagerTab = "archived" | "deleted";
+export type AixiaArchiveManagerTab = "archived" | "deleted";
 
-type AixiaArchiveManagerModalProps = {
+export type AixiaArchiveManagerModalProps = {
   open: boolean;
   title: string;
   description: string;

@@ -153,6 +153,16 @@ import AICharacterPage from "@/app/ai-management/character/page";
 import AIStateOfMindPage from "@/app/ai-management/state-of-mind/page";
 import AIVoicePage from "@/app/ai-management/voice/page";
 import AIAnimationPage from "@/app/ai-management/animation/page";
+import AgentOpsPage from "@/app/system/agent-ops/page";
+import AgentOpsIssuesPage from "@/app/system/agent-ops/issues/page";
+import AgentOpsIssueWorkspacePage from "@/app/system/agent-ops/issues/[issueCode]/page";
+import AgentOpsAgentsPage from "@/app/system/agent-ops/agents/page";
+import AgentOpsAgentWorkspacePage from "@/app/system/agent-ops/agents/[agentId]/page";
+import AgentOpsCouncilPage from "@/app/system/agent-ops/council/page";
+import AgentOpsAdvancedPage from "@/app/system/agent-ops/advanced/page";
+import AgentOpsKnowledgePage from "@/app/system/agent-ops/knowledge/page";
+import AgentOpsAutomationPage from "@/app/system/agent-ops/automation/page";
+import AgentOpsHistoryPage from "@/app/system/agent-ops/history/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -884,6 +894,107 @@ function AppRoutes() {
           <ProtectedRoute>
             <DashboardLayout>
               <AIManagementPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/system/agent-ops"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/issues"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsIssuesPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/issues/:issueCode"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsIssueWorkspacePage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/agents"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsAgentsPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/agents/:agentId"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsAgentWorkspacePage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/council"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsCouncilPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/advanced"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsAdvancedPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/knowledge"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsKnowledgePage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/automation"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsAutomationPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/history"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsHistoryPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

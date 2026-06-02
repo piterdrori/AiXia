@@ -23,6 +23,7 @@ import {
   MessageSquare,
   Search,
   Settings,
+  ShieldCheck,
   Users,
   X,
 } from "lucide-react";
@@ -70,6 +71,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+import { getAgentOpsOwnerStatus } from "@/lib/agentops";
 import {
   getEffectivePermissions,
   type Permission,
@@ -211,6 +213,7 @@ export default function DashboardLayout({
   const [unreadCount, setUnreadCount] = useState(0);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [calendarTodayCount, setCalendarTodayCount] = useState(0);
+  const [agentOpsIsOwner, setAgentOpsIsOwner] = useState(false);
 
   const userProfileRef = useRef<UserProfile | null>(
     initialCacheRef.current?.userProfile || null
@@ -742,6 +745,27 @@ if (!user) {
     };
   }, [loadCalendarBadge, userProfile?.userId]);
 
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadAgentOpsOwnerStatus() {
+      if (!userProfile?.userId) {
+        if (mounted) setAgentOpsIsOwner(false);
+        return;
+      }
+
+      const result = await getAgentOpsOwnerStatus();
+      if (!mounted) return;
+      setAgentOpsIsOwner(Boolean(result.data?.isOwner));
+    }
+
+    void loadAgentOpsOwnerStatus();
+
+    return () => {
+      mounted = false;
+    };
+  }, [userProfile?.userId]);
+
 const effectivePermissions = useMemo(() => {
   if (!userProfile?.role) return null;
 
@@ -816,6 +840,16 @@ const navItems: NavItem[] = useMemo(
   href: "/ai-management",
 },
 
+      ...(agentOpsIsOwner
+        ? [
+            {
+              label: "AgentOps",
+              icon: ShieldCheck,
+              href: "/system/agent-ops",
+            },
+          ]
+        : []),
+
 {
   label: t("common.settings", "Settings"),
   icon: Settings,
@@ -823,6 +857,7 @@ const navItems: NavItem[] = useMemo(
 },
     ],
             [
+      agentOpsIsOwner,
       calendarTodayCount,
       effectivePermissions,
       t,

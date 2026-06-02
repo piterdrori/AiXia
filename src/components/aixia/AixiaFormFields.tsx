@@ -7,6 +7,9 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 
+import { AixiaButton } from "./AixiaButton";
+import { AixiaDatePicker } from "./AixiaDatePicker";
+
 type AixiaFieldLabelProps = LabelHTMLAttributes<HTMLLabelElement> & {
   label: ReactNode;
   required?: boolean;
@@ -153,6 +156,52 @@ export function AixiaFormField({
   );
 }
 
+export type AixiaFormDateFieldProps = {
+  label: ReactNode;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+  required?: boolean;
+  helper?: ReactNode;
+  id?: string;
+  min?: string;
+  max?: string;
+  className?: string;
+};
+
+/** MW-024 form-date contract: label + picker + optional helper below (`.aixia-helper-text`). */
+export function AixiaFormDateField({
+  label,
+  value,
+  onChange,
+  disabled = false,
+  required = false,
+  helper,
+  id,
+  min,
+  max,
+  className = "",
+}: AixiaFormDateFieldProps) {
+  const ariaLabel = typeof label === "string" ? label : undefined;
+
+  return (
+    <AixiaFormField className={className}>
+      <AixiaFieldLabel label={label} required={required} />
+      <AixiaDatePicker
+        variant="form"
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        id={id}
+        min={min}
+        max={max}
+      />
+      {helper ? <div className="aixia-helper-text">{helper}</div> : null}
+    </AixiaFormField>
+  );
+}
+
 type AixiaFormFullWidthProps = HTMLAttributes<HTMLDivElement>;
 
 export function AixiaFormFullWidth({
@@ -185,8 +234,10 @@ export function AixiaFormRowCard({
   children,
   ...props
 }: AixiaFormRowCardProps) {
+  const rowCardClassName = ["aixia-form-row-card", className].filter(Boolean).join(" ");
+
   return (
-    <div {...props} className={`aixia-form-row-card ${className}`}>
+    <div {...props} className={rowCardClassName}>
       <div className="aixia-form-row-card-header">
         <div className="aixia-form-row-card-title-wrap">
           <div className="aixia-form-row-card-title">{title}</div>
@@ -196,14 +247,15 @@ export function AixiaFormRowCard({
         </div>
 
         {onRemove ? (
-          <button
+          <AixiaButton
             type="button"
+            variant="danger"
             onClick={onRemove}
             disabled={removeDisabled}
             className="aixia-form-row-card-remove"
           >
             {removeLabel}
-          </button>
+          </AixiaButton>
         ) : null}
       </div>
 

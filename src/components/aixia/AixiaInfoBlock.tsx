@@ -2,12 +2,15 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 
 type AixiaInfoBlockTone = "indigo" | "violet" | "gold" | "emerald" | "rose" | "cyan";
+type AixiaInfoBlockSurface = "info" | "access-rule";
 
 type AixiaInfoBlockProps = {
   title?: ReactNode;
   children: ReactNode;
   icon?: LucideIcon;
   tone?: AixiaInfoBlockTone;
+  surface?: AixiaInfoBlockSurface;
+  refreshSafe?: boolean;
   className?: string;
 };
 
@@ -26,10 +29,19 @@ export function AixiaInfoBlock({
   children,
   icon: Icon,
   tone = "cyan",
+  surface = "info",
+  refreshSafe = false,
   className = "",
 }: AixiaInfoBlockProps) {
+  const infoBlockClassName = ["aixia-info-block", getToneClass(tone), className].filter(Boolean).join(" ");
+
   return (
-    <div className={`aixia-info-block ${getToneClass(tone)} ${className}`}>
+    <div
+      className={infoBlockClassName}
+      data-info-tone={tone}
+      data-feedback-surface={surface}
+      data-refresh-safe={refreshSafe ? "true" : "false"}
+    >
       {Icon ? (
         <div className="aixia-info-block-icon">
           <Icon className="h-4 w-4" />

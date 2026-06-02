@@ -1,0 +1,183 @@
+import { useCallback, useState } from "react";
+import { Mic, MicOff, Plus, Send } from "lucide-react";
+
+import { AixiaButton } from "./AixiaButton";
+import { AixiaMessengerAttachmentSheet } from "./AixiaMessengerAttachmentSheet";
+import type { AixiaMessengerAttachment, AixiaMessengerComposerPreset } from "./AixiaMessengerConfig";
+import { AixiaTextareaField } from "./AixiaFormFields";
+import { useAixiaVoiceChat } from "@/hooks/useAixiaVoiceChat";
+
+export type AixiaMessengerComposerProps = {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit?: () => void;
+  disabled?: boolean;
+  placeholder?: string;
+  statusText?: string;
+  errorText?: string | null;
+  presets?: AixiaMessengerComposerPreset[];
+  onPresetSelect?: (value: string) => void;
+  pendingAttachments?: AixiaMessengerAttachment[];
+  onAddAttachments?: (files: FileList | File[]) => void;
+  onRemoveAttachment?: (attachmentId: string) => void;
+  onAgentReplySpoken?: (text: string) => void;
+};
+
+export function AixiaMessengerComposer({
+  value,
+  onChange,
+  onSubmit,
+  disabled = false,
+  placeholder = "Type a message…",
+  statusText,
+  errorText,
+  presets = [],
+  onPresetSelect,
+  pendingAttachments = [],
+  onAddAttachments,
+  onRemoveAttachment,
+}: AixiaMessengerComposerProps) {
+  const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
+  const { listening, voiceStatus, sttAvailable, toggleMic, stopListening } = useAixiaVoiceChat();
+
+  const canSubmit = !disabled && value.trim().length > 0;
+
+  const sendMessage = useCallback(() => {
+    if (!canSubmit) return;
+    stopListening();
+    onSubmit?.();
+  }, [canSubmit, onSubmit, stopListening]);
+
+  const handleMicClick = useCallback(() => {
+    toggleMic((transcript, isFinal) => {
+      onChange(transcript);
+      if (isFinal) stopListening();
+    });
+  }, [onChange, stopListening, toggleMic]);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  };
+
+  return (
+    <div
+      className="aixia-messenger-composer"
+      role="group"
+      aria-label="Message composer"
+      data-testid="agentops-messenger-composer"
+      data-chat-composer-disabled={disabled ? "true" : "false"}
+    >
+      {presets.length > 0 ? (
+        <div className="aixia-messenger-composer__presets">
+          {presets.map((preset) => (
+            <AixiaButton
+              key={`${preset.label}-${preset.value}`}
+              type="button"
+              variant="secondary"
+              className="aixia-messenger-composer__preset-btn"
+              disabled={disabled}
+              onClick={() => onPresetSelect?.(preset.value)}
+            >
+              {preset.label}
+            </AixiaButton>
+          ))}
+        </div>
+      ) : null}
+
+      {onAddAttachments && onRemoveAttachment ? (
+        <AixiaMessengerAttachmentSheet
+          open={attachmentSheetOpen}
+          onClose={() => setAttachmentSheetOpen(false)}
+          attachments={pendingAttachments}
+          onPickFiles={onAddAttachments}
+          onRemoveAttachment={onRemoveAttachment}
+          disabled={disabled}
+        />
+      ) : null}
+
+      <div className="aixia-messenger-composer__dock">
+        <AixiaButton
+          type="button"
+          variant="secondary"
+          className={[
+            "aixia-messenger-composer__mic-btn",
+            listening ? "aixia-messenger-composer__mic-btn--active" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          disabled={disabled || !sttAvailable}
+          onClick={handleMicClick}
+          title={
+            sttAvailable
+              ? listening
+                ? "Stop listening"
+                : "Speech to text"
+              : "Mic unavailable — enable voice in AI Management"
+          }
+        >
+          {listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+        </AixiaButton>
+
+        <AixiaTextareaField
+          className="aixia-messenger-composer__input"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={disabled}
+          rows={3}
+          maxLength={20000}
+        />
+
+        {onAddAttachments ? (
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            className="aixia-messenger-composer__plus-btn"
+            disabled={disabled}
+            onClick={() => setAttachmentSheetOpen((open) => !open)}
+            title="Add attachment"
+          >
+            <Plus className="h-5 w-5" />
+          </AixiaButton>
+        ) : (
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            className="aixia-messenger-composer__plus-btn"
+            disabled={disabled}
+            title="Attachments"
+          >
+            <Plus className="h-5 w-5" />
+          </AixiaButton>
+        )}
+
+        <AixiaButton
+          type="button"
+          variant="primary"
+          className="aixia-messenger-composer__send-btn"
+          disabled={!canSubmit}
+          title="Send (Enter)"
+          onClick={sendMessage}
+        >
+          <Send className="h-4 w-4" />
+        </AixiaButton>
+      </div>
+
+      <div className="aixia-messenger-composer__meta">
+        {errorText ? (
+          <span className="aixia-messenger-composer__error">{errorText}</span>
+        ) : voiceStatus ? (
+          <span className="aixia-messenger-composer__status">{voiceStatus}</span>
+        ) : statusText ? (
+          <span className="aixia-messenger-composer__status">{statusText}</span>
+        ) : (
+          <span className="aixia-messenger-composer__hint">Enter to send · Shift+Enter for newline</span>
+        )}
+      </div>
+    </div>
+  );
+}

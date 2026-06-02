@@ -1,7 +1,29 @@
 @import "./aixia-finance-print.css";
-@import "./finance/finance-visual.css";
-@import "./finance/master-data-visual.css";
+/* Finance module bridge (finance-visual, master-data-visual) — P0-04:
+   loaded via FinancePage + finance command shells only.
+   See src/styles/finance/register-finance-bridge-styles.ts */
 
+/* -------------------------------------------------------
+   AIXIA CSS OWNERSHIP BOUNDARY (PHASE 2 STEP 5)
+   Source-of-truth intent:
+   - locked core
+   - shared components
+   - shared tables
+   - shared forms
+   - shared modals
+   - shared states / feedback
+   - shared navigation / workspace
+   - shared process/workflow bridge
+   - finance/module bridge (imported layer)
+   - legacy compatibility + migration-watch areas
+
+   Guardrails:
+   - Page files must not create local replacements for these systems.
+   - Global/repeated design changes must update shared CSS/components first.
+   - Keep additive compatibility; do not delete/rename active selectors here.
+------------------------------------------------------- */
+
+/* LOCKED CORE: base command surface + shell */
 .aixia-page {
   min-height: 100vh;
   overflow-x: hidden;
@@ -213,7 +235,8 @@
 }
 
 /* -------------------------------------------------------
-   LEGACY ADAPTIVE GRID SUPPORT
+   LEGACY COMPATIBILITY: adaptive grid support aliases
+   Keep until all call sites finish migration to smart-grid.
 ------------------------------------------------------- */
 
 .aixia-adaptive-grid {
@@ -799,6 +822,181 @@
   gap: 0.75rem;
 }
 
+/* -------------------------------------------------------
+   SHARED PAGE RHYTHM + CONTROL BAR STANDARD
+   Source-of-truth contract for equal row spacing and
+   grouped control layout on command-surface pages.
+------------------------------------------------------- */
+
+:root {
+  --aixia-responsive-page-gap: clamp(0.85rem, 1.6vw, 1.4rem);
+  --aixia-responsive-section-gap: clamp(0.7rem, 1.2vw, 1.05rem);
+  --aixia-responsive-safe-bottom-desktop: clamp(2.75rem, 4.8vh, 4.5rem);
+  --aixia-responsive-safe-bottom-tablet: clamp(2.5rem, 5.2vh, 4rem);
+  --aixia-responsive-safe-bottom-mobile: clamp(2.25rem, 6vh, 3.5rem);
+  --aixia-responsive-table-min-column: clamp(8.5rem, 16vw, 12rem);
+  /* Floating AI trigger — shared clearance above stacked process/footer controls */
+  --aixia-fab-size: 4rem;
+  --aixia-fab-inset-inline-end: 1.5rem;
+  --aixia-fab-inset-block-end: 1.5rem;
+  --aixia-fab-stack-clearance: calc(var(--aixia-fab-inset-block-end) + var(--aixia-fab-size) + 0.75rem);
+  /* Max stacked process footer height on mobile (4×2.75rem buttons + gaps + padding) */
+  --aixia-process-mobile-nav-stack: 13.25rem;
+  --aixia-fab-gutter-inline: calc(
+    var(--aixia-fab-size) + var(--aixia-fab-inset-inline-end) + 0.35rem
+  );
+}
+
+.aixia-page-rhythm {
+  display: grid;
+  align-content: start;
+  gap: var(--aixia-responsive-page-gap, var(--aixia-stack-gap));
+}
+
+.aixia-page-rhythm > * {
+  margin: 0;
+}
+
+.aixia-fab-safe-scroll {
+  --aixia-scroll-bottom-safe-area: var(--aixia-responsive-safe-bottom-desktop);
+  padding-bottom: var(--aixia-scroll-bottom-safe-area);
+  scroll-padding-bottom: var(--aixia-scroll-bottom-safe-area);
+}
+
+/* Shared non-cropping contract for primary grid/list sections */
+.aixia-non-cropping-grid-section {
+  max-height: none !important;
+}
+
+.aixia-non-cropping-grid-section.aixia-card-shell,
+.aixia-non-cropping-grid-section.aixia-dash-panel {
+  overflow: visible !important;
+}
+
+.aixia-primary-grid-content {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: visible;
+  /* Keep grid/list body neutral so scroll container owns safe-area spacing. */
+  padding-bottom: 0;
+}
+
+.aixia-shared-control-bar {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--aixia-responsive-section-gap);
+}
+
+.aixia-shared-control-bar > .aixia-select {
+  width: auto;
+  min-width: 8.25rem;
+  height: var(--aixia-btn-height, 2.25rem);
+  min-height: var(--aixia-btn-height, 2.25rem);
+  border-radius: var(--aixia-dash-radius-sm, 12px);
+  padding-inline: 0.75rem 2rem;
+  font-size: 0.8125rem;
+}
+
+.aixia-shared-control-bar > .aixia-dash-action {
+  height: var(--aixia-btn-height, 2.25rem);
+  min-height: var(--aixia-btn-height, 2.25rem);
+}
+
+/* Shared responsive table contract:
+   preserve readability by favoring horizontal scroll over forced compression. */
+.aixia-table-wrap {
+  width: 100%;
+  min-width: 0;
+}
+
+.aixia-table-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.aixia-table {
+  min-width: max(100%, calc(6 * var(--aixia-responsive-table-min-column)));
+}
+
+@media (min-width: 1024px) {
+  .aixia-shared-control-bar {
+    flex-wrap: nowrap;
+  }
+}
+
+@media (max-width: 1023px) {
+  .aixia-fab-safe-scroll {
+    --aixia-scroll-bottom-safe-area: var(--aixia-responsive-safe-bottom-tablet);
+  }
+}
+
+@media (max-width: 640px) {
+  .aixia-fab-safe-scroll {
+    --aixia-scroll-bottom-safe-area: var(--aixia-responsive-safe-bottom-mobile);
+  }
+
+  .aixia-shared-control-bar > .aixia-select,
+  .aixia-shared-control-bar > .aixia-dash-action {
+    min-height: 2.5rem;
+  }
+}
+
+/* Lift FAB on narrow viewports (MW-026). Process routes need more clearance. */
+@media (max-width: 720px) {
+  :root {
+    --aixia-fab-inset-block-end: 5.75rem;
+  }
+
+  :root:has(.aixia-process-book) {
+    --aixia-fab-inset-block-end: calc(
+      var(--aixia-process-mobile-nav-stack) + var(--aixia-fab-size) + 0.5rem
+    );
+  }
+}
+
+/* -------------------------------------------------------
+   FLOATING AI TRIGGER (global chrome)
+------------------------------------------------------- */
+
+.aixia-floating-ai-trigger {
+  position: fixed;
+  z-index: 101;
+  right: var(--aixia-fab-inset-inline-end);
+  bottom: var(--aixia-fab-inset-block-end);
+  display: flex;
+  width: var(--aixia-fab-size);
+  height: var(--aixia-fab-size);
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(103, 232, 249, 0.3);
+  background: rgb(34, 211, 238);
+  color: rgb(2, 6, 23);
+  box-shadow: 0 25px 50px -12px rgba(8, 51, 68, 0.4);
+  transition:
+    transform 300ms ease,
+    background-color 300ms ease;
+}
+
+.aixia-floating-ai-trigger:hover {
+  transform: scale(1.05);
+  background: rgb(103, 232, 249);
+}
+
+/* Extra scroll clearance when a process book is inside finance command scroll */
+@media (max-width: 720px) {
+  .aixia-finance-page .aixia-command-scroll:has(.aixia-process-book) {
+    padding-bottom: max(
+      var(--aixia-responsive-safe-bottom-mobile),
+      var(--aixia-fab-stack-clearance)
+    );
+  }
+}
+
 @media (min-width: 640px) {
   .aixia-control-cluster {
     flex-flow: row wrap;
@@ -846,6 +1044,355 @@
   .aixia-registry-control-cluster {
     flex-wrap: nowrap;
   }
+}
+
+/* Shared workflow-registry panel for equivalent finance workflow/list pages. */
+.aixia-workflow-registry-panel {
+  display: grid;
+  min-width: 0;
+  gap: clamp(0.8rem, 1.2vw, 1.05rem);
+  padding-bottom: clamp(0.35rem, 0.8vh, 0.7rem);
+}
+
+.aixia-workflow-registry-panel__pipeline,
+.aixia-workflow-registry-panel__tabs,
+.aixia-workflow-registry-panel__banner,
+.aixia-workflow-registry-panel__toolbar,
+.aixia-workflow-registry-panel__content {
+  min-width: 0;
+}
+
+.aixia-workflow-registry-panel__tabs > .aixia-command-tabs {
+  margin: 0;
+}
+
+.aixia-workflow-registry-panel__toolbar .aixia-registry-control-cluster {
+  margin: 0;
+}
+
+.aixia-workflow-registry-panel__toolbar .aixia-workflow-registry-control-row {
+  margin: 0;
+}
+
+/* Workflow-registry toolbar: fixed slot map (search → dates → history → primary → archive). */
+.aixia-workflow-registry-control-row {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+  grid-template-columns:
+    minmax(12rem, 420px)
+    9.75rem
+    minmax(9.75rem, auto)
+    auto
+    auto
+    auto;
+}
+
+.aixia-workflow-registry-control-row__slot {
+  min-width: 0;
+}
+
+.aixia-workflow-registry-control-row__slot-search .aixia-search-field {
+  width: 100%;
+  max-width: 420px;
+}
+
+.aixia-workflow-registry-control-row__slot-date-from .aixia-date-picker--compact,
+.aixia-workflow-registry-control-row__slot-date-to .aixia-date-picker--compact {
+  width: 9.75rem;
+  min-width: 9rem;
+}
+
+.aixia-workflow-registry-control-row__slot-date-from .aixia-date-picker-trigger,
+.aixia-workflow-registry-control-row__slot-date-to .aixia-date-picker-trigger {
+  width: 100%;
+}
+
+.aixia-workflow-registry-control-row__slot-date-to {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.aixia-workflow-registry-date-clear {
+  min-height: var(--aixia-btn-height, 2.25rem);
+  padding-inline: 0.65rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.aixia-workflow-registry-control-row__action-btn {
+  min-height: var(--aixia-btn-height, 2.25rem);
+  white-space: nowrap;
+}
+
+/* -------------------------------------------------------
+   SHARED AIXIA DATE PICKER (forms, filters, process pages)
+------------------------------------------------------- */
+
+.aixia-date-picker {
+  min-width: 0;
+}
+
+.aixia-date-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.aixia-date-picker-trigger__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aixia-date-picker-trigger__icon {
+  flex: 0 0 auto;
+  height: 1rem;
+  width: 1rem;
+  color: rgba(199, 210, 254, 0.88);
+}
+
+.aixia-date-picker--form .aixia-date-picker-trigger {
+  min-height: 3rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(125, 152, 212, 0.5);
+  background:
+    radial-gradient(circle at 0% 0%, rgba(34, 211, 238, 0.11), transparent 36%),
+    linear-gradient(145deg, rgba(23, 37, 68, 0.78), rgba(7, 14, 32, 0.9));
+  color: rgba(237, 245, 255, 0.98);
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 12px 28px rgba(4, 10, 24, 0.55);
+}
+
+.aixia-date-picker--form .aixia-date-picker-trigger:hover:not(:disabled) {
+  border-color: rgba(150, 183, 255, 0.72);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.11),
+    0 14px 32px rgba(4, 12, 28, 0.62);
+}
+
+.aixia-date-picker--compact .aixia-date-picker-trigger {
+  height: var(--aixia-btn-height, 2.25rem);
+  min-height: var(--aixia-btn-height, 2.25rem);
+  border-radius: var(--aixia-input-radius, var(--aixia-dash-radius-sm));
+  font-size: var(--aixia-input-font-size, 0.8125rem);
+  font-weight: 600 !important;
+  padding-left: 0.75rem;
+  padding-right: 0.5rem;
+}
+
+.aixia-date-picker-trigger:focus-visible {
+  outline: 2px solid rgba(103, 232, 249, 0.54);
+  outline-offset: 1px;
+}
+
+.aixia-date-picker-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.aixia-date-picker-popover,
+.aixia-paycheck-date-popover {
+  z-index: 120;
+  width: min(420px, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  min-width: min(320px, calc(100vw - 2rem));
+  border-radius: 1rem;
+  border: 1px solid rgba(117, 163, 255, 0.46);
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.12), transparent 48%),
+    linear-gradient(145deg, rgba(12, 21, 44, 0.98), rgba(5, 10, 28, 0.99));
+  padding: 0.8rem;
+  box-shadow:
+    0 20px 46px rgba(0, 0, 0, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.aixia-date-picker-popover [data-slot="calendar"],
+.aixia-paycheck-date-popover [data-slot="calendar"] {
+  width: 100% !important;
+  --cell-size: 2.1rem !important;
+  font-size: 0.84rem !important;
+  color: rgba(232, 240, 255, 0.98);
+}
+
+.aixia-date-picker-popover .rdp-root,
+.aixia-date-picker-popover .rdp,
+.aixia-date-picker-popover .rdp-months,
+.aixia-date-picker-popover .rdp-month,
+.aixia-date-picker-popover .rdp-table,
+.aixia-date-picker-popover .rdp-month_grid,
+.aixia-paycheck-date-popover .rdp-root,
+.aixia-paycheck-date-popover .rdp,
+.aixia-paycheck-date-popover .rdp-months,
+.aixia-paycheck-date-popover .rdp-month,
+.aixia-paycheck-date-popover .rdp-table,
+.aixia-paycheck-date-popover .rdp-month_grid {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+.aixia-date-picker-popover .rdp-months,
+.aixia-paycheck-date-popover .rdp-months {
+  display: block !important;
+}
+
+.aixia-date-picker-popover .rdp-weekdays,
+.aixia-date-picker-popover .rdp-week,
+.aixia-paycheck-date-popover .rdp-weekdays,
+.aixia-paycheck-date-popover .rdp-week {
+  display: grid !important;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100% !important;
+}
+
+.aixia-date-picker-popover .rdp-weekday,
+.aixia-date-picker-popover .rdp-day,
+.aixia-paycheck-date-popover .rdp-weekday,
+.aixia-paycheck-date-popover .rdp-day {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.aixia-date-picker-popover .rdp-day button,
+.aixia-date-picker-popover .rdp-day_button,
+.aixia-paycheck-date-popover .rdp-day button,
+.aixia-paycheck-date-popover .rdp-day_button {
+  width: 100% !important;
+  min-height: 1.85rem !important;
+}
+
+.aixia-date-picker-popover .rdp-month_caption,
+.aixia-date-picker-popover .rdp-caption,
+.aixia-paycheck-date-popover .rdp-month_caption,
+.aixia-paycheck-date-popover .rdp-caption {
+  margin-bottom: 0.45rem;
+}
+
+.aixia-date-picker-popover .rdp-dropdowns select,
+.aixia-date-picker-popover .rdp-dropdown_root,
+.aixia-date-picker-popover .rdp-caption_dropdowns,
+.aixia-paycheck-date-popover .rdp-dropdowns select,
+.aixia-paycheck-date-popover .rdp-dropdown_root,
+.aixia-paycheck-date-popover .rdp-caption_dropdowns {
+  background: rgba(16, 28, 56, 0.95) !important;
+  border-color: rgba(120, 172, 255, 0.5) !important;
+  color: rgba(238, 245, 255, 0.98) !important;
+  font-size: 0.84rem !important;
+}
+
+.aixia-date-picker-popover .rdp-weekday,
+.aixia-paycheck-date-popover .rdp-weekday {
+  color: rgba(160, 177, 210, 0.94);
+  font-size: 0.72rem !important;
+  font-weight: 700;
+}
+
+.aixia-date-picker-popover .rdp-button,
+.aixia-paycheck-date-popover .rdp-button {
+  border-radius: 0.62rem;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+}
+
+.aixia-date-picker-popover .rdp-button:hover:not([disabled]),
+.aixia-paycheck-date-popover .rdp-button:hover:not([disabled]) {
+  background: rgba(82, 153, 255, 0.28);
+  color: rgba(248, 251, 255, 0.98);
+}
+
+.aixia-date-picker-popover .rdp-day_selected,
+.aixia-date-picker-popover .rdp-day_selected:hover,
+.aixia-paycheck-date-popover .rdp-day_selected,
+.aixia-paycheck-date-popover .rdp-day_selected:hover {
+  background: linear-gradient(180deg, rgba(37, 181, 255, 0.94), rgba(17, 128, 207, 0.96));
+  color: white;
+}
+
+@media (min-width: 1024px) {
+  .aixia-workflow-registry-control-row {
+    grid-template-columns:
+      minmax(12rem, 420px)
+      9.75rem
+      minmax(9.75rem, auto)
+      auto
+      auto
+      auto;
+  }
+}
+
+@media (max-width: 1023px) and (min-width: 640px) {
+  .aixia-workflow-registry-control-row {
+    grid-template-columns: minmax(12rem, 1fr) 9.75rem 9.75rem;
+  }
+
+  .aixia-workflow-registry-control-row__slot-search {
+    grid-column: 1 / -1;
+  }
+
+  .aixia-workflow-registry-control-row__slot-search .aixia-search-field {
+    max-width: none;
+  }
+
+  .aixia-workflow-registry-control-row__slot-history,
+  .aixia-workflow-registry-control-row__slot-primary,
+  .aixia-workflow-registry-control-row__slot-archive {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 639px) {
+  .aixia-workflow-registry-control-row {
+    grid-template-columns: 1fr;
+  }
+
+  .aixia-workflow-registry-control-row__slot-search .aixia-search-field {
+    max-width: none;
+  }
+
+  .aixia-workflow-registry-control-row__slot-date-from .aixia-date-picker--compact,
+  .aixia-workflow-registry-control-row__slot-date-to .aixia-date-picker--compact {
+    width: 100%;
+    max-width: none;
+  }
+
+  .aixia-workflow-registry-control-row__action-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+.aixia-workflow-registry-panel__content {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: clamp(0.8rem, 1.2vw, 1.05rem);
+  min-height: clamp(16rem, 36vh, 22rem);
+}
+
+.aixia-workflow-registry-panel__content > .aixia-table-wrap,
+.aixia-workflow-registry-panel__content > .aixia-employee-expense-registry,
+.aixia-workflow-registry-panel__content > .aixia-employee-expense-registry--archive {
+  margin-top: 0;
+}
+
+.aixia-workflow-registry-panel__content > .aixia-empty-state,
+.aixia-workflow-registry-panel__content > :has(> .aixia-empty-state) {
+  min-height: clamp(14rem, 30vh, 19rem);
 }
 
 .aixia-registry-filter-grid {
@@ -1047,6 +1594,13 @@
   padding: clamp(1rem, 1.4vw, 1.25rem) clamp(1.25rem, 1.6vw, 1.5rem);
 }
 
+.aixia-section > .p-6,
+.aixia-section-smart-scroll-body {
+  display: grid;
+  min-width: 0;
+  gap: var(--aixia-stack-gap);
+}
+
 .aixia-section-header-layout {
   display: grid;
   min-width: 0;
@@ -1211,6 +1765,22 @@
   font-size: 0.75rem;
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.35);
+}
+
+/* Inline meta/helper row (file hints, compact form notes) */
+.aixia-text-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.82);
+}
+
+.aixia-text-meta svg {
+  flex-shrink: 0;
+  width: 0.875rem;
+  height: 0.875rem;
 }
 
 /* -------------------------------------------------------
@@ -1590,6 +2160,7 @@
 
 /* -------------------------------------------------------
    TABLES / LOCKED SMART CENTERED TABLE SYSTEM
+   Shared table ownership. Page-level table systems are not allowed.
 ------------------------------------------------------- */
 
 .aixia-table-wrap {
@@ -1615,6 +2186,50 @@
 
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table {
   min-width: 1240px;
+}
+
+/* SHARED TABLE DENSITY — compact registry + archive (global) */
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table th,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table td,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-badge,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-date,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-actions {
+  padding: 0.45rem 0.55rem;
+  min-height: 0;
+}
+
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-row {
+  min-height: 2rem;
+}
+
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="sm"] {
+  min-width: 5.75rem;
+}
+
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="md"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-date[data-table-cell-width="md"] {
+  min-width: 7.25rem;
+}
+
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="lg"] {
+  min-width: 9.5rem;
+}
+
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="xl"] {
+  min-width: 11rem;
+}
+
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-actions [data-table-actions-align="center"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-actions {
+  justify-content: flex-end;
+}
+
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table th:last-child,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table td:last-child,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-actions {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] {
@@ -1679,15 +2294,47 @@
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th,
-.aixia-table-wrap[data-table-variant="archive"] .aixia-table td {
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table td,
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-text,
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-badge,
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-date,
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions {
+  padding: 0.45rem 0.55rem;
+  min-height: 0;
   vertical-align: middle;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-row {
+  min-height: 2rem;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-text[data-table-cell-width="sm"] {
+  min-width: 5.75rem;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-text[data-table-cell-width="md"],
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-date[data-table-cell-width="md"] {
+  min-width: 7.25rem;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-text[data-table-cell-width="lg"] {
+  min-width: 9.5rem;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-text[data-table-cell-width="xl"] {
+  min-width: 11rem;
+}
+
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions [data-table-actions-align="center"] {
+  justify-content: flex-end;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th:last-child,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table td:last-child,
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions {
   width: 1% !important;
-  min-width: 360px !important;
+  min-width: 11.5rem !important;
+  max-width: max-content !important;
   white-space: nowrap !important;
   overflow: visible !important;
 }
@@ -1711,16 +2358,73 @@
   white-space: nowrap !important;
 }
 
+/* SHARED ARCHIVE + MODAL INTEGRATION (locked compatibility zone) */
 .aixia-archive-manager-tabs {
   flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.45rem;
-  margin-bottom: 2.65rem;
-  padding-bottom: 1.65rem;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.65rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.aixia-archive-manager-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease;
+}
+
+.aixia-archive-manager-tab:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.aixia-archive-manager-tab__count {
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.aixia-archive-manager-tab[data-archive-tab="archived"][data-active="true"] {
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(34, 211, 238, 0.14);
+  box-shadow:
+    0 0 0 1px rgba(34, 211, 238, 0.28),
+    0 0 20px rgba(34, 211, 238, 0.16);
+  color: #e0f2fe;
+}
+
+.aixia-archive-manager-tab[data-archive-tab="archived"][data-active="true"] .aixia-archive-manager-tab__count {
+  color: rgba(224, 242, 254, 0.78);
+}
+
+.aixia-archive-manager-tab[data-archive-tab="deleted"][data-active="true"] {
+  border-color: rgba(251, 113, 133, 0.58);
+  background: rgba(251, 113, 133, 0.14);
+  box-shadow:
+    0 0 0 1px rgba(251, 113, 133, 0.3),
+    0 0 20px rgba(251, 113, 133, 0.14);
+  color: #ffe4e6;
+}
+
+.aixia-archive-manager-tab[data-archive-tab="deleted"][data-active="true"] .aixia-archive-manager-tab__count {
+  color: rgba(255, 228, 230, 0.78);
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) {
@@ -1742,8 +2446,8 @@
   min-height: 0;
   flex-direction: column;
   overflow: hidden !important;
-  padding-top: 3rem;
-  padding-bottom: 1.35rem;
+  padding-top: 1.25rem;
+  padding-bottom: 1.15rem;
 }
 
 .aixia-modal:has(.aixia-archive-manager-tabs) .aixia-modal-body > * + * {
@@ -1797,7 +2501,7 @@
 
 .aixia-table th {
   width: auto;
-  padding: 0.7rem 0.85rem;
+  padding: 0.45rem 0.55rem;
   vertical-align: middle;
   text-align: center;
   font-size: 0.65625rem;
@@ -1818,8 +2522,8 @@
 .aixia-table td {
   width: auto;
   min-width: max-content;
-  min-height: 3.25rem;
-  padding: 0.7rem 0.85rem;
+  min-height: 0;
+  padding: 0.45rem 0.55rem;
   vertical-align: middle;
   text-align: center;
   font-size: 0.8125rem;
@@ -1839,12 +2543,12 @@
 
 .aixia-table-th,
 .aixia-table-cell {
-  padding: 0.7rem 0.85rem;
+  padding: 0.45rem 0.55rem;
   text-align: center;
 }
 
 .aixia-table-row {
-  min-height: var(--aixia-table-row-height, 2.75rem);
+  min-height: var(--aixia-table-row-height, 2rem);
   border-bottom: 1px solid rgba(255, 255, 255, 0.045);
   font-size: var(--aixia-table-header-font-size, 0.8125rem);
   color: rgba(255, 255, 255, 0.68);
@@ -1947,7 +2651,7 @@
 .aixia-table-cell-badge,
 .aixia-table-cell-date,
 .aixia-table-cell-actions {
-  padding: 0.7rem 0.85rem;
+  padding: 0.45rem 0.55rem;
   vertical-align: middle;
   text-align: center;
 }
@@ -2008,9 +2712,24 @@
 .aixia-table td:has(.aixia-btn-secondary) > div,
 .aixia-table td:has(.aixia-btn-danger) > div {
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+}
+
+/* Shared row actions menu for registry/list tables */
+.aixia-row-action-menu-trigger {
+  min-width: 2.15rem;
+  padding-inline: 0.55rem;
+  justify-content: center;
+}
+
+.aixia-row-action-menu-content {
+  min-width: 11.5rem;
+}
+
+.aixia-row-action-menu-item {
+  min-height: 2.25rem;
 }
 
 .aixia-currency-badge {
@@ -2067,6 +2786,77 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.06);
   padding: 1.75rem 2rem;
+}
+
+.aixia-modal-header-decor {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+}
+
+.aixia-modal-header-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+}
+
+.aixia-modal-header-glow--left {
+  top: -5rem;
+  left: -5rem;
+  width: 16rem;
+  height: 16rem;
+  background: rgba(99, 102, 241, 0.2);
+}
+
+.aixia-modal-header-glow--right {
+  top: -5rem;
+  right: -5rem;
+  width: 16rem;
+  height: 16rem;
+  background: rgba(168, 85, 247, 0.2);
+}
+
+.aixia-modal-header-glow--center {
+  top: 0;
+  left: 50%;
+  width: 12rem;
+  height: 12rem;
+  background: rgba(251, 191, 36, 0.1);
+  transform: translateX(-50%);
+}
+
+.aixia-modal-header-layout {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem;
+}
+
+.aixia-modal-header-copy {
+  min-width: 0;
+}
+
+.aixia-modal-title {
+  margin-top: 1.25rem;
+  color: #fff;
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.aixia-modal-description {
+  margin-top: 0.75rem;
+  max-width: 48rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.aixia-modal-close-button {
+  flex-shrink: 0;
 }
 
 .aixia-modal-body {
@@ -2207,6 +2997,7 @@
 /* -------------------------------------------------------
    STANDARDIZED FINANCE / WORKSPACE SHARED LAYER
    Additive only. Do not remove previous classes.
+   Shared navigation/workspace ownership boundary.
 ------------------------------------------------------- */
 
 .aixia-badge-cyan {
@@ -2848,6 +3639,31 @@
   color: rgba(255, 255, 255, 0.82);
 }
 
+.aixia-workspace-card-action-btn {
+  cursor: pointer;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease;
+}
+
+.aixia-workspace-card-action-btn:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.aixia-workspace-card-action-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.aixia-workspace-card-action-btn:focus-visible {
+  outline: 2px solid rgba(99, 102, 241, 0.55);
+  outline-offset: 2px;
+}
+
 .aixia-workspace-card--compact {
   min-height: 240px;
 }
@@ -2940,12 +3756,35 @@
   padding: 0.15rem;
 }
 
+/* SHARED POPOVER/PANEL WRAPPER OWNERSHIP: module pages should use this base shell */
+.aixia-popover-panel {
+  width: min(26rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(3, 7, 18, 0.94);
+}
+
+.aixia-popover-panel--compact {
+  width: min(22rem, calc(100vw - 2rem));
+}
+
 .aixia-value-block {
   min-width: 0;
+  max-width: 100%;
   border-radius: 1.5rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.2);
   padding: 1rem;
+}
+
+.aixia-value-block-label,
+.aixia-value-block-value,
+.aixia-value-block-detail {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .aixia-value-block-label {
@@ -2970,6 +3809,28 @@
   font-size: 0.875rem;
   line-height: 1.55;
   color: rgba(148, 163, 184, 0.82);
+}
+
+/* Table identity cells inside value blocks must not force registry min-widths */
+.aixia-value-block-value .aixia-table-cell-text,
+.aixia-value-block-value .aixia-table-cell-badge,
+.aixia-value-block-value .aixia-table-cell-date {
+  display: block;
+  min-width: 0 !important;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  text-align: start;
+}
+
+.aixia-value-block-value .aixia-table-primary-text,
+.aixia-value-block-value .aixia-table-secondary-text {
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  text-align: start;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .aixia-signal-row {
@@ -3578,6 +4439,7 @@
    DETAIL / FORM / PAGE STATE SHARED LAYER
    Additive only. Do not remove previous classes.
    These classes standardize detail pages before page rewrites.
+   Shared form/state feedback ownership boundary.
 ------------------------------------------------------- */
 
 .aixia-field-label {
@@ -3597,6 +4459,20 @@
   color: rgb(253, 164, 175);
 }
 
+.aixia-field-label:has(.aixia-field-helper) {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0.35rem;
+}
+
+.aixia-field-label:has(.aixia-field-helper) .aixia-field-helper {
+  flex-shrink: 1;
+  max-width: 100%;
+  text-align: left;
+  white-space: normal;
+}
+
 .aixia-field-helper {
   flex-shrink: 0;
   font-size: 0.75rem;
@@ -3607,7 +4483,7 @@
 .aixia-form-grid {
   display: grid;
   min-width: 0;
-  gap: 1rem;
+  gap: var(--aixia-stack-gap);
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -3682,6 +4558,57 @@
 .aixia-form-textarea:disabled {
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* Native date/time inputs — dark glass field + dark picker chrome where supported */
+.aixia-page .aixia-form-input[type="date"],
+.aixia-page .aixia-form-input[type="time"],
+.aixia-page .aixia-form-input[type="datetime-local"] {
+  color-scheme: dark;
+  padding-right: 0.65rem;
+}
+
+.aixia-page .aixia-form-input[type="date"]::-webkit-calendar-picker-indicator,
+.aixia-page .aixia-form-input[type="time"]::-webkit-calendar-picker-indicator,
+.aixia-page .aixia-form-input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.9;
+  border-radius: 0.35rem;
+  padding: 0.2rem;
+  filter: invert(0.72) sepia(1) saturate(4.5) hue-rotate(155deg) brightness(1.05);
+  transition: opacity 200ms ease, filter 200ms ease;
+}
+
+.aixia-page .aixia-form-input[type="date"]:hover::-webkit-calendar-picker-indicator,
+.aixia-page .aixia-form-input[type="date"]:focus::-webkit-calendar-picker-indicator,
+.aixia-page .aixia-form-input[type="time"]:hover::-webkit-calendar-picker-indicator,
+.aixia-page .aixia-form-input[type="time"]:focus::-webkit-calendar-picker-indicator,
+.aixia-page .aixia-form-input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator,
+.aixia-page .aixia-form-input[type="datetime-local"]:focus::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  filter: invert(0.78) sepia(1) saturate(5) hue-rotate(155deg) brightness(1.15);
+}
+
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit,
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit-text,
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit-month-field,
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit-day-field,
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit-year-field,
+.aixia-page .aixia-form-input[type="time"]::-webkit-datetime-edit,
+.aixia-page .aixia-form-input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+.aixia-page .aixia-form-input[type="datetime-local"]::-webkit-datetime-edit,
+.aixia-page .aixia-form-input[type="datetime-local"]::-webkit-datetime-edit-fields-wrapper {
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit-month-field:focus,
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit-day-field:focus,
+.aixia-page .aixia-form-input[type="date"]::-webkit-datetime-edit-year-field:focus {
+  background: rgba(6, 182, 212, 0.16);
+  color: rgb(165, 243, 252);
+  outline: none;
+  border-radius: 0.25rem;
 }
 
 .aixia-checkbox-field {
@@ -4087,7 +5014,7 @@
 .aixia-review-grid {
   display: grid;
   min-width: 0;
-  gap: 0.75rem;
+  gap: var(--aixia-stack-gap);
 }
 
 .aixia-review-grid[data-review-grid-variant="stack"] {
@@ -4718,9 +5645,11 @@
   }
 }
 
-/* Generic shared utility patterns. The employee/payroll selectors remain as
-   legacy aliases only so existing pages do not break while new pages use the
-   generic shared names below. */
+/* -------------------------------------------------------
+   LEGACY COMPATIBILITY + MIGRATION-WATCH
+   Generic shared utility patterns. Employee/payroll selectors remain as
+   aliases so existing pages do not break while new pages adopt generic names.
+------------------------------------------------------- */
 .aixia-long-registry-body,
 .aixia-employee-registry-body {
   min-height: 1320px;
@@ -4823,6 +5752,159 @@
   white-space: nowrap;
 }
 
+.aixia-command-page .aixia-table-head > tr > th,
+.aixia-command-page .aixia-table tbody > tr > td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.aixia-command-page .aixia-table tbody > tr > td {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* AgentOps command tables — standardized centered alignment and readable wrapping */
+.aixia-command-page .agentops-dense-table .aixia-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.aixia-command-page .agentops-dense-table:not(.agentops-dense-table--import-review) .aixia-table td,
+.aixia-command-page .agentops-dense-table:not(.agentops-dense-table--import-review) .aixia-table-cell-text,
+.aixia-command-page .agentops-dense-table:not(.agentops-dense-table--import-review) .aixia-table-cell-badge,
+.aixia-command-page .agentops-dense-table:not(.agentops-dense-table--import-review) .aixia-table-cell-actions {
+  min-width: 0;
+  text-align: center;
+  vertical-align: middle;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.aixia-command-page .agentops-dense-table .aixia-table-primary-text,
+.aixia-command-page .agentops-dense-table .aixia-table-secondary-text {
+  max-width: none;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+.aixia-command-page .agentops-dense-table .aixia-table-primary-text {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.aixia-command-page .agentops-dense-table .aixia-table-secondary-text {
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.aixia-command-page .agentops-dense-table .aixia-table-cell-text[data-table-cell-width="xl"] {
+  width: 42%;
+}
+
+.aixia-command-page .agentops-dense-table .aixia-table-cell-badge .aixia-badge,
+.aixia-command-page .agentops-dense-table .aixia-table-cell-badge {
+  text-align: center;
+}
+
+.aixia-command-page .agentops-dense-table .aixia-table-cell-badge .aixia-badge {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.aixia-command-page .agentops-dense-table .aixia-table-cell-actions,
+.aixia-command-page .agentops-dense-table .aixia-table-actions {
+  justify-content: center;
+  text-align: center;
+}
+
+.aixia-command-page .agentops-dense-table:not(.agentops-dense-table--import-review) .aixia-table-head > tr > th,
+.aixia-command-page .agentops-dense-table:not(.agentops-dense-table--import-review) .aixia-table-head .aixia-table th {
+  text-align: center;
+}
+
+.aixia-command-page .agentops-dense-table .aixia-table-head > tr > th:last-child,
+.aixia-command-page .agentops-dense-table .aixia-table tbody tr > td:last-child {
+  min-width: 14rem;
+}
+
+.aixia-command-page .agentops-dense-table summary {
+  list-style: none;
+}
+
+.aixia-command-page .agentops-dense-table summary::-webkit-details-marker {
+  display: none;
+}
+
+.aixia-command-page .agentops-disclosure {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.aixia-command-page .agentops-disclosure > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.aixia-command-page .agentops-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.aixia-command-page .agentops-disclosure > summary::after {
+  content: "Show";
+  font-size: 0.6875rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.aixia-command-page .agentops-disclosure[open] > summary::after {
+  content: "Hide";
+}
+
+/* Import Candidate Review — same shell as Active Top 10, centered badge columns + middle rows */
+.aixia-command-page .agentops-dense-table--import-review .aixia-table {
+  table-layout: auto;
+  width: 100%;
+}
+
+.aixia-command-page .agentops-dense-table.agentops-dense-table--import-review .aixia-table th,
+.aixia-command-page .agentops-dense-table.agentops-dense-table--import-review .aixia-table td,
+.aixia-command-page .agentops-dense-table.agentops-dense-table--import-review .aixia-table-head > tr > th {
+  padding: 0.45rem 0.55rem;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.aixia-command-page .agentops-dense-table--import-review .aixia-table tbody tr > td:first-child {
+  min-width: 14rem;
+  max-width: 22rem;
+}
+
+.aixia-command-page .agentops-dense-table--import-review .aixia-table tbody tr > td:first-child > div:last-child {
+  margin-top: 0.125rem;
+  line-height: 1.3;
+}
+
+.aixia-command-page .agentops-dense-table--import-review .aixia-table .aixia-badge {
+  min-height: 1.65rem;
+  padding: 0.28rem 0.75rem;
+  font-size: 0.59375rem;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.aixia-command-page .agentops-dense-table--import-review .aixia-table tbody tr > td:last-child {
+  width: 1%;
+  white-space: nowrap;
+}
+
 
 /* -------------------------------------------------------
    GLOBAL AIXIA TYPOGRAPHY LOCK
@@ -4833,6 +5915,8 @@
 
 .aixia-page,
 .aixia-page *,
+.aixia-finance-page,
+.aixia-finance-page *,
 .aixia-modal,
 .aixia-modal * {
   font-family:
@@ -5084,6 +6168,8 @@
    GLOBAL DOCUMENT UPLOAD PANEL — CARD CLICK STANDARD
    Existing documents open by clicking the whole document
    card. Upload-disabled state must not disable Open.
+   MIGRATION-WATCH: intentionally coexists with earlier
+   upload-panel rules for additive compatibility.
 ------------------------------------------------------- */
 
 .aixia-document-upload-panel {
@@ -5460,6 +6546,172 @@ button.aixia-document-attachment-card:disabled {
   max-width: 100% !important;
   overflow-wrap: normal !important;
   word-break: normal !important;
+}
+
+/* -------------------------------------------------------
+   PLATFORM RECORD SUMMARY / WORKFLOW CARD TYPOGRAPHY
+   Unified smaller scale for slot-6 and slot-8 cards
+   (Payment summary, workflow notes, and equivalents).
+------------------------------------------------------- */
+
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-value-block-label,
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-review-block-label,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-value-block-label,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-review-block-label {
+  font-size: 0.56rem !important;
+  line-height: 1.14 !important;
+  letter-spacing: 0.13em !important;
+}
+
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-value-block-value,
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-review-block-value,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-value-block-value,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-review-block-value {
+  font-size: clamp(0.8rem, 0.66vw, 0.92rem) !important;
+  line-height: 1.16 !important;
+}
+
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-value-block-detail,
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-review-block-description,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-value-block-detail,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-review-block-description {
+  font-size: 0.64rem !important;
+  line-height: 1.3 !important;
+}
+
+/* Finance command pages use .aixia-finance-page — inherit summary/supporting card scale */
+.aixia-finance-page .aixia-display-block-value,
+.aixia-finance-page .aixia-value-block-value,
+.aixia-finance-page .aixia-review-block-value,
+.aixia-finance-page .aixia-form-row-card-title,
+.aixia-finance-page .aixia-detail-value {
+  font-size: clamp(0.95rem, 0.92vw, 1.18rem);
+  line-height: 1.22;
+  font-weight: 650;
+}
+
+.aixia-finance-page .aixia-display-block-label,
+.aixia-finance-page .aixia-value-block-label,
+.aixia-finance-page .aixia-review-block-label,
+.aixia-finance-page .aixia-field-label,
+.aixia-finance-page .aixia-label {
+  font-size: 0.68rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.aixia-finance-page .aixia-display-block-detail,
+.aixia-finance-page .aixia-value-block-detail,
+.aixia-finance-page .aixia-review-block-description,
+.aixia-finance-page .aixia-caption,
+.aixia-finance-page .aixia-helper-text {
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+/* Legacy compact card grids only — overview-N presets use finance-visual.css typography */
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-value-block-label,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-review-block-label,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-value-block-label,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-review-block-label {
+  font-size: 0.56rem !important;
+  line-height: 1.14 !important;
+  letter-spacing: 0.13em !important;
+  font-weight: 700 !important;
+}
+
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-value-block-value,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-review-block-value,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-value-block-value,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-review-block-value {
+  font-size: clamp(0.8rem, 0.66vw, 0.92rem) !important;
+  line-height: 1.2 !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.01em !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-value-block-detail,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-review-block-description,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-value-block-detail,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-review-block-description {
+  font-size: 0.64rem !important;
+  line-height: 1.3 !important;
+}
+
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-value-block,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-value-block {
+  border-radius: var(--aixia-dash-radius-sm, 0.875rem);
+  padding: 0.65rem 0.75rem;
+}
+
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-value-block-value,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-value-block-value {
+  margin-top: 0.35rem;
+}
+
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="cards"]:not([data-review-grid-layout])
+  .aixia-value-block-detail,
+.aixia-finance-page
+  .aixia-review-grid[data-review-grid-variant="compact"]:not([data-review-grid-layout])
+  .aixia-value-block-detail {
+  margin-top: 0.3rem;
+}
+
+.aixia-finance-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-value-block-detail,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-2"] .aixia-value-block-detail,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-3"] .aixia-value-block-detail,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-4"] .aixia-value-block-detail,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-5"] .aixia-value-block-detail,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-6"] .aixia-value-block-detail,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-7"] .aixia-value-block-detail {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-2"] .aixia-value-block-value,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-3"] .aixia-value-block-value,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-4"] .aixia-value-block-value,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-5"] .aixia-value-block-value,
+.aixia-finance-page .aixia-review-grid[data-review-grid-layout="overview-6"] .aixia-value-block-value {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .aixia-page .aixia-section-title,
@@ -7002,4 +8254,1870 @@ button.aixia-action-card:disabled {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+/* -------------------------------------------------------
+   GLOBAL FORM CONTROL TYPOGRAPHY LOCK
+   Keep dropdown/input/textarea text consistent across pages.
+------------------------------------------------------- */
+
+.aixia-page .aixia-form-input,
+.aixia-page .aixia-form-select,
+.aixia-page .aixia-form-textarea,
+.aixia-page .aixia-input,
+.aixia-page .aixia-select,
+.aixia-page .aixia-textarea {
+  font-size: 0.8rem !important;
+  line-height: 1.3 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.005em !important;
+  font-family: inherit !important;
+}
+
+.aixia-page .aixia-form-select,
+.aixia-page .aixia-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+
+.aixia-page .aixia-form-select option,
+.aixia-page .aixia-form-select optgroup,
+.aixia-page .aixia-select option,
+.aixia-page .aixia-select optgroup {
+  font-family: inherit !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  line-height: 1.3 !important;
+}
+
+/* -------------------------------------------------------
+   FIELD CARD TYPOGRAPHY (FORM CONTEXT)
+   Smaller, consistent value-card text in form sections.
+------------------------------------------------------- */
+
+.aixia-page .aixia-form-grid .aixia-value-block-label,
+.aixia-page .aixia-form-grid .aixia-display-block-label {
+  font-size: 0.56rem !important;
+  line-height: 1.14 !important;
+  letter-spacing: 0.13em !important;
+}
+
+.aixia-page .aixia-form-grid .aixia-value-block-value,
+.aixia-page .aixia-form-grid .aixia-display-block-value,
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-value-block-value,
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-review-block-value,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-value-block-value,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-review-block-value {
+  font-size: clamp(0.68rem, 0.52vw, 0.78rem) !important;
+  line-height: 1.14 !important;
+  font-weight: 700 !important;
+}
+
+.aixia-page .aixia-form-grid .aixia-value-block-detail,
+.aixia-page .aixia-form-grid .aixia-display-block-detail,
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-value-block-detail,
+.aixia-page .aixia-review-grid[data-review-grid-variant="cards"] .aixia-review-block-description,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-value-block-detail,
+.aixia-page .aixia-review-grid[data-review-grid-variant="compact"] .aixia-review-block-description {
+  font-size: 0.62rem !important;
+  line-height: 1.28 !important;
+}
+
+/* Keep section/support text in one unified style family */
+.aixia-page .aixia-label,
+.aixia-page .aixia-caption,
+.aixia-page .aixia-field-helper {
+  font-family: inherit !important;
+  font-size: 0.62rem !important;
+  line-height: 1.28 !important;
+  font-weight: 600 !important;
+}
+
+/* Route-specific visual overrides for /finance/transactions/paycheck-requests/process */
+.aixia-page
+  .aixia-paycheck-company-employee-stage
+  .aixia-paycheck-join-date-input[type="date"] {
+  min-height: 3.35rem;
+  padding: 0.82rem 1rem;
+  border: 1px solid rgba(120, 171, 255, 0.55);
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, rgba(30, 53, 95, 0.56), rgba(12, 21, 41, 0.72)),
+    rgba(6, 13, 30, 0.84);
+  color: rgba(240, 246, 255, 0.98);
+  font-size: 0.94rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  box-shadow:
+    inset 0 1px 0 rgba(210, 227, 255, 0.12),
+    0 10px 24px rgba(5, 11, 26, 0.52);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.aixia-page
+  .aixia-paycheck-company-employee-stage
+  .aixia-paycheck-join-date-input[type="date"]:hover {
+  border-color: rgba(144, 191, 255, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(232, 241, 255, 0.16),
+    0 12px 28px rgba(4, 12, 30, 0.62);
+}
+
+.aixia-page
+  .aixia-paycheck-company-employee-stage
+  .aixia-paycheck-join-date-input[type="date"]:focus {
+  border-color: rgba(162, 203, 255, 0.95);
+  box-shadow:
+    0 0 0 2px rgba(46, 115, 245, 0.28),
+    0 0 0 5px rgba(38, 88, 210, 0.22),
+    0 14px 30px rgba(7, 18, 38, 0.68);
+}
+
+.aixia-page
+  .aixia-paycheck-company-employee-stage
+  .aixia-paycheck-join-date-input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(96%) sepia(8%) saturate(260%) hue-rotate(184deg) brightness(106%)
+    contrast(104%);
+  opacity: 0.96;
+}
+
+/* Shared create-page action footer rhythm (MW-024 create contract) */
+.aixia-sticky-action-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding-top: 0.25rem;
+}
+
+.aixia-sticky-action-footer__inner {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--aixia-dash-border);
+  border-radius: var(--aixia-dash-radius);
+  background: color-mix(in srgb, var(--aixia-dash-surface) 92%, #040712 8%);
+  padding: 0.75rem;
+  backdrop-filter: blur(12px);
+}
+
+@media (min-width: 960px) {
+  .aixia-sticky-action-footer__inner {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+}
+
+/* -------------------------------------------------------
+   GLOBAL WORKSPACE SHELL (Phase 1A)
+------------------------------------------------------- */
+
+.aixia-workspace-shell-page .aixia-workspace-shell-scroll {
+  width: min(1360px, 100%);
+  margin: 0 auto;
+}
+
+.aixia-workspace-shell {
+  width: 100%;
+  display: grid;
+  gap: 1rem;
+}
+
+.aixia-workspace-shell[data-workspace-shell-density="compact"] {
+  gap: 0.75rem;
+}
+
+.aixia-workspace-shell__hero {
+  min-width: 0;
+}
+
+.aixia-workspace-shell__body {
+  display: grid;
+  gap: 1rem;
+}
+
+.aixia-workspace-shell__body--compact {
+  gap: 0.75rem;
+}
+
+.aixia-workspace-shell__primary,
+.aixia-workspace-shell__secondary,
+.aixia-workspace-shell__details {
+  min-width: 0;
+}
+
+.aixia-workspace-shell__layout {
+  width: 100%;
+}
+
+.aixia-workspace-shell__timeline,
+.aixia-workspace-shell__footer {
+  min-width: 0;
+}
+
+.aixia-workspace-shell[data-workspace-shell-variant="compact"] {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.aixia-workspace-shell[data-workspace-shell-variant="wide"] {
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+/* -------------------------------------------------------
+   GLOBAL RUNTIME STATUS STRIP (Phase 1A)
+------------------------------------------------------- */
+
+.aixia-runtime-status-strip {
+  border: 1px solid rgba(137, 174, 255, 0.22);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.18), transparent 50%),
+    linear-gradient(145deg, rgba(14, 24, 46, 0.88), rgba(8, 15, 30, 0.94));
+  padding: 0.75rem;
+  backdrop-filter: blur(12px);
+}
+
+.aixia-runtime-status-strip__header {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 0.65rem;
+}
+
+.aixia-runtime-status-strip__label {
+  margin: 0;
+  color: rgba(241, 247, 255, 0.96);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aixia-runtime-status-strip__description {
+  margin: 0;
+  color: rgba(191, 205, 228, 0.88);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.aixia-runtime-status-strip__items {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.aixia-runtime-status-strip[data-runtime-strip-mode="inline"] .aixia-runtime-status-strip__items {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.aixia-runtime-status-strip[data-runtime-strip-mode="stacked"] .aixia-runtime-status-strip__items {
+  grid-template-columns: 1fr;
+}
+
+.aixia-runtime-status-strip__items--compact {
+  gap: 0.45rem;
+}
+
+.aixia-runtime-status-strip__item {
+  min-width: 0;
+}
+
+.aixia-runtime-status-strip__item-copy {
+  display: grid;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.aixia-runtime-status-strip__item-name {
+  color: rgba(238, 245, 255, 0.96);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.aixia-runtime-status-strip__item-description {
+  color: rgba(176, 193, 220, 0.84);
+  font-size: 0.64rem;
+  line-height: 1.35;
+}
+
+.aixia-runtime-status-strip__item-status {
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.aixia-runtime-status-strip__item-stack {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.6rem 0.72rem;
+  border: 1px solid rgba(149, 170, 206, 0.2);
+  border-radius: 12px;
+  background: rgba(10, 20, 40, 0.54);
+}
+
+@media (max-width: 880px) {
+  .aixia-runtime-status-strip__item-stack {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* Command hub meta strip — shared grid (AixiaCommandHubMetaStrip, P0-05) */
+.aixia-command-page .aixia-command-hub-meta,
+.aixia-finance-page .aixia-finance-hub-meta {
+  display: grid;
+  gap: var(--aixia-stack-gap, 0.75rem);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .aixia-command-page .aixia-command-hub-meta,
+  .aixia-finance-page .aixia-finance-hub-meta {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .aixia-command-page .aixia-command-hub-meta,
+  .aixia-finance-page .aixia-finance-hub-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Hub meta cell chrome — canonical for command + finance (AixiaCommandHubMetaStrip, P0 Batch 4) */
+.aixia-command-page .aixia-command-hub-meta .aixia-signal-row,
+.aixia-finance-page .aixia-finance-hub-meta .aixia-signal-row {
+  display: grid;
+  gap: 0.35rem;
+  align-items: start;
+  align-content: start;
+  min-width: 0;
+  height: 100%;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--aixia-dash-radius-sm, 12px);
+  border: 1px solid var(--aixia-dash-border, rgba(148, 163, 184, 0.22));
+  background: var(--aixia-dash-surface, rgba(15, 23, 42, 0.72));
+}
+
+.aixia-command-page .aixia-command-hub-meta .aixia-signal-row-label,
+.aixia-finance-page .aixia-finance-hub-meta .aixia-signal-row-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--aixia-dash-muted, rgba(148, 163, 184, 0.92));
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.aixia-command-page .aixia-command-hub-meta .aixia-signal-row-value,
+.aixia-finance-page .aixia-finance-hub-meta .aixia-signal-row-value {
+  flex-shrink: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: color-mix(in srgb, var(--foreground, #e2e8f0) 88%, transparent);
+}
+
+/* REMOVED (P0 Batch 4): .aixia-runtime-status-strip--command-meta — zero TSX call sites.
+   Page-level hub meta is owned by AixiaCommandHubMetaStrip; runtime strip is diagnostics-only.
+   AixiaRuntimeStatusStrip variant="hub-meta" delegates to AixiaCommandHubMetaStrip — do not restore CSS here. */
+
+/* Shared progress bar — AiXiaProgressBar (P0 Batch 4, shadcn boundary) */
+.aixia-progress-bar {
+  position: relative;
+  width: 100%;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary, #6366f1) 20%, transparent);
+}
+
+.aixia-progress-bar--violet {
+  background: color-mix(in srgb, #5b21b6 50%, rgba(15, 23, 42, 0.5));
+}
+
+.aixia-progress-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary, #6366f1);
+  transition: width 0.2s ease;
+}
+
+.aixia-progress-bar--violet .aixia-progress-bar__fill {
+  background: color-mix(in srgb, #a78bfa 85%, #6366f1);
+}
+
+/* Async loading wrapper — AixiaAsyncState (P0 Batch 5, PageLoader replacement) */
+.aixia-async-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--aixia-dash-radius-sm, 12px);
+  border: 1px solid var(--aixia-dash-border, rgba(148, 163, 184, 0.22));
+  background: color-mix(in srgb, var(--background, #020617) 42%, rgba(15, 23, 42, 0.72));
+  backdrop-filter: blur(10px);
+  min-width: 0;
+}
+
+.aixia-async-state--compact {
+  padding: 0.65rem 0.85rem;
+  gap: 0.6rem;
+}
+
+.aixia-async-state--panel {
+  padding: 1.25rem 1.5rem;
+  justify-content: center;
+  text-align: center;
+  flex-direction: column;
+  align-items: center;
+}
+
+.aixia-async-state__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--aixia-dash-muted, rgba(148, 163, 184, 0.92));
+}
+
+.aixia-async-state--panel .aixia-async-state__icon {
+  margin-bottom: 0.15rem;
+}
+
+.aixia-async-state__copy {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.aixia-async-state__title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--foreground, #e2e8f0) 92%, transparent);
+  line-height: 1.35;
+}
+
+.aixia-async-state__description {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--aixia-dash-muted, rgba(148, 163, 184, 0.92));
+}
+
+.aixia-async-state__progress {
+  margin-top: 0.35rem;
+  max-width: 16rem;
+}
+
+.aixia-async-state--panel .aixia-async-state__progress {
+  max-width: 20rem;
+  width: 100%;
+}
+
+.aixia-command-page .aixia-dash-hero .aixia-hero-badges {
+  max-width: min(48rem, 100%);
+}
+
+.aixia-command-participant-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--aixia-dash-radius-sm, 12px);
+  border: 1px solid var(--aixia-dash-border, rgba(148, 163, 184, 0.2));
+  background: color-mix(in srgb, var(--background, #020617) 40%, rgba(15, 23, 42, 0.75));
+}
+
+.aixia-command-participant-row__name {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--foreground, #f8fafc);
+}
+
+.aixia-command-participant-row__meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.6875rem;
+  color: var(--aixia-dash-muted, rgba(148, 163, 184, 0.92));
+}
+
+.aixia-command-participant-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* -------------------------------------------------------
+   GLOBAL CHAT PRIMITIVES (Phase 1B + workbench visual pass)
+------------------------------------------------------- */
+
+.aixia-section-body--embedded {
+  padding: 0.85rem !important;
+}
+
+.aixia-chat-thread {
+  display: grid;
+  gap: 0;
+  border: 1px solid rgba(132, 162, 232, 0.28);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.18), transparent 58%),
+    linear-gradient(160deg, rgba(12, 24, 48, 0.96), rgba(7, 14, 30, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 34px rgba(2, 8, 22, 0.34);
+  overflow: hidden;
+  backdrop-filter: blur(14px);
+}
+
+.aixia-chat-thread--workbench {
+  border-color: rgba(118, 156, 228, 0.34);
+}
+
+.aixia-chat-thread--workbench.aixia-chat-thread--density-compact {
+  border-color: var(--aixia-dash-border, rgba(148, 163, 184, 0.22));
+  border-radius: var(--aixia-dash-radius-sm, 12px);
+  background: var(--aixia-dash-surface, rgba(15, 23, 42, 0.72));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+}
+
+.aixia-chat-thread--density-compact .aixia-chat-thread__viewport {
+  padding: 0.55rem 0.65rem;
+  background: color-mix(in srgb, var(--background, #020617) 28%, rgba(8, 16, 32, 0.55));
+}
+
+.aixia-chat-thread--density-compact .aixia-chat-thread__body {
+  min-height: 0 !important;
+  gap: 0.55rem;
+  padding: 0.1rem 0.15rem 0.1rem 0;
+}
+
+.aixia-chat-thread--density-compact .aixia-chat-thread__messages {
+  gap: 0.62rem;
+}
+
+.aixia-chat-thread--density-compact .aixia-chat-thread__composer-dock {
+  padding: 0.55rem 0.65rem 0.65rem;
+}
+
+.aixia-chat-thread__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.78rem 0.85rem 0.62rem;
+  border-bottom: 1px solid rgba(134, 156, 198, 0.18);
+  background: linear-gradient(180deg, rgba(18, 34, 66, 0.55), rgba(10, 20, 40, 0.2));
+}
+
+.aixia-chat-thread__header-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.aixia-chat-thread__title {
+  margin: 0;
+  color: rgba(242, 248, 255, 0.96);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.aixia-chat-thread__description {
+  margin: 0;
+  color: rgba(188, 205, 230, 0.88);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.aixia-chat-thread__header-actions {
+  flex-shrink: 0;
+}
+
+.aixia-chat-thread__viewport {
+  padding: 0.72rem 0.85rem;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.08), transparent 42%),
+    rgba(4, 10, 22, 0.42);
+}
+
+.aixia-chat-thread__body {
+  display: grid;
+  gap: 0.72rem;
+  min-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.2rem 0.28rem 0.2rem 0;
+}
+
+.aixia-chat-thread__messages {
+  display: grid;
+  gap: 0.82rem;
+}
+
+.aixia-chat-thread__empty {
+  margin: auto;
+}
+
+.aixia-chat-thread__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: auto;
+  color: rgba(198, 214, 237, 0.9);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.aixia-chat-thread__footer {
+  border-top: 1px solid rgba(134, 156, 198, 0.24);
+  background: linear-gradient(180deg, rgba(8, 16, 34, 0.35), rgba(10, 20, 40, 0.82));
+}
+
+.aixia-chat-thread__composer-dock {
+  padding: 0.72rem 0.85rem 0.82rem;
+}
+
+.aixia-chat-message {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+.aixia-chat-message--align-end {
+  grid-template-columns: minmax(0, 1fr) 32px;
+  justify-self: end;
+  max-width: min(78%, 640px);
+  margin-left: auto;
+}
+
+.aixia-chat-message--align-end .aixia-chat-message__avatar {
+  order: 2;
+}
+
+.aixia-chat-message--align-end .aixia-chat-message__main {
+  order: 1;
+}
+
+.aixia-chat-message--compact {
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 0.45rem;
+}
+
+.aixia-chat-message--compact.aixia-chat-message--align-end {
+  grid-template-columns: minmax(0, 1fr) 28px;
+}
+
+.aixia-chat-message__avatar {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(156, 174, 210, 0.34);
+  background: linear-gradient(145deg, rgba(36, 55, 92, 0.95), rgba(19, 31, 59, 0.94));
+  color: rgba(233, 240, 255, 0.95);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  box-shadow: 0 6px 14px rgba(2, 8, 20, 0.28);
+}
+
+.aixia-chat-message--compact .aixia-chat-message__avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 0.6rem;
+}
+
+.aixia-chat-message__main {
+  min-width: 0;
+  display: grid;
+  gap: 0.28rem;
+}
+
+.aixia-chat-message__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.32rem 0.5rem;
+}
+
+.aixia-chat-message__meta-primary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.32rem 0.45rem;
+  min-width: 0;
+}
+
+.aixia-chat-message__meta-trailing {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.32rem;
+  margin-left: auto;
+}
+
+.aixia-chat-message__sender {
+  color: rgba(239, 246, 255, 0.96);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.aixia-chat-message__sender-role,
+.aixia-chat-message__timestamp {
+  color: rgba(170, 190, 223, 0.86);
+  font-size: 0.6rem;
+  font-weight: 600;
+}
+
+.aixia-chat-message__sender-role {
+  max-width: min(14rem, 42vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aixia-chat-thread--density-compact .aixia-chat-message__bubble {
+  padding: 0.48rem 0.62rem;
+  font-size: 0.72rem;
+}
+
+.aixia-chat-thread--density-compact .aixia-chat-message__footer {
+  gap: 0.28rem;
+}
+
+.aixia-chat-thread--density-compact .aixia-chat-message__focus-line,
+.aixia-chat-thread--density-compact .aixia-chat-message__intent-line {
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.aixia-chat-message__badges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.28rem;
+}
+
+.aixia-chat-message__bubble {
+  border: 1px solid rgba(133, 156, 199, 0.24);
+  border-radius: 14px;
+  padding: 0.58rem 0.72rem;
+  background: rgba(13, 24, 46, 0.78);
+  color: rgba(229, 239, 255, 0.96);
+  font-size: 0.74rem;
+  line-height: 1.48;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.aixia-chat-message__footer,
+.aixia-chat-message__metadata {
+  display: grid;
+  gap: 0.38rem;
+  color: rgba(173, 190, 220, 0.86);
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+
+.aixia-chat-message__focus-line,
+.aixia-chat-message__intent-line {
+  margin: 0;
+  color: rgba(170, 190, 223, 0.84);
+  font-size: 0.6rem;
+  line-height: 1.35;
+}
+
+.aixia-chat-message__intent-line {
+  color: rgba(196, 214, 238, 0.9);
+}
+
+.aixia-chat-message__actions {
+  margin-top: 0.1rem;
+}
+
+.aixia-chat-message--user .aixia-chat-message__avatar {
+  border-color: rgba(99, 133, 245, 0.5);
+  background: linear-gradient(145deg, rgba(53, 76, 131, 0.98), rgba(32, 49, 96, 0.96));
+}
+
+.aixia-chat-message--user .aixia-chat-message__bubble {
+  border-color: rgba(107, 140, 247, 0.42);
+  background: linear-gradient(145deg, rgba(28, 47, 92, 0.9), rgba(17, 33, 70, 0.92));
+}
+
+.aixia-chat-message--user .aixia-chat-message__meta {
+  justify-content: flex-end;
+}
+
+.aixia-chat-message--user .aixia-chat-message__meta-primary {
+  justify-content: flex-end;
+}
+
+.aixia-chat-message--agent .aixia-chat-message__avatar {
+  border-color: rgba(70, 194, 255, 0.44);
+  background: linear-gradient(145deg, rgba(23, 87, 127, 0.94), rgba(18, 56, 89, 0.95));
+}
+
+.aixia-chat-message--agent .aixia-chat-message__bubble {
+  border-color: rgba(84, 190, 236, 0.36);
+  background: linear-gradient(145deg, rgba(11, 34, 56, 0.82), rgba(8, 26, 44, 0.88));
+}
+
+.aixia-chat-message--system .aixia-chat-message__avatar {
+  border-color: rgba(242, 190, 96, 0.46);
+  background: linear-gradient(145deg, rgba(108, 77, 23, 0.92), rgba(81, 58, 18, 0.94));
+}
+
+.aixia-chat-message--system .aixia-chat-message__bubble {
+  border-color: rgba(233, 186, 99, 0.36);
+  background: rgba(47, 35, 14, 0.78);
+}
+
+.aixia-chat-message--planned .aixia-chat-message__bubble {
+  border-style: dashed;
+  opacity: 0.92;
+}
+
+.aixia-chat-composer {
+  display: grid;
+  gap: 0.58rem;
+  border: 1px solid rgba(130, 158, 205, 0.24);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at top right, rgba(96, 165, 250, 0.1), transparent 55%),
+    rgba(8, 16, 34, 0.72);
+  padding: 0.62rem 0.68rem;
+}
+
+.aixia-chat-composer--disabled {
+  opacity: 0.92;
+}
+
+.aixia-chat-composer--disabled .aixia-chat-composer__input {
+  cursor: not-allowed;
+  opacity: 0.78;
+}
+
+.aixia-chat-composer__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.aixia-chat-composer__preset-btn {
+  min-height: 30px;
+  font-size: 0.65rem;
+}
+
+.aixia-chat-composer__input-wrap {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.aixia-chat-composer__accessory {
+  min-width: 0;
+}
+
+.aixia-chat-composer__input {
+  resize: vertical;
+  min-height: 4.5rem;
+  background: rgba(4, 10, 22, 0.55) !important;
+}
+
+.aixia-chat-composer__actions {
+  width: 100%;
+}
+
+.aixia-chat-composer__hints {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.aixia-chat-composer__helper-text,
+.aixia-chat-composer__status-text {
+  color: rgba(173, 190, 220, 0.9);
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.aixia-chat-composer__status-text {
+  color: rgba(196, 214, 238, 0.92);
+}
+
+@media (max-width: 820px) {
+  .aixia-chat-thread__header {
+    flex-direction: column;
+  }
+
+  .aixia-chat-message {
+    grid-template-columns: 28px minmax(0, 1fr);
+  }
+
+  .aixia-chat-message--align-end {
+    grid-template-columns: minmax(0, 1fr) 28px;
+    max-width: 92%;
+  }
+}
+
+/* -------------------------------------------------------
+   GLOBAL MEMORY APPROVAL PROMPT (Phase 1C)
+------------------------------------------------------- */
+
+.aixia-memory-approval {
+  display: grid;
+  gap: 0.62rem;
+  border: 1px solid rgba(143, 169, 214, 0.24);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(84, 190, 236, 0.16), transparent 54%),
+    linear-gradient(145deg, rgba(12, 22, 43, 0.92), rgba(8, 16, 34, 0.95));
+  padding: 0.72rem;
+}
+
+.aixia-memory-approval__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.aixia-memory-approval__question {
+  margin: 0;
+  color: rgba(239, 247, 255, 0.96);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.aixia-memory-approval__status {
+  flex-shrink: 0;
+}
+
+.aixia-memory-approval__content {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.aixia-memory-approval__suggestion {
+  border: 1px solid rgba(130, 158, 205, 0.24);
+  border-radius: 11px;
+  background: rgba(12, 24, 49, 0.72);
+  padding: 0.58rem 0.7rem;
+  color: rgba(222, 233, 250, 0.95);
+  font-size: 0.68rem;
+  line-height: 1.48;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.aixia-memory-approval__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem 0.62rem;
+  color: rgba(170, 191, 225, 0.88);
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.aixia-memory-approval__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.aixia-memory-approval__helper {
+  margin: 0;
+  color: rgba(181, 199, 228, 0.88);
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.aixia-memory-approval[data-memory-approval-status="saved"] {
+  border-color: rgba(80, 198, 149, 0.34);
+}
+
+.aixia-memory-approval[data-memory-approval-status="error"] {
+  border-color: rgba(237, 121, 121, 0.36);
+}
+
+.aixia-memory-approval[data-memory-approval-disabled="true"] {
+  opacity: 0.88;
+}
+
+.aixia-memory-approval--compact {
+  gap: 0.45rem;
+  padding: 0.55rem 0.62rem;
+}
+
+.aixia-memory-approval--compact .aixia-memory-approval__suggestion {
+  padding: 0.45rem 0.55rem;
+  font-size: 0.64rem;
+}
+
+.aixia-memory-approval--inline {
+  gap: 0;
+  border-radius: 10px;
+  border-color: rgba(130, 158, 205, 0.22);
+  background: rgba(8, 16, 34, 0.62);
+  padding: 0.48rem 0.55rem;
+  box-shadow: none;
+}
+
+.aixia-memory-approval--inline .aixia-memory-approval__inline {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.aixia-memory-approval--inline .aixia-memory-approval__question {
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+.aixia-memory-approval--inline .aixia-memory-approval__suggestion {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 0.62rem;
+  color: rgba(196, 214, 238, 0.9);
+}
+
+.aixia-memory-approval--inline .aixia-memory-approval__actions {
+  gap: 0.38rem;
+}
+
+.aixia-memory-approval--inline .aixia-memory-approval__actions .aixia-dash-action {
+  min-height: 28px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.62rem;
+}
+
+@media (max-width: 820px) {
+  .aixia-memory-approval__header {
+    flex-direction: column;
+  }
+}
+
+/* -------------------------------------------------------
+   GLOBAL PROGRESSIVE DISCLOSURE (Phase 1D)
+------------------------------------------------------- */
+
+.aixia-progressive-disclosure {
+  border: 1px solid rgba(140, 167, 214, 0.24);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at top right, rgba(96, 165, 250, 0.14), transparent 56%),
+    linear-gradient(145deg, rgba(11, 22, 43, 0.9), rgba(8, 16, 34, 0.95));
+  overflow: hidden;
+}
+
+.aixia-progressive-disclosure__summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.72rem 0.8rem;
+}
+
+.aixia-progressive-disclosure__summary::-webkit-details-marker {
+  display: none;
+}
+
+.aixia-progressive-disclosure__header {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.62rem;
+  flex: 1 1 auto;
+}
+
+.aixia-progressive-disclosure__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(130, 163, 221, 0.33);
+  background: rgba(18, 33, 63, 0.72);
+  color: rgba(221, 234, 255, 0.95);
+  flex-shrink: 0;
+}
+
+.aixia-progressive-disclosure__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.32rem;
+}
+
+.aixia-progressive-disclosure__title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.aixia-progressive-disclosure__title {
+  color: rgba(238, 247, 255, 0.96);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.aixia-progressive-disclosure__description {
+  margin: 0;
+  color: rgba(178, 199, 230, 0.88);
+  font-size: 0.66rem;
+  line-height: 1.4;
+}
+
+.aixia-progressive-disclosure__actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.aixia-progressive-disclosure__indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  color: rgba(176, 198, 229, 0.84);
+  flex-shrink: 0;
+}
+
+.aixia-progressive-disclosure__indicator-icon {
+  display: inline-flex;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.aixia-progressive-disclosure__indicator-text {
+  font-size: 0.59rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aixia-progressive-disclosure[open] .aixia-progressive-disclosure__indicator-icon {
+  transform: rotate(180deg);
+}
+
+.aixia-progressive-disclosure__content {
+  padding: 0 0.8rem 0.8rem;
+  border-top: 1px solid rgba(132, 163, 211, 0.2);
+  margin-top: -0.1rem;
+  overflow-x: hidden;
+}
+
+.aixia-progressive-disclosure--compact .aixia-progressive-disclosure__summary {
+  padding: 0.58rem 0.68rem;
+}
+
+.aixia-progressive-disclosure--compact .aixia-progressive-disclosure__content {
+  padding: 0 0.68rem 0.68rem;
+}
+
+.aixia-progressive-disclosure--warning {
+  border-color: rgba(239, 190, 96, 0.34);
+}
+
+.aixia-progressive-disclosure--danger {
+  border-color: rgba(240, 128, 128, 0.34);
+}
+
+.aixia-progressive-disclosure--success {
+  border-color: rgba(92, 212, 163, 0.34);
+}
+
+.aixia-progressive-disclosure--info {
+  border-color: rgba(102, 180, 240, 0.34);
+}
+
+.aixia-progressive-disclosure--secondary {
+  border-color: rgba(120, 145, 188, 0.2);
+  background:
+    radial-gradient(circle at top right, rgba(96, 165, 250, 0.08), transparent 58%),
+    linear-gradient(145deg, rgba(9, 18, 36, 0.82), rgba(7, 14, 28, 0.9));
+  opacity: 0.96;
+}
+
+.aixia-progressive-disclosure--secondary .aixia-progressive-disclosure__title {
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.aixia-progressive-disclosure--secondary .aixia-progressive-disclosure__description {
+  font-size: 0.62rem;
+}
+
+@media (max-width: 820px) {
+  .aixia-progressive-disclosure__summary {
+    align-items: flex-start;
+  }
+
+  .aixia-progressive-disclosure__header {
+    flex-wrap: wrap;
+  }
+}
+
+/* -------------------------------------------------------
+   GLOBAL AUDIT TIMELINE (Phase 1E)
+------------------------------------------------------- */
+
+.aixia-audit-timeline {
+  display: grid;
+  gap: 0.72rem;
+  border: 1px solid rgba(135, 166, 216, 0.22);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at top right, rgba(97, 165, 250, 0.14), transparent 55%),
+    linear-gradient(145deg, rgba(11, 22, 43, 0.92), rgba(8, 16, 34, 0.95));
+  padding: 0.78rem;
+  backdrop-filter: blur(12px);
+}
+
+.aixia-audit-timeline__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.aixia-audit-timeline__header-copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.aixia-audit-timeline__title {
+  margin: 0;
+  color: rgba(240, 248, 255, 0.96);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.aixia-audit-timeline__description {
+  margin: 0;
+  color: rgba(184, 205, 235, 0.88);
+  font-size: 0.68rem;
+  line-height: 1.42;
+}
+
+.aixia-audit-timeline__header-actions {
+  flex-shrink: 0;
+}
+
+.aixia-audit-timeline__body {
+  display: grid;
+  gap: 0.55rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 160px;
+  padding-right: 0.18rem;
+}
+
+.aixia-audit-timeline__item {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: stretch;
+}
+
+.aixia-audit-timeline__marker-wrap {
+  display: grid;
+  justify-items: center;
+  grid-template-rows: 14px 1fr;
+}
+
+.aixia-audit-timeline__marker {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(152, 186, 240, 0.5);
+  background: radial-gradient(circle at 35% 35%, rgba(192, 224, 255, 0.95), rgba(75, 129, 210, 0.9));
+  box-shadow: 0 0 0 3px rgba(80, 134, 212, 0.15);
+}
+
+.aixia-audit-timeline__line {
+  width: 1px;
+  min-height: 100%;
+  background: linear-gradient(180deg, rgba(124, 163, 224, 0.54), rgba(97, 130, 192, 0.16));
+}
+
+.aixia-audit-timeline__content {
+  min-width: 0;
+}
+
+.aixia-audit-timeline__description-text {
+  display: block;
+}
+
+.aixia-audit-timeline__meta {
+  margin-top: 0.3rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.34rem 0.62rem;
+  color: rgba(173, 195, 228, 0.9);
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.aixia-audit-timeline__meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.26rem;
+}
+
+.aixia-audit-timeline__metadata {
+  margin-top: 0.3rem;
+  color: rgba(173, 192, 223, 0.86);
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.aixia-audit-timeline__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.aixia-audit-timeline__empty {
+  margin: auto;
+}
+
+.aixia-audit-timeline__loading {
+  margin: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: rgba(195, 214, 241, 0.9);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.aixia-audit-timeline--compact {
+  padding: 0.62rem;
+  gap: 0.58rem;
+}
+
+.aixia-audit-timeline--compact .aixia-audit-timeline__item {
+  gap: 0.45rem;
+}
+
+.aixia-audit-timeline--compact .aixia-audit-timeline__marker {
+  width: 8px;
+  height: 8px;
+}
+
+.aixia-audit-timeline--compact .aixia-audit-timeline__meta {
+  margin-top: 0.2rem;
+  font-size: 0.58rem;
+}
+
+@media (max-width: 820px) {
+  .aixia-audit-timeline__header {
+    flex-direction: column;
+  }
+
+  .aixia-audit-timeline__item {
+    grid-template-columns: 14px minmax(0, 1fr);
+  }
+}
+
+/* AgentOps messenger shell — WeChat / LLM chat parity */
+.aixia-messenger-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 420px;
+  height: clamp(420px, calc(100dvh - 19rem), 560px);
+  max-height: min(560px, calc(100dvh - 16rem));
+  border: 1px solid rgba(132, 162, 232, 0.34);
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 58%),
+    linear-gradient(160deg, rgba(12, 24, 48, 0.96), rgba(7, 14, 30, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 14px 34px rgba(2, 8, 22, 0.34);
+}
+
+.aixia-messenger-shell__viewport {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.85rem 0.95rem;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.08), transparent 42%),
+    rgba(4, 10, 22, 0.42);
+}
+
+.aixia-messenger-shell__messages {
+  display: grid;
+  gap: 0.82rem;
+  align-content: start;
+  min-height: min-content;
+}
+
+.aixia-messenger-shell__empty {
+  margin: auto;
+  max-width: 28rem;
+  text-align: center;
+}
+
+.aixia-messenger-shell__dock {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 168px;
+  padding: 0.55rem 0 0;
+  border-top: 1px solid rgba(134, 156, 198, 0.28);
+  background: linear-gradient(180deg, rgba(8, 16, 34, 0.55), rgba(10, 20, 40, 0.96));
+  box-shadow: 0 -10px 24px rgba(2, 8, 22, 0.35);
+  scroll-margin-bottom: 1rem;
+}
+
+.aixia-section-body--embedded .aixia-messenger-shell {
+  height: clamp(380px, calc(100dvh - 21rem), 520px);
+  min-height: 380px;
+}
+
+.aixia-section-body--messenger {
+  padding: 0.85rem !important;
+  overflow: visible !important;
+  scroll-margin-bottom: 1.25rem;
+}
+
+.aixia-section-body--messenger .aixia-messenger-shell {
+  height: clamp(420px, calc(100dvh - 20rem), 540px);
+  max-height: min(540px, calc(100dvh - 17rem));
+}
+
+.aixia-messenger-shell__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.aixia-chat-thread--messenger {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  min-height: min(62vh, 720px);
+}
+
+.aixia-chat-thread--messenger .aixia-chat-thread__viewport {
+  padding: 0;
+  background: transparent;
+}
+
+.aixia-messenger-shell__messages-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.85rem 0.95rem;
+  display: grid;
+  gap: 0.82rem;
+  align-content: start;
+}
+
+.aixia-messenger-shell__dock-wrap {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.aixia-messenger-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.72rem 0.85rem;
+  border-bottom: 1px solid rgba(134, 156, 198, 0.24);
+  background: linear-gradient(180deg, rgba(18, 34, 66, 0.62), rgba(10, 20, 40, 0.35));
+}
+
+.aixia-messenger-toolbar__left,
+.aixia-messenger-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.aixia-messenger-toolbar__title-wrap {
+  min-width: 0;
+}
+
+.aixia-messenger-toolbar__title {
+  margin: 0;
+  color: rgba(242, 248, 255, 0.96);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.aixia-messenger-toolbar__status {
+  margin: 0.15rem 0 0;
+  color: rgba(188, 205, 230, 0.82);
+  font-size: 0.68rem;
+}
+
+.aixia-messenger-toolbar__tts-btn,
+.aixia-messenger-composer__mic-btn,
+.aixia-messenger-composer__plus-btn,
+.aixia-messenger-composer__send-btn {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+.aixia-messenger-toolbar__tts-label {
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+}
+
+.aixia-messenger-model-select-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.aixia-messenger-model-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.aixia-messenger-model-select__label {
+  color: rgba(188, 205, 230, 0.82);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.aixia-messenger-model-select__control {
+  min-width: 9.5rem;
+  max-width: 14rem;
+  padding: 0.28rem 0.45rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  border-radius: 0.45rem;
+  background: rgba(8, 16, 32, 0.72);
+  border: 1px solid rgba(134, 156, 198, 0.28);
+  color: rgba(242, 248, 255, 0.96);
+}
+
+.aixia-messenger-model-select__control:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.18);
+}
+
+.aixia-messenger-model-select__refresh-btn {
+  min-width: 1.9rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.aixia-messenger-model-select__meta {
+  color: rgba(188, 205, 230, 0.68);
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+
+.aixia-messenger-composer {
+  display: grid;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.aixia-messenger-composer__dock {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto auto;
+  gap: 0.55rem;
+  align-items: stretch;
+  padding: 0.72rem 0.85rem 0.55rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.aixia-messenger-composer__input {
+  width: 100%;
+  min-width: 0;
+  min-height: 72px;
+  max-height: 160px;
+  resize: vertical;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: rgba(242, 248, 255, 0.96);
+  background: rgba(8, 16, 34, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+}
+
+.aixia-messenger-composer__input::placeholder {
+  color: rgba(188, 205, 230, 0.72);
+}
+
+.aixia-messenger-composer__input:focus {
+  outline: none;
+  border-color: rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.18);
+}
+
+.aixia-messenger-composer__plus-btn {
+  border-radius: 999px;
+}
+
+.aixia-messenger-composer__mic-btn--active {
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.16);
+}
+
+.aixia-messenger-composer__meta {
+  padding: 0 0.85rem 0.72rem;
+  font-size: 0.72rem;
+  color: rgba(188, 205, 230, 0.88);
+}
+
+.aixia-messenger-composer__error {
+  color: rgba(252, 165, 165, 0.95);
+}
+
+.aixia-messenger-composer__presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.55rem 0.85rem 0;
+}
+
+.aixia-messenger-participant-picker {
+  padding: 0.55rem 0.85rem 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.aixia-messenger-participant-picker__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.aixia-messenger-participant-picker__title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(198, 214, 237, 0.92);
+}
+
+.aixia-messenger-participant-picker__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.aixia-messenger-participant-picker__bulk-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.aixia-messenger-participant-picker__action-btn {
+  font-size: 0.68rem;
+  padding: 0.25rem 0.55rem;
+}
+
+.aixia-messenger-participant-picker__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-height: 132px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.aixia-messenger-participant-picker--collapsed .aixia-messenger-participant-picker__chips {
+  display: none;
+}
+
+.aixia-messenger-participant-picker--collapsed .aixia-messenger-participant-picker__bulk-actions {
+  display: none;
+}
+
+.aixia-messenger-participant-picker__toggle-btn {
+  font-size: 0.68rem;
+  padding: 0.25rem 0.55rem;
+}
+
+.aixia-messenger-participant-picker__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(226, 232, 240, 0.92);
+  font-size: 0.72rem;
+}
+
+.aixia-messenger-participant-picker__chip--selected {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+}
+
+.aixia-messenger-attachment-sheet {
+  margin: 0 0.85rem;
+  padding: 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 12px;
+  background: rgba(8, 16, 34, 0.72);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.aixia-messenger-attachment-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.aixia-messenger-attachment-sheet__title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.aixia-messenger-attachment-sheet__pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+
+.aixia-messenger-attachment-sheet__pick input {
+  display: none;
+}
+
+.aixia-messenger-attachment-sheet__queue {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aixia-messenger-attachment-sheet__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.45rem;
+  align-items: center;
+  font-size: 0.74rem;
+}
+
+.aixia-messenger-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: rgba(198, 214, 237, 0.9);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.aixia-chat-message__attachments {
+  margin-top: 0.45rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.aixia-chat-message__attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.45rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.45);
+  font-size: 0.72rem;
+}
+
+.aixia-chat-message__attachment-image img {
+  max-width: min(240px, 100%);
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+@media (max-width: 640px) {
+  .aixia-messenger-shell {
+    min-height: 380px;
+    height: clamp(380px, calc(100dvh - 15rem), 520px);
+  }
+
+  .aixia-section-body--messenger .aixia-messenger-shell {
+    height: clamp(360px, calc(100dvh - 14rem), 500px);
+  }
+
+  .aixia-messenger-composer__dock {
+    grid-template-columns: auto minmax(80px, 1fr) auto auto;
+  }
 }

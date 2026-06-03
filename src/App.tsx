@@ -163,6 +163,11 @@ import AgentOpsAdvancedPage from "@/app/system/agent-ops/advanced/page";
 import AgentOpsKnowledgePage from "@/app/system/agent-ops/knowledge/page";
 import AgentOpsAutomationPage from "@/app/system/agent-ops/automation/page";
 import AgentOpsHistoryPage from "@/app/system/agent-ops/history/page";
+import AgentOpsToolsPage from "@/app/system/agent-ops/tools/page";
+import AgentOpsToolsCategoryPage from "@/app/system/agent-ops/tools/[categoryId]/page";
+import AgentOpsToolsGroupPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/page";
+import AgentOpsToolsToolDetailPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/page";
+import AgentOpsToolsHermesGlobalWebsiteMemoryPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/global-website-memory/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -995,6 +1000,56 @@ function AppRoutes() {
           <ProtectedRoute>
             <DashboardLayout>
               <AgentOpsHistoryPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/tools/:categoryId/:groupId/:toolId/global-website-memory"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsToolsHermesGlobalWebsiteMemoryPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/tools/:categoryId/:groupId/:toolId"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsToolsToolDetailPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/tools/:categoryId/:groupId"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsToolsGroupPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/tools/:categoryId"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsToolsCategoryPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/tools"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsToolsPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

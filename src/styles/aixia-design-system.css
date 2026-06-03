@@ -835,6 +835,35 @@
   --aixia-responsive-safe-bottom-tablet: clamp(2.5rem, 5.2vh, 4rem);
   --aixia-responsive-safe-bottom-mobile: clamp(2.25rem, 6vh, 3.5rem);
   --aixia-responsive-table-min-column: clamp(8.5rem, 16vw, 12rem);
+  /* Locked registry/module table rhythm (08-table-list-standard) */
+  --aixia-table-visible-rows: 10;
+  --aixia-table-cell-pad-y: 0.45rem;
+  --aixia-table-cell-pad-x: 0.55rem;
+  --aixia-table-row-min-height: 2rem;
+  --aixia-table-body-row-height: calc(
+    var(--aixia-table-row-min-height) + (2 * var(--aixia-table-cell-pad-y))
+  );
+  --aixia-table-header-height: calc((2 * var(--aixia-table-cell-pad-y)) + 1.05rem);
+  --aixia-table-scroll-max-height: calc(
+    var(--aixia-table-header-height) +
+      (var(--aixia-table-visible-rows) * var(--aixia-table-body-row-height))
+  );
+  --aixia-table-row-height: var(--aixia-table-body-row-height);
+  --aixia-table-row-pad-y: var(--aixia-table-cell-pad-y);
+  --aixia-table-row-pad-x: var(--aixia-table-cell-pad-x);
+  /* Column width rhythm — registry tables (08-table-list-standard §4.L) */
+  --aixia-table-min-width-compact: 52rem;
+  --aixia-table-min-width-standard: 65rem;
+  --aixia-table-min-width-wide: 77.5rem;
+  --aixia-table-min-width-extra-wide: 99rem;
+  --aixia-table-col-flex: 9.5rem;
+  --aixia-table-col-flex-max-compact: 38%;
+  --aixia-table-col-medium: 7.25rem;
+  --aixia-table-col-small: 5.75rem;
+  --aixia-table-col-status: 9rem;
+  --aixia-table-col-count: 4.75rem;
+  --aixia-table-col-action: 9.5rem;
+  --aixia-table-col-identity-text-max: 17.5rem;
   /* Floating AI trigger — shared clearance above stacked process/footer controls */
   --aixia-fab-size: 4rem;
   --aixia-fab-inset-inline-end: 1.5rem;
@@ -873,6 +902,20 @@
   overflow: visible !important;
 }
 
+/* Navigation hub grids: panel shell grows with wrapped card rows (not dash-panel 70vh cap) */
+.aixia-card-shell.aixia-dash-panel:has(.aixia-navigation-grid),
+.aixia-dash-panel.aixia-card-shell:has(.aixia-navigation-grid) {
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
+}
+
+.aixia-dash-panel-body:has(.aixia-navigation-grid) {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
 .aixia-primary-grid-content {
   display: flex;
   min-height: 0;
@@ -906,21 +949,8 @@
   min-height: var(--aixia-btn-height, 2.25rem);
 }
 
-/* Shared responsive table contract:
-   preserve readability by favoring horizontal scroll over forced compression. */
-.aixia-table-wrap {
-  width: 100%;
-  min-width: 0;
-}
-
-.aixia-table-scroll {
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-}
-
-.aixia-table {
-  min-width: max(100%, calc(6 * var(--aixia-responsive-table-min-column)));
-}
+/* Table scroll/layout: owned by TABLES / LOCKED SMART CENTERED TABLE SYSTEM (~2161).
+   Do not add competing .aixia-table-wrap / .aixia-table-scroll rules here. */
 
 @media (min-width: 1024px) {
   .aixia-shared-control-bar {
@@ -2161,20 +2191,31 @@
 /* -------------------------------------------------------
    TABLES / LOCKED SMART CENTERED TABLE SYSTEM
    Shared table ownership. Page-level table systems are not allowed.
+   Scroll model: horizontal on .aixia-table-wrap; vertical on .aixia-table-scroll.
+   Registry/default: 10 visible body rows then vertical scroll (see :root tokens).
 ------------------------------------------------------- */
 
 .aixia-table-wrap {
   width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   border-radius: 1.5rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(0, 0, 0, 0.2);
 }
 
 .aixia-table-scroll {
-  max-height: 690px;
+  max-height: var(--aixia-table-scroll-max-height);
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+}
+
+/* Beat page/Tailwind max-h utilities on registry + default shells */
+.aixia-table-wrap:not([data-table-variant="archive"]) .aixia-table-scroll {
+  max-height: var(--aixia-table-scroll-max-height) !important;
 }
 
 .aixia-table {
@@ -2184,8 +2225,27 @@
   table-layout: auto;
 }
 
+/* Registry: controlled column grid (fixed layout + tier tokens; 08 §4.L) */
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table {
-  min-width: 1240px;
+  width: 100%;
+  table-layout: fixed;
+  min-width: var(--aixia-table-min-width-standard);
+}
+
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="compact"] .aixia-table {
+  min-width: var(--aixia-table-min-width-compact);
+}
+
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="standard"] .aixia-table {
+  min-width: var(--aixia-table-min-width-standard);
+}
+
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="wide"] .aixia-table {
+  min-width: var(--aixia-table-min-width-wide);
+}
+
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="extra-wide"] .aixia-table {
+  min-width: var(--aixia-table-min-width-extra-wide);
 }
 
 /* SHARED TABLE DENSITY — compact registry + archive (global) */
@@ -2195,41 +2255,179 @@
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-badge,
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-date,
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-actions {
-  padding: 0.45rem 0.55rem;
+  padding: var(--aixia-table-cell-pad-y) var(--aixia-table-cell-pad-x);
   min-height: 0;
 }
 
-.aixia-table-wrap[data-table-variant="registry"] .aixia-table-row {
-  min-height: 2rem;
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-row,
+.aixia-table-wrap:not([data-table-variant="archive"]) .aixia-table-row {
+  height: var(--aixia-table-body-row-height);
+  min-height: var(--aixia-table-body-row-height);
+  max-height: var(--aixia-table-body-row-height);
 }
 
-.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="sm"] {
-  min-width: 5.75rem;
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-primary-text,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-secondary-text,
+.aixia-table-wrap:not([data-table-variant="archive"]) .aixia-table-primary-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-secondary-text {
+  margin-top: 0;
+  line-height: 1.2;
+}
+
+/* Registry column tiers + legacy sm/md/lg/xl aliases (08 §4.L.5 / L.8) */
+.aixia-table-wrap[data-table-variant="registry"] col[data-table-column-tier="small"],
+.aixia-table-wrap[data-table-variant="registry"] th[data-table-column-tier="small"],
+.aixia-table-wrap[data-table-variant="registry"] td[data-table-column-tier="small"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="sm"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-badge[data-table-cell-width="sm"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-date[data-table-cell-width="sm"] {
+  width: var(--aixia-table-col-small);
+  min-width: var(--aixia-table-col-small);
+  max-width: var(--aixia-table-col-small);
+}
+
+.aixia-table-wrap[data-table-variant="registry"] col[data-table-column-tier="status"],
+.aixia-table-wrap[data-table-variant="registry"] th[data-table-column-tier="status"],
+.aixia-table-wrap[data-table-variant="registry"] td[data-table-column-tier="status"] {
+  width: var(--aixia-table-col-status);
+  min-width: var(--aixia-table-col-status);
+  max-width: var(--aixia-table-col-status);
+}
+
+.aixia-table-wrap[data-table-variant="registry"] col[data-table-column-tier="count"],
+.aixia-table-wrap[data-table-variant="registry"] th[data-table-column-tier="count"],
+.aixia-table-wrap[data-table-variant="registry"] td[data-table-column-tier="count"] {
+  width: var(--aixia-table-col-count);
+  min-width: var(--aixia-table-col-count);
+  max-width: var(--aixia-table-col-count);
+}
+
+.aixia-table-wrap[data-table-variant="registry"] col[data-table-column-tier="medium"],
+.aixia-table-wrap[data-table-variant="registry"] th[data-table-column-tier="medium"],
+.aixia-table-wrap[data-table-variant="registry"] td[data-table-column-tier="medium"],
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="md"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-badge[data-table-cell-width="md"],
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-date[data-table-cell-width="md"] {
-  min-width: 7.25rem;
+  width: var(--aixia-table-col-medium);
+  min-width: var(--aixia-table-col-medium);
+  max-width: var(--aixia-table-col-medium);
 }
 
-.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="lg"] {
-  min-width: 9.5rem;
+.aixia-table-wrap[data-table-variant="registry"] col[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-variant="registry"] th[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-variant="registry"] td[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="lg"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="xl"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-badge[data-table-cell-width="lg"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-badge[data-table-cell-width="xl"] {
+  width: auto;
+  min-width: var(--aixia-table-col-flex);
+  max-width: none;
 }
 
-.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="xl"] {
-  min-width: 11rem;
+/* Compact registry: cap flex identity column — must not dominate table (08 §4.L.11) */
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="compact"] col[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="compact"] th[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="compact"] td[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="compact"] .aixia-table-cell-text[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="compact"] .aixia-table-cell-text[data-table-cell-width="lg"],
+.aixia-table-wrap[data-table-variant="registry"][data-table-width-preset="compact"] .aixia-table-cell-text[data-table-cell-width="xl"] {
+  width: var(--aixia-table-col-flex-max-compact);
+  min-width: var(--aixia-table-col-flex);
+  max-width: var(--aixia-table-col-flex-max-compact);
+}
+
+/* Registry flex cells: identity text content-sized — not full-cell stretch (08 §4.L.11) */
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-column-tier="flex"] > .aixia-table-primary-text,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-column-tier="flex"] > .aixia-table-secondary-text,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="lg"] > .aixia-table-primary-text,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="lg"] > .aixia-table-secondary-text,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="xl"] > .aixia-table-primary-text,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-text[data-table-cell-width="xl"] > .aixia-table-secondary-text {
+  display: inline-block;
+  box-sizing: border-box;
+  width: auto;
+  max-width: min(var(--aixia-table-col-identity-text-max), 100%);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.aixia-table-wrap[data-table-variant="registry"] col[data-table-column-tier="action"],
+.aixia-table-wrap[data-table-variant="registry"] th[data-table-column-tier="action"],
+.aixia-table-wrap[data-table-variant="registry"] td[data-table-column-tier="action"] {
+  width: var(--aixia-table-col-action);
+  min-width: var(--aixia-table-col-action);
+  max-width: var(--aixia-table-col-action);
 }
 
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-actions [data-table-actions-align="center"],
-.aixia-table-wrap[data-table-variant="registry"] .aixia-table-actions {
-  justify-content: flex-end;
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-actions [data-table-actions-align="end"],
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-actions,
+.aixia-table-wrap:not([data-table-variant="archive"]) .aixia-table-actions {
+  justify-content: center;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table th:last-child,
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table td:last-child,
 .aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-actions {
-  width: 1%;
+  width: var(--aixia-table-col-action);
+  min-width: var(--aixia-table-col-action);
+  max-width: var(--aixia-table-col-action);
   white-space: nowrap;
+}
+
+/* Equal-gap layout engine (08 §4.L.0) — colgroup + shell variables drive widths */
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"] .aixia-table {
+  width: max(100%, var(--aixia-table-layout-min-width));
+  min-width: var(--aixia-table-layout-min-width);
+  table-layout: fixed;
+}
+
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"] col[data-table-column-tier],
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"] th[data-table-column-tier],
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"] td[data-table-column-tier] {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"][data-table-width-preset="compact"]
+  col[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"][data-table-width-preset="compact"]
+  th[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"][data-table-width-preset="compact"]
+  td[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"][data-table-width-preset="compact"]
+  .aixia-table-cell-text[data-table-column-tier="flex"],
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"][data-table-width-preset="compact"]
+  .aixia-table-cell-text[data-table-cell-width="lg"],
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"][data-table-width-preset="compact"]
+  .aixia-table-cell-text[data-table-cell-width="xl"] {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+}
+
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"] .aixia-table th:last-child,
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"] .aixia-table td:last-child,
+.aixia-table-wrap[data-table-layout-engine="equal-gap"][data-table-variant="registry"] .aixia-table-cell-actions {
+  width: auto;
+  min-width: 0;
+  max-width: none;
+}
+
+/* Equal-gap scroll model: wrap owns horizontal scroll; scroll owns vertical (08 §4.L.0.3).
+   min-width propagates layout width to wrap; do not set overflow-x: visible (pairs with overflow-y: auto as auto). */
+.aixia-table-wrap[data-table-layout-engine="equal-gap"] .aixia-table-scroll {
+  min-width: var(--aixia-table-layout-min-width);
+  max-width: none;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] {
@@ -2325,8 +2523,11 @@
   min-width: 11rem;
 }
 
-.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions [data-table-actions-align="center"] {
-  justify-content: flex-end;
+/* Archive modal: compact scroll on wrap; actions centered under header (08 §4.B) */
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions [data-table-actions-align="center"],
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-cell-actions [data-table-actions-align="end"],
+.aixia-table-wrap[data-table-variant="archive"] .aixia-table-actions {
+  justify-content: center;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table th:last-child,
@@ -2342,13 +2543,14 @@
 .aixia-table-wrap[data-table-variant="archive"] .aixia-table-actions {
   display: inline-flex !important;
   align-items: center !important;
-  justify-content: flex-end !important;
+  justify-content: center !important;
   flex-wrap: nowrap !important;
   gap: 0.5rem !important;
   width: max-content !important;
   min-width: max-content !important;
   max-width: none !important;
   margin-left: auto !important;
+  margin-right: auto !important;
 }
 
 .aixia-table-wrap[data-table-variant="archive"] .aixia-btn-primary,
@@ -2501,7 +2703,7 @@
 
 .aixia-table th {
   width: auto;
-  padding: 0.45rem 0.55rem;
+  padding: var(--aixia-table-cell-pad-y) var(--aixia-table-cell-pad-x);
   vertical-align: middle;
   text-align: center;
   font-size: 0.65625rem;
@@ -2523,7 +2725,7 @@
   width: auto;
   min-width: max-content;
   min-height: 0;
-  padding: 0.45rem 0.55rem;
+  padding: var(--aixia-table-cell-pad-y) var(--aixia-table-cell-pad-x);
   vertical-align: middle;
   text-align: center;
   font-size: 0.8125rem;
@@ -2543,12 +2745,12 @@
 
 .aixia-table-th,
 .aixia-table-cell {
-  padding: 0.45rem 0.55rem;
+  padding: var(--aixia-table-cell-pad-y) var(--aixia-table-cell-pad-x);
   text-align: center;
 }
 
 .aixia-table-row {
-  min-height: var(--aixia-table-row-height, 2rem);
+  min-height: var(--aixia-table-row-height);
   border-bottom: 1px solid rgba(255, 255, 255, 0.045);
   font-size: var(--aixia-table-header-font-size, 0.8125rem);
   color: rgba(255, 255, 255, 0.68);
@@ -2651,7 +2853,7 @@
 .aixia-table-cell-badge,
 .aixia-table-cell-date,
 .aixia-table-cell-actions {
-  padding: 0.45rem 0.55rem;
+  padding: var(--aixia-table-cell-pad-y) var(--aixia-table-cell-pad-x);
   vertical-align: middle;
   text-align: center;
 }
@@ -2707,14 +2909,26 @@
   white-space: nowrap;
 }
 
-.aixia-table-actions,
-.aixia-table td:has(.aixia-btn-primary) > div,
-.aixia-table td:has(.aixia-btn-secondary) > div,
-.aixia-table td:has(.aixia-btn-danger) > div {
+/* Registry action column uses fixed token, not legacy 1% collapse (08 §4.L.6) */
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table-cell-actions,
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table td:has(.aixia-btn-primary),
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table td:has(.aixia-btn-secondary),
+.aixia-table-wrap[data-table-variant="registry"] .aixia-table td:has(.aixia-btn-danger) {
+  width: var(--aixia-table-col-action);
+  min-width: var(--aixia-table-col-action);
+  max-width: var(--aixia-table-col-action);
+}
+
+.aixia-table-wrap:not([data-table-variant="archive"]) .aixia-table-actions,
+.aixia-table-wrap:not([data-table-variant="archive"]) .aixia-table td:has(.aixia-btn-primary) > div,
+.aixia-table-wrap:not([data-table-variant="archive"]) .aixia-table td:has(.aixia-btn-secondary) > div,
+.aixia-table-wrap:not([data-table-variant="archive"]) .aixia-table td:has(.aixia-btn-danger) > div {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   gap: 0.4rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* Shared row actions menu for registry/list tables */
@@ -3032,7 +3246,8 @@
   min-width: 0;
   box-sizing: border-box;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
-  grid-auto-rows: 1fr;
+  /* auto rows: height follows card content when wrapped (1fr squashes inside capped panels) */
+  grid-auto-rows: auto;
   align-items: stretch;
   gap: clamp(0.85rem, 1vw, 1rem);
   padding: clamp(0.75rem, 1vw, 1rem);
@@ -3042,6 +3257,35 @@
   width: 100%;
   min-width: 0;
   height: 100%;
+}
+
+/* Exactly four navigation cards (hub action rows): count-aware columns — mirrors hero status grid */
+@media (max-width: 639px) {
+  .aixia-navigation-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 640px) {
+  .aixia-navigation-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  .aixia-navigation-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1279px) {
+  .aixia-navigation-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) .aixia-navigation-card-shell {
+    grid-template-rows: minmax(228px, 1fr) auto;
+  }
+
+  .aixia-navigation-grid:has(> :nth-child(4)):not(:has(> :nth-child(5))) .aixia-navigation-card {
+    min-height: 228px;
+  }
 }
 
 .aixia-navigation-card-shell {
@@ -5718,6 +5962,12 @@
 .aixia-section .aixia-table-scroll {
   display: block;
   overflow-x: auto;
+}
+
+/* Equal-gap: section scroll min-width must match layout; no nested horizontal scroll (08 §4.L.0.3) */
+.aixia-section .aixia-table-wrap[data-table-layout-engine="equal-gap"] .aixia-table-scroll {
+  min-width: var(--aixia-table-layout-min-width);
+  overflow-x: hidden;
 }
 
 .aixia-section table,
@@ -10120,4 +10370,1274 @@ button.aixia-action-card:disabled {
   .aixia-messenger-composer__dock {
     grid-template-columns: auto minmax(80px, 1fr) auto auto;
   }
+}
+
+/* AgentOps Tools Hub — registry-driven category / nested group layout */
+.aixia-tools-hub-main-grid .aixia-navigation-card-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.aixia-tools-hub-category-grid .aixia-navigation-card-shell {
+  grid-template-rows: minmax(200px, 1fr) auto;
+}
+
+.aixia-tools-hub-category-grid .aixia-navigation-card {
+  min-height: 200px;
+}
+
+.aixia-tools-hub-category-grid .aixia-navigation-card-meta-item {
+  min-height: 64px;
+}
+
+.aixia-tools-hub-tool-grid .aixia-navigation-card-shell {
+  grid-template-rows: minmax(176px, 1fr) auto;
+}
+
+.aixia-tools-hub-tool-grid .aixia-navigation-card {
+  min-height: 176px;
+}
+
+.aixia-tools-hub-tool-grid .aixia-navigation-card-meta-item {
+  min-height: 60px;
+}
+
+.aixia-tools-hub-group-cell,
+.aixia-tools-hub-tool-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+}
+
+.aixia-tools-hub-group-cell .aixia-navigation-card-shell,
+.aixia-tools-hub-tool-cell .aixia-navigation-card-shell {
+  flex: 1 1 auto;
+  height: 100%;
+}
+
+/* Level 3 group pages — navigation cards in a tall, non-cropping section */
+.aixia-tools-hub-level3-section.aixia-card-shell,
+.aixia-tools-hub-level3-section.aixia-dash-panel {
+  flex: 1 1 auto;
+  min-height: min(72vh, 760px);
+}
+
+.aixia-tools-hub-level3-body {
+  flex: 1 1 auto;
+  min-height: min(62vh, 640px);
+  padding-top: 0.25rem;
+  padding-bottom: 1.25rem;
+}
+
+.aixia-tools-hub-level3-grid {
+  width: 100%;
+  min-width: 0;
+}
+
+.aixia-tools-hub-level3-cell {
+  display: flex;
+  min-width: 0;
+  height: 100%;
+}
+
+.aixia-tools-hub-level3-cell .aixia-navigation-card-shell,
+.aixia-tools-hub-level3-card {
+  width: 100%;
+  height: 100%;
+}
+
+.aixia-tools-hub-level3-grid .aixia-navigation-card-shell {
+  grid-template-rows: minmax(228px, 1fr) auto;
+}
+
+.aixia-tools-hub-level3-grid .aixia-navigation-card {
+  min-height: 228px;
+}
+
+.aixia-tools-hub-level3-grid .aixia-navigation-card-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.aixia-tools-hub-level3-grid .aixia-navigation-card-meta-item {
+  min-height: 72px;
+}
+
+.aixia-tools-hub-level3-grid .aixia-navigation-card-meta-description {
+  -webkit-line-clamp: 3;
+}
+
+/* Hermes Tools Hub detail — read-only status page */
+.aixia-tools-hub-hermes-page {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding-bottom: 5.5rem;
+}
+
+.aixia-tools-hub-hermes-hero-note {
+  margin: 0.35rem 0 0;
+  max-width: 52rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.aixia-tools-hub-hermes-section {
+  margin-top: 0;
+}
+
+.aixia-tools-hub-hermes-disclosure-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-summary-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  align-items: stretch;
+}
+
+.aixia-tools-hub-hermes-summary-grid .aixia-navigation-stat-block {
+  height: 100%;
+  min-height: 88px;
+}
+
+.aixia-tools-hub-hermes-layer-grid .aixia-navigation-card-shell {
+  grid-template-rows: minmax(200px, 1fr) auto;
+}
+
+.aixia-tools-hub-hermes-layer-grid .aixia-navigation-card {
+  min-height: 200px;
+}
+
+.aixia-tools-hub-hermes-connections {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-connection-row {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.32);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-connection-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.aixia-tools-hub-hermes-connection-system {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.aixia-tools-hub-hermes-connection-detail {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.aixia-tools-hub-hermes-gates {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.85rem 0 0;
+}
+
+.aixia-tools-hub-hermes-gate-row {
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.28);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-gate-row dt {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.aixia-tools-hub-hermes-gate-row dt code {
+  font-size: 0.72rem;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.aixia-tools-hub-hermes-gate-row dd {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.aixia-tools-hub-hermes-safety-list,
+.aixia-tools-hub-hermes-steps-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.aixia-tools-hub-hermes-steps-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.aixia-tools-hub-hermes-activation-warning {
+  margin: 0;
+}
+
+.aixia-tools-hub-hermes-roadmap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-roadmap-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.18);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-roadmap-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-roadmap-order {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.aixia-tools-hub-hermes-roadmap-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.aixia-tools-hub-hermes-roadmap-purpose {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.aixia-tools-hub-hermes-roadmap-next {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.aixia-tools-hub-hermes-roadmap-next-label {
+  display: block;
+  margin-bottom: 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.aixia-tools-hub-hermes-doc-links {
+  margin-top: 1rem;
+}
+
+.aixia-tools-hub-hermes-memory-index-body,
+.aixia-tools-hub-hermes-schedule-body,
+.aixia-tools-hub-hermes-controls-body {
+  min-width: 0;
+}
+
+/* Global Website Memory child page — full-height panels (override dash-panel 70vh cap) */
+.aixia-tools-hub-hermes-global-memory-page {
+  gap: 0.85rem;
+  padding-bottom: 6rem;
+}
+
+.aixia-tools-hub-hermes-global-memory-page .aixia-tools-hub-hermes-global-memory-section.aixia-dash-panel,
+.aixia-tools-hub-hermes-global-memory-page .aixia-tools-hub-hermes-global-memory-section.aixia-card-shell {
+  flex: 0 0 auto;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.aixia-tools-hub-hermes-global-memory-page .aixia-tools-hub-hermes-global-memory-body {
+  flex: 0 0 auto;
+  max-height: none !important;
+  overflow: visible !important;
+  min-height: 0;
+}
+
+.aixia-tools-hub-hermes-global-memory-page .aixia-tools-hub-hermes-global-memory-section {
+  margin-top: 0;
+}
+
+.aixia-tools-hub-hermes-memory-intro {
+  margin: 0.75rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+  max-width: 56rem;
+}
+
+.aixia-tools-hub-hermes-memory-grid {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-memory-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.32);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-memory-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.aixia-tools-hub-hermes-memory-card-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.aixia-tools-hub-hermes-memory-card-icon {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.aixia-tools-hub-hermes-memory-card-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.aixia-tools-hub-hermes-memory-meta {
+  display: grid;
+  gap: 0.5rem 0.75rem;
+  margin: 0;
+  grid-template-columns: 1fr;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-memory-meta > div {
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-memory-meta dt {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.aixia-tools-hub-hermes-memory-meta dd {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: rgba(203, 213, 225, 0.9);
+  overflow-wrap: anywhere;
+}
+
+.aixia-tools-hub-hermes-memory-meta dd code {
+  font-size: 0.7rem;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.aixia-tools-hub-hermes-memory-meta-wide {
+  grid-column: 1 / -1;
+}
+
+.aixia-tools-hub-hermes-memory-notes {
+  margin: 0;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+@media (min-width: 720px) {
+  .aixia-tools-hub-hermes-memory-meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.aixia-tools-hub-hermes-schedule-grid {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-schedule-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.32);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-schedule-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.aixia-tools-hub-hermes-schedule-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.aixia-tools-hub-hermes-schedule-description {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.aixia-tools-hub-hermes-controls-body {
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-controls-workflow {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  .aixia-tools-hub-hermes-controls-workflow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+.aixia-tools-hub-hermes-controls-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-controls-section .aixia-dash-panel-header,
+.aixia-tools-hub-hermes-controls-section .aixia-card-shell-header {
+  margin-bottom: 0.25rem;
+}
+
+.aixia-tools-hub-hermes-read-index-section {
+  margin-top: 0.35rem;
+  opacity: 0.98;
+}
+
+.aixia-tools-hub-hermes-read-index-section .aixia-tools-hub-hermes-memory-grid {
+  margin-top: 0.65rem;
+}
+
+.aixia-tools-hub-hermes-control-card-sources {
+  flex: 1 1 auto;
+}
+
+.aixia-tools-hub-hermes-control-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.32);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-control-title {
+  margin: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.95);
+}
+
+.aixia-tools-hub-hermes-control-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.aixia-tools-hub-hermes-control-value {
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.aixia-tools-hub-hermes-control-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.aixia-tools-hub-hermes-control-note,
+.aixia-tools-hub-hermes-control-meta {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.aixia-tools-hub-hermes-control-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+}
+
+.aixia-tools-hub-hermes-control-actions-primary {
+  margin-top: 0.35rem;
+}
+
+.aixia-tools-hub-hermes-control-actions-secondary {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.aixia-tools-hub-hermes-control-actions-secondary .aixia-tools-hub-hermes-cli-copy-btn,
+.aixia-tools-hub-hermes-control-actions-secondary button {
+  width: 100%;
+  justify-content: flex-start;
+  font-size: 0.78rem;
+}
+
+.aixia-tools-hub-hermes-control-helper {
+  margin: 0.15rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.aixia-tools-hub-hermes-status-rows {
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.aixia-tools-hub-hermes-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+.aixia-tools-hub-hermes-status-row:last-child {
+  border-bottom: none;
+}
+
+.aixia-tools-hub-hermes-status-row dt {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+.aixia-tools-hub-hermes-status-row dd {
+  margin: 0;
+}
+
+.aixia-tools-hub-hermes-frequency-segments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.aixia-tools-hub-hermes-frequency-segment {
+  flex: 1 1 auto;
+  min-width: min(100%, 7.5rem);
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.45);
+  color: rgba(203, 213, 225, 0.92);
+  font-size: 0.72rem;
+  line-height: 1.3;
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.aixia-tools-hub-hermes-frequency-segment:hover:not(:disabled) {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.55);
+}
+
+.aixia-tools-hub-hermes-frequency-segment.is-selected {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: rgba(251, 191, 36, 0.12);
+  color: rgba(254, 243, 199, 0.95);
+}
+
+.aixia-tools-hub-hermes-frequency-segment:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.aixia-tools-hub-hermes-pause-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  cursor: pointer;
+  font-size: 0.76rem;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.aixia-tools-hub-hermes-pause-toggle input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+}
+
+.aixia-tools-hub-hermes-pause-toggle-title {
+  display: block;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.aixia-tools-hub-hermes-pause-toggle-note {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.aixia-tools-hub-hermes-snapshot-summary {
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.aixia-tools-hub-hermes-snapshot-summary dt {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.aixia-tools-hub-hermes-snapshot-summary dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.aixia-tools-hub-hermes-snapshot-details {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.4);
+}
+
+.aixia-tools-hub-hermes-snapshot-source-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.74rem;
+  color: rgba(203, 213, 225, 0.88);
+}
+
+.aixia-tools-hub-hermes-snapshot-details-btn {
+  margin-top: 0.35rem;
+}
+
+.aixia-tools-hub-hermes-safety-banner {
+  margin-top: 0.85rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-safety-banner-text {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.aixia-tools-hub-hermes-command-actions {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.aixia-tools-hub-hermes-command-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.aixia-tools-hub-hermes-command-run-btn {
+  flex: 1 1 12rem;
+  justify-content: flex-start;
+}
+
+.aixia-tools-hub-hermes-copy-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.aixia-tools-hub-hermes-copy-fallback-toggle {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+}
+
+.aixia-tools-hub-hermes-partial-snapshot-block {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.aixia-tools-hub-hermes-command-output-summary {
+  margin: 0.5rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.92);
+  overflow-wrap: anywhere;
+}
+
+.aixia-tools-hub-hermes-report-paths {
+  margin: 0.45rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.74rem;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.aixia-tools-hub-hermes-report-paths code {
+  font-size: 0.72rem;
+  overflow-wrap: anywhere;
+}
+
+.aixia-tools-hub-hermes-partial-snapshot-summary {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.aixia-tools-hub-hermes-control-btn-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-right: 0.25rem;
+}
+
+.aixia-tools-hub-hermes-control-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.aixia-tools-hub-hermes-control-select {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(248, 250, 252, 0.95);
+  font-size: 0.8rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.aixia-tools-hub-hermes-cli-list {
+  margin: 0;
+  padding-left: 1rem;
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+  color: rgba(203, 213, 225, 0.9);
+  list-style: disc;
+}
+
+.aixia-tools-hub-hermes-cli-list code {
+  font-size: 0.72rem;
+  color: rgba(226, 232, 240, 0.92);
+  overflow-wrap: anywhere;
+}
+
+.aixia-tools-hub-hermes-source-priority-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.aixia-tools-hub-hermes-source-priority-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: rgba(226, 232, 240, 0.92);
+  cursor: pointer;
+  padding: 0.35rem 0.4rem;
+  border-radius: 8px;
+}
+
+.aixia-tools-hub-hermes-source-priority-item:hover {
+  background: rgba(30, 41, 59, 0.35);
+}
+
+.aixia-tools-hub-hermes-source-priority-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-source-priority-rank {
+  flex-shrink: 0;
+  width: 1.25rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.aixia-tools-hub-hermes-safety-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Hermes H2-F2 — Global Memory Candidates */
+.aixia-tools-hub-hermes-candidates-section .aixia-dash-panel-body,
+.aixia-tools-hub-hermes-candidates-section .aixia-card-shell-body {
+  overflow: visible;
+  max-height: none;
+}
+
+.aixia-tools-hub-hermes-candidates-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-candidates-status-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.55rem;
+}
+
+.aixia-tools-hub-hermes-candidates-stat {
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.35);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-candidates-stat-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.aixia-tools-hub-hermes-candidates-stat-value {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: rgba(226, 232, 240, 0.95);
+  overflow-wrap: anywhere;
+}
+
+.aixia-tools-hub-hermes-candidates-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+
+.aixia-tools-hub-hermes-candidates-list {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-candidates-list-scroll {
+  max-height: min(70vh, 720px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.25rem;
+}
+
+.aixia-tools-hub-hermes-candidate-card {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.42);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-candidate-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.aixia-tools-hub-hermes-candidate-type {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.aixia-tools-hub-hermes-candidate-title {
+  margin: 0.2rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgba(248, 250, 252, 0.96);
+}
+
+.aixia-tools-hub-hermes-candidate-summary {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.aixia-tools-hub-hermes-candidate-proposed {
+  margin-top: 0.55rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.aixia-tools-hub-hermes-candidate-proposed-label {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.aixia-tools-hub-hermes-candidate-proposed-text {
+  margin: 0.35rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: rgba(226, 232, 240, 0.92);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.aixia-tools-hub-hermes-candidate-meta {
+  margin: 0.55rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.45rem;
+  font-size: 0.74rem;
+}
+
+.aixia-tools-hub-hermes-candidate-meta dt {
+  margin: 0;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.aixia-tools-hub-hermes-candidate-meta dd {
+  margin: 0.12rem 0 0;
+  color: rgba(226, 232, 240, 0.9);
+  overflow-wrap: anywhere;
+}
+
+.aixia-tools-hub-hermes-candidate-meta code {
+  font-size: 0.7rem;
+}
+
+.aixia-tools-hub-hermes-candidate-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.aixia-tools-hub-hermes-candidate-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.aixia-tools-hub-hermes-candidates-show-more {
+  align-self: flex-start;
+}
+
+.aixia-tools-hub-hermes-candidate-edit-form {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.aixia-tools-hub-hermes-candidate-edit-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+/* Hermes H2-F3A — Approved Global Memory */
+.aixia-tools-hub-hermes-approved-section .aixia-dash-panel-body,
+.aixia-tools-hub-hermes-approved-section .aixia-card-shell-body {
+  overflow: visible;
+  max-height: none;
+}
+
+.aixia-tools-hub-hermes-approved-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-approved-card {
+  border-color: rgba(52, 211, 153, 0.22);
+}
+
+/* Hermes H2-F3B-1 — Memory Reader Preview */
+.aixia-tools-hub-hermes-reader-preview-section .aixia-dash-panel-body,
+.aixia-tools-hub-hermes-reader-preview-section .aixia-card-shell-body {
+  overflow: visible;
+  max-height: none;
+}
+
+.aixia-tools-hub-hermes-reader-preview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-reader-preview-disclaimer {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  color: rgba(203, 213, 225, 0.88);
+  list-style: disc;
+}
+
+.aixia-tools-hub-hermes-reader-preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-reader-preview-limit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-reader-preview-limit-label {
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.95);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.aixia-tools-hub-hermes-reader-preview-limit-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.aixia-tools-hub-hermes-reader-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.aixia-tools-hub-hermes-reader-preview-stats {
+  margin-top: 0.15rem;
+}
+
+.aixia-tools-hub-hermes-reader-preview-exclusions {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.78rem;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.aixia-tools-hub-hermes-reader-preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-reader-preview-card {
+  border-radius: 10px;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  background: rgba(15, 23, 42, 0.42);
+  padding: 0.75rem 0.85rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-reader-preview-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-reader-preview-order {
+  margin: 0 0 0.15rem;
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.95);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.aixia-tools-hub-hermes-reader-preview-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.aixia-tools-hub-hermes-reader-preview-text {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(248, 250, 252, 0.92);
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-reader-preview-line {
+  margin: 0.45rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.95);
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-reader-preview-line-label {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.2rem;
+  color: rgba(100, 116, 139, 0.95);
+}
+
+.aixia-tools-hub-hermes-candidate-edit-input {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(248, 250, 252, 0.95);
+  font-size: 0.8rem;
+  padding: 0.45rem 0.55rem;
 }

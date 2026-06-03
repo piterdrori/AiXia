@@ -11,6 +11,7 @@ import guestManifest from "../../../qa-agent/agents/guest/manifest.json";
 import vendorExternalManifest from "../../../qa-agent/agents/vendor-external/manifest.json";
 import tenantAdminManifest from "../../../qa-agent/agents/tenant-admin/manifest.json";
 
+import { appendAgentOpsGlobalApprovedMemoryPromptLines } from "./globalMemoryApprovedService";
 import type { AgentOpsChatScope } from "./types";
 
 export interface AgentOpsAgentManifest {
@@ -77,6 +78,8 @@ export function listAgentOpsAgentManifests(): AgentOpsAgentManifest[] {
 export interface AgentOpsAgentSystemPromptInput {
   chatScope: AgentOpsChatScope;
   memorySnippets?: string[];
+  /** Hermes H2-F3B-2 — Issue Chat only; not per-agent memory. */
+  globalApprovedMemorySnippets?: string[];
   roomContext?: string;
   issueContextLines?: string[];
   enableCreativity?: boolean;
@@ -119,6 +122,8 @@ export function buildAgentOpsAgentSystemPrompt(
     lines.push("Issue context:");
     lines.push(...input.issueContextLines.map((line) => `- ${line}`));
   }
+
+  appendAgentOpsGlobalApprovedMemoryPromptLines(lines, input.globalApprovedMemorySnippets);
 
   const memory = (input.memorySnippets ?? []).map((item) => item.trim()).filter(Boolean);
   if (memory.length) {

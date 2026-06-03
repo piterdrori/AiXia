@@ -57,6 +57,8 @@ import {
   recordAgentOpsIssueAgentMessage,
   prepareAgentOpsLessonCandidateDraft,
   runAgentOpsIssueChatAdapter,
+  isAgentOpsIssueChatGlobalMemoryEnabled,
+  loadGlobalApprovedMemorySnippetsForIssueChat,
   markAgentOpsFalsePositive,
   markAgentOpsInProgress,
   markAgentOpsVerificationRunning,
@@ -143,7 +145,14 @@ export default function AgentOpsIssueWorkspacePage() {
   const [agentQuestion, setAgentQuestion] = useState("");
   const [agentIntent, setAgentIntent] = useState<AgentOpsAgentMockIntent>("clarification");
   const [agentMemoryItems, setAgentMemoryItems] = useState<AgentOpsManagedAgentMemoryItem[]>([]);
+  const [globalApprovedMemoryIncludedCount, setGlobalApprovedMemoryIncludedCount] = useState(0);
   const [lastAdapterResponse, setLastAdapterResponse] = useState<AgentOpsHermesAdapterResult | null>(null);
+  const issueChatGlobalMemoryEnabled = useMemo(
+    () => isAgentOpsIssueChatGlobalMemoryEnabled(),
+    [],
+  );
+  const globalApprovedMemoryAttached =
+    issueChatGlobalMemoryEnabled && globalApprovedMemoryIncludedCount > 0;
   const [chatError, setChatError] = useState<string | null>(null);
   const [memoryApprovalByMessageId, setMemoryApprovalByMessageId] = useState<
     Record<string, AixiaMemoryApprovalStatus>
@@ -292,8 +301,19 @@ export default function AgentOpsIssueWorkspacePage() {
       setAgentMemoryItems([]);
     }
 
+    if (issueChatGlobalMemoryEnabled) {
+      const globalMemoryResult = await loadGlobalApprovedMemorySnippetsForIssueChat();
+      if (!globalMemoryResult.error && globalMemoryResult.data) {
+        setGlobalApprovedMemoryIncludedCount(globalMemoryResult.data.includedCount);
+      } else {
+        setGlobalApprovedMemoryIncludedCount(0);
+      }
+    } else {
+      setGlobalApprovedMemoryIncludedCount(0);
+    }
+
     setLoading(false);
-  }, [issueCode]);
+  }, [issueCode, issueChatGlobalMemoryEnabled]);
 
   useEffect(() => {
     void loadIssue();
@@ -445,6 +465,19 @@ export default function AgentOpsIssueWorkspacePage() {
       return;
     }
 
+    let chatGlobalSnippets: string[] = [];
+    let chatGlobalIncludedCount = 0;
+    if (issueChatGlobalMemoryEnabled) {
+      const globalMemoryResult = await loadGlobalApprovedMemorySnippetsForIssueChat();
+      if (!globalMemoryResult.error && globalMemoryResult.data) {
+        chatGlobalSnippets = globalMemoryResult.data.snippets;
+        chatGlobalIncludedCount = globalMemoryResult.data.includedCount;
+        setGlobalApprovedMemoryIncludedCount(chatGlobalIncludedCount);
+      }
+    }
+
+    const chatGlobalAttached = issueChatGlobalMemoryEnabled && chatGlobalIncludedCount > 0;
+
     const adapterResult = await runAgentOpsIssueChatAdapter({
       issueCode,
       question,
@@ -468,6 +501,9 @@ export default function AgentOpsIssueWorkspacePage() {
       title: finding?.title ?? null,
       latestCursorReport: latestCursorReport?.reportText ?? null,
       verificationStatus: verificationItem?.requestStatus ?? null,
+      globalApprovedMemorySnippets: chatGlobalAttached ? chatGlobalSnippets : undefined,
+      globalApprovedMemoryAttached: chatGlobalAttached,
+      globalApprovedMemoryIncludedCount: chatGlobalAttached ? chatGlobalIncludedCount : 0,
     });
 
     const parsed = parseAgentCreativeProposal(adapterResult.response);
@@ -518,6 +554,9 @@ export default function AgentOpsIssueWorkspacePage() {
         noLiveAiResponse: !usedLiveResponse,
         noHermes: !adapterResult.hermesRuntimeCalled,
         creativeProposal: parsed.proposal,
+        globalMemoryAttached: chatGlobalAttached,
+        globalMemorySnippetCount: chatGlobalAttached ? chatGlobalIncludedCount : 0,
+        globalMemoryPreviewOnly: chatGlobalAttached,
       },
     });
 
@@ -564,6 +603,7 @@ export default function AgentOpsIssueWorkspacePage() {
     reportingAgentLabel,
     selectedLlmModel,
     verificationItem,
+    issueChatGlobalMemoryEnabled,
   ]);
 
   const handleIssueMemoryApproval = useCallback(
@@ -966,6 +1006,19 @@ export default function AgentOpsIssueWorkspacePage() {
                   data-testid="agentops-agent-chat"
                   className="min-w-0 aixia-section-body--messenger"
                 >
+                    {globalApprovedMemoryAttached ? (
+                      <div
+                        className="mb-2 flex flex-wrap items-center gap-2"
+                        data-testid="agentops-issue-global-memory-badge"
+                      >
+                        <AixiaBadge tone="amber">
+                          Global memory preview attached ({globalApprovedMemoryIncludedCount})
+                        </AixiaBadge>
+                        <span className="text-xs text-slate-400">
+                          Metadata only · not official source-of-truth · Hermes preview context
+                        </span>
+                      </div>
+                    ) : null}
                     <AixiaMessengerShell
                       roomTitle={`Issue agent · ${issueCode}`}
                       chatScope="issue"
@@ -975,7 +1028,7 @@ export default function AgentOpsIssueWorkspacePage() {
                       onComposerChange={setAgentQuestion}
                       onSend={() => void handleAskAgent()}
                       sending={submitting}
-                      statusText={`${chatRoleLabel} · ${selectedLlmLabel} · Hermes ${hermesAdapterStatus.runtimeActive ? "ready" : "fallback"} · LLM ${localLlmStatus.runtimeActive ? "active" : "inactive"}`}
+                      statusText={`${chatRoleLabel} · ${selectedLlmLabel} · Hermes ${hermesAdapterStatus.runtimeActive ? "ready" : "fallback"} · LLM ${localLlmStatus.runtimeActive ? "active" : "inactive"}${globalApprovedMemoryAttached ? ` · Global memory preview attached (${globalApprovedMemoryIncludedCount})` : ""}`}
                       errorText={chatError}
                       emptyTitle="Issue agent chat"
                       emptyDescription="Ask the reporting agent for clarification, prompt improvements, or next steps."

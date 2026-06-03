@@ -39,16 +39,30 @@ export function agentOpsApiDevPlugin(): Plugin {
 
       server.middlewares.use(async (req, res, next) => {
         const pathname = req.url?.split("?")[0] ?? "";
+        const isGlobalMemoryRun =
+          pathname === "/api/agentops/global-memory/run-command";
+        const isGlobalMemoryCandidates =
+          pathname === "/api/agentops/global-memory/generate-candidates";
         if (
-          (pathname !== "/api/agentops/llm" && pathname !== "/api/agentops/hermes") ||
-          !req.method
+          pathname !== "/api/agentops/llm" &&
+          pathname !== "/api/agentops/hermes" &&
+          !isGlobalMemoryRun &&
+          !isGlobalMemoryCandidates
         ) {
+          return next();
+        }
+        if (!req.method) {
           return next();
         }
 
         try {
-          const handler =
-            pathname === "/api/agentops/llm" ? handlers.handleLlm : handlers.handleHermes;
+          const handler = isGlobalMemoryRun
+            ? handlers.handleGlobalMemoryRunCommand
+            : isGlobalMemoryCandidates
+              ? handlers.handleGlobalMemoryGenerateCandidates
+              : pathname === "/api/agentops/llm"
+                ? handlers.handleLlm
+                : handlers.handleHermes;
           const host = req.headers.host ?? "127.0.0.1:5173";
           const url = `http://${host}${req.url ?? pathname}`;
           const headers = new Headers();

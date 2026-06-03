@@ -196,6 +196,16 @@ export type {
   AgentOpsLocalLlmProposedMemoryUpdate,
   AgentOpsCouncilChatMessage,
   AgentOpsAgentChatMessage,
+  AgentOpsGlobalMemoryScanFrequency,
+  AgentOpsGlobalMemorySourceId,
+  AgentOpsGlobalMemoryScanPausePreference,
+  AgentOpsGlobalMemorySourcePriorityPreference,
+  AgentOpsGlobalMemoryPartialSnapshot,
+  AgentOpsGlobalMemoryPreferences,
+  AgentOpsGlobalMemoryCommandId,
+  AgentOpsGlobalMemoryCommandRunResult,
+  AgentOpsGlobalMemoryCommandRunStatus,
+  AgentOpsGlobalMemoryCommandRunnerStatus,
 } from "./types";
 
 export type {
@@ -211,6 +221,8 @@ export {
   AGENTOPS_OPEN_ACTIVE_STATUSES,
   AGENTOPS_HERMES_ADAPTER_READINESS,
   AGENTOPS_CODEGRAPH_DISCOVERY_READINESS,
+  AGENTOPS_GLOBAL_MEMORY_SCAN_FREQUENCIES,
+  AGENTOPS_GLOBAL_MEMORY_DEFAULT_SOURCE_IDS,
   mapVerificationStatusToFindingStatus,
   mapVerificationStatusToQueueState,
 } from "./types";
@@ -356,3 +368,68 @@ export {
   flattenCodeGraphMockSuggestions,
   formatCodeGraphHintsForPromptDraft,
 } from "./codegraphDiscovery";
+
+export {
+  getAgentOpsGlobalMemoryPreferences,
+  recordAgentOpsGlobalMemoryScanFrequencyPreference,
+  recordAgentOpsGlobalMemorySourcePriorityPreference,
+  recordAgentOpsGlobalMemoryScanPausePreference,
+  recordAgentOpsGlobalMemoryScanRequested,
+  recordAgentOpsGlobalMemoryPartialSnapshot,
+  createDefaultAgentOpsGlobalMemorySourcePriority,
+  formatAgentOpsGlobalMemoryScanFrequency,
+  buildAgentOpsGlobalMemoryPartialSnapshot,
+  GLOBAL_MEMORY_READ_ONLY_CLI_COMMANDS,
+  recordAgentOpsGlobalMemoryCommandRun,
+} from "./globalWebsiteMemoryService";
+
+export {
+  getAgentOpsGlobalMemoryCommandRunnerStatus,
+  runAgentOpsGlobalMemoryCommand,
+} from "./globalMemoryCommandRunner";
+
+export type {
+  AgentOpsGlobalMemoryCandidate,
+  AgentOpsGlobalMemoryCandidateBatchSummary,
+  AgentOpsGlobalMemoryCandidateDecision,
+  AgentOpsGlobalMemoryCandidateDecisionInput,
+  AgentOpsGlobalMemoryCandidateEditInput,
+  AgentOpsGlobalMemoryCandidateGeneratorStatus,
+  AgentOpsGlobalMemoryCandidateStatus,
+  AgentOpsGlobalMemoryCandidateType,
+  AgentOpsGlobalMemoryCandidatesOverview,
+  AgentOpsGenerateGlobalMemoryCandidatesResult,
+  AgentOpsGlobalMemoryApprovedMemoryType,
+  AgentOpsGlobalMemoryApprovedOverview,
+  AgentOpsGlobalMemoryApprovedRecord,
+  AgentOpsGlobalMemoryApprovedRecordStatus,
+  AgentOpsGlobalMemoryApprovedScope,
+  AgentOpsCreateGlobalMemoryApprovedRecordResult,
+  AgentOpsGlobalMemoryHermesPreviewResult,
+  AgentOpsGlobalMemoryHermesPreviewEntry,
+  AgentOpsGlobalMemoryHermesPreviewExclusionSummary,
+  AgentOpsGlobalMemoryHermesPreviewExclusionReason,
+} from "./types";
+
+export type { FormatAgentOpsGlobalMemoryForHermesContextOptions } from "./globalMemoryApprovedService";
+
+export {
+  generateAgentOpsGlobalMemoryCandidatesFromLastScan,
+  getAgentOpsGlobalMemoryCandidates,
+  recordAgentOpsGlobalMemoryCandidateDecision,
+  recordAgentOpsGlobalMemoryCandidateEdit,
+} from "./globalMemoryCandidateService";
+
+export {
+  createAgentOpsGlobalMemoryApprovedRecordFromCandidate,
+  getAgentOpsGlobalMemoryApprovedRecords,
+  buildAgentOpsGlobalMemoryApprovedRecordFromCandidate,
+  formatAgentOpsGlobalMemoryForHermesContext,
+  isAgentOpsIssueChatGlobalMemoryEnabled,
+  loadGlobalApprovedMemorySnippetsForIssueChat,
+  appendAgentOpsGlobalApprovedMemoryPromptLines,
+} from "./globalMemoryApprovedService";
+
+export type { AgentOpsIssueChatGlobalMemorySnippetsResult } from "./globalMemoryApprovedService";
+
+export { getAgentOpsGlobalMemoryCandidateGeneratorStatus } from "./globalMemoryCandidateClient";

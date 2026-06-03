@@ -3,6 +3,9 @@
  * Mirrors api/agentops/* serverless handlers without SSR module loading.
  */
 
+import { handleGlobalMemoryRunCommandRequest } from "./agentops-global-memory-command-runner.mjs";
+import { handleGlobalMemoryGenerateCandidatesRequest } from "./agentops-global-memory-candidate-generator.mjs";
+
 function readEnv(env, name) {
   const value = env[name] ?? process.env[name];
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -189,6 +192,10 @@ async function callOllamaChat(env, systemPrompt, userMessage, modelOverride) {
 
 export function createAgentOpsDevApiHandlers(env) {
   return {
+    async handleGlobalMemoryRunCommand(request) {
+      return handleGlobalMemoryRunCommandRequest(request, env);
+    },
+
     async handleLlm(request) {
       if (request.method === "GET") {
         const runtimeActive = isRuntimeEnabled(env);
@@ -339,5 +346,6 @@ export function createAgentOpsDevApiHandlers(env) {
         safetyFlags: ["staging_only", "advisory_only", "no_auto_cursor", "memory_approval_required"],
       });
     },
+    handleGlobalMemoryGenerateCandidates: handleGlobalMemoryGenerateCandidatesRequest,
   };
 }

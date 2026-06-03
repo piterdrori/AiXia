@@ -1,5 +1,6 @@
 import { generateAgentOpsMockResponse } from "./agentResponseMock";
 import { buildAgentOpsAgentSystemPrompt } from "./agentIdentityLoader";
+import { appendAgentOpsGlobalApprovedMemoryPromptLines } from "./globalMemoryApprovedService";
 import {
   mapIntentToHermesMode,
   runAgentOpsHermesAdapter,
@@ -197,6 +198,7 @@ function buildIssueSystemPrompt(request: AgentOpsLocalLlmChatRequest): string {
   if (ctx?.executionState) lines.push(`Execution state: ${ctx.executionState}`);
   if (ctx?.cursorPrompt) lines.push(`Approved Cursor prompt draft: ${ctx.cursorPrompt}`);
   if (ctx?.reportingAgent) lines.push(`Reporting agent: ${ctx.reportingAgent}`);
+  appendAgentOpsGlobalApprovedMemoryPromptLines(lines, ctx?.globalApprovedMemory);
   if (ctx?.agentMemory?.length) {
     lines.push(`Agent memory:\n${ctx.agentMemory.map((item) => `- ${item}`).join("\n")}`);
   }
@@ -497,10 +499,13 @@ function buildIssueHermesSystemPrompt(input: AgentOpsHermesAdapterRunInput): str
     `Owner intent: ${input.intent ?? "clarification"}`,
   ].filter((line): line is string => Boolean(line));
 
+  const globalSnippets = input.globalApprovedMemorySnippets;
+
   if (reportingAgentId) {
     return buildAgentOpsAgentSystemPrompt(reportingAgentId, {
       chatScope: "issue",
       memorySnippets: input.agentMemory,
+      globalApprovedMemorySnippets: globalSnippets,
       issueContextLines,
       enableCreativity: true,
     });
@@ -526,6 +531,7 @@ function buildIssueHermesSystemPrompt(input: AgentOpsHermesAdapterRunInput): str
       recommendedFixStrategy: input.recommendedFixStrategy ?? null,
       reportingAgent: input.reportingAgent,
       agentMemory: input.agentMemory,
+      globalApprovedMemory: globalSnippets,
       timeline: input.timeline,
     },
   });
@@ -571,6 +577,7 @@ export async function runAgentOpsIssueChatAdapter(
       recommendedFixStrategy: input.recommendedFixStrategy ?? null,
       reportingAgent: input.reportingAgent,
       agentMemory: input.agentMemory,
+      globalApprovedMemory: input.globalApprovedMemorySnippets,
       timeline: input.timeline,
     },
   });

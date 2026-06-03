@@ -627,6 +627,10 @@ export interface AgentOpsHermesAdapterRunInput {
   latestCursorReport?: string | null;
   verificationStatus?: string | null;
   model?: string | null;
+  /** Hermes H2-F3B-2 — approved global memory preview lines (not per-agent memory). */
+  globalApprovedMemorySnippets?: string[];
+  globalApprovedMemoryAttached?: boolean;
+  globalApprovedMemoryIncludedCount?: number;
 }
 
 /** Unified adapter result (mock fallback or future Hermes). */
@@ -709,6 +713,8 @@ export interface AgentOpsLocalLlmChatRequest {
     reportingAgent?: string;
     agentMemory?: string[];
     timeline?: string[];
+    /** Hermes H2-F3B-2 — separate from agentMemory. */
+    globalApprovedMemory?: string[];
   };
   agentContext?: {
     agentId: string;
@@ -1705,6 +1711,323 @@ export interface AgentOpsAutomationControlRequestRecord {
   requestType: AgentOpsAutomationControlRequestType;
   status: AgentOpsAutomationControlRequestStatus;
   message: string;
+}
+
+/** Hermes H2-F1 — global website memory scan frequency preference (no live scheduler). */
+export type AgentOpsGlobalMemoryScanFrequency =
+  | "manual_only"
+  | "daily_later"
+  | "every_6_hours_later"
+  | "hourly_later"
+  | "event_based_later";
+
+export const AGENTOPS_GLOBAL_MEMORY_SCAN_FREQUENCIES: readonly AgentOpsGlobalMemoryScanFrequency[] =
+  ["manual_only", "daily_later", "every_6_hours_later", "hourly_later", "event_based_later"] as const;
+
+export const AGENTOPS_GLOBAL_MEMORY_DEFAULT_SOURCE_IDS = [
+  "design-law",
+  "tools-hub-registry",
+  "agentops-data",
+  "routes-structure",
+  "guardrails",
+  "verified-lessons",
+  "qa-mirrors",
+  "analytics",
+] as const;
+
+export type AgentOpsGlobalMemorySourceId =
+  (typeof AGENTOPS_GLOBAL_MEMORY_DEFAULT_SOURCE_IDS)[number];
+
+export type AgentOpsGlobalMemoryScanPausePreference = "active" | "paused";
+
+export interface AgentOpsGlobalMemorySourcePriorityPreference {
+  orderedIds: string[];
+  sources: Record<string, boolean>;
+}
+
+export interface AgentOpsGlobalMemoryPartialSnapshot {
+  generatedAt: string;
+  mode: "read-only";
+  scanMode: string;
+  sourceCount: number;
+  enabledSourceCount: number;
+  toolsHubRegistryNodeCount: number;
+  fullCliScanCompleted: false;
+  cliScanStatus: "not_run" | "requested";
+  note: string;
+  sources: Array<{ id: string; title: string; enabled: boolean; priority: number }>;
+}
+
+export type AgentOpsGlobalMemoryCommandId =
+  | "static_discovery"
+  | "static_design_guardrails"
+  | "guardrail_action_plan"
+  | "full_read_only_scan";
+
+export type AgentOpsGlobalMemoryCommandRunStatus = "success" | "failed" | "rejected";
+
+export interface AgentOpsGlobalMemoryCommandRunResult {
+  ok: boolean;
+  commandId: AgentOpsGlobalMemoryCommandId | string;
+  status: AgentOpsGlobalMemoryCommandRunStatus;
+  label?: string;
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  outputSummary: string;
+  reportPaths?: string[];
+  errorMessage?: string;
+  fullCliScanConfirmed?: boolean;
+}
+
+export interface AgentOpsGlobalMemoryCommandRunnerStatus {
+  available: boolean;
+  stagingOnly: boolean;
+  allowedCommandIds: AgentOpsGlobalMemoryCommandId[];
+  rejectionReason: string | null;
+}
+
+export interface AgentOpsGlobalMemoryPreferences {
+  frequency: AgentOpsGlobalMemoryScanFrequency;
+  frequencySavedAt: string | null;
+  sourcePriority: AgentOpsGlobalMemorySourcePriorityPreference;
+  sourcePrioritySavedAt: string | null;
+  pausePreference: AgentOpsGlobalMemoryScanPausePreference;
+  pauseSavedAt: string | null;
+  lastSnapshot: AgentOpsGlobalMemoryPartialSnapshot | null;
+  lastScanRequestedAt: string | null;
+  lastCommandRun: AgentOpsGlobalMemoryCommandRunResult | null;
+  nextScanLabel: string;
+}
+
+/** Hermes H2-F2 — global memory candidate (metadata only; no durable write). */
+export type AgentOpsGlobalMemoryCandidateType =
+  | "global_rule"
+  | "design_sot"
+  | "tool_rule"
+  | "workflow"
+  | "repeated_issue"
+  | "piter_preference"
+  | "guardrail"
+  | "route_module";
+
+export type AgentOpsGlobalMemoryCandidateConfidence = "low" | "medium" | "high";
+
+export type AgentOpsGlobalMemoryCandidateRisk = "low" | "medium" | "high";
+
+export type AgentOpsGlobalMemoryCandidateStatus =
+  | "draft"
+  | "pending_review"
+  | "approved"
+  | "rejected"
+  | "needs_cleanup"
+  | "review_later";
+
+export type AgentOpsGlobalMemoryCandidateTargetLevel =
+  | "global"
+  | "source-of-truth-candidate"
+  | "tool-rule"
+  | "workflow-rule"
+  | "piter-preference";
+
+export type AgentOpsGlobalMemoryCandidateDecision =
+  | "approve_for_future_memory"
+  | "reject"
+  | "review_later"
+  | "needs_cleanup";
+
+export interface AgentOpsGlobalMemoryCandidate {
+  candidateId: string;
+  feedbackId: string | null;
+  candidateType: AgentOpsGlobalMemoryCandidateType;
+  title: string;
+  summary: string;
+  proposedMemoryText: string;
+  sourceReport: string;
+  sourcePath?: string;
+  sourceFindingId?: string;
+  evidence?: string;
+  targetMemoryLevel: AgentOpsGlobalMemoryCandidateTargetLevel;
+  targetOwnerFile?: string;
+  confidence: AgentOpsGlobalMemoryCandidateConfidence;
+  risk: AgentOpsGlobalMemoryCandidateRisk;
+  status: AgentOpsGlobalMemoryCandidateStatus;
+  requiresPiterApproval: true;
+  noDurableMemoryWrite: true;
+  noHermesRuntime: true;
+  noSotFileWrite: true;
+  createdAt: string;
+  updatedAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  decisionNote?: string;
+  batchId?: string;
+  dedupeKey: string;
+}
+
+export interface AgentOpsGlobalMemoryCandidateBatchSummary {
+  batchId: string;
+  sourceReport: string;
+  generatedAt: string;
+  candidateCount: number;
+  createdAt: string;
+}
+
+export interface AgentOpsGlobalMemoryCandidatesOverview {
+  candidates: AgentOpsGlobalMemoryCandidate[];
+  lastBatch: AgentOpsGlobalMemoryCandidateBatchSummary | null;
+  counts: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    reviewLater: number;
+    needsCleanup: number;
+  };
+}
+
+export interface AgentOpsGlobalMemoryCandidateGeneratorStatus {
+  available: boolean;
+  stagingOnly: boolean;
+  primaryReport: string;
+  primaryReportExists: boolean;
+  allowedReportIds: string[];
+  rejectionReason: string | null;
+}
+
+export interface AgentOpsGenerateGlobalMemoryCandidatesResult {
+  createdCount: number;
+  skippedDuplicateCount: number;
+  sourceReport: string;
+  batchId: string;
+  message: string;
+  allDuplicates: boolean;
+}
+
+export interface AgentOpsGlobalMemoryCandidateDecisionInput {
+  candidateId: string;
+  decision: AgentOpsGlobalMemoryCandidateDecision;
+  note?: string;
+}
+
+export interface AgentOpsGlobalMemoryCandidateEditInput {
+  candidateId: string;
+  title?: string;
+  summary?: string;
+  proposedMemoryText: string;
+  note?: string;
+}
+
+/** Hermes H2-F3A — approved global memory record (metadata only). */
+export type AgentOpsGlobalMemoryApprovedMemoryType =
+  | "advisory"
+  | "global_rule"
+  | "workflow_rule"
+  | "design_rule"
+  | "tool_rule"
+  | "source_of_truth_proposal"
+  | "route_module_rule"
+  | "piter_preference";
+
+export type AgentOpsGlobalMemoryApprovedScope =
+  | "global"
+  | "agentops"
+  | "design"
+  | "tools"
+  | "workflow"
+  | "runtime"
+  | "advisory";
+
+export type AgentOpsGlobalMemoryApprovedRecordStatus =
+  | "approved_memory"
+  | "advisory_only"
+  | "sot_proposal_pending";
+
+export interface AgentOpsGlobalMemoryApprovedRecord {
+  memoryId: string;
+  feedbackId: string | null;
+  sourceCandidateId: string;
+  title: string;
+  memoryText: string;
+  memoryType: AgentOpsGlobalMemoryApprovedMemoryType;
+  scope: AgentOpsGlobalMemoryApprovedScope;
+  sourceReport?: string;
+  sourcePath?: string;
+  sourceFindingId?: string;
+  evidence?: string;
+  targetOwnerFile?: string;
+  sourceCandidateStatus: string;
+  approvedBy?: string;
+  approvedAt: string;
+  status: AgentOpsGlobalMemoryApprovedRecordStatus;
+  dedupeKey: string;
+  tags: string[];
+  requiresPiterApproval: true;
+  noSotFileWrite: true;
+  noRegistryWrite: true;
+  noAgentMemoryWrite: true;
+  noHermesRuntimeWrite: true;
+  metadataOnly: true;
+  hasSotProposal?: boolean;
+}
+
+export interface AgentOpsGlobalMemoryApprovedOverview {
+  records: AgentOpsGlobalMemoryApprovedRecord[];
+  counts: {
+    total: number;
+    approvedMemory: number;
+    advisoryOnly: number;
+    sotProposalPending: number;
+  };
+}
+
+export interface AgentOpsCreateGlobalMemoryApprovedRecordResult {
+  created: boolean;
+  duplicate: boolean;
+  memoryId: string | null;
+  feedbackId: string | null;
+  sotProposalCreated: boolean;
+  message: string;
+}
+
+/** Hermes H2-F3B-1 — why a record was excluded from reader preview. */
+export type AgentOpsGlobalMemoryHermesPreviewExclusionReason =
+  | "empty_memory_text"
+  | "unsupported_status"
+  | "over_preview_limit";
+
+export interface AgentOpsGlobalMemoryHermesPreviewEntry {
+  order: number;
+  memoryId: string;
+  title: string;
+  memoryType: AgentOpsGlobalMemoryApprovedMemoryType;
+  scope: AgentOpsGlobalMemoryApprovedScope;
+  status: AgentOpsGlobalMemoryApprovedRecordStatus;
+  compactMemoryText: string;
+  sotProposalPending: boolean;
+  previewLine: string;
+}
+
+export interface AgentOpsGlobalMemoryHermesPreviewExclusionSummary {
+  reason: AgentOpsGlobalMemoryHermesPreviewExclusionReason;
+  count: number;
+  detail: string;
+}
+
+/** Hermes H2-F3B-1 — read-only preview of context Hermes may receive later. */
+export interface AgentOpsGlobalMemoryHermesPreviewResult {
+  entries: AgentOpsGlobalMemoryHermesPreviewEntry[];
+  safetyDisclaimer: string[];
+  stats: {
+    totalApprovedRecords: number;
+    eligibleCount: number;
+    includedCount: number;
+    excludedCount: number;
+    previewLimit: number;
+    hardMax: number;
+    mode: "preview_only";
+  };
+  exclusions: AgentOpsGlobalMemoryHermesPreviewExclusionSummary[];
 }
 
 export type AgentOpsManagedAgentStatus =

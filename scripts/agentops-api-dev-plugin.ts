@@ -56,13 +56,6 @@ export function agentOpsApiDevPlugin(): Plugin {
         }
 
         try {
-          const handler = isGlobalMemoryRun
-            ? handlers.handleGlobalMemoryRunCommand
-            : isGlobalMemoryCandidates
-              ? handlers.handleGlobalMemoryGenerateCandidates
-              : pathname === "/api/agentops/llm"
-                ? handlers.handleLlm
-                : handlers.handleHermes;
           const host = req.headers.host ?? "127.0.0.1:5173";
           const url = `http://${host}${req.url ?? pathname}`;
           const headers = new Headers();
@@ -85,7 +78,19 @@ export function agentOpsApiDevPlugin(): Plugin {
             headers,
             body: body && body.length > 0 ? body : undefined,
           });
-          const response = await handler(request);
+
+          let response: Response;
+          if (pathname === "/api/agentops/hermes") {
+            const mod = await server.ssrLoadModule("/api/agentops/hermesHandler.ts");
+            response = await mod.handleAgentOpsHermesRequest(request);
+          } else {
+            const handler = isGlobalMemoryRun
+              ? handlers.handleGlobalMemoryRunCommand
+              : isGlobalMemoryCandidates
+                ? handlers.handleGlobalMemoryGenerateCandidates
+                : handlers.handleLlm;
+            response = await handler(request);
+          }
           await writeFetchResponse(res, response);
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);

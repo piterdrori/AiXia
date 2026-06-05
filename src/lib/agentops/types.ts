@@ -820,6 +820,7 @@ export interface AgentOpsHermesRuntimeHealth {
   writesBlocked: true;
   sotWritesBlocked: true;
   advisoryOnly: true;
+  contextAssemblerAvailable?: boolean;
   message: string;
   checkedAt: string;
   loadError?: string;

@@ -890,6 +890,8 @@ function HermesRuntimeHealthPanel() {
   const [probeLoading, setProbeLoading] = useState(false);
   const [probeResult, setProbeResult] = useState<string | null>(null);
   const [probeError, setProbeError] = useState<string | null>(null);
+  const [probeContextIncluded, setProbeContextIncluded] = useState<boolean | null>(null);
+  const [includeReadOnlyContext, setIncludeReadOnlyContext] = useState(false);
 
   const refreshHealth = useCallback(async () => {
     setLoading(true);
@@ -905,10 +907,14 @@ function HermesRuntimeHealthPanel() {
     setProbeLoading(true);
     setProbeResult(null);
     setProbeError(null);
+    setProbeContextIncluded(null);
     try {
-      const probe = await probeAgentOpsHermesAdvisoryRuntime();
+      const probe = await probeAgentOpsHermesAdvisoryRuntime({
+        includeContext: includeReadOnlyContext,
+      });
       if (probe.ok && probe.response) {
         setProbeResult(probe.response);
+        setProbeContextIncluded(probe.contextIncluded === true);
       } else {
         setProbeError(
           probe.error ??
@@ -918,7 +924,7 @@ function HermesRuntimeHealthPanel() {
     } finally {
       setProbeLoading(false);
     }
-  }, []);
+  }, [includeReadOnlyContext]);
 
   useEffect(() => {
     void refreshHealth();
@@ -941,6 +947,18 @@ function HermesRuntimeHealthPanel() {
           active. Memory, SOT, registry, and AgentMemory writes are blocked.
         </AixiaInfoBlock>
         <div className="aixia-tools-hub-hermes-runtime-health-action-row">
+          <label
+            className="aixia-tools-hub-hermes-runtime-health-context-toggle"
+            data-testid="hermes-include-readonly-context-toggle"
+          >
+            <input
+              type="checkbox"
+              checked={includeReadOnlyContext}
+              disabled={probeLoading}
+              onChange={(event) => setIncludeReadOnlyContext(event.target.checked)}
+            />
+            <span>Include read-only Hermes context</span>
+          </label>
           <AixiaButton
             variant="secondary"
             onClick={() => void refreshHealth()}
@@ -969,7 +987,7 @@ function HermesRuntimeHealthPanel() {
 
       {probeResult ? (
         <p className="aixia-tools-hub-hermes-runtime-health-probe-result" data-testid="hermes-advisory-probe-result">
-          Advisory probe: {probeResult}
+          Advisory probe{probeContextIncluded ? " (read-only context included)" : ""}: {probeResult}
         </p>
       ) : null}
       {probeError ? (
@@ -1008,6 +1026,26 @@ function HermesRuntimeHealthPanel() {
           <dd>
             <AixiaBadge tone={health?.providerConfigured ? "emerald" : "amber"}>
               {health?.providerConfigured ? "Yes" : health ? "No" : "Unknown"}
+            </AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Context assembler</dt>
+          <dd>
+            <AixiaBadge
+              tone={
+                health?.contextAssemblerAvailable === true
+                  ? "emerald"
+                  : health?.contextAssemblerAvailable === false
+                    ? "amber"
+                    : "neutral"
+              }
+            >
+              {health?.contextAssemblerAvailable === true
+                ? "Available"
+                : health?.contextAssemblerAvailable === false
+                  ? "Unavailable"
+                  : "Unknown"}
             </AixiaBadge>
           </dd>
         </div>

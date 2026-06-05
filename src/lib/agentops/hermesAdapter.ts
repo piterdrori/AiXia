@@ -124,6 +124,9 @@ function unavailableHermesRuntimeHealth(message: string, loadError?: string): Ag
 const HERMES_ADVISORY_ACTIVATION_TEST_PROMPT =
   "For activation test only, reply with exactly: Hermes advisory runtime reachable.\nDo not mention memory updates.";
 
+const HERMES_ADVISORY_CONTEXT_TEST_PROMPT =
+  "Using the read-only AiXia context, summarize in 3 bullets what Hermes can safely do today and what it must not do.";
+
 export interface AgentOpsHermesAdvisoryActivationProbe {
   ok: boolean;
   checkedAt: string;
@@ -131,21 +134,35 @@ export interface AgentOpsHermesAdvisoryActivationProbe {
   error?: string;
   source?: string;
   httpStatus?: number;
+  contextIncluded?: boolean;
+}
+
+export interface AgentOpsHermesAdvisoryProbeOptions {
+  includeContext?: boolean;
+  question?: string;
 }
 
 /**
  * Staging advisory activation probe — POST /api/agentops/hermes (no memory/SOT writes).
  * Fails with 401 when HERMES_INTERNAL_SECRET is set and header is not supplied.
  */
-export async function probeAgentOpsHermesAdvisoryRuntime(): Promise<AgentOpsHermesAdvisoryActivationProbe> {
+export async function probeAgentOpsHermesAdvisoryRuntime(
+  options?: AgentOpsHermesAdvisoryProbeOptions,
+): Promise<AgentOpsHermesAdvisoryActivationProbe> {
   const checkedAt = new Date().toISOString();
+  const includeContext = options?.includeContext === true;
+  const question =
+    options?.question?.trim() ??
+    (includeContext ? HERMES_ADVISORY_CONTEXT_TEST_PROMPT : HERMES_ADVISORY_ACTIVATION_TEST_PROMPT);
+
   try {
     const response = await fetch("/api/agentops/hermes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         mode: "issue_clarification",
-        question: HERMES_ADVISORY_ACTIVATION_TEST_PROMPT,
+        includeContext,
+        question,
       }),
     });
 
@@ -153,6 +170,7 @@ export async function probeAgentOpsHermesAdvisoryRuntime(): Promise<AgentOpsHerm
       response?: string;
       error?: string;
       source?: string;
+      contextIncluded?: boolean;
     };
 
     if (response.ok && payload.source === "hermes_runtime" && payload.response?.trim()) {
@@ -162,6 +180,7 @@ export async function probeAgentOpsHermesAdvisoryRuntime(): Promise<AgentOpsHerm
         response: payload.response.trim(),
         source: payload.source,
         httpStatus: response.status,
+        contextIncluded: payload.contextIncluded === true,
       };
     }
 
@@ -240,6 +259,10 @@ export async function getAgentOpsHermesRuntimeHealth(): Promise<AgentOpsHermesRu
           ? payload.message
           : "Hermes transport health loaded.",
       checkedAt: typeof payload.checkedAt === "string" ? payload.checkedAt : new Date().toISOString(),
+      contextAssemblerAvailable:
+        typeof payload.contextAssemblerAvailable === "boolean"
+          ? payload.contextAssemblerAvailable
+          : undefined,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

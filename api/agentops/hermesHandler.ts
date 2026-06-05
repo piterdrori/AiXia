@@ -13,6 +13,10 @@ import {
   type AgentOpsLlmProviderId,
 } from "./llmProvider.js";
 import {
+  assembleHermesReadOnlyContextForRuntime,
+  isHermesContextAssemblerAvailable,
+} from "./hermesReadOnlyContext.js";
+import {
   isAgentOpsLlmRuntimeEnabled,
   isAgentOpsProductionBlocked,
   jsonResponse,
@@ -44,6 +48,7 @@ export interface AgentOpsHermesRuntimeHealthPayload {
   writesBlocked: true;
   sotWritesBlocked: true;
   advisoryOnly: true;
+  contextAssemblerAvailable: boolean;
   message: string;
   checkedAt: string;
 }
@@ -121,6 +126,7 @@ export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOp
     writesBlocked: true,
     sotWritesBlocked: true,
     advisoryOnly: true,
+    contextAssemblerAvailable: isHermesContextAssemblerAvailable(),
     message,
     checkedAt,
   };
@@ -140,6 +146,7 @@ interface HermesRunBody {
   question?: string;
   systemPrompt?: string;
   issueContext?: Record<string, unknown>;
+  includeContext?: boolean;
   model?: string | null;
 }
 
@@ -148,23 +155,53 @@ const HERMES_ADVISORY_SAFETY_LINES = [
   "No tool execution or MCP tasks. Hermes coordinator is not fully active.",
 ];
 
-function buildDefaultSystemPrompt(body: HermesRunBody): string {
-  if (body.systemPrompt?.trim()) {
-    return `${body.systemPrompt.trim()}\n\n${HERMES_ADVISORY_SAFETY_LINES.join(" ")}`;
-  }
+function resolveIssueCodeFromContext(issueContext?: Record<string, unknown>): string | null {
+  if (!issueContext) return null;
+  const issueCode = issueContext.issueCode ?? issueContext.code;
+  return typeof issueCode === "string" && issueCode.trim() ? issueCode.trim() : null;
+}
+
+async function buildDefaultSystemPrompt(
+  body: HermesRunBody,
+  includeContext: boolean,
+): Promise<{ systemPrompt: string; contextIncluded: boolean }> {
+  const baseLines = body.systemPrompt?.trim()
+    ? [body.systemPrompt.trim()]
+    : [
+        "You are a Hermes advisory QA agent for AgentOps (staging only).",
+        "Never claim to have executed Cursor, changed production, or written memory automatically.",
+        "Do not expose secrets.",
+        ...HERMES_ADVISORY_SAFETY_LINES,
+        `Mode: ${body.mode ?? "issue_clarification"}`,
+      ];
+
   const ctx = body.issueContext ?? {};
-  const lines = [
-    "You are a Hermes advisory QA agent for AgentOps (staging only).",
-    "Never claim to have executed Cursor, changed production, or written memory automatically.",
-    "Do not expose secrets.",
-    ...HERMES_ADVISORY_SAFETY_LINES,
-    `Mode: ${body.mode ?? "issue_clarification"}`,
-  ];
   for (const [key, value] of Object.entries(ctx)) {
     if (value == null || value === "") continue;
-    lines.push(`${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`);
+    baseLines.push(`${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`);
   }
-  return lines.join("\n");
+
+  if (!includeContext) {
+    const systemPrompt = body.systemPrompt?.trim()
+      ? `${baseLines.join("\n")}\n\n${HERMES_ADVISORY_SAFETY_LINES.join(" ")}`
+      : baseLines.join("\n");
+    return { systemPrompt, contextIncluded: false };
+  }
+
+  const contextAssembly = await assembleHermesReadOnlyContextForRuntime({
+    issueCode: resolveIssueCodeFromContext(body.issueContext),
+  });
+
+  return {
+    systemPrompt: [
+      baseLines.join("\n"),
+      "",
+      contextAssembly.promptBlock,
+      "",
+      HERMES_ADVISORY_SAFETY_LINES.join(" "),
+    ].join("\n"),
+    contextIncluded: true,
+  };
 }
 
 export async function handleAgentOpsHermesRequest(request: Request): Promise<Response> {
@@ -214,7 +251,8 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
     return jsonResponse({ error: "question is required" }, 400);
   }
 
-  const systemPrompt = buildDefaultSystemPrompt(body);
+  const includeContext = body.includeContext === true;
+  const { systemPrompt, contextIncluded } = await buildDefaultSystemPrompt(body, includeContext);
   const llmResult = await callAgentOpsLlmChat(systemPrompt, question, body.model);
   if (!llmResult.ok) {
     return jsonResponse(
@@ -236,11 +274,18 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
     requestId: body.requestId ?? `hermes-req-${Date.now()}`,
     mode: body.mode ?? "issue_clarification",
     response: llmResult.content,
+    contextIncluded,
     promptSuggestions: "",
     riskNotes: "",
     nextRecommendedAction: "",
     confidence: "medium",
     limitations: `Hermes advisory via server ${formatAgentOpsLlmProviderLabel(llmResult.provider)} proxy (staging).`,
-    safetyFlags: ["staging_only", "advisory_only", "no_auto_cursor", "memory_approval_required"],
+    safetyFlags: [
+      "staging_only",
+      "advisory_only",
+      "no_auto_cursor",
+      "memory_approval_required",
+      ...(contextIncluded ? ["read_only_context_included"] : []),
+    ],
   });
 }

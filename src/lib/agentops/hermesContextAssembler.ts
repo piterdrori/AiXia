@@ -10,11 +10,11 @@ import type {
   AgentOpsManagedAgent,
   AgentOpsManagedAgentMemoryItem,
 } from "./types";
+import { buildAgentOpsHermesToolRegistryPreview } from "./hermesToolRegistryPreview";
 import {
-  AGENTOPS_TOOL_REGISTRY,
   formatToolRegistryStatus,
   getToolRegistryEntry,
-  getToolRegistryMainCategories,
+  summarizeChildStatuses,
 } from "./tools/toolRegistry";
 
 const DEFAULT_GLOBAL_LIMIT = 10;
@@ -231,34 +231,42 @@ async function buildPerAgentMemorySection(
   }
 }
 
-function buildToolRegistrySection(): AgentOpsHermesContextAssemblerSection {
-  const allEntries = Object.values(AGENTOPS_TOOL_REGISTRY);
-  const mainCategories = getToolRegistryMainCategories();
-  const hermesEntry = getToolRegistryEntry("hermes");
+function buildToolRegistrySection(
+  registryPreview: ReturnType<typeof buildAgentOpsHermesToolRegistryPreview>,
+): AgentOpsHermesContextAssemblerSection {
+  const { summary, categories, relevantTools } = registryPreview;
+  const hermesTool = getToolRegistryEntry("mct-hermes");
+  const agentMemoryTool = getToolRegistryEntry("mct-agentmemory");
   const memoryCoordEntry = getToolRegistryEntry("memory-coordination-tools");
 
-  const hermesRelated = allEntries.filter(
-    (entry) =>
-      entry.id === "hermes" ||
-      entry.relatedToolIds.includes("hermes") ||
-      entry.title.toLowerCase().includes("hermes"),
-  );
-
   const entries = [
-    `Registry metadata only — ${allEntries.length} node(s), ${mainCategories.length} main categor(ies).`,
-    `Hermes tool: ${hermesEntry?.title ?? "hermes"} — status ${hermesEntry ? formatToolRegistryStatus(hermesEntry.status) : "unknown"}.`,
-    `Memory coordination group: ${memoryCoordEntry?.title ?? "memory-coordination-tools"} — ${memoryCoordEntry ? formatToolRegistryStatus(memoryCoordEntry.status) : "unknown"}.`,
-    `Hermes-related registry nodes: ${hermesRelated.length} (display only — not coordinator-connected).`,
-    "Tools Hub registry does not execute MCP/avatar tasks or write memory.",
+    `${summary.mainCategories} categories tracked in Tools Hub registry (${summary.totalRegistryNodes} nodes).`,
+    `Agent Brain & Memory includes Hermes, AgentMemory, CodeGraph, evidence tools, and reasoning layer — ${memoryCoordEntry ? summarizeChildStatuses(memoryCoordEntry.childrenIds) : "see registry"}.`,
+    `Existing/partial: ${summary.existingOrPartialCount} · Planned/not connected: ${summary.plannedOrNotConnectedCount} · Hermes-related nodes: ${summary.hermesRelatedNodes}.`,
+    `Hermes tool (${hermesTool?.title ?? "Hermes"}): ${hermesTool ? formatToolRegistryStatus(hermesTool.status) : "unknown"} — ${hermesTool?.configuredStatus ?? "coordinator not active"}.`,
+    `AgentMemory: ${agentMemoryTool ? formatToolRegistryStatus(agentMemoryTool.status) : "not connected"} — not connected from Hermes preview.`,
+    `Tool execution enabled: No — registry is metadata display only in this phase.`,
+    ...categories.map(
+      (cat) =>
+        `${cat.title}: ${cat.nodeCount} node(s), ${cat.directChildCount} group(s) — ${cat.statusMix}. ${cat.hermesRelevance}`,
+    ),
+    ...relevantTools.slice(0, 8).map(
+      (tool) =>
+        `${tool.title} (${tool.categoryTitle}): ${tool.statusLabel} — today: ${tool.hermesUseToday}`,
+    ),
+    ...(relevantTools.length > 8
+      ? [`+${relevantTools.length - 8} more Hermes-relevant tools in UI preview (not listed here).`]
+      : []),
+    "No MCP execution, shell commands, API keys, or registry writes from Hermes preview.",
   ];
 
   return buildSection(
-    "tool-registry",
-    "Tool registry",
-    "AGENTOPS_TOOL_REGISTRY",
+    "tool_registry",
+    "Tool Registry Context",
+    "src/lib/agentops/tools/toolRegistry.ts",
     "preview_only",
     entries,
-    "Registry display only — connection status per entry, not live coordinator wiring.",
+    "Tool registry context is read-only. Hermes must not execute or configure tools from this preview.",
   );
 }
 
@@ -323,14 +331,16 @@ export async function assembleAgentOpsHermesPreviewContext(
   );
   const loadErrors: string[] = [];
 
-  const [globalResult, perAgentResult, toolSection, issueSection, safetySection] =
-    await Promise.all([
-      buildGlobalMemorySection(globalLimit, loadErrors),
-      buildPerAgentMemorySection(perAgentSnippetLimit, loadErrors),
-      Promise.resolve(buildToolRegistrySection()),
-      Promise.resolve(buildIssueContextSection(options?.issueCode)),
-      Promise.resolve(buildSafetySection()),
-    ]);
+  const toolRegistryPreview = buildAgentOpsHermesToolRegistryPreview();
+
+  const [globalResult, perAgentResult, issueSection, safetySection] = await Promise.all([
+    buildGlobalMemorySection(globalLimit, loadErrors),
+    buildPerAgentMemorySection(perAgentSnippetLimit, loadErrors),
+    Promise.resolve(buildIssueContextSection(options?.issueCode)),
+    Promise.resolve(buildSafetySection()),
+  ]);
+
+  const toolSection = buildToolRegistrySection(toolRegistryPreview);
 
   return {
     assembledAt: new Date().toISOString(),
@@ -348,9 +358,10 @@ export async function assembleAgentOpsHermesPreviewContext(
     stats: {
       globalMemoryCount: globalResult.includedCount,
       perAgentMemoryCount: perAgentResult.activeRowCount,
-      toolRegistryCount: Object.keys(AGENTOPS_TOOL_REGISTRY).length,
+      toolRegistryCount: toolRegistryPreview.summary.totalRegistryNodes,
       issueContextIncluded: Boolean(options?.issueCode?.trim()),
     },
+    toolRegistryPreview,
     loadErrors,
   };
 }

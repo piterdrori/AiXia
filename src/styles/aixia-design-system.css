@@ -11335,6 +11335,135 @@ button.aixia-action-card:disabled {
   min-width: 0;
 }
 
+.aixia-tools-hub-hermes-tool-registry-preview {
+  display: grid;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.55rem 0 0.15rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-heading {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.96);
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-subheading {
+  margin: 0 0 0.4rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-summary {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-category-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-category-card {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.32);
+  padding: 0.6rem 0.7rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-category-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-category-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-category-meta,
+.aixia-tools-hub-hermes-tool-registry-preview-category-keys,
+.aixia-tools-hub-hermes-tool-registry-preview-category-relevance,
+.aixia-tools-hub-hermes-tool-registry-preview-category-safety {
+  margin: 0 0 0.28rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: rgba(203, 213, 225, 0.88);
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-category-safety {
+  color: rgba(251, 191, 36, 0.9);
+  margin-bottom: 0;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-relevant-list {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  max-height: min(22rem, 50vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-right: 0.1rem;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-relevant-row {
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  background: rgba(15, 23, 42, 0.28);
+  padding: 0.5rem 0.65rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-relevant-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-bottom: 0.2rem;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-relevant-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-relevant-path {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  color: rgba(148, 163, 184, 0.95);
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-tool-registry-preview-relevant-meta {
+  margin: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+@media (min-width: 1280px) {
+  .aixia-tools-hub-hermes-tool-registry-preview-category-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .aixia-tools-hub-hermes-context-assembler-sections {
   display: grid;
   gap: 0.6rem;

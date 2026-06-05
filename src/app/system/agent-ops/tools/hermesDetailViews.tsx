@@ -50,6 +50,7 @@ import {
   type AgentOpsHermesContextAssemblerPreview,
   type AgentOpsHermesContextAssemblerSection,
   type AgentOpsHermesContextAssemblerSectionStatus,
+  type AgentOpsHermesToolRegistryPreview,
   type AgentOpsHermesRuntimeHealth,
   type AgentOpsHermesEnvGateStatus,
   buildAgentOpsGlobalMemoryPartialSnapshot,
@@ -396,6 +397,163 @@ function formatContextSectionStatus(status: AgentOpsHermesContextAssemblerSectio
   }
 }
 
+function HermesToolRegistryContextPreview({
+  registryPreview,
+}: {
+  registryPreview: AgentOpsHermesToolRegistryPreview | null;
+}) {
+  if (!registryPreview) return null;
+
+  const { summary, categories, relevantTools, safetyBanner } = registryPreview;
+
+  const summaryCards = [
+    {
+      label: "Registry nodes",
+      value: String(summary.totalRegistryNodes),
+      description: "Tools Hub metadata — no writes",
+      tone: "neutral" as const,
+    },
+    {
+      label: "Main categories",
+      value: String(summary.mainCategories),
+      description: "Seven Tools Hub categories",
+      tone: "cyan" as const,
+    },
+    {
+      label: "Hermes-related",
+      value: String(summary.hermesRelatedNodes),
+      description: "Display only — not coordinator-connected",
+      tone: "violet" as const,
+    },
+    {
+      label: "Existing / partial",
+      value: String(summary.existingOrPartialCount),
+      description: "Honest registry status mix",
+      tone: "amber" as const,
+    },
+    {
+      label: "Planned / not connected",
+      value: String(summary.plannedOrNotConnectedCount),
+      description: "Not installed or not wired",
+      tone: "rose" as const,
+    },
+    {
+      label: "Execution enabled",
+      value: "No",
+      description: "No tool execution from Hermes preview",
+      tone: "rose" as const,
+    },
+  ];
+
+  return (
+    <div
+      className="aixia-tools-hub-hermes-tool-registry-preview"
+      data-testid="hermes-tool-registry-context-preview"
+    >
+      <h4 className="aixia-tools-hub-hermes-tool-registry-preview-heading">
+        Tool Registry Context Preview
+      </h4>
+
+      <AixiaInfoBlock tone="rose" icon={Lock} title="Registry preview only">
+        {safetyBanner} No tool activation, configuration, agent assignment changes, or MCP
+        execution.
+      </AixiaInfoBlock>
+
+      <div className="aixia-tools-hub-hermes-tool-registry-preview-summary">
+        {summaryCards.map((card) => (
+          <AixiaNavigationStatBlock
+            key={card.label}
+            label={card.label}
+            value={card.value}
+            description={card.description}
+            tone={card.tone}
+          />
+        ))}
+      </div>
+
+      <div className="aixia-tools-hub-hermes-tool-registry-preview-categories">
+        <p className="aixia-tools-hub-hermes-tool-registry-preview-subheading">
+          Seven Tools Hub categories
+        </p>
+        <div className="aixia-tools-hub-hermes-tool-registry-preview-category-grid">
+          {categories.map((category) => (
+            <article
+              key={category.categoryId}
+              className="aixia-tools-hub-hermes-tool-registry-preview-category-card"
+            >
+              <div className="aixia-tools-hub-hermes-tool-registry-preview-category-head">
+                <h5 className="aixia-tools-hub-hermes-tool-registry-preview-category-title">
+                  {category.title}
+                </h5>
+                <AixiaBadge tone="neutral">{category.nodeCount} nodes</AixiaBadge>
+              </div>
+              <p className="aixia-tools-hub-hermes-tool-registry-preview-category-meta">
+                {category.directChildCount} group(s) · {category.statusMix}
+              </p>
+              <p className="aixia-tools-hub-hermes-tool-registry-preview-category-keys">
+                Key: {category.keyTools.join(" · ") || "—"}
+              </p>
+              <p className="aixia-tools-hub-hermes-tool-registry-preview-category-relevance">
+                {category.hermesRelevance}
+              </p>
+              <p className="aixia-tools-hub-hermes-tool-registry-preview-category-safety">
+                {category.safetyStatus}
+              </p>
+            </article>
+          ))}
+        </div>
+      </div>
+
+      <div className="aixia-tools-hub-hermes-tool-registry-preview-relevant">
+        <p className="aixia-tools-hub-hermes-tool-registry-preview-subheading">
+          Hermes-relevant tools (metadata only)
+        </p>
+        <div className="aixia-tools-hub-hermes-tool-registry-preview-relevant-list">
+          {relevantTools.map((tool) => (
+            <article
+              key={tool.id}
+              className="aixia-tools-hub-hermes-tool-registry-preview-relevant-row"
+            >
+              <div className="aixia-tools-hub-hermes-tool-registry-preview-relevant-head">
+                <span className="aixia-tools-hub-hermes-tool-registry-preview-relevant-name">
+                  {tool.title}
+                </span>
+                <AixiaBadge tone="neutral">{tool.statusLabel}</AixiaBadge>
+              </div>
+              <p className="aixia-tools-hub-hermes-tool-registry-preview-relevant-path">
+                {tool.categoryTitle}
+                {tool.groupTitle ? ` · ${tool.groupTitle}` : ""}
+              </p>
+              <dl className="aixia-tools-hub-hermes-tool-registry-preview-relevant-meta">
+                <div className="aixia-tools-hub-hermes-status-row">
+                  <dt>Installed</dt>
+                  <dd>{tool.installedStatus}</dd>
+                </div>
+                <div className="aixia-tools-hub-hermes-status-row">
+                  <dt>Configured</dt>
+                  <dd>{tool.configuredStatus}</dd>
+                </div>
+                <div className="aixia-tools-hub-hermes-status-row">
+                  <dt>Runtime</dt>
+                  <dd>{tool.currentRuntime}</dd>
+                </div>
+                <div className="aixia-tools-hub-hermes-status-row">
+                  <dt>Hermes today</dt>
+                  <dd>{tool.hermesUseToday}</dd>
+                </div>
+                <div className="aixia-tools-hub-hermes-status-row">
+                  <dt>Future use</dt>
+                  <dd>{tool.futureHermesUse}</dd>
+                </div>
+              </dl>
+            </article>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HermesContextAssemblerPreviewPanel() {
   const [preview, setPreview] = useState<AgentOpsHermesContextAssemblerPreview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -508,6 +666,8 @@ function HermesContextAssemblerPreviewPanel() {
           ))}
         </div>
       ) : null}
+
+      <HermesToolRegistryContextPreview registryPreview={preview?.toolRegistryPreview ?? null} />
 
       <div className="aixia-tools-hub-hermes-context-assembler-sections">
         {(preview?.sections ?? []).map((section) => (

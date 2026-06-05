@@ -186,6 +186,10 @@ export type {
   AgentOpsHermesContextAssemblerSection,
   AgentOpsHermesContextAssemblerSectionStatus,
   AgentOpsHermesContextAssemblerStats,
+  AgentOpsHermesToolRegistryPreview,
+  AgentOpsHermesToolRegistryPreviewSummary,
+  AgentOpsHermesToolRegistryCategoryPreview,
+  AgentOpsHermesToolRegistryRelevantTool,
   AgentOpsCodeGraphDiscoveryMode,
   AgentOpsCodeGraphSuggestionSource,
   AgentOpsCodeGraphDiscoverySuggestionItem,
@@ -359,6 +363,10 @@ export {
 } from "./hermesAdapter";
 
 export { assembleAgentOpsHermesPreviewContext } from "./hermesContextAssembler";
+export {
+  buildAgentOpsHermesToolRegistryPreview,
+  HERMES_TOOL_REGISTRY_RELEVANT_IDS,
+} from "./hermesToolRegistryPreview";
 
 export {
   getAgentOpsAgentManifest,

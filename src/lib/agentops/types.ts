@@ -844,6 +844,49 @@ export interface AgentOpsHermesContextAssemblerStats {
   issueContextIncluded: boolean;
 }
 
+/** A4 — read-only Tools Hub registry preview for Hermes (metadata only). */
+export interface AgentOpsHermesToolRegistryPreviewSummary {
+  totalRegistryNodes: number;
+  mainCategories: number;
+  hermesRelatedNodes: number;
+  existingOrPartialCount: number;
+  plannedOrNotConnectedCount: number;
+  executionEnabled: false;
+}
+
+export interface AgentOpsHermesToolRegistryCategoryPreview {
+  categoryId: string;
+  title: string;
+  nodeCount: number;
+  directChildCount: number;
+  statusMix: string;
+  keyTools: string[];
+  hermesRelevance: string;
+  safetyStatus: string;
+}
+
+export interface AgentOpsHermesToolRegistryRelevantTool {
+  id: string;
+  title: string;
+  categoryTitle: string;
+  groupTitle: string | null;
+  statusLabel: string;
+  installedStatus: string;
+  configuredStatus: string;
+  currentRuntime: string;
+  hermesUseToday: string;
+  futureHermesUse: string;
+}
+
+export interface AgentOpsHermesToolRegistryPreview {
+  mode: "preview_only";
+  source: string;
+  summary: AgentOpsHermesToolRegistryPreviewSummary;
+  categories: AgentOpsHermesToolRegistryCategoryPreview[];
+  relevantTools: AgentOpsHermesToolRegistryRelevantTool[];
+  safetyBanner: string;
+}
+
 export interface AgentOpsHermesContextAssemblerPreview {
   assembledAt: string;
   mode: "preview_only";
@@ -852,6 +895,7 @@ export interface AgentOpsHermesContextAssemblerPreview {
   sourceOfTruthWritesBlocked: true;
   sections: AgentOpsHermesContextAssemblerSection[];
   stats: AgentOpsHermesContextAssemblerStats;
+  toolRegistryPreview: AgentOpsHermesToolRegistryPreview;
   loadErrors: string[];
 }
 

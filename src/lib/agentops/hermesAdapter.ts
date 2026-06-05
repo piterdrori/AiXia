@@ -142,6 +142,59 @@ export interface AgentOpsHermesAdvisoryProbeOptions {
   question?: string;
 }
 
+/** Workflow 1 — Issue Workspace advisory instructions (read-only, no writes). */
+export const HERMES_ISSUE_ADVISORY_INSTRUCTIONS = `You are Hermes in advisory mode only.
+
+Review the current AgentOps issue using the provided issue context and optional read-only AiXia context.
+
+Return:
+1. What is wrong
+2. Why it matters
+3. Risk level
+4. What Piter should ask Cursor to do next
+5. What must not be touched
+6. Whether this is safe to proceed as a Cursor prompt
+
+Do not mark the issue fixed.
+Do not verify the issue.
+Do not write memory.
+Do not update source-of-truth.
+Do not execute tools.
+Do not claim coordinator activation.`;
+
+export interface AgentOpsHermesIssueAdvisoryContext {
+  issueCode: string;
+  title?: string;
+  module?: string | null;
+  route?: string | null;
+  severity?: string | null;
+  status?: string | null;
+  summary?: string;
+  evidence?: string;
+  proposedCursorPrompt?: string;
+  likelyRootCause?: string | null;
+  recommendedFixStrategy?: string | null;
+  executionState?: string;
+}
+
+export interface AgentOpsHermesIssueAdvisoryInput {
+  issueContext: AgentOpsHermesIssueAdvisoryContext;
+  /** Default true when omitted. */
+  includeContext?: boolean;
+}
+
+export interface AgentOpsHermesIssueAdvisoryResult {
+  ok: boolean;
+  checkedAt: string;
+  response?: string;
+  error?: string;
+  source?: string;
+  contextIncluded?: boolean;
+  httpStatus?: number;
+  safetyFlags?: string[];
+  limitations?: string;
+}
+
 /**
  * Staging advisory activation probe — POST /api/agentops/hermes (no memory/SOT writes).
  * Fails with 401 when HERMES_INTERNAL_SECRET is set and header is not supplied.
@@ -188,6 +241,80 @@ export async function probeAgentOpsHermesAdvisoryRuntime(
       ok: false,
       checkedAt,
       error: payload.error ?? `Hermes advisory probe failed (HTTP ${response.status}).`,
+      source: payload.source,
+      httpStatus: response.status,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, checkedAt, error: message };
+  }
+}
+
+/**
+ * Workflow 1 — manual Issue Workspace advisory (POST /api/agentops/hermes).
+ * No persistence, no mock fallback on failure, no issue status changes.
+ */
+export async function requestAgentOpsHermesIssueAdvisory(
+  input: AgentOpsHermesIssueAdvisoryInput,
+): Promise<AgentOpsHermesIssueAdvisoryResult> {
+  const checkedAt = new Date().toISOString();
+  const includeContext = input.includeContext !== false;
+
+  const issueContextPayload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input.issueContext)) {
+    if (value == null || value === "") continue;
+    issueContextPayload[key] = value;
+  }
+
+  const question = [
+    HERMES_ISSUE_ADVISORY_INSTRUCTIONS,
+    "",
+    `Issue code: ${input.issueContext.issueCode}`,
+    "Provide a concise advisory review for Piter.",
+  ].join("\n");
+
+  try {
+    const response = await fetch("/api/agentops/hermes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "issue_clarification",
+        includeContext,
+        question,
+        issueContext: issueContextPayload,
+      }),
+    });
+
+    const payload = (await response.json()) as {
+      response?: string;
+      error?: string;
+      source?: string;
+      contextIncluded?: boolean;
+      safetyFlags?: string[];
+      limitations?: string;
+    };
+
+    if (response.ok && payload.source === "hermes_runtime" && payload.response?.trim()) {
+      return {
+        ok: true,
+        checkedAt,
+        response: payload.response.trim(),
+        source: payload.source,
+        contextIncluded: payload.contextIncluded === true,
+        httpStatus: response.status,
+        safetyFlags: payload.safetyFlags,
+        limitations: payload.limitations,
+      };
+    }
+
+    return {
+      ok: false,
+      checkedAt,
+      error:
+        payload.error ??
+        (payload.source === "mock_fallback"
+          ? "Hermes advisory runtime unavailable (provider fallback)."
+          : `Hermes advisory request failed (HTTP ${response.status}).`),
       source: payload.source,
       httpStatus: response.status,
     };

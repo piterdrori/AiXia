@@ -94,6 +94,7 @@ import {
   parseCursorReportFromHistory,
   type ExecutionLifecycleContext,
 } from "@/lib/agentops/executionLifecycle";
+import { IssueHermesAdvisoryAssist } from "../IssueHermesAdvisoryAssist";
 import { IssueLifecycleRail } from "../IssueLifecycleRail";
 import { normalizeCursorPrompt } from "../normalizeCursorPrompt";
 
@@ -969,6 +970,25 @@ export default function AgentOpsIssueWorkspacePage() {
                   steps={lifecycleRailSteps}
                   executionStateLabel={executionStateLabel(executionState)}
                 />
+                </AixiaSection>
+              </div>
+            ) : null}
+
+            {finding ? (
+              <div data-testid="agentops-issue-hermes-advisory">
+                <AixiaSection
+                  surface="command"
+                  title="Hermes Advisory Assist"
+                  description="Ask Hermes for a read-only advisory review of this issue. No writes, no verification, no tools."
+                  icon={Sparkles}
+                >
+                  <IssueHermesAdvisoryAssist
+                    issueCode={issueCode}
+                    finding={finding}
+                    fixPlan={fixPlan}
+                    approvedCursorPrompt={approvedCursorPrompt}
+                    executionStateLabel={executionStateLabel(executionState)}
+                  />
                 </AixiaSection>
               </div>
             ) : null}

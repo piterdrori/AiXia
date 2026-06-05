@@ -353,6 +353,8 @@ export {
   getAgentOpsHermesAdapterStatus,
   getAgentOpsHermesRuntimeHealth,
   probeAgentOpsHermesAdvisoryRuntime,
+  requestAgentOpsHermesIssueAdvisory,
+  HERMES_ISSUE_ADVISORY_INSTRUCTIONS,
   getAgentOpsHermesReadinessGate,
   checkHermesStagingHealth,
   checkHermesStagingHealthAsync,
@@ -362,6 +364,9 @@ export {
   mapIntentToHermesMode,
   mapHermesModeToAgentMessageType,
   type AgentOpsHermesAdvisoryActivationProbe,
+  type AgentOpsHermesIssueAdvisoryContext,
+  type AgentOpsHermesIssueAdvisoryInput,
+  type AgentOpsHermesIssueAdvisoryResult,
 } from "./hermesAdapter";
 
 export { assembleAgentOpsHermesPreviewContext } from "./hermesContextAssembler";

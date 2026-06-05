@@ -121,6 +121,7 @@ export default function AgentOpsIssueWorkspacePage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [optionalWarnings, setOptionalWarnings] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   const [finding, setFinding] = useState<AgentOpsFinding | null>(null);
@@ -215,8 +216,11 @@ export default function AgentOpsIssueWorkspacePage() {
     if (!silent) {
       setLoading(true);
       setError(null);
+      setOptionalWarnings([]);
       setFeedback(null);
     }
+
+    const warnings: string[] = [];
 
     const ownerResult = await getAgentOpsOwnerStatus();
     if (ownerResult.error || !ownerResult.data?.isOwner) {
@@ -232,16 +236,19 @@ export default function AgentOpsIssueWorkspacePage() {
       getAgentOpsGeneratedFixPlans(),
     ]);
 
-    if (activeResult.error || backlogResult.error || verificationResult.error || fixPlansResult.error) {
+    if (activeResult.error || backlogResult.error || verificationResult.error) {
       setError(
         activeResult.error ??
           backlogResult.error ??
           verificationResult.error ??
-          fixPlansResult.error ??
           "Could not load issue context.",
       );
       setLoading(false);
       return;
+    }
+
+    if (fixPlansResult.error) {
+      warnings.push(`Fix plan summary unavailable: ${fixPlansResult.error}`);
     }
 
     const activeFinding = (activeResult.data ?? []).find((item) => item.issue_code === issueCode) ?? null;
@@ -250,7 +257,11 @@ export default function AgentOpsIssueWorkspacePage() {
     const verificationMatch = (verificationResult.data ?? []).find((item) => item.issueCode === issueCode) ?? null;
     const selectedFinding = activeFinding ?? backlogFinding;
     setVerificationItem(verificationMatch);
-    setFixPlan((fixPlansResult.data?.plans ?? []).find((item) => item.issueCode === issueCode) ?? null);
+    setFixPlan(
+      fixPlansResult.error
+        ? null
+        : (fixPlansResult.data?.plans ?? []).find((item) => item.issueCode === issueCode) ?? null,
+    );
 
     let findingId: string | null = selectedFinding?.id ?? verificationMatch?.findingId ?? null;
     let detailFinding: AgentOpsFinding | null = selectedFinding;
@@ -284,16 +295,18 @@ export default function AgentOpsIssueWorkspacePage() {
       getAgentOpsFixPlanDecisionHistory(issueCode),
     ]);
 
-    if (handoffResult.error || fixHistoryResult.error) {
-      setError(handoffResult.error ?? fixHistoryResult.error ?? "Could not load issue history.");
-      setLoading(false);
-      return;
+    if (handoffResult.error) {
+      warnings.push(`Cursor handoff history unavailable: ${handoffResult.error}`);
+    }
+    if (fixHistoryResult.error) {
+      warnings.push(`Fix plan decision history unavailable: ${fixHistoryResult.error}`);
     }
 
     setFinding(detailFinding);
     setDetail(detailPayload);
-    setHandoffHistory(handoffResult.data ?? []);
-    setFixDecisionHistory(fixHistoryResult.data ?? []);
+    setHandoffHistory(handoffResult.error ? [] : (handoffResult.data ?? []));
+    setFixDecisionHistory(fixHistoryResult.error ? [] : (fixHistoryResult.data ?? []));
+    setOptionalWarnings(warnings);
 
     if (detailFinding.agent_id) {
       const memoryResult = await getAgentOpsAgentMemory(detailFinding.agent_id);
@@ -950,6 +963,15 @@ export default function AgentOpsIssueWorkspacePage() {
             {error ? (
               <AixiaInfoBlock tone="rose" icon={AlertTriangle} title="Could not load issue workspace">
                 {error}
+              </AixiaInfoBlock>
+            ) : null}
+            {!error && optionalWarnings.length > 0 ? (
+              <AixiaInfoBlock tone="gold" icon={AlertTriangle} title="Some optional workspace data is unavailable">
+                <ul className="list-disc space-y-1 pl-5">
+                  {optionalWarnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
               </AixiaInfoBlock>
             ) : null}
             {feedback ? (

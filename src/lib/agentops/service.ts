@@ -308,10 +308,16 @@ const DEFAULT_HERMES_STATUS: AgentOpsHermesStatus = {
 };
 
 function toErrorMessage(error: unknown): string {
+  if (typeof error === "string" && error.trim()) return error;
   if (error instanceof Error) return error.message;
   if (typeof error === "object" && error !== null && "message" in error) {
     const message = (error as { message?: unknown }).message;
-    if (typeof message === "string") return message;
+    if (typeof message === "string" && message.trim()) return message;
+    const code = (error as { code?: unknown }).code;
+    const details = (error as { details?: unknown }).details;
+    if (typeof code === "string" || typeof details === "string") {
+      return [code, details].filter((part) => typeof part === "string" && part.trim()).join(": ");
+    }
   }
   return "An unexpected error occurred.";
 }

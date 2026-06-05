@@ -101,6 +101,9 @@ const MEMORY_COORDINATION_GROUP_ID = "memory-coordination-tools";
 const AGENT_BRAIN_CATEGORY_ID = "agent-brain-memory";
 const HERMES_TOOL_SLUG = "hermes";
 
+/** Hermes main page panel bodies — paired with non-cropping CSS on `.aixia-tools-hub-hermes-page`. */
+const HERMES_MAIN_PANEL_BODY_CLASS = "aixia-dash-panel-body aixia-tools-hub-hermes-panel-body";
+
 /** Hermes layer 1 — Global Website Memory read index (H2). */
 const HERMES_GLOBAL_WEBSITE_MEMORY_PATH = `/system/agent-ops/tools/${AGENT_BRAIN_CATEGORY_ID}/${MEMORY_COORDINATION_GROUP_ID}/${HERMES_TOOL_SLUG}/global-website-memory`;
 
@@ -2871,7 +2874,10 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
 
   return (
     <AixiaCommandPageLayout hero={hermesHero} scrollLead={hermesMetaStrip}>
-      <div className="aixia-tools-hub-hermes-page" data-testid="agentops-tools-hermes-detail">
+      <div
+        className="aixia-tools-hub-hermes-page aixia-fab-safe-scroll"
+        data-testid="agentops-tools-hermes-detail"
+      >
         <div data-testid="hermes-activation-warning">
           <AixiaInfoBlock
             tone="gold"
@@ -2890,7 +2896,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           title="Hermes Runtime Health"
           description="Transport and gate truth from /api/agentops/hermes — read-only advisory mode. Coordinator is not active."
           icon={Server}
-          bodyClassName="aixia-dash-panel-body"
+          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
           <HermesRuntimeHealthPanel />
         </AixiaSection>
@@ -2901,7 +2907,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           title="Hermes Context Assembler Preview"
           description="Read-only preview of context Hermes would receive later — not sent to runtime. Coordinator not active."
           icon={FileText}
-          bodyClassName="aixia-dash-panel-body"
+          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
           <HermesContextAssemblerPreviewPanel />
         </AixiaSection>
@@ -2911,7 +2917,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           title="Status summary"
           description="Honest build posture — one partial layer, one read-only hub started, two not started, coordinator not active."
           icon={Brain}
-          bodyClassName="aixia-dash-panel-body"
+          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
           <div className="aixia-tools-hub-hermes-summary-grid">
             {HERMES_SUMMARY_CARDS.map((card) => (
@@ -2928,11 +2934,11 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
 
         <AixiaSection
           surface="command"
-          className="aixia-tools-hub-hermes-section"
+          className="aixia-tools-hub-hermes-section aixia-non-cropping-grid-section"
           title="Four Hermes layers"
           description="What is partially built versus what has not started."
           icon={Layers}
-          bodyClassName="aixia-dash-panel-body"
+          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
           <AixiaNavigationGrid className="aixia-tools-hub-hermes-layer-grid">
             {HERMES_LAYERS.map((layer) => (
@@ -2966,7 +2972,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           title="Hermes Build Roadmap"
           description="Required work order before Hermes can be considered ready or active."
           icon={MapPin}
-          bodyClassName="aixia-dash-panel-body"
+          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
           <div data-testid="hermes-build-roadmap">
           <ol className="aixia-tools-hub-hermes-roadmap-list">

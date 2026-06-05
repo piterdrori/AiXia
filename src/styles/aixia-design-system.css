@@ -11317,6 +11317,74 @@ button.aixia-action-card:disabled {
   color: rgba(148, 163, 184, 0.95);
 }
 
+.aixia-tools-hub-hermes-control {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-control-lead {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+.aixia-tools-hub-hermes-control-probe-result {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-control-probe-meta {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.95);
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-control-probe-label {
+  color: rgba(203, 213, 225, 0.88);
+  font-weight: 600;
+}
+
+.aixia-tools-hub-hermes-control-compact-status {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.45rem 0.75rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-advanced-details {
+  margin-top: 0.25rem;
+}
+
+.aixia-tools-hub-hermes-advanced-stack {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-advanced-stack .aixia-progressive-disclosure__content {
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-status-row-wide dd {
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .aixia-tools-hub-hermes-control-compact-status {
+    grid-template-columns: 1fr;
+  }
+
+  .aixia-tools-hub-hermes-runtime-health-action-row {
+    width: 100%;
+  }
+}
+
 .aixia-tools-hub-hermes-context-assembler {
   display: grid;
   gap: 0.75rem;

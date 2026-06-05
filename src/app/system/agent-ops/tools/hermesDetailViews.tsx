@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   BookOpen,
-  Brain,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
@@ -91,7 +90,6 @@ import {
   type AgentOpsGlobalMemorySourcePriorityPreference,
 } from "@/lib/agentops";
 import {
-  formatToolRegistryStatus,
   getToolRegistryEntry,
   getToolRegistryGroupRoute,
   type ToolRegistryEntry,
@@ -115,41 +113,10 @@ function getHermesDetailPath(): string {
 }
 
 const HERMES_STATUS_BADGES = [
-  { label: "Not ready", tone: "rose" as const },
-  { label: "In build", tone: "amber" as const },
-  { label: "Partial foundation only", tone: "neutral" as const },
-  { label: "Runtime not active", tone: "violet" as const },
-];
-
-const HERMES_SUMMARY_CARDS = [
-  {
-    label: "Overall readiness",
-    value: "Not ready",
-    description:
-      "Hermes is not ready as a full memory and intelligence coordinator. Do not label Hermes active.",
-    tone: "rose" as const,
-  },
-  {
-    label: "Coordinator",
-    value: "Not active",
-    description:
-      "Hermes memory coordinator is not active. Transport health is separate — use Runtime Health below.",
-    tone: "neutral" as const,
-  },
-  {
-    label: "Completed layer",
-    value: "Global Website Memory (partial)",
-    description:
-      "Read index, scan controls, candidate workflow, approved metadata store, reader preview, and Issue Chat preview injection — not full coordination.",
-    tone: "amber" as const,
-  },
-  {
-    label: "Remaining layers",
-    value: "Per-Agent hub started · 2 not started",
-    description:
-      "Per-Agent Memory read-only hub v1 started (not active). User Usage Learning and MCP / Avatar Task Agent are not built yet.",
-    tone: "violet" as const,
-  },
+  { label: "Advisory runtime active", tone: "emerald" as const },
+  { label: "Coordinator not active", tone: "rose" as const },
+  { label: "Read-only context active", tone: "cyan" as const },
+  { label: "Writes blocked", tone: "violet" as const },
 ];
 
 const HERMES_LAYERS = [
@@ -158,11 +125,9 @@ const HERMES_LAYERS = [
     title: "Global Website Memory",
     icon: Layers,
     tone: "amber" as const,
-    status: "Partial foundation built",
-    purpose:
-      "Global memory read index, scan controls, candidate workflow, approved metadata store, and reader preview are partially built. Full Hermes memory coordination is not complete.",
-    missing:
-      "Chat runtime reliability deferred. Still not a full Hermes memory coordinator.",
+    status: "Partial foundation / read-only",
+    purpose: "Read-only global memory index, scans, and approved metadata preview.",
+    missing: "Not a full Hermes memory coordinator.",
     detailPath: HERMES_GLOBAL_WEBSITE_MEMORY_PATH,
     actionLabel: "Open",
     disabled: false,
@@ -173,10 +138,8 @@ const HERMES_LAYERS = [
     icon: Users,
     tone: "cyan" as const,
     status: "Read-only hub started",
-    purpose:
-      "Read-only hub maps 12 agents, Supabase memory rows, manifest permissions, and missing Layer 2 infrastructure. Hermes per-agent coordination is not active.",
-    missing:
-      "No Hermes coordinator read path. AgentMemory not connected. Candidate workflow, performance memory, and relationship memory not built.",
+    purpose: "Read-only hub for 12 agents and Supabase memory rows.",
+    missing: "AgentMemory not connected. Full coordination not active.",
     detailPath: PER_AGENT_MEMORY_HUB_PATH,
     actionLabel: "Open hub",
     disabled: false,
@@ -187,9 +150,8 @@ const HERMES_LAYERS = [
     icon: LineChart,
     tone: "neutral" as const,
     status: "Not started",
-    purpose: "Piter/user usage learning is not connected yet.",
-    missing:
-      "No usage pattern memory. Analytics not connected to Hermes learning. Privacy/permission rules not defined.",
+    purpose: "Piter/user usage learning — not connected.",
+    missing: "Privacy rules and analytics read path not defined.",
     actionLabel: "Planned",
     disabled: true,
   },
@@ -199,9 +161,8 @@ const HERMES_LAYERS = [
     icon: Sparkles,
     tone: "violet" as const,
     status: "Not started",
-    purpose: "Future natural-language task execution layer is not built yet.",
-    missing:
-      "Future architecture only. No task execution agent, avatar/LLM task control layer, or permission-bound execution.",
+    purpose: "Future permission-bound task agent layer.",
+    missing: "Architecture only — no execution layer built.",
     actionLabel: "Planned",
     disabled: true,
   },
@@ -884,13 +845,18 @@ function formatLlmProviderLabel(provider?: AgentOpsHermesRuntimeHealth["provider
   return "Unknown";
 }
 
-function HermesRuntimeHealthPanel() {
+type HermesControlPanelProps = {
+  onHealthChange?: (health: AgentOpsHermesRuntimeHealth | null) => void;
+};
+
+function HermesControlPanel({ onHealthChange }: HermesControlPanelProps) {
   const [health, setHealth] = useState<AgentOpsHermesRuntimeHealth | null>(null);
   const [loading, setLoading] = useState(false);
   const [probeLoading, setProbeLoading] = useState(false);
   const [probeResult, setProbeResult] = useState<string | null>(null);
   const [probeError, setProbeError] = useState<string | null>(null);
   const [probeContextIncluded, setProbeContextIncluded] = useState<boolean | null>(null);
+  const [probeSource, setProbeSource] = useState<string | null>(null);
   const [includeReadOnlyContext, setIncludeReadOnlyContext] = useState(false);
 
   const refreshHealth = useCallback(async () => {
@@ -898,16 +864,18 @@ function HermesRuntimeHealthPanel() {
     try {
       const next = await getAgentOpsHermesRuntimeHealth();
       setHealth(next);
+      onHealthChange?.(next);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onHealthChange]);
 
   const runAdvisoryProbe = useCallback(async () => {
     setProbeLoading(true);
     setProbeResult(null);
     setProbeError(null);
     setProbeContextIncluded(null);
+    setProbeSource(null);
     try {
       const probe = await probeAgentOpsHermesAdvisoryRuntime({
         includeContext: includeReadOnlyContext,
@@ -915,6 +883,7 @@ function HermesRuntimeHealthPanel() {
       if (probe.ok && probe.response) {
         setProbeResult(probe.response);
         setProbeContextIncluded(probe.contextIncluded === true);
+        setProbeSource(probe.source ?? null);
       } else {
         setProbeError(
           probe.error ??
@@ -930,103 +899,100 @@ function HermesRuntimeHealthPanel() {
     void refreshHealth();
   }, [refreshHealth]);
 
-  const transportTone = hermesHealthTone(health);
   const advisoryReachable = Boolean(health?.transportReachable && health.mode === "advisory_transport");
-  const lastChecked = health?.checkedAt
-    ? new Date(health.checkedAt).toLocaleString()
-    : "Not checked yet";
 
   return (
-    <div
-      className="aixia-tools-hub-hermes-runtime-health"
-      data-testid="hermes-runtime-health"
-    >
-      <div className="aixia-tools-hub-hermes-runtime-health-actions">
-        <AixiaInfoBlock tone="cyan" icon={Server} title="Advisory runtime only">
-          Advisory runtime transport is not full coordinator activation. Coordinator remains not
-          active. Memory, SOT, registry, and AgentMemory writes are blocked.
-        </AixiaInfoBlock>
-        <div className="aixia-tools-hub-hermes-runtime-health-action-row">
-          <label
-            className="aixia-tools-hub-hermes-runtime-health-context-toggle"
-            data-testid="hermes-include-readonly-context-toggle"
-          >
-            <input
-              type="checkbox"
-              checked={includeReadOnlyContext}
-              disabled={probeLoading}
-              onChange={(event) => setIncludeReadOnlyContext(event.target.checked)}
-            />
-            <span>Include read-only Hermes context</span>
-          </label>
-          <AixiaButton
-            variant="secondary"
-            onClick={() => void refreshHealth()}
-            disabled={loading}
-            className="aixia-tools-hub-hermes-runtime-health-refresh"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
-            Refresh health
-          </AixiaButton>
-          <AixiaButton
-            variant="secondary"
-            onClick={() => void runAdvisoryProbe()}
-            disabled={probeLoading || !advisoryReachable}
-            className="aixia-tools-hub-hermes-runtime-health-probe"
-            data-testid="hermes-advisory-runtime-probe"
-          >
-            <Sparkles className={`h-4 w-4 ${probeLoading ? "animate-pulse" : ""}`} aria-hidden />
-            Test advisory response
-          </AixiaButton>
-        </div>
+    <div className="aixia-tools-hub-hermes-control" data-testid="hermes-control">
+      <p className="aixia-tools-hub-hermes-control-lead">
+        Hermes can answer advisory questions using Doubao Ark. When enabled, read-only AiXia context
+        is included. No writes or tool execution are allowed.
+      </p>
+
+      <div className="aixia-tools-hub-hermes-runtime-health-action-row">
+        <AixiaButton
+          variant="secondary"
+          onClick={() => void refreshHealth()}
+          disabled={loading}
+          className="aixia-tools-hub-hermes-runtime-health-refresh"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
+          Refresh health
+        </AixiaButton>
+        <label
+          className="aixia-tools-hub-hermes-runtime-health-context-toggle"
+          data-testid="hermes-include-readonly-context-toggle"
+        >
+          <input
+            type="checkbox"
+            checked={includeReadOnlyContext}
+            disabled={probeLoading}
+            onChange={(event) => setIncludeReadOnlyContext(event.target.checked)}
+          />
+          <span>Include read-only Hermes context</span>
+        </label>
+        <AixiaButton
+          variant="secondary"
+          onClick={() => void runAdvisoryProbe()}
+          disabled={probeLoading || !advisoryReachable}
+          className="aixia-tools-hub-hermes-runtime-health-probe"
+          data-testid="hermes-advisory-runtime-probe"
+        >
+          <Sparkles className={`h-4 w-4 ${probeLoading ? "animate-pulse" : ""}`} aria-hidden />
+          Test advisory response
+        </AixiaButton>
       </div>
 
-      {health?.message ? (
-        <p className="aixia-tools-hub-hermes-runtime-health-message">{health.message}</p>
-      ) : null}
-
-      {probeResult ? (
-        <p className="aixia-tools-hub-hermes-runtime-health-probe-result" data-testid="hermes-advisory-probe-result">
-          Advisory probe{probeContextIncluded ? " (read-only context included)" : ""}: {probeResult}
-        </p>
-      ) : null}
-      {probeError ? (
-        <p className="aixia-tools-hub-hermes-runtime-health-probe-error">{probeError}</p>
-      ) : null}
-
-      <dl className="aixia-tools-hub-hermes-status-rows">
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Coordinator status</dt>
-          <dd>
-            <AixiaBadge tone="rose">Not active</AixiaBadge>
-          </dd>
+      {probeResult || probeError ? (
+        <div
+          className="aixia-tools-hub-hermes-control-probe-result"
+          data-testid="hermes-advisory-probe-result"
+        >
+          {probeResult ? (
+            <>
+              <p className="aixia-tools-hub-hermes-runtime-health-probe-result">
+                <span className="aixia-tools-hub-hermes-control-probe-label">Response:</span>{" "}
+                {probeResult}
+              </p>
+              {probeSource ? (
+                <p className="aixia-tools-hub-hermes-control-probe-meta">
+                  <span className="aixia-tools-hub-hermes-control-probe-label">Source:</span>{" "}
+                  {probeSource}
+                  {health?.provider ? (
+                    <>
+                      {" "}
+                      · <span className="aixia-tools-hub-hermes-control-probe-label">Provider:</span>{" "}
+                      {formatLlmProviderLabel(health.provider)}
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+              {probeContextIncluded !== null ? (
+                <p className="aixia-tools-hub-hermes-control-probe-meta">
+                  <span className="aixia-tools-hub-hermes-control-probe-label">Context included:</span>{" "}
+                  {probeContextIncluded ? "Yes" : "No"}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+          {probeError ? (
+            <p className="aixia-tools-hub-hermes-runtime-health-probe-error">{probeError}</p>
+          ) : null}
         </div>
+      ) : null}
+
+      <dl className="aixia-tools-hub-hermes-control-compact-status" data-testid="hermes-runtime-health">
         <div className="aixia-tools-hub-hermes-status-row">
           <dt>Advisory runtime</dt>
           <dd>
             <AixiaBadge tone={advisoryReachable ? "emerald" : "rose"}>
-              {advisoryReachable ? "Reachable" : "Not reachable"}
+              {advisoryReachable ? "Reachable" : "Unavailable"}
             </AixiaBadge>
-          </dd>
-        </div>
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Transport mode</dt>
-          <dd>
-            <AixiaBadge tone={transportTone}>{formatHermesTransportMode(health)}</AixiaBadge>
           </dd>
         </div>
         <div className="aixia-tools-hub-hermes-status-row">
           <dt>Provider</dt>
           <dd>
             <AixiaBadge tone="neutral">{formatLlmProviderLabel(health?.provider)}</AixiaBadge>
-          </dd>
-        </div>
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Provider configured</dt>
-          <dd>
-            <AixiaBadge tone={health?.providerConfigured ? "emerald" : "amber"}>
-              {health?.providerConfigured ? "Yes" : health ? "No" : "Unknown"}
-            </AixiaBadge>
           </dd>
         </div>
         <div className="aixia-tools-hub-hermes-status-row">
@@ -1049,74 +1015,283 @@ function HermesRuntimeHealthPanel() {
             </AixiaBadge>
           </dd>
         </div>
-        {health?.providerModel ? (
-          <div className="aixia-tools-hub-hermes-status-row">
-            <dt>Model</dt>
-            <dd>
-              <span className="aixia-tools-hub-hermes-runtime-health-checked">{health.providerModel}</span>
-            </dd>
-          </div>
-        ) : null}
         <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Runtime gate</dt>
+          <dt>Coordinator</dt>
           <dd>
-            <AixiaBadge tone="neutral">
-              {health ? formatHermesGateLabel(health.runtimeGate) : "Unknown"}
-            </AixiaBadge>
+            <AixiaBadge tone="rose">Not active</AixiaBadge>
           </dd>
         </div>
         <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Owner approval</dt>
-          <dd>
-            <AixiaBadge tone="neutral">
-              {health ? formatHermesGateLabel(health.ownerApproved) : "Unknown"}
-            </AixiaBadge>
-          </dd>
-        </div>
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Hermes endpoint</dt>
-          <dd>
-            <AixiaBadge tone={health?.hermesEndpointReachable ? "emerald" : "rose"}>
-              {health?.hermesEndpointReachable ? "Reachable" : "Unavailable"}
-            </AixiaBadge>
-          </dd>
-        </div>
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>LLM fallback</dt>
-          <dd>
-            <AixiaBadge tone={health?.llmFallbackReachable ? "emerald" : "amber"}>
-              {health?.llmFallbackReachable ? "Available" : health ? "Unavailable" : "Unknown"}
-            </AixiaBadge>
-          </dd>
-        </div>
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Fallback layer</dt>
-          <dd>
-            <AixiaBadge tone="violet">
-              {health?.fallbackAvailable !== false ? "Available" : "Unknown"}
-            </AixiaBadge>
-          </dd>
-        </div>
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Safe write mode</dt>
-          <dd>
-            <AixiaBadge tone="rose">Writes blocked</AixiaBadge>
-          </dd>
-        </div>
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Source-of-truth writes</dt>
+          <dt>Writes</dt>
           <dd>
             <AixiaBadge tone="rose">Blocked</AixiaBadge>
           </dd>
         </div>
-        <div className="aixia-tools-hub-hermes-status-row">
-          <dt>Last checked</dt>
-          <dd>
-            <span className="aixia-tools-hub-hermes-runtime-health-checked">{lastChecked}</span>
-          </dd>
-        </div>
       </dl>
     </div>
+  );
+}
+
+function HermesTechnicalHealthDetails({ health }: { health: AgentOpsHermesRuntimeHealth | null }) {
+  const transportTone = hermesHealthTone(health);
+  const lastChecked = health?.checkedAt
+    ? new Date(health.checkedAt).toLocaleString()
+    : "Not checked yet";
+
+  return (
+    <dl className="aixia-tools-hub-hermes-status-rows" data-testid="hermes-technical-health-details">
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>Transport mode</dt>
+        <dd>
+          <AixiaBadge tone={transportTone}>{formatHermesTransportMode(health)}</AixiaBadge>
+        </dd>
+      </div>
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>Runtime gate</dt>
+        <dd>
+          <AixiaBadge tone="neutral">
+            {health ? formatHermesGateLabel(health.runtimeGate) : "Unknown"}
+          </AixiaBadge>
+        </dd>
+      </div>
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>Owner approval</dt>
+        <dd>
+          <AixiaBadge tone="neutral">
+            {health ? formatHermesGateLabel(health.ownerApproved) : "Unknown"}
+          </AixiaBadge>
+        </dd>
+      </div>
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>LLM runtime gate</dt>
+        <dd>
+          <AixiaBadge tone="neutral">
+            {health ? formatHermesGateLabel(health.llmRuntimeGate) : "Unknown"}
+          </AixiaBadge>
+        </dd>
+      </div>
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>Provider configured</dt>
+        <dd>
+          <AixiaBadge tone={health?.providerConfigured ? "emerald" : "amber"}>
+            {health?.providerConfigured ? "Yes" : health ? "No" : "Unknown"}
+          </AixiaBadge>
+        </dd>
+      </div>
+      {health?.providerModel ? (
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Provider model</dt>
+          <dd>
+            <span className="aixia-tools-hub-hermes-runtime-health-checked">{health.providerModel}</span>
+          </dd>
+        </div>
+      ) : null}
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>Hermes endpoint</dt>
+        <dd>
+          <AixiaBadge tone={health?.hermesEndpointReachable ? "emerald" : "rose"}>
+            {health?.hermesEndpointReachable ? "Reachable" : "Unavailable"}
+          </AixiaBadge>
+        </dd>
+      </div>
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>LLM fallback</dt>
+        <dd>
+          <AixiaBadge tone={health?.llmFallbackReachable ? "emerald" : "amber"}>
+            {health?.llmFallbackReachable ? "Available" : health ? "Unavailable" : "Unknown"}
+          </AixiaBadge>
+        </dd>
+      </div>
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>Fallback layer</dt>
+        <dd>
+          <AixiaBadge tone="violet">
+            {health?.fallbackAvailable !== false ? "Available" : "Unknown"}
+          </AixiaBadge>
+        </dd>
+      </div>
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>Source-of-truth writes</dt>
+        <dd>
+          <AixiaBadge tone="rose">Blocked</AixiaBadge>
+        </dd>
+      </div>
+      <div className="aixia-tools-hub-hermes-status-row">
+        <dt>Last checked</dt>
+        <dd>
+          <span className="aixia-tools-hub-hermes-runtime-health-checked">{lastChecked}</span>
+        </dd>
+      </div>
+      {health?.message ? (
+        <div className="aixia-tools-hub-hermes-status-row aixia-tools-hub-hermes-status-row-wide">
+          <dt>Health message</dt>
+          <dd>{health.message}</dd>
+        </div>
+      ) : null}
+    </dl>
+  );
+}
+
+function HermesAdvancedDetailsSection({ health }: { health: AgentOpsHermesRuntimeHealth | null }) {
+  return (
+    <AixiaProgressiveDisclosureGroup
+      title="Advanced details"
+      description="Technical previews, roadmap, gates, and reference material — collapsed by default."
+      defaultOpen={false}
+      density="compact"
+      className="aixia-progressive-disclosure--secondary aixia-tools-hub-hermes-advanced-details"
+      icon={<Eye className="h-4 w-4" />}
+      badge={<AixiaBadge tone="neutral">Reference</AixiaBadge>}
+      testId="hermes-advanced-details"
+    >
+      <div className="aixia-tools-hub-hermes-advanced-stack">
+        <AixiaProgressiveDisclosureGroup
+          title="Context assembler preview"
+          description="Read-only preview of assembled context — not the live advisory POST unless toggled in Hermes Control."
+          defaultOpen={false}
+          density="compact"
+          className="aixia-progressive-disclosure--secondary"
+          icon={<FileText className="h-4 w-4" />}
+          testId="hermes-advanced-context-assembler"
+        >
+          <HermesContextAssemblerPreviewPanel />
+        </AixiaProgressiveDisclosureGroup>
+
+        <AixiaProgressiveDisclosureGroup
+          title="Build roadmap"
+          description="Required work order before coordinator activation."
+          defaultOpen={false}
+          density="compact"
+          className="aixia-progressive-disclosure--secondary"
+          icon={<MapPin className="h-4 w-4" />}
+          badge={<AixiaBadge tone="amber">{HERMES_BUILD_ROADMAP.length} layers</AixiaBadge>}
+          testId="hermes-build-roadmap"
+        >
+          <ol className="aixia-tools-hub-hermes-roadmap-list">
+            {HERMES_BUILD_ROADMAP.map((item) => (
+              <li key={item.order} className="aixia-tools-hub-hermes-roadmap-item">
+                <div className="aixia-tools-hub-hermes-roadmap-head">
+                  <span className="aixia-tools-hub-hermes-roadmap-order">{item.order}</span>
+                  <span className="aixia-tools-hub-hermes-roadmap-title">{item.title}</span>
+                  <AixiaBadge tone={item.statusTone}>{item.status}</AixiaBadge>
+                </div>
+                <p className="aixia-tools-hub-hermes-roadmap-purpose">{item.purpose}</p>
+                <p className="aixia-tools-hub-hermes-roadmap-next">
+                  <span className="aixia-tools-hub-hermes-roadmap-next-label">Next action</span>
+                  {item.nextAction}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </AixiaProgressiveDisclosureGroup>
+
+        <AixiaProgressiveDisclosureGroup
+          title="Next steps"
+          description="Layer build order — activation is last, not first."
+          defaultOpen={false}
+          density="compact"
+          className="aixia-progressive-disclosure--secondary"
+          icon={<MessageSquare className="h-4 w-4" />}
+          badge={<AixiaBadge tone="amber">{HERMES_NEXT_STEPS.length} steps</AixiaBadge>}
+          testId="hermes-next-steps"
+        >
+          <ol className="aixia-tools-hub-hermes-steps-list">
+            {HERMES_NEXT_STEPS.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <div className="aixia-tools-hub-hermes-doc-links">
+            <AixiaInfoBlock tone="indigo" icon={Database} title="Reference artifacts">
+              Adapter: <code>src/lib/agentops/hermesAdapter.ts</code> · Contracts:{" "}
+              <code>qa-agent/hermes/</code> · Readiness:{" "}
+              <code>{AGENTOPS_HERMES_ADAPTER_READINESS.contractPath}</code>
+            </AixiaInfoBlock>
+          </div>
+        </AixiaProgressiveDisclosureGroup>
+
+        <AixiaProgressiveDisclosureGroup
+          title="Current connections"
+          description="What Hermes touches today versus what remains separate."
+          defaultOpen={false}
+          density="compact"
+          className="aixia-progressive-disclosure--secondary"
+          icon={<GitBranch className="h-4 w-4" />}
+          badge={<AixiaBadge tone="neutral">{HERMES_CONNECTIONS.length} systems</AixiaBadge>}
+          testId="hermes-connections"
+        >
+          <div className="aixia-tools-hub-hermes-connections">
+            {HERMES_CONNECTIONS.map((row) => (
+              <div
+                key={row.system}
+                className="aixia-tools-hub-hermes-connection-row"
+                data-connected={row.connected ? "true" : "false"}
+              >
+                <div className="aixia-tools-hub-hermes-connection-head">
+                  <span className="aixia-tools-hub-hermes-connection-system">{row.system}</span>
+                  <AixiaBadge tone={row.connected ? "emerald" : "neutral"}>{row.status}</AixiaBadge>
+                </div>
+                <p className="aixia-tools-hub-hermes-connection-detail">{row.detail}</p>
+              </div>
+            ))}
+          </div>
+        </AixiaProgressiveDisclosureGroup>
+
+        <AixiaProgressiveDisclosureGroup
+          title="Runtime gates"
+          description="Informational env requirements — secret values are never shown."
+          defaultOpen={false}
+          density="compact"
+          className="aixia-progressive-disclosure--secondary"
+          icon={<Server className="h-4 w-4" />}
+          badge={<AixiaBadge tone="cyan">{RUNTIME_GATE_VARS.length} vars</AixiaBadge>}
+          testId="hermes-runtime-gates"
+        >
+          <AixiaInfoBlock tone="cyan" icon={Lock} title="Env-gated advisory transport">
+            Server runtime requires explicit flags and owner approval. This is not coordinator
+            activation.
+          </AixiaInfoBlock>
+          <dl className="aixia-tools-hub-hermes-gates">
+            {RUNTIME_GATE_VARS.map((gate) => (
+              <div key={gate.name} className="aixia-tools-hub-hermes-gate-row">
+                <dt>
+                  <code>{gate.name}</code>
+                </dt>
+                <dd>{gate.role}</dd>
+              </div>
+            ))}
+          </dl>
+        </AixiaProgressiveDisclosureGroup>
+
+        <AixiaProgressiveDisclosureGroup
+          title="Safety rules"
+          description="Hermes safety policy and AgentOps governance boundaries."
+          defaultOpen={false}
+          density="compact"
+          className="aixia-progressive-disclosure--secondary"
+          icon={<Shield className="h-4 w-4" />}
+          badge={<AixiaBadge tone="violet">{HERMES_SAFETY_RULES.length} rules</AixiaBadge>}
+          testId="hermes-safety-rules"
+        >
+          <ul className="aixia-tools-hub-hermes-safety-list">
+            {HERMES_SAFETY_RULES.map((rule) => (
+              <li key={rule}>{rule}</li>
+            ))}
+          </ul>
+        </AixiaProgressiveDisclosureGroup>
+
+        <AixiaProgressiveDisclosureGroup
+          title="Technical health details"
+          description="Extended transport and gate diagnostics from /api/agentops/hermes."
+          defaultOpen={false}
+          density="compact"
+          className="aixia-progressive-disclosure--secondary"
+          icon={<Server className="h-4 w-4" />}
+          testId="hermes-technical-health"
+        >
+          <HermesTechnicalHealthDetails health={health} />
+        </AixiaProgressiveDisclosureGroup>
+      </div>
+    </AixiaProgressiveDisclosureGroup>
   );
 }
 
@@ -3239,6 +3414,7 @@ export function ToolsHubHermesGlobalWebsiteMemoryPage() {
 }
 
 export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetailPageProps) {
+  void registryEntry;
   const navigate = useNavigate();
   const group = getToolRegistryEntry(MEMORY_COORDINATION_GROUP_ID);
   const parentPath = getToolRegistryGroupRoute(
@@ -3246,29 +3422,10 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
     MEMORY_COORDINATION_GROUP_ID,
   );
   const parentLabel = group?.title ?? "Memory & Coordination Tools";
+  const [health, setHealth] = useState<AgentOpsHermesRuntimeHealth | null>(null);
 
-  const [transportMeta, setTransportMeta] = useState("Health unknown");
-  const [ownerGateMeta, setOwnerGateMeta] = useState("Pending");
-
-  useEffect(() => {
-    let cancelled = false;
-    void getAgentOpsHermesRuntimeHealth().then((health) => {
-      if (cancelled) return;
-      setTransportMeta(formatHermesTransportMode(health));
-      if (health.productionBlocked) {
-        setOwnerGateMeta("Production blocked");
-      } else if (health.ownerApproved === "enabled") {
-        setOwnerGateMeta("Enabled");
-      } else if (health.ownerApproved === "disabled") {
-        setOwnerGateMeta("Disabled");
-      } else {
-        setOwnerGateMeta("Pending / unknown");
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const advisoryActive = Boolean(health?.transportReachable && health.mode === "advisory_transport");
+  const contextActive = health?.contextAssemblerAvailable === true;
 
   const hermesHero = (
     <AixiaHero
@@ -3276,14 +3433,14 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
       className="shrink-0 space-y-4"
       gradientTitle="AgentOps"
       title="Hermes"
-      subtitle="Memory and intelligence coordinator for AiXia AgentOps — in build, not ready."
+      subtitle="Advisory runtime is working with Doubao Ark and read-only AiXia context. Full coordinator activation is still blocked."
       parentLabel={parentLabel}
       parentPath={parentPath}
       badges={HERMES_STATUS_BADGES}
     >
       <p className="aixia-tools-hub-hermes-hero-note">
-        Hermes is still under construction. Global Website Memory has a partial working foundation,
-        but Hermes is not ready as a full memory and intelligence coordinator.
+        Next activation step: finish Global Website Memory and Per-Agent layers, then run
+        owner-approved readiness audit. Coordinator activation remains blocked.
       </p>
     </AixiaHero>
   );
@@ -3293,18 +3450,18 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
       variant="command"
       items={[
         {
-          key: "readiness",
-          label: "Overall readiness",
-          value: "Not ready",
-          detail: "In build · partial foundation only",
-          tone: "rose",
+          key: "runtime",
+          label: "Runtime",
+          value: advisoryActive ? "Advisory active" : health ? "Unavailable" : "Checking…",
+          detail: "Doubao Ark advisory transport",
+          tone: advisoryActive ? "emerald" : "rose",
         },
         {
-          key: "transport",
-          label: "Transport",
-          value: transportMeta,
-          detail: "Advisory proxy only · not coordinator",
-          tone: "cyan",
+          key: "context",
+          label: "Context",
+          value: contextActive ? "Read-only active" : health ? "Unavailable" : "Checking…",
+          detail: "Optional read-only AiXia context injection",
+          tone: contextActive ? "cyan" : "amber",
         },
         {
           key: "coordinator",
@@ -3320,20 +3477,6 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           detail: "No memory or source-of-truth writes",
           tone: "violet",
         },
-        {
-          key: "owner",
-          label: "Owner gate",
-          value: ownerGateMeta,
-          detail: "Server HERMES_OWNER_APPROVED",
-          tone: "amber",
-        },
-        {
-          key: "layer",
-          label: "Built layer",
-          value: "Global memory (partial)",
-          detail: `Per-Agent hub started · registry ${formatToolRegistryStatus(registryEntry.status)} · 2 layers not started`,
-          tone: "amber",
-        },
       ]}
     />
   );
@@ -3344,65 +3487,22 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
         className="aixia-tools-hub-hermes-page aixia-fab-safe-scroll"
         data-testid="agentops-tools-hermes-detail"
       >
-        <div data-testid="hermes-activation-warning">
-          <AixiaInfoBlock
-            tone="gold"
-            icon={Shield}
-            title="Hermes is not ready for activation"
-            className="aixia-tools-hub-hermes-activation-warning"
-          >
-            Hermes is not ready for activation. Do not label Hermes active until all required memory
-            layers, runtime behavior, safety gates, and browser QA are complete.
-          </AixiaInfoBlock>
-        </div>
-
         <AixiaSection
           surface="command"
-          className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-runtime-health-section"
-          title="Hermes Runtime Health"
-          description="Transport and gate truth from /api/agentops/hermes — read-only advisory mode. Coordinator is not active."
-          icon={Server}
+          className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-control-section"
+          title="Hermes Control"
+          description="Test the live advisory runtime and optional read-only AiXia context."
+          icon={Sparkles}
           bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
-          <HermesRuntimeHealthPanel />
-        </AixiaSection>
-
-        <AixiaSection
-          surface="command"
-          className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-context-assembler-section"
-          title="Hermes Context Assembler Preview"
-          description="Read-only preview of context Hermes would receive later — not sent to runtime. Coordinator not active."
-          icon={FileText}
-          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
-        >
-          <HermesContextAssemblerPreviewPanel />
-        </AixiaSection>
-
-        <AixiaSection
-          surface="command"
-          title="Status summary"
-          description="Honest build posture — one partial layer, one read-only hub started, two not started, coordinator not active."
-          icon={Brain}
-          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
-        >
-          <div className="aixia-tools-hub-hermes-summary-grid">
-            {HERMES_SUMMARY_CARDS.map((card) => (
-              <AixiaNavigationStatBlock
-                key={card.label}
-                label={card.label}
-                value={card.value}
-                description={card.description}
-                tone={card.tone}
-              />
-            ))}
-          </div>
+          <HermesControlPanel onHealthChange={setHealth} />
         </AixiaSection>
 
         <AixiaSection
           surface="command"
           className="aixia-tools-hub-hermes-section aixia-non-cropping-grid-section"
           title="Four Hermes layers"
-          description="What is partially built versus what has not started."
+          description="Memory layers — partial, read-only, or not started."
           icon={Layers}
           bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
@@ -3432,134 +3532,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           </AixiaNavigationGrid>
         </AixiaSection>
 
-        <AixiaSection
-          surface="command"
-          className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-roadmap-section"
-          title="Hermes Build Roadmap"
-          description="Required work order before Hermes can be considered ready or active."
-          icon={MapPin}
-          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
-        >
-          <div data-testid="hermes-build-roadmap">
-          <ol className="aixia-tools-hub-hermes-roadmap-list">
-            {HERMES_BUILD_ROADMAP.map((item) => (
-              <li key={item.order} className="aixia-tools-hub-hermes-roadmap-item">
-                <div className="aixia-tools-hub-hermes-roadmap-head">
-                  <span className="aixia-tools-hub-hermes-roadmap-order">{item.order}</span>
-                  <span className="aixia-tools-hub-hermes-roadmap-title">{item.title}</span>
-                  <AixiaBadge tone={item.statusTone}>{item.status}</AixiaBadge>
-                </div>
-                <p className="aixia-tools-hub-hermes-roadmap-purpose">{item.purpose}</p>
-                <p className="aixia-tools-hub-hermes-roadmap-next">
-                  <span className="aixia-tools-hub-hermes-roadmap-next-label">Next action</span>
-                  {item.nextAction}
-                </p>
-              </li>
-            ))}
-          </ol>
-          </div>
-        </AixiaSection>
-
-        <div className="aixia-tools-hub-hermes-disclosure-stack">
-          <AixiaProgressiveDisclosureGroup
-            title="Current connections"
-            description="What Hermes touches today versus what remains separate."
-            defaultOpen={false}
-            density="compact"
-            className="aixia-progressive-disclosure--secondary"
-            icon={<GitBranch className="h-4 w-4" />}
-            badge={
-              <AixiaBadge tone="neutral">
-                {HERMES_CONNECTIONS.length} systems
-              </AixiaBadge>
-            }
-            testId="hermes-connections"
-          >
-            <div className="aixia-tools-hub-hermes-connections">
-              {HERMES_CONNECTIONS.map((row) => (
-                <div
-                  key={row.system}
-                  className="aixia-tools-hub-hermes-connection-row"
-                  data-connected={row.connected ? "true" : "false"}
-                >
-                  <div className="aixia-tools-hub-hermes-connection-head">
-                    <span className="aixia-tools-hub-hermes-connection-system">{row.system}</span>
-                    <AixiaBadge tone={row.connected ? "emerald" : "neutral"}>{row.status}</AixiaBadge>
-                  </div>
-                  <p className="aixia-tools-hub-hermes-connection-detail">{row.detail}</p>
-                </div>
-              ))}
-            </div>
-          </AixiaProgressiveDisclosureGroup>
-
-          <AixiaProgressiveDisclosureGroup
-            title="Runtime gates"
-            description="Informational env requirements — secret values are never shown."
-            defaultOpen={false}
-            density="compact"
-            className="aixia-progressive-disclosure--secondary"
-            icon={<Server className="h-4 w-4" />}
-            badge={<AixiaBadge tone="cyan">{RUNTIME_GATE_VARS.length} vars</AixiaBadge>}
-            testId="hermes-runtime-gates"
-          >
-            <AixiaInfoBlock tone="cyan" icon={Lock} title="Env-gated advisory transport">
-              Server runtime requires explicit flags and owner approval. Transport health is shown
-              in Runtime Health above — it is not coordinator activation. Activation remains blocked
-              until all memory layers, safety gates, and browser QA pass.
-            </AixiaInfoBlock>
-            <dl className="aixia-tools-hub-hermes-gates">
-              {RUNTIME_GATE_VARS.map((gate) => (
-                <div key={gate.name} className="aixia-tools-hub-hermes-gate-row">
-                  <dt>
-                    <code>{gate.name}</code>
-                  </dt>
-                  <dd>{gate.role}</dd>
-                </div>
-              ))}
-            </dl>
-          </AixiaProgressiveDisclosureGroup>
-
-          <AixiaProgressiveDisclosureGroup
-            title="Safety rules"
-            description="Hermes safety policy and AgentOps governance boundaries."
-            defaultOpen={false}
-            density="compact"
-            className="aixia-progressive-disclosure--secondary"
-            icon={<Shield className="h-4 w-4" />}
-            badge={<AixiaBadge tone="violet">{HERMES_SAFETY_RULES.length} rules</AixiaBadge>}
-            testId="hermes-safety-rules"
-          >
-            <ul className="aixia-tools-hub-hermes-safety-list">
-              {HERMES_SAFETY_RULES.map((rule) => (
-                <li key={rule}>{rule}</li>
-              ))}
-            </ul>
-          </AixiaProgressiveDisclosureGroup>
-
-          <AixiaProgressiveDisclosureGroup
-            title="Next steps"
-            description="Layer build order — activation is last, not first."
-            defaultOpen
-            density="compact"
-            className="aixia-progressive-disclosure--secondary"
-            icon={<MessageSquare className="h-4 w-4" />}
-            badge={<AixiaBadge tone="amber">{HERMES_NEXT_STEPS.length} steps</AixiaBadge>}
-            testId="hermes-next-steps"
-          >
-            <ol className="aixia-tools-hub-hermes-steps-list">
-              {HERMES_NEXT_STEPS.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-            <div className="aixia-tools-hub-hermes-doc-links">
-              <AixiaInfoBlock tone="indigo" icon={Database} title="Reference artifacts">
-                Adapter: <code>src/lib/agentops/hermesAdapter.ts</code> · Contracts:{" "}
-                <code>qa-agent/hermes/</code> · Readiness:{" "}
-                <code>{AGENTOPS_HERMES_ADAPTER_READINESS.contractPath}</code>
-              </AixiaInfoBlock>
-            </div>
-          </AixiaProgressiveDisclosureGroup>
-        </div>
+        <HermesAdvancedDetailsSection health={health} />
       </div>
     </AixiaCommandPageLayout>
   );

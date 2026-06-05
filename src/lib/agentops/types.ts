@@ -797,11 +797,16 @@ export type AgentOpsHermesRuntimeHealthMode = "advisory_transport" | "blocked" |
 
 export type AgentOpsHermesEnvGateStatus = "enabled" | "disabled" | "unknown";
 
+export type AgentOpsLlmProviderId = "ollama" | "doubao_ark";
+
 /** Normalized Hermes runtime health (A1) — transport truth, coordinator always inactive. */
 export interface AgentOpsHermesRuntimeHealth {
   status: "ok" | "blocked" | "unavailable" | "loading";
   ok: boolean;
   mode: AgentOpsHermesRuntimeHealthMode;
+  provider?: AgentOpsLlmProviderId;
+  providerConfigured?: boolean;
+  providerModel?: string;
   runtimeGate: AgentOpsHermesEnvGateStatus;
   ownerApproved: AgentOpsHermesEnvGateStatus;
   llmRuntimeGate: AgentOpsHermesEnvGateStatus;

@@ -65,12 +65,16 @@ export function isAgentOpsLlmRuntimeEnabled(): boolean {
   }
   if (ownerApproved === "false") return false;
 
+  const doubaoProvider = readServerEnv("AGENTOPS_LLM_PROVIDER") === "doubao_ark";
+  const hasDoubaoKey = Boolean(readServerEnv("ARK_API_KEY"));
+
   if (
     llmActive === "true" ||
     hermesActive === "true" ||
     ownerApproved === "true" ||
     readServerEnv("HERMES_STAGING_ENDPOINT") ||
-    readServerEnv("AGENTOPS_LLM_BASE_URL")
+    readServerEnv("AGENTOPS_LLM_BASE_URL") ||
+    (doubaoProvider && hasDoubaoKey)
   ) {
     return true;
   }

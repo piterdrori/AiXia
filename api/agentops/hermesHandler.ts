@@ -4,12 +4,18 @@
  */
 
 import {
-  callOllamaChat,
-  getAgentOpsOllamaConfig,
+  callAgentOpsLlmChat,
+  formatAgentOpsLlmProviderLabel,
+  getAgentOpsLlmProviderModel,
+  isAgentOpsLlmProviderConfigured,
+  probeAgentOpsLlmTransport,
+  readAgentOpsLlmProvider,
+  type AgentOpsLlmProviderId,
+} from "./llmProvider";
+import {
   isAgentOpsLlmRuntimeEnabled,
   isAgentOpsProductionBlocked,
   jsonResponse,
-  probeOllamaReachability,
   readAgentOpsLlmRuntimeGateStatus,
   readHermesOwnerApprovedStatus,
   readHermesRuntimeGateStatus,
@@ -23,6 +29,9 @@ export type AgentOpsHermesRuntimeHealthMode = "advisory_transport" | "blocked" |
 export interface AgentOpsHermesRuntimeHealthPayload {
   ok: boolean;
   mode: AgentOpsHermesRuntimeHealthMode;
+  provider: AgentOpsLlmProviderId;
+  providerConfigured: boolean;
+  providerModel: string;
   runtimeGate: AgentOpsEnvGateStatus;
   ownerApproved: AgentOpsEnvGateStatus;
   llmRuntimeGate: AgentOpsEnvGateStatus;
@@ -54,9 +63,12 @@ export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOp
   const ownerApproved = readHermesOwnerApprovedStatus();
   const llmRuntimeGate = readAgentOpsLlmRuntimeGateStatus();
   const runtimeEnabled = isAgentOpsLlmRuntimeEnabled();
-  const config = getAgentOpsOllamaConfig();
-  const endpointConfigured = Boolean(config.baseUrl);
-  const ollama = endpointConfigured ? await probeOllamaReachability() : { reachable: false, error: "Endpoint not configured" };
+  const provider = readAgentOpsLlmProvider();
+  const providerConfigured = isAgentOpsLlmProviderConfigured();
+  const providerModel = getAgentOpsLlmProviderModel();
+  const transport = providerConfigured
+    ? await probeAgentOpsLlmTransport()
+    : { reachable: false, error: "LLM provider not configured." };
 
   const hermesEndpointReachable = true;
   const gatesOpen =
@@ -64,8 +76,8 @@ export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOp
     runtimeGate !== "disabled" &&
     ownerApproved !== "disabled" &&
     runtimeEnabled;
-  const transportReachable = gatesOpen && ollama.reachable;
-  const llmFallbackReachable = gatesOpen && ollama.reachable;
+  const transportReachable = gatesOpen && transport.reachable;
+  const llmFallbackReachable = gatesOpen && transport.reachable;
 
   let mode: AgentOpsHermesRuntimeHealthMode = "unavailable";
   let message = "Hermes transport health unavailable.";
@@ -80,9 +92,11 @@ export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOp
   } else if (!runtimeEnabled) {
     mode = "blocked";
     message = "Server LLM/Hermes runtime gate is not open.";
-  } else if (!ollama.reachable) {
+  } else if (!transport.reachable) {
     mode = "unavailable";
-    message = ollama.error ?? "Ollama/LLM transport not reachable.";
+    message =
+      transport.error ??
+      `${formatAgentOpsLlmProviderLabel(provider)} transport not reachable.`;
   } else {
     mode = "advisory_transport";
     message = "Advisory runtime reachable. Coordinator not active.";
@@ -92,6 +106,9 @@ export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOp
   return {
     ok,
     mode,
+    provider,
+    providerConfigured,
+    providerModel,
     runtimeGate,
     ownerApproved,
     llmRuntimeGate,
@@ -126,13 +143,21 @@ interface HermesRunBody {
   model?: string | null;
 }
 
+const HERMES_ADVISORY_SAFETY_LINES = [
+  "Advisory only — no memory writes, no source-of-truth writes, no registry writes.",
+  "No tool execution or MCP tasks. Hermes coordinator is not fully active.",
+];
+
 function buildDefaultSystemPrompt(body: HermesRunBody): string {
-  if (body.systemPrompt?.trim()) return body.systemPrompt.trim();
+  if (body.systemPrompt?.trim()) {
+    return `${body.systemPrompt.trim()}\n\n${HERMES_ADVISORY_SAFETY_LINES.join(" ")}`;
+  }
   const ctx = body.issueContext ?? {};
   const lines = [
     "You are a Hermes advisory QA agent for AgentOps (staging only).",
     "Never claim to have executed Cursor, changed production, or written memory automatically.",
     "Do not expose secrets.",
+    ...HERMES_ADVISORY_SAFETY_LINES,
     `Mode: ${body.mode ?? "issue_clarification"}`,
   ];
   for (const [key, value] of Object.entries(ctx)) {
@@ -155,7 +180,7 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
       /** @deprecated Use transportReachable — kept for older probes */
       runtimeActive: health.transportReachable,
       ollamaReachable: health.transportReachable,
-      endpointConfigured: Boolean(getAgentOpsOllamaConfig().baseUrl),
+      endpointConfigured: health.providerConfigured,
     });
   }
 
@@ -190,7 +215,7 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
   }
 
   const systemPrompt = buildDefaultSystemPrompt(body);
-  const llmResult = await callOllamaChat(systemPrompt, question, body.model);
+  const llmResult = await callAgentOpsLlmChat(systemPrompt, question, body.model);
   if (!llmResult.ok) {
     return jsonResponse(
       {
@@ -215,7 +240,7 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
     riskNotes: "",
     nextRecommendedAction: "",
     confidence: "medium",
-    limitations: "Hermes advisory via server Ollama proxy (staging).",
+    limitations: `Hermes advisory via server ${formatAgentOpsLlmProviderLabel(llmResult.provider)} proxy (staging).`,
     safetyFlags: ["staging_only", "advisory_only", "no_auto_cursor", "memory_approval_required"],
   });
 }

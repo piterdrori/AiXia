@@ -122,7 +122,7 @@ function unavailableHermesRuntimeHealth(message: string, loadError?: string): Ag
 }
 
 const HERMES_ADVISORY_ACTIVATION_TEST_PROMPT =
-  "For activation test only, reply with: Hermes advisory runtime reachable. Do not mention memory updates.";
+  "For activation test only, reply with exactly: Hermes advisory runtime reachable.\nDo not mention memory updates.";
 
 export interface AgentOpsHermesAdvisoryActivationProbe {
   ok: boolean;
@@ -217,6 +217,11 @@ export async function getAgentOpsHermesRuntimeHealth(): Promise<AgentOpsHermesRu
       status,
       ok,
       mode,
+      provider:
+        payload.provider === "doubao_ark" ? "doubao_ark" : payload.provider === "ollama" ? "ollama" : undefined,
+      providerConfigured:
+        typeof payload.providerConfigured === "boolean" ? payload.providerConfigured : undefined,
+      providerModel: typeof payload.providerModel === "string" ? payload.providerModel : undefined,
       runtimeGate: normalizeGateStatus(payload.runtimeGate),
       ownerApproved: normalizeGateStatus(payload.ownerApproved),
       llmRuntimeGate: normalizeGateStatus(payload.llmRuntimeGate),

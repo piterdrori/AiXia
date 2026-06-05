@@ -7,7 +7,13 @@ import {
   mergeAgentOpsOllamaModelOptions,
 } from "./modelCatalog";
 import {
-  callOllamaChat,
+  callAgentOpsLlmChat,
+  formatAgentOpsLlmProviderLabel,
+  getAgentOpsLlmProviderModel,
+  isAgentOpsLlmProviderConfigured,
+  readAgentOpsLlmProvider,
+} from "./llmProvider";
+import {
   getAgentOpsOllamaConfig,
   isAgentOpsLlmRuntimeEnabled,
   jsonResponse,
@@ -29,6 +35,25 @@ export interface AgentOpsLlmRunBody {
 export async function handleAgentOpsLlmRequest(request: Request): Promise<Response> {
   if (request.method === "GET") {
     const runtimeActive = isAgentOpsLlmRuntimeEnabled();
+    const provider = readAgentOpsLlmProvider();
+
+    if (provider === "doubao_ark") {
+      const model = getAgentOpsLlmProviderModel();
+      const providerConfigured = isAgentOpsLlmProviderConfigured();
+      return jsonResponse({
+        runtimeActive,
+        appCallable: true,
+        provider: "doubao_ark",
+        providerConfigured,
+        ollamaReachable: providerConfigured,
+        ollamaError: providerConfigured ? null : "Doubao Ark provider not configured.",
+        model,
+        defaultModel: model,
+        models: [{ id: model, label: model, hint: "Doubao Ark cloud model", installed: providerConfigured }],
+        stagingOnly: true,
+      });
+    }
+
     const config = getAgentOpsOllamaConfig();
     const installed = await listOllamaInstalledModels();
     const models =
@@ -62,7 +87,7 @@ export async function handleAgentOpsLlmRequest(request: Request): Promise<Respon
       {
         source: "unavailable",
         error:
-          "AgentOps LLM runtime inactive. Set HERMES_RUNTIME_ACTIVE=true (or AGENTOPS_LLM_RUNTIME_ACTIVE=true) and ensure Ollama is running.",
+          "AgentOps LLM runtime inactive. Set HERMES_RUNTIME_ACTIVE=true (or AGENTOPS_LLM_RUNTIME_ACTIVE=true) and configure Ollama or Doubao Ark.",
       },
       503,
     );
@@ -84,7 +109,7 @@ export async function handleAgentOpsLlmRequest(request: Request): Promise<Respon
     return jsonResponse({ error: "systemPrompt is required" }, 400);
   }
 
-  const llmResult = await callOllamaChat(systemPrompt, userMessage, body.model);
+  const llmResult = await callAgentOpsLlmChat(systemPrompt, userMessage, body.model);
   const requestId = body.requestId ?? `agentops-llm-${Date.now()}`;
 
   if (!llmResult.ok) {
@@ -101,13 +126,13 @@ export async function handleAgentOpsLlmRequest(request: Request): Promise<Respon
   }
 
   return jsonResponse({
-    source: "local_llm",
+    source: llmResult.provider === "doubao_ark" ? "cloud_llm" : "local_llm",
     response: llmResult.content,
     requestId,
     model: llmResult.model,
     chatScope: body.chatScope ?? null,
     agentId: body.agentId ?? null,
-    limitations: "Live Ollama response via AgentOps server proxy (staging).",
+    limitations: `Live ${formatAgentOpsLlmProviderLabel(llmResult.provider)} response via AgentOps server proxy (staging).`,
     safetyFlags: ["staging_only", "local_llm", "no_auto_cursor", "memory_approval_required"],
   });
 }

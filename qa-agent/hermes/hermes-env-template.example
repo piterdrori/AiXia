@@ -1,11 +1,32 @@
 # Hermes staging environment template — EXAMPLE ONLY
 # Copy to .env.local for local development. Do NOT commit real secrets.
-# API key must be stored in local/Vercel env only — never in git.
-# HERMES_RUNTIME_ACTIVE must stay false until owner sign-off (hermes-owner-signoff-template.md).
+# API keys must be stored in local/Vercel env only — never in git.
 
+# Client flags
+VITE_AGENTOPS_HERMES_ENABLED=true
+VITE_AGENTOPS_LLM_ENABLED=true
+
+# Server runtime gates (advisory transport only — coordinator not active)
 HERMES_RUNTIME_ACTIVE=false
+HERMES_OWNER_APPROVED=false
+AGENTOPS_LLM_RUNTIME_ACTIVE=false
+
+# LLM provider: ollama (local) or doubao_ark (Volcano Ark cloud)
+AGENTOPS_LLM_PROVIDER=doubao_ark
+
+# Ollama (local dev)
 HERMES_STAGING_ENDPOINT=
-HERMES_API_KEY=
+AGENTOPS_LLM_BASE_URL=http://127.0.0.1:11434
+HERMES_LLM_MODEL=llama3.2
+AGENTOPS_LLM_MODEL=llama3.2
+
+# Doubao Ark (staging cloud — server-side only)
+ARK_API_KEY=
+ARK_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+ARK_MODEL=doubao-seed-2-0-pro-260215
+
 HERMES_TIMEOUT_MS=15000
 HERMES_ALLOWED_MODES=issue_clarification,prompt_refinement,risk_review,next_step_recommendation,cursor_report_synthesis,archive_lesson_extraction
-HERMES_OWNER_APPROVED=false
+
+# Optional route auth header x-agentops-hermes-secret
+# HERMES_INTERNAL_SECRET=

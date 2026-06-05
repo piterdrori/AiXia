@@ -878,6 +878,12 @@ function HermesContextAssemblerSectionCard({
   );
 }
 
+function formatLlmProviderLabel(provider?: AgentOpsHermesRuntimeHealth["provider"]): string {
+  if (provider === "doubao_ark") return "Doubao Ark";
+  if (provider === "ollama") return "Ollama";
+  return "Unknown";
+}
+
 function HermesRuntimeHealthPanel() {
   const [health, setHealth] = useState<AgentOpsHermesRuntimeHealth | null>(null);
   const [loading, setLoading] = useState(false);
@@ -992,6 +998,28 @@ function HermesRuntimeHealthPanel() {
           </dd>
         </div>
         <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Provider</dt>
+          <dd>
+            <AixiaBadge tone="neutral">{formatLlmProviderLabel(health?.provider)}</AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Provider configured</dt>
+          <dd>
+            <AixiaBadge tone={health?.providerConfigured ? "emerald" : "amber"}>
+              {health?.providerConfigured ? "Yes" : health ? "No" : "Unknown"}
+            </AixiaBadge>
+          </dd>
+        </div>
+        {health?.providerModel ? (
+          <div className="aixia-tools-hub-hermes-status-row">
+            <dt>Model</dt>
+            <dd>
+              <span className="aixia-tools-hub-hermes-runtime-health-checked">{health.providerModel}</span>
+            </dd>
+          </div>
+        ) : null}
+        <div className="aixia-tools-hub-hermes-status-row">
           <dt>Runtime gate</dt>
           <dd>
             <AixiaBadge tone="neutral">
@@ -1070,6 +1098,22 @@ const RUNTIME_GATE_VARS = [
   {
     name: "AGENTOPS_LLM_RUNTIME_ACTIVE",
     role: "Shared LLM runtime gate with local LLM routes.",
+  },
+  {
+    name: "AGENTOPS_LLM_PROVIDER",
+    role: "Server LLM provider: ollama (local) or doubao_ark (Volcano Ark cloud).",
+  },
+  {
+    name: "ARK_API_KEY",
+    role: "Doubao Ark API key — server-side only, never exposed to browser.",
+  },
+  {
+    name: "ARK_BASE_URL",
+    role: "Doubao Ark API base URL (default https://ark.cn-beijing.volces.com/api/v3).",
+  },
+  {
+    name: "ARK_MODEL",
+    role: "Doubao Ark model id (default doubao-seed-2-0-pro-260215).",
   },
   {
     name: "HERMES_STAGING_ENDPOINT",

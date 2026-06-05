@@ -1,3 +1,4 @@
 import { handleAgentOpsHermesRequest } from "./hermesHandler.js";
 
-export default handleAgentOpsHermesRequest;
+export const GET = handleAgentOpsHermesRequest;
+export const POST = handleAgentOpsHermesRequest;

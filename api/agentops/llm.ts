@@ -1,3 +1,4 @@
 import { handleAgentOpsLlmRequest } from "./llmHandler.js";
 
-export default handleAgentOpsLlmRequest;
+export const GET = handleAgentOpsLlmRequest;
+export const POST = handleAgentOpsLlmRequest;

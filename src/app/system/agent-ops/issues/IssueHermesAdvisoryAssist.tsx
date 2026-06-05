@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Copy, FileText, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Copy, FileText, Sparkles, X } from "lucide-react";
 
 import { AixiaBadge, AixiaButton } from "@/components/aixia";
 import {
@@ -7,6 +7,7 @@ import {
   getAgentOpsHermesRuntimeHealth,
   requestAgentOpsHermesIssueAdvisory,
   requestAgentOpsHermesIssueCursorPromptReview,
+  requestAgentOpsHermesIssueFixReportReview,
   type AgentOpsFinding,
   type AgentOpsGeneratedFixPlan,
   type AgentOpsHermesIssueAdvisoryResult,
@@ -21,7 +22,7 @@ type IssueHermesAdvisoryAssistProps = {
   executionStateLabel: string;
 };
 
-type HermesAssistWorkflow = "advisory" | "cursor_prompt_review";
+type HermesAssistWorkflow = "advisory" | "cursor_prompt_review" | "fix_report_review";
 
 function formatProviderLabel(health: AgentOpsHermesRuntimeHealth | null): string {
   if (health?.provider === "doubao_ark") return "Doubao Ark";
@@ -32,9 +33,11 @@ function formatProviderLabel(health: AgentOpsHermesRuntimeHealth | null): string
 function HermesResultMeta({
   result,
   health,
+  showStatusMutation = false,
 }: {
   result: AgentOpsHermesIssueAdvisoryResult;
   health: AgentOpsHermesRuntimeHealth | null;
+  showStatusMutation?: boolean;
 }) {
   return (
     <dl className="aixia-issue-hermes-advisory-meta">
@@ -58,6 +61,12 @@ function HermesResultMeta({
         <dt>Writes</dt>
         <dd>Blocked</dd>
       </div>
+      {showStatusMutation ? (
+        <div>
+          <dt>Status mutation</dt>
+          <dd>No</dd>
+        </div>
+      ) : null}
     </dl>
   );
 }
@@ -79,6 +88,11 @@ export function IssueHermesAdvisoryAssist({
   );
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewResult, setReviewResult] = useState<AgentOpsHermesIssueAdvisoryResult | null>(null);
+  const [fixReportText, setFixReportText] = useState("");
+  const [fixReportLoading, setFixReportLoading] = useState(false);
+  const [fixReportResult, setFixReportResult] = useState<AgentOpsHermesIssueAdvisoryResult | null>(
+    null,
+  );
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   const refreshHealth = useCallback(async () => {
@@ -99,7 +113,7 @@ export function IssueHermesAdvisoryAssist({
     health?.transportReachable && health.mode === "advisory_transport",
   );
 
-  const issueContext = useMemo(
+  const baseIssueContext = useMemo(
     () => ({
       issueCode,
       title: finding.title ?? undefined,
@@ -123,14 +137,14 @@ export function IssueHermesAdvisoryAssist({
     setAdvisoryResult(null);
     try {
       const result = await requestAgentOpsHermesIssueAdvisory({
-        issueContext,
+        issueContext: baseIssueContext,
         includeContext: includeReadOnlyContext,
       });
       setAdvisoryResult(result);
     } finally {
       setAdvisoryLoading(false);
     }
-  }, [issueContext, includeReadOnlyContext]);
+  }, [baseIssueContext, includeReadOnlyContext]);
 
   const handleReviewCursorPrompt = useCallback(async () => {
     setReviewLoading(true);
@@ -138,21 +152,41 @@ export function IssueHermesAdvisoryAssist({
     setCopyFeedback(null);
     try {
       const result = await requestAgentOpsHermesIssueCursorPromptReview({
-        issueContext,
+        issueContext: baseIssueContext,
         includeContext: includeReadOnlyContext,
       });
       setReviewResult(result);
     } finally {
       setReviewLoading(false);
     }
-  }, [issueContext, includeReadOnlyContext]);
+  }, [baseIssueContext, includeReadOnlyContext]);
+
+  const handleReviewFixReport = useCallback(async () => {
+    setFixReportLoading(true);
+    setFixReportResult(null);
+    setCopyFeedback(null);
+    try {
+      const result = await requestAgentOpsHermesIssueFixReportReview({
+        issueContext: { ...baseIssueContext, fixReport: fixReportText },
+        includeContext: includeReadOnlyContext,
+      });
+      setFixReportResult(result);
+    } finally {
+      setFixReportLoading(false);
+    }
+  }, [baseIssueContext, fixReportText, includeReadOnlyContext]);
 
   const handleClearAdvice = useCallback(() => {
     setAdvisoryResult(null);
   }, []);
 
-  const handleClearReview = useCallback(() => {
+  const handleClearPromptReview = useCallback(() => {
     setReviewResult(null);
+    setCopyFeedback(null);
+  }, []);
+
+  const handleClearFixReportReview = useCallback(() => {
+    setFixReportResult(null);
     setCopyFeedback(null);
   }, []);
 
@@ -161,7 +195,7 @@ export function IssueHermesAdvisoryAssist({
     return extractImprovedCursorPromptFromHermesReview(reviewResult.response);
   }, [reviewResult]);
 
-  const handleCopyReview = useCallback(async () => {
+  const handleCopyPromptReview = useCallback(async () => {
     if (!reviewResult?.ok || !reviewResult.response) return;
     const textToCopy = improvedPromptText ?? reviewResult.response;
     try {
@@ -172,15 +206,37 @@ export function IssueHermesAdvisoryAssist({
     }
   }, [reviewResult, improvedPromptText]);
 
+  const handleCopyFixReportRecommendation = useCallback(async () => {
+    if (!fixReportResult?.ok || !fixReportResult.response) return;
+    try {
+      await navigator.clipboard.writeText(fixReportResult.response);
+      setCopyFeedback("Verification recommendation copied.");
+    } catch {
+      setCopyFeedback("Copy failed — select text manually.");
+    }
+  }, [fixReportResult]);
+
   const contextAssemblerAvailable = health?.contextAssemblerAvailable !== false;
-  const workflowLoading = workflow === "advisory" ? advisoryLoading : reviewLoading;
-  const activeResult = workflow === "advisory" ? advisoryResult : reviewResult;
+  const workflowLoading =
+    workflow === "advisory"
+      ? advisoryLoading
+      : workflow === "cursor_prompt_review"
+        ? reviewLoading
+        : fixReportLoading;
+  const activeResult =
+    workflow === "advisory"
+      ? advisoryResult
+      : workflow === "cursor_prompt_review"
+        ? reviewResult
+        : fixReportResult;
+  const hasFixReportText = fixReportText.trim().length > 0;
 
   return (
     <div className="aixia-issue-hermes-advisory" data-testid="issue-hermes-advisory-assist">
       <p className="aixia-issue-hermes-advisory-lead">
         Advisory only · Coordinator not active · Writes blocked · No issue status change · No
         verification · No tool execution
+        {workflow === "fix_report_review" ? " · Recommendation only" : ""}
       </p>
 
       <div
@@ -212,7 +268,34 @@ export function IssueHermesAdvisoryAssist({
           <FileText className="h-3.5 w-3.5" aria-hidden />
           Cursor Prompt Review
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={workflow === "fix_report_review"}
+          className={`aixia-issue-hermes-advisory-tab${workflow === "fix_report_review" ? " is-active" : ""}`}
+          disabled={workflowLoading}
+          onClick={() => setWorkflow("fix_report_review")}
+          data-testid="issue-hermes-tab-fix-report-review"
+        >
+          <ClipboardCheck className="h-3.5 w-3.5" aria-hidden />
+          Fix Report Review
+        </button>
       </div>
+
+      {workflow === "fix_report_review" ? (
+        <label className="aixia-issue-hermes-advisory-report-field">
+          <span>Paste Cursor / build / QA report</span>
+          <textarea
+            className="aixia-issue-hermes-advisory-report-input"
+            value={fixReportText}
+            disabled={fixReportLoading}
+            placeholder="Paste Cursor report, build output, or QA notes here…"
+            rows={5}
+            onChange={(event) => setFixReportText(event.target.value)}
+            data-testid="issue-hermes-fix-report-input"
+          />
+        </label>
+      ) : null}
 
       <div className="aixia-issue-hermes-advisory-actions">
         <label
@@ -252,7 +335,9 @@ export function IssueHermesAdvisoryAssist({
               Clear Hermes advice
             </AixiaButton>
           </>
-        ) : (
+        ) : null}
+
+        {workflow === "cursor_prompt_review" ? (
           <>
             <AixiaButton
               variant="secondary"
@@ -265,7 +350,7 @@ export function IssueHermesAdvisoryAssist({
             </AixiaButton>
             <AixiaButton
               variant="secondary"
-              onClick={() => void handleCopyReview()}
+              onClick={() => void handleCopyPromptReview()}
               disabled={reviewLoading || !reviewResult?.ok}
               data-testid="issue-hermes-copy-review-button"
             >
@@ -274,7 +359,7 @@ export function IssueHermesAdvisoryAssist({
             </AixiaButton>
             <AixiaButton
               variant="secondary"
-              onClick={handleClearReview}
+              onClick={handleClearPromptReview}
               disabled={reviewLoading || !reviewResult}
               data-testid="issue-hermes-clear-review-button"
             >
@@ -282,8 +367,55 @@ export function IssueHermesAdvisoryAssist({
               Clear review
             </AixiaButton>
           </>
-        )}
+        ) : null}
+
+        {workflow === "fix_report_review" ? (
+          <>
+            <AixiaButton
+              variant="secondary"
+              onClick={() => void handleReviewFixReport()}
+              disabled={fixReportLoading || !advisoryReachable || !hasFixReportText}
+              data-testid="issue-hermes-review-fix-report-button"
+            >
+              <ClipboardCheck
+                className={`h-4 w-4 ${fixReportLoading ? "animate-pulse" : ""}`}
+                aria-hidden
+              />
+              Review fix report
+            </AixiaButton>
+            <AixiaButton
+              variant="secondary"
+              onClick={() => void handleCopyFixReportRecommendation()}
+              disabled={fixReportLoading || !fixReportResult?.ok}
+              data-testid="issue-hermes-copy-fix-report-button"
+            >
+              <Copy className="h-4 w-4" aria-hidden />
+              Copy verification recommendation
+            </AixiaButton>
+            <AixiaButton
+              variant="secondary"
+              onClick={handleClearFixReportReview}
+              disabled={fixReportLoading || !fixReportResult}
+              data-testid="issue-hermes-clear-fix-report-button"
+            >
+              <X className="h-4 w-4" aria-hidden />
+              Clear review
+            </AixiaButton>
+          </>
+        ) : null}
       </div>
+
+      {workflow === "fix_report_review" && !hasFixReportText ? (
+        <p className="aixia-issue-hermes-advisory-hint" data-testid="issue-hermes-fix-report-empty-hint">
+          Paste a report first.
+        </p>
+      ) : null}
+
+      {workflow === "fix_report_review" ? (
+        <p className="aixia-issue-hermes-advisory-hint">
+          Recommendation only — no issue status changes are made.
+        </p>
+      ) : null}
 
       {!advisoryReachable && !healthLoading ? (
         <p className="aixia-issue-hermes-advisory-error" data-testid="issue-hermes-unavailable">
@@ -303,6 +435,15 @@ export function IssueHermesAdvisoryAssist({
         </p>
       ) : null}
 
+      {workflow === "fix_report_review" && fixReportLoading ? (
+        <p
+          className="aixia-issue-hermes-advisory-loading"
+          data-testid="issue-hermes-fix-report-loading"
+        >
+          Hermes is reviewing the fix report (advisory only)…
+        </p>
+      ) : null}
+
       {workflow === "advisory" && advisoryResult?.ok && advisoryResult.response ? (
         <div className="aixia-issue-hermes-advisory-result" data-testid="issue-hermes-advisory-result">
           <p className="aixia-issue-hermes-advisory-response">{advisoryResult.response}</p>
@@ -317,7 +458,10 @@ export function IssueHermesAdvisoryAssist({
         >
           <p className="aixia-issue-hermes-advisory-response">{reviewResult.response}</p>
           {improvedPromptText ? (
-            <p className="aixia-issue-hermes-advisory-hint" data-testid="issue-hermes-improved-prompt-detected">
+            <p
+              className="aixia-issue-hermes-advisory-hint"
+              data-testid="issue-hermes-improved-prompt-detected"
+            >
               Improved Cursor prompt block detected — use Copy improved prompt.
             </p>
           ) : null}
@@ -325,11 +469,25 @@ export function IssueHermesAdvisoryAssist({
         </div>
       ) : null}
 
+      {workflow === "fix_report_review" && fixReportResult?.ok && fixReportResult.response ? (
+        <div
+          className="aixia-issue-hermes-advisory-result"
+          data-testid="issue-hermes-fix-report-review-result"
+        >
+          <p className="aixia-issue-hermes-advisory-response">{fixReportResult.response}</p>
+          <HermesResultMeta result={fixReportResult} health={health} showStatusMutation />
+        </div>
+      ) : null}
+
       {activeResult && !activeResult.ok ? (
         <div
           className="aixia-issue-hermes-advisory-error-block"
           data-testid={
-            workflow === "advisory" ? "issue-hermes-advisory-error" : "issue-hermes-review-error"
+            workflow === "advisory"
+              ? "issue-hermes-advisory-error"
+              : workflow === "cursor_prompt_review"
+                ? "issue-hermes-review-error"
+                : "issue-hermes-fix-report-error"
           }
         >
           <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />

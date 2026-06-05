@@ -202,6 +202,35 @@ When drafting the improved Cursor prompt, include these guardrails for Cursor:
 
 If no proposed Cursor prompt is provided in issueContext, generate a new safe Cursor prompt from available issue context and clearly state it was generated from available context only.`;
 
+/** Workflow 3 — Fix/build/QA report verification review (read-only, no writes). */
+export const HERMES_ISSUE_FIX_REPORT_REVIEW_INSTRUCTIONS = `You are Hermes in advisory mode only.
+
+Review the pasted fix/build/QA report for this AgentOps issue.
+
+Return:
+1. Verification verdict:
+   - proven fixed
+   - likely fixed but needs QA
+   - insufficient evidence
+   - not fixed / risky
+2. Evidence found in the report
+3. Evidence missing
+4. Risk of accepting this as fixed
+5. QA / validation steps needed
+6. Whether Piter should enable the Fixed button
+7. What Cursor/build agent should do next if not enough evidence
+8. What must not be changed or assumed
+
+Rules:
+- Do not mark the issue fixed.
+- Do not verify the issue.
+- Do not change issue status.
+- Do not write memory.
+- Do not update source-of-truth.
+- Do not execute tools.
+- Do not run QA.
+- Do not claim files were changed unless the pasted report proves it.`;
+
 export interface AgentOpsHermesIssueAdvisoryContext {
   issueCode: string;
   title?: string;
@@ -215,10 +244,38 @@ export interface AgentOpsHermesIssueAdvisoryContext {
   likelyRootCause?: string | null;
   recommendedFixStrategy?: string | null;
   executionState?: string;
+  /** Workflow 3 — pasted fix/build/QA report (transient; not persisted). */
+  fixReport?: string;
 }
+
+/**
+ * Future automation candidate shape — client/types only today.
+ * Intended path: Cursor/build agent report → Hermes verdict → Piter approval gate.
+ * Not persisted or wired in Workflow 3.
+ */
+export type AgentOpsHermesFixReportReviewAutomationCandidate = {
+  fixReportSource: "manual_paste" | "cursor_webhook" | "build_agent";
+  reportTimestamp?: string;
+  buildRunId?: string;
+  changedFiles?: string[];
+  validationCommands?: string[];
+  verdict?:
+    | "proven_fixed"
+    | "likely_fixed_needs_qa"
+    | "insufficient_evidence"
+    | "not_fixed";
+  confidence?: number;
+  requiresHumanApproval: true;
+};
 
 export interface AgentOpsHermesIssueAdvisoryInput {
   issueContext: AgentOpsHermesIssueAdvisoryContext;
+  /** Default true when omitted. */
+  includeContext?: boolean;
+}
+
+export interface AgentOpsHermesIssueFixReportReviewInput {
+  issueContext: AgentOpsHermesIssueAdvisoryContext & { fixReport: string };
   /** Default true when omitted. */
   includeContext?: boolean;
 }
@@ -437,6 +494,45 @@ export async function requestAgentOpsHermesIssueCursorPromptReview(
     question,
     issueContext: issueContextPayload,
     failureLabel: "Hermes Cursor prompt review failed",
+  });
+}
+
+/**
+ * Workflow 3 — manual fix/build/QA report verification review (POST /api/agentops/hermes).
+ * Recommendation only; no status mutation, verification, or persistence.
+ */
+export async function requestAgentOpsHermesIssueFixReportReview(
+  input: AgentOpsHermesIssueFixReportReviewInput,
+): Promise<AgentOpsHermesIssueAdvisoryResult> {
+  const includeContext = input.includeContext !== false;
+  const fixReport = input.issueContext.fixReport.trim();
+  if (!fixReport) {
+    return {
+      ok: false,
+      checkedAt: new Date().toISOString(),
+      error: "Paste a fix/build/QA report before requesting review.",
+    };
+  }
+
+  const issueContextPayload = buildHermesIssueContextPayload({
+    ...input.issueContext,
+    fixReport,
+  });
+
+  const question = [
+    HERMES_ISSUE_FIX_REPORT_REVIEW_INSTRUCTIONS,
+    "",
+    `Issue code: ${input.issueContext.issueCode}`,
+    "Review the pasted fix report supplied in issueContext.fixReport.",
+    "Return the full structured verification recommendation for Piter.",
+    "Recommendation only — do not mark fixed or change issue status.",
+  ].join("\n");
+
+  return postHermesIssueClarificationRequest({
+    includeContext,
+    question,
+    issueContext: issueContextPayload,
+    failureLabel: "Hermes fix report review failed",
   });
 }
 

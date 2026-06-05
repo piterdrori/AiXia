@@ -355,9 +355,11 @@ export {
   probeAgentOpsHermesAdvisoryRuntime,
   requestAgentOpsHermesIssueAdvisory,
   requestAgentOpsHermesIssueCursorPromptReview,
+  requestAgentOpsHermesIssueFixReportReview,
   extractImprovedCursorPromptFromHermesReview,
   HERMES_ISSUE_ADVISORY_INSTRUCTIONS,
   HERMES_ISSUE_CURSOR_PROMPT_REVIEW_INSTRUCTIONS,
+  HERMES_ISSUE_FIX_REPORT_REVIEW_INSTRUCTIONS,
   getAgentOpsHermesReadinessGate,
   checkHermesStagingHealth,
   checkHermesStagingHealthAsync,
@@ -367,9 +369,11 @@ export {
   mapIntentToHermesMode,
   mapHermesModeToAgentMessageType,
   type AgentOpsHermesAdvisoryActivationProbe,
+  type AgentOpsHermesFixReportReviewAutomationCandidate,
   type AgentOpsHermesIssueAdvisoryContext,
   type AgentOpsHermesIssueAdvisoryInput,
   type AgentOpsHermesIssueAdvisoryResult,
+  type AgentOpsHermesIssueFixReportReviewInput,
 } from "./hermesAdapter";
 
 export { assembleAgentOpsHermesPreviewContext } from "./hermesContextAssembler";

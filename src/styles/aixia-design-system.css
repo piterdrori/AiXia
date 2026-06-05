@@ -11570,8 +11570,114 @@ button.aixia-action-card:disabled {
   gap: 0.4rem;
 }
 
+.aixia-issue-hermes-advisory-saved-history {
+  margin-top: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.aixia-issue-hermes-advisory-saved-history > summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+  list-style-position: inside;
+}
+
+.aixia-issue-hermes-advisory-saved-history-lead {
+  margin: 0.55rem 0 0.65rem;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.aixia-issue-hermes-advisory-saved-history-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aixia-issue-hermes-advisory-saved-history-item {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.6rem 0.65rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.aixia-issue-hermes-advisory-saved-history-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.65rem;
+}
+
+.aixia-issue-hermes-advisory-saved-history-type {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: rgba(191, 219, 254, 0.95);
+}
+
+.aixia-issue-hermes-advisory-saved-history-date {
+  font-size: 0.68rem;
+  color: rgba(148, 163, 184, 0.9);
+}
+
+.aixia-issue-hermes-advisory-saved-history-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: 0.25rem 0.55rem;
+  margin: 0;
+  font-size: 0.68rem;
+}
+
+.aixia-issue-hermes-advisory-saved-history-meta dt {
+  margin: 0;
+  color: rgba(148, 163, 184, 0.88);
+  font-weight: 600;
+}
+
+.aixia-issue-hermes-advisory-saved-history-meta dd {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.aixia-issue-hermes-advisory-saved-history-preview {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.92);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.aixia-issue-hermes-advisory-saved-history-full {
+  margin: 0.35rem 0 0;
+  padding: 0.55rem 0.6rem;
+  border-radius: 0.45rem;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: rgba(241, 245, 249, 0.95);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
 @media (max-width: 640px) {
   .aixia-issue-hermes-advisory-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .aixia-issue-hermes-advisory-saved-history-meta {
     grid-template-columns: 1fr;
   }
 }

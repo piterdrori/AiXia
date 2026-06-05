@@ -941,6 +941,68 @@ export interface AgentOpsHermesReadinessGate {
   ownerSignoffRequired: boolean;
 }
 
+/** Stage B — Hermes recommendation artifact advisory types (not memory, not SOT). */
+export type AgentOpsHermesRecommendationAdvisoryType =
+  | "issue_advisory"
+  | "cursor_prompt_review"
+  | "fix_report_review";
+
+export type AgentOpsHermesRecommendationWorkflowSource =
+  | "workflow_1"
+  | "workflow_2"
+  | "workflow_3";
+
+export type AgentOpsHermesRecommendationArtifactStatus = "saved_advisory";
+
+export interface AgentOpsHermesRecommendationArtifactSafetyMetadata {
+  coordinatorActive: false;
+  writesBlocked: true;
+  statusMutation: false;
+  toolExecution: false;
+}
+
+export interface AgentOpsHermesRecommendationArtifactRecord {
+  id: string;
+  issueCode: string;
+  findingId: string | null;
+  advisoryType: AgentOpsHermesRecommendationAdvisoryType;
+  workflowSource: AgentOpsHermesRecommendationWorkflowSource;
+  requestText: string;
+  responseText: string;
+  verdict: string | null;
+  contextIncluded: boolean;
+  provider: string | null;
+  source: string | null;
+  requestId: string | null;
+  safetyFlags: string[];
+  status: AgentOpsHermesRecommendationArtifactStatus;
+  createdAt: string;
+  createdBy: string | null;
+  safety: AgentOpsHermesRecommendationArtifactSafetyMetadata;
+}
+
+export interface AgentOpsHermesRecommendationArtifactInput {
+  issueCode: string;
+  findingId?: string | null;
+  advisoryType: AgentOpsHermesRecommendationAdvisoryType;
+  workflowSource: AgentOpsHermesRecommendationWorkflowSource;
+  requestText: string;
+  responseText: string;
+  verdict?: string | null;
+  contextIncluded: boolean;
+  provider?: string | null;
+  source?: string | null;
+  requestId?: string | null;
+  safetyFlags?: string[];
+  responseCheckedAt?: string;
+}
+
+export interface AgentOpsHermesRecommendationArtifactSaveResult {
+  feedbackId: string;
+  artifactId: string;
+  message: string;
+}
+
 /** Read-only Hermes adapter readiness for Issue Workspace UI (Phase 5A). */
 export interface AgentOpsHermesAdapterReadiness {
   hermesActive: boolean;

@@ -190,6 +190,13 @@ export type {
   AgentOpsHermesToolRegistryPreviewSummary,
   AgentOpsHermesToolRegistryCategoryPreview,
   AgentOpsHermesToolRegistryRelevantTool,
+  AgentOpsHermesRecommendationAdvisoryType,
+  AgentOpsHermesRecommendationWorkflowSource,
+  AgentOpsHermesRecommendationArtifactStatus,
+  AgentOpsHermesRecommendationArtifactSafetyMetadata,
+  AgentOpsHermesRecommendationArtifactRecord,
+  AgentOpsHermesRecommendationArtifactInput,
+  AgentOpsHermesRecommendationArtifactSaveResult,
   AgentOpsCodeGraphDiscoveryMode,
   AgentOpsCodeGraphSuggestionSource,
   AgentOpsCodeGraphDiscoverySuggestionItem,
@@ -377,6 +384,13 @@ export {
 } from "./hermesAdapter";
 
 export { assembleAgentOpsHermesPreviewContext } from "./hermesContextAssembler";
+export {
+  buildHermesRecommendationResponsePreview,
+  extractHermesRecommendationVerdict,
+  formatHermesRecommendationAdvisoryTypeLabel,
+  getAgentOpsHermesRecommendationArtifacts,
+  recordAgentOpsHermesRecommendationArtifact,
+} from "./hermesRecommendationArtifactService";
 export {
   buildAgentOpsHermesToolRegistryPreview,
   HERMES_TOOL_REGISTRY_RELEVANT_IDS,

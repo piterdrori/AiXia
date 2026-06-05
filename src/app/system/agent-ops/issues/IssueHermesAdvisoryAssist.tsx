@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ClipboardCheck, Copy, FileText, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Copy, FileText, Save, Sparkles, X } from "lucide-react";
 
 import { AixiaBadge, AixiaButton } from "@/components/aixia";
 import {
+  buildHermesRecommendationResponsePreview,
+  extractHermesRecommendationVerdict,
   extractImprovedCursorPromptFromHermesReview,
+  formatHermesRecommendationAdvisoryTypeLabel,
+  getAgentOpsHermesRecommendationArtifacts,
   getAgentOpsHermesRuntimeHealth,
+  recordAgentOpsHermesRecommendationArtifact,
   requestAgentOpsHermesIssueAdvisory,
   requestAgentOpsHermesIssueCursorPromptReview,
   requestAgentOpsHermesIssueFixReportReview,
   type AgentOpsFinding,
   type AgentOpsGeneratedFixPlan,
   type AgentOpsHermesIssueAdvisoryResult,
+  type AgentOpsHermesRecommendationArtifactRecord,
+  type AgentOpsHermesRecommendationAdvisoryType,
+  type AgentOpsHermesRecommendationWorkflowSource,
   type AgentOpsHermesRuntimeHealth,
 } from "@/lib/agentops";
 
@@ -23,6 +31,27 @@ type IssueHermesAdvisoryAssistProps = {
 };
 
 type HermesAssistWorkflow = "advisory" | "cursor_prompt_review" | "fix_report_review";
+
+function workflowArtifactMeta(workflow: HermesAssistWorkflow): {
+  advisoryType: AgentOpsHermesRecommendationAdvisoryType;
+  workflowSource: AgentOpsHermesRecommendationWorkflowSource;
+} {
+  switch (workflow) {
+    case "cursor_prompt_review":
+      return { advisoryType: "cursor_prompt_review", workflowSource: "workflow_2" };
+    case "fix_report_review":
+      return { advisoryType: "fix_report_review", workflowSource: "workflow_3" };
+    default:
+      return { advisoryType: "issue_advisory", workflowSource: "workflow_1" };
+  }
+}
+
+function buildRecommendationSaveKey(
+  workflow: HermesAssistWorkflow,
+  result: AgentOpsHermesIssueAdvisoryResult,
+): string {
+  return `${workflow}:${result.checkedAt}:${result.response?.slice(0, 96) ?? ""}`;
+}
 
 function formatProviderLabel(health: AgentOpsHermesRuntimeHealth | null): string {
   if (health?.provider === "doubao_ark") return "Doubao Ark";
@@ -94,6 +123,16 @@ export function IssueHermesAdvisoryAssist({
     null,
   );
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedArtifactKeys, setSavedArtifactKeys] = useState<Record<string, true>>({});
+  const [savedArtifacts, setSavedArtifacts] = useState<AgentOpsHermesRecommendationArtifactRecord[]>(
+    [],
+  );
+  const [savedArtifactsLoading, setSavedArtifactsLoading] = useState(false);
+  const [savedArtifactsError, setSavedArtifactsError] = useState<string | null>(null);
+  const [expandedArtifactId, setExpandedArtifactId] = useState<string | null>(null);
 
   const refreshHealth = useCallback(async () => {
     setHealthLoading(true);
@@ -108,6 +147,25 @@ export function IssueHermesAdvisoryAssist({
   useEffect(() => {
     void refreshHealth();
   }, [refreshHealth]);
+
+  const loadSavedArtifacts = useCallback(async () => {
+    setSavedArtifactsLoading(true);
+    setSavedArtifactsError(null);
+    try {
+      const result = await getAgentOpsHermesRecommendationArtifacts(issueCode);
+      if (result.error) {
+        setSavedArtifactsError(result.error);
+        return;
+      }
+      setSavedArtifacts(result.data ?? []);
+    } finally {
+      setSavedArtifactsLoading(false);
+    }
+  }, [issueCode]);
+
+  useEffect(() => {
+    void loadSavedArtifacts();
+  }, [loadSavedArtifacts]);
 
   const advisoryReachable = Boolean(
     health?.transportReachable && health.mode === "advisory_transport",
@@ -135,6 +193,8 @@ export function IssueHermesAdvisoryAssist({
   const handleAskHermes = useCallback(async () => {
     setAdvisoryLoading(true);
     setAdvisoryResult(null);
+    setSaveFeedback(null);
+    setSaveError(null);
     try {
       const result = await requestAgentOpsHermesIssueAdvisory({
         issueContext: baseIssueContext,
@@ -150,6 +210,8 @@ export function IssueHermesAdvisoryAssist({
     setReviewLoading(true);
     setReviewResult(null);
     setCopyFeedback(null);
+    setSaveFeedback(null);
+    setSaveError(null);
     try {
       const result = await requestAgentOpsHermesIssueCursorPromptReview({
         issueContext: baseIssueContext,
@@ -165,6 +227,8 @@ export function IssueHermesAdvisoryAssist({
     setFixReportLoading(true);
     setFixReportResult(null);
     setCopyFeedback(null);
+    setSaveFeedback(null);
+    setSaveError(null);
     try {
       const result = await requestAgentOpsHermesIssueFixReportReview({
         issueContext: { ...baseIssueContext, fixReport: fixReportText },
@@ -216,6 +280,87 @@ export function IssueHermesAdvisoryAssist({
     }
   }, [fixReportResult]);
 
+  const buildRequestTextForWorkflow = useCallback(
+    (targetWorkflow: HermesAssistWorkflow): string => {
+      switch (targetWorkflow) {
+        case "cursor_prompt_review":
+          return [
+            `Cursor prompt review for ${issueCode}`,
+            approvedCursorPrompt
+              ? `Proposed prompt:\n${approvedCursorPrompt}`
+              : "No proposed Cursor prompt supplied.",
+          ].join("\n\n");
+        case "fix_report_review":
+          return fixReportText.trim()
+            ? `Fix report review for ${issueCode}\n\n${fixReportText.trim()}`
+            : `Fix report review for ${issueCode}`;
+        default:
+          return `Issue advisory review for ${issueCode}`;
+      }
+    },
+    [issueCode, approvedCursorPrompt, fixReportText],
+  );
+
+  const handleSaveRecommendation = useCallback(async () => {
+    const recommendationResult =
+      workflow === "advisory"
+        ? advisoryResult
+        : workflow === "cursor_prompt_review"
+          ? reviewResult
+          : fixReportResult;
+    if (!recommendationResult?.ok || !recommendationResult.response) return;
+
+    const saveKey = buildRecommendationSaveKey(workflow, recommendationResult);
+    if (savedArtifactKeys[saveKey]) return;
+
+    const { advisoryType, workflowSource } = workflowArtifactMeta(workflow);
+    setSaveLoading(true);
+    setSaveFeedback(null);
+    setSaveError(null);
+
+    try {
+      const saveResult = await recordAgentOpsHermesRecommendationArtifact({
+        issueCode,
+        findingId: finding.id,
+        advisoryType,
+        workflowSource,
+        requestText: buildRequestTextForWorkflow(workflow),
+        responseText: recommendationResult.response,
+        verdict:
+          workflow === "fix_report_review"
+            ? extractHermesRecommendationVerdict(recommendationResult.response)
+            : null,
+        contextIncluded: recommendationResult.contextIncluded === true,
+        provider: formatProviderLabel(health),
+        source: recommendationResult.source ?? null,
+        safetyFlags: recommendationResult.safetyFlags ?? [],
+        responseCheckedAt: recommendationResult.checkedAt,
+      });
+
+      if (saveResult.error || !saveResult.data) {
+        setSaveError(saveResult.error ?? "Could not save Hermes recommendation.");
+        return;
+      }
+
+      setSavedArtifactKeys((current) => ({ ...current, [saveKey]: true }));
+      setSaveFeedback(saveResult.data.message);
+      await loadSavedArtifacts();
+    } finally {
+      setSaveLoading(false);
+    }
+  }, [
+    workflow,
+    advisoryResult,
+    reviewResult,
+    fixReportResult,
+    savedArtifactKeys,
+    issueCode,
+    finding.id,
+    buildRequestTextForWorkflow,
+    health,
+    loadSavedArtifacts,
+  ]);
+
   const contextAssemblerAvailable = health?.contextAssemblerAvailable !== false;
   const workflowLoading =
     workflow === "advisory"
@@ -230,6 +375,16 @@ export function IssueHermesAdvisoryAssist({
         ? reviewResult
         : fixReportResult;
   const hasFixReportText = fixReportText.trim().length > 0;
+  const currentSaveKey =
+    activeResult?.ok && activeResult.response
+      ? buildRecommendationSaveKey(workflow, activeResult)
+      : null;
+  const currentResponseAlreadySaved = Boolean(
+    currentSaveKey && savedArtifactKeys[currentSaveKey],
+  );
+  const canSaveCurrentRecommendation = Boolean(
+    activeResult?.ok && activeResult.response && !currentResponseAlreadySaved,
+  );
 
   return (
     <div className="aixia-issue-hermes-advisory" data-testid="issue-hermes-advisory-assist">
@@ -403,6 +558,18 @@ export function IssueHermesAdvisoryAssist({
             </AixiaButton>
           </>
         ) : null}
+
+        {activeResult?.ok && activeResult.response ? (
+          <AixiaButton
+            variant="secondary"
+            onClick={() => void handleSaveRecommendation()}
+            disabled={saveLoading || workflowLoading || !canSaveCurrentRecommendation}
+            data-testid="issue-hermes-save-recommendation-button"
+          >
+            <Save className={`h-4 w-4 ${saveLoading ? "animate-pulse" : ""}`} aria-hidden />
+            {currentResponseAlreadySaved ? "Saved" : "Save recommendation"}
+          </AixiaButton>
+        ) : null}
       </div>
 
       {workflow === "fix_report_review" && !hasFixReportText ? (
@@ -500,6 +667,106 @@ export function IssueHermesAdvisoryAssist({
           {copyFeedback}
         </p>
       ) : null}
+
+      {saveFeedback ? (
+        <p
+          className="aixia-issue-hermes-advisory-copy-feedback"
+          data-testid="issue-hermes-save-feedback"
+        >
+          {saveFeedback}
+        </p>
+      ) : null}
+
+      {saveError ? (
+        <div
+          className="aixia-issue-hermes-advisory-error-block"
+          data-testid="issue-hermes-save-error"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+          <p>{saveError}</p>
+        </div>
+      ) : null}
+
+      <details
+        className="aixia-issue-hermes-advisory-saved-history"
+        data-testid="issue-hermes-saved-artifacts"
+      >
+        <summary>
+          Saved Hermes recommendations
+          {savedArtifacts.length > 0 ? ` (${savedArtifacts.length})` : ""}
+        </summary>
+        <p className="aixia-issue-hermes-advisory-saved-history-lead">
+          Advisory artifact only · No issue status change · No memory write · No SOT write · No tool
+          execution
+        </p>
+        {savedArtifactsLoading ? (
+          <p className="aixia-issue-hermes-advisory-hint">Loading saved recommendations…</p>
+        ) : null}
+        {savedArtifactsError ? (
+          <p className="aixia-issue-hermes-advisory-hint" data-testid="issue-hermes-saved-error">
+            Saved recommendations unavailable: {savedArtifactsError}
+          </p>
+        ) : null}
+        {!savedArtifactsLoading && !savedArtifactsError && savedArtifacts.length === 0 ? (
+          <p className="aixia-issue-hermes-advisory-hint">No saved recommendations for this issue yet.</p>
+        ) : null}
+        {!savedArtifactsLoading && savedArtifacts.length > 0 ? (
+          <ul className="aixia-issue-hermes-advisory-saved-history-list">
+            {savedArtifacts.map((artifact) => {
+              const isExpanded = expandedArtifactId === artifact.id;
+              return (
+                <li key={artifact.id} className="aixia-issue-hermes-advisory-saved-history-item">
+                  <div className="aixia-issue-hermes-advisory-saved-history-item-head">
+                    <span className="aixia-issue-hermes-advisory-saved-history-type">
+                      {formatHermesRecommendationAdvisoryTypeLabel(artifact.advisoryType)}
+                    </span>
+                    <span className="aixia-issue-hermes-advisory-saved-history-date">
+                      {new Date(artifact.createdAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <dl className="aixia-issue-hermes-advisory-saved-history-meta">
+                    <div>
+                      <dt>Source</dt>
+                      <dd>{artifact.source ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Provider</dt>
+                      <dd>{artifact.provider ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Context</dt>
+                      <dd>{artifact.contextIncluded ? "Yes" : "No"}</dd>
+                    </div>
+                    {artifact.verdict ? (
+                      <div>
+                        <dt>Verdict</dt>
+                        <dd>{artifact.verdict}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  <p className="aixia-issue-hermes-advisory-saved-history-preview">
+                    {buildHermesRecommendationResponsePreview(artifact.responseText)}
+                  </p>
+                  <AixiaButton
+                    variant="secondary"
+                    onClick={() =>
+                      setExpandedArtifactId(isExpanded ? null : artifact.id)
+                    }
+                    data-testid={`issue-hermes-saved-expand-${artifact.id}`}
+                  >
+                    {isExpanded ? "Hide full text" : "View full text"}
+                  </AixiaButton>
+                  {isExpanded ? (
+                    <p className="aixia-issue-hermes-advisory-saved-history-full">
+                      {artifact.responseText}
+                    </p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </details>
 
       <div className="aixia-issue-hermes-advisory-badges">
         <AixiaBadge tone="amber">Advisory only</AixiaBadge>

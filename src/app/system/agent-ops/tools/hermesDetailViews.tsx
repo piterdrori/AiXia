@@ -44,6 +44,9 @@ import {
 import {
   AGENTOPS_GLOBAL_MEMORY_SCAN_FREQUENCIES,
   AGENTOPS_HERMES_ADAPTER_READINESS,
+  getAgentOpsHermesRuntimeHealth,
+  type AgentOpsHermesRuntimeHealth,
+  type AgentOpsHermesEnvGateStatus,
   buildAgentOpsGlobalMemoryPartialSnapshot,
   createDefaultAgentOpsGlobalMemorySourcePriority,
   formatAgentOpsGlobalMemoryScanFrequency,
@@ -116,10 +119,10 @@ const HERMES_SUMMARY_CARDS = [
     tone: "rose" as const,
   },
   {
-    label: "Active runtime",
-    value: "No",
+    label: "Coordinator",
+    value: "Not active",
     description:
-      "Optional env-gated Ollama advisory proxy may exist for Issue Chat; Hermes memory coordination is not active.",
+      "Hermes memory coordinator is not active. Transport health is separate — use Runtime Health below.",
     tone: "neutral" as const,
   },
   {
@@ -261,20 +264,23 @@ type ConnectionRow = {
 const HERMES_CONNECTIONS: ConnectionRow[] = [
   {
     system: "Issue Workspace",
-    status: "Partial consumer",
-    detail: "Issue-scoped advisory via mock fallback; optional Ollama proxy when env allows.",
+    status: "Transport / preview only",
+    detail:
+      "Issue Chat may use mock fallback or env-gated Ollama advisory proxy. Not coordinator recall.",
     connected: true,
   },
   {
     system: "Local LLM / Ollama",
-    status: "Optional env-gated transport",
-    detail: "Shared server proxy at /api/agentops/hermes — not memory recall.",
+    status: "Advisory transport only",
+    detail:
+      "/api/agentops/hermes and /api/agentops/llm are shared proxies — read-only advisory, not coordinator.",
     connected: true,
   },
   {
     system: "Agent memory snippets",
-    status: "Indirect UI pass-through",
-    detail: "Active agentops_agent_memory rows passed into requests; Hermes does not load them.",
+    status: "UI pass-through only",
+    detail:
+      "Issue UI may pass active agentops_agent_memory rows; Hermes runtime does not load them.",
     connected: true,
   },
   {
@@ -309,11 +315,168 @@ const HERMES_CONNECTIONS: ConnectionRow[] = [
   },
   {
     system: "Tools Hub registry",
-    status: "Registry display only",
-    detail: "This page and registry entry mct-hermes — no live coordinator.",
+    status: "Metadata display only",
+    detail: "Registry entry and Tools Hub UI — no live coordinator or runtime writes.",
     connected: true,
   },
 ];
+
+function formatHermesGateLabel(gate: AgentOpsHermesEnvGateStatus): string {
+  switch (gate) {
+    case "enabled":
+      return "Enabled";
+    case "disabled":
+      return "Disabled";
+    default:
+      return "Unknown";
+  }
+}
+
+function formatHermesTransportMode(health: AgentOpsHermesRuntimeHealth | null): string {
+  if (!health) return "Health unknown";
+  if (health.productionBlocked) return "Blocked (production)";
+  switch (health.mode) {
+    case "advisory_transport":
+      return "Advisory transport";
+    case "blocked":
+      return "Blocked";
+    default:
+      return "Unavailable";
+  }
+}
+
+function hermesHealthTone(
+  health: AgentOpsHermesRuntimeHealth | null,
+): "emerald" | "amber" | "rose" | "neutral" | "violet" {
+  if (!health || health.status === "unavailable") return "rose";
+  if (health.status === "blocked" || health.productionBlocked) return "amber";
+  if (health.status === "ok" && health.transportReachable) return "emerald";
+  return "neutral";
+}
+
+function HermesRuntimeHealthPanel() {
+  const [health, setHealth] = useState<AgentOpsHermesRuntimeHealth | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const refreshHealth = useCallback(async () => {
+    setLoading(true);
+    try {
+      const next = await getAgentOpsHermesRuntimeHealth();
+      setHealth(next);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshHealth();
+  }, [refreshHealth]);
+
+  const transportTone = hermesHealthTone(health);
+  const lastChecked = health?.checkedAt
+    ? new Date(health.checkedAt).toLocaleString()
+    : "Not checked yet";
+
+  return (
+    <div
+      className="aixia-tools-hub-hermes-runtime-health"
+      data-testid="hermes-runtime-health"
+    >
+      <div className="aixia-tools-hub-hermes-runtime-health-actions">
+        <AixiaInfoBlock tone="cyan" icon={Server} title="Read-only advisory transport">
+          Transport health is not coordinator activation. Hermes coordinator remains not active.
+          Memory writes and source-of-truth writes are blocked.
+        </AixiaInfoBlock>
+        <AixiaButton
+          variant="secondary"
+          onClick={() => void refreshHealth()}
+          disabled={loading}
+          className="aixia-tools-hub-hermes-runtime-health-refresh"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
+          Refresh health
+        </AixiaButton>
+      </div>
+
+      {health?.message ? (
+        <p className="aixia-tools-hub-hermes-runtime-health-message">{health.message}</p>
+      ) : null}
+
+      <dl className="aixia-tools-hub-hermes-status-rows">
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Coordinator status</dt>
+          <dd>
+            <AixiaBadge tone="rose">Not active</AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Transport mode</dt>
+          <dd>
+            <AixiaBadge tone={transportTone}>{formatHermesTransportMode(health)}</AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Runtime gate</dt>
+          <dd>
+            <AixiaBadge tone="neutral">
+              {health ? formatHermesGateLabel(health.runtimeGate) : "Unknown"}
+            </AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Owner approval</dt>
+          <dd>
+            <AixiaBadge tone="neutral">
+              {health ? formatHermesGateLabel(health.ownerApproved) : "Unknown"}
+            </AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Hermes endpoint</dt>
+          <dd>
+            <AixiaBadge tone={health?.hermesEndpointReachable ? "emerald" : "rose"}>
+              {health?.hermesEndpointReachable ? "Reachable" : "Unavailable"}
+            </AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>LLM fallback</dt>
+          <dd>
+            <AixiaBadge tone={health?.llmFallbackReachable ? "emerald" : "amber"}>
+              {health?.llmFallbackReachable ? "Available" : health ? "Unavailable" : "Unknown"}
+            </AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Fallback layer</dt>
+          <dd>
+            <AixiaBadge tone="violet">
+              {health?.fallbackAvailable !== false ? "Available" : "Unknown"}
+            </AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Safe write mode</dt>
+          <dd>
+            <AixiaBadge tone="rose">Writes blocked</AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Source-of-truth writes</dt>
+          <dd>
+            <AixiaBadge tone="rose">Blocked</AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Last checked</dt>
+          <dd>
+            <span className="aixia-tools-hub-hermes-runtime-health-checked">{lastChecked}</span>
+          </dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
 
 const RUNTIME_GATE_VARS = [
   {
@@ -2426,6 +2589,29 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
   );
   const parentLabel = group?.title ?? "Memory & Coordination Tools";
 
+  const [transportMeta, setTransportMeta] = useState("Health unknown");
+  const [ownerGateMeta, setOwnerGateMeta] = useState("Pending");
+
+  useEffect(() => {
+    let cancelled = false;
+    void getAgentOpsHermesRuntimeHealth().then((health) => {
+      if (cancelled) return;
+      setTransportMeta(formatHermesTransportMode(health));
+      if (health.productionBlocked) {
+        setOwnerGateMeta("Production blocked");
+      } else if (health.ownerApproved === "enabled") {
+        setOwnerGateMeta("Enabled");
+      } else if (health.ownerApproved === "disabled") {
+        setOwnerGateMeta("Disabled");
+      } else {
+        setOwnerGateMeta("Pending / unknown");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const hermesHero = (
     <AixiaHero
       surface="command"
@@ -2456,32 +2642,39 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           tone: "rose",
         },
         {
-          key: "runtime",
-          label: "Active runtime",
-          value: "No",
-          detail: "Hermes memory coordinator not active",
+          key: "transport",
+          label: "Transport",
+          value: transportMeta,
+          detail: "Advisory proxy only · not coordinator",
+          tone: "cyan",
+        },
+        {
+          key: "coordinator",
+          label: "Coordinator",
+          value: "Not active",
+          detail: "Memory coordinator not active",
           tone: "neutral",
+        },
+        {
+          key: "writes",
+          label: "Writes",
+          value: "Blocked",
+          detail: "No memory or source-of-truth writes",
+          tone: "violet",
+        },
+        {
+          key: "owner",
+          label: "Owner gate",
+          value: ownerGateMeta,
+          detail: "Server HERMES_OWNER_APPROVED",
+          tone: "amber",
         },
         {
           key: "layer",
           label: "Built layer",
           value: "Global memory (partial)",
-          detail: "Per-Agent read-only hub started · 2 layers not started",
+          detail: `Per-Agent hub started · registry ${formatToolRegistryStatus(registryEntry.status)} · 2 layers not started`,
           tone: "amber",
-        },
-        {
-          key: "registry",
-          label: "Registry",
-          value: formatToolRegistryStatus(registryEntry.status),
-          detail: "Tools Hub entry · not coordinator-active",
-          tone: "neutral",
-        },
-        {
-          key: "contracts",
-          label: "Contracts",
-          value: "Prepared",
-          detail: AGENTOPS_HERMES_ADAPTER_READINESS.contractPath,
-          tone: "cyan",
         },
       ]}
     />
@@ -2501,6 +2694,17 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
             layers, runtime behavior, safety gates, and browser QA are complete.
           </AixiaInfoBlock>
         </div>
+
+        <AixiaSection
+          surface="command"
+          className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-runtime-health-section"
+          title="Hermes Runtime Health"
+          description="Transport and gate truth from /api/agentops/hermes — read-only advisory mode. Coordinator is not active."
+          icon={Server}
+          bodyClassName="aixia-dash-panel-body"
+        >
+          <HermesRuntimeHealthPanel />
+        </AixiaSection>
 
         <AixiaSection
           surface="command"
@@ -2626,10 +2830,10 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
             badge={<AixiaBadge tone="cyan">{RUNTIME_GATE_VARS.length} vars</AixiaBadge>}
             testId="hermes-runtime-gates"
           >
-            <AixiaInfoBlock tone="cyan" icon={Lock} title="Env-gated staging proxy">
-              Server runtime requires explicit flags and owner approval. Default product posture
-              remains mock fallback. Client and server gates must both pass before Ollama advisory
-              responses are returned.
+            <AixiaInfoBlock tone="cyan" icon={Lock} title="Env-gated advisory transport">
+              Server runtime requires explicit flags and owner approval. Transport health is shown
+              in Runtime Health above — it is not coordinator activation. Activation remains blocked
+              until all memory layers, safety gates, and browser QA pass.
             </AixiaInfoBlock>
             <dl className="aixia-tools-hub-hermes-gates">
               {RUNTIME_GATE_VARS.map((gate) => (

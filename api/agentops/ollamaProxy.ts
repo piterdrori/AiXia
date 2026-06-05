@@ -27,6 +27,33 @@ export function getAgentOpsOllamaConfig(): {
   return { baseUrl, model, timeoutMs };
 }
 
+export type AgentOpsEnvGateStatus = "enabled" | "disabled" | "unknown";
+
+export function readHermesRuntimeGateStatus(): AgentOpsEnvGateStatus {
+  const value = readServerEnv("HERMES_RUNTIME_ACTIVE");
+  if (value === "true") return "enabled";
+  if (value === "false") return "disabled";
+  return "unknown";
+}
+
+export function readHermesOwnerApprovedStatus(): AgentOpsEnvGateStatus {
+  const value = readServerEnv("HERMES_OWNER_APPROVED");
+  if (value === "true") return "enabled";
+  if (value === "false") return "disabled";
+  return "unknown";
+}
+
+export function readAgentOpsLlmRuntimeGateStatus(): AgentOpsEnvGateStatus {
+  const value = readServerEnv("AGENTOPS_LLM_RUNTIME_ACTIVE");
+  if (value === "true") return "enabled";
+  if (value === "false") return "disabled";
+  return "unknown";
+}
+
+export function isAgentOpsProductionBlocked(): boolean {
+  return readServerEnv("VERCEL_ENV") === "production";
+}
+
 export function isAgentOpsLlmRuntimeEnabled(): boolean {
   const llmActive = readServerEnv("AGENTOPS_LLM_RUNTIME_ACTIVE");
   const hermesActive = readServerEnv("HERMES_RUNTIME_ACTIVE");

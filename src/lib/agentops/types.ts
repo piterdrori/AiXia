@@ -793,7 +793,34 @@ export type AgentOpsHermesHealthCheckStatus =
   | "timeout"
   | "disabled";
 
-/** Result from checkHermesStagingHealth — stub in Phase 5D, no network. */
+export type AgentOpsHermesRuntimeHealthMode = "advisory_transport" | "blocked" | "unavailable";
+
+export type AgentOpsHermesEnvGateStatus = "enabled" | "disabled" | "unknown";
+
+/** Normalized Hermes runtime health (A1) — transport truth, coordinator always inactive. */
+export interface AgentOpsHermesRuntimeHealth {
+  status: "ok" | "blocked" | "unavailable" | "loading";
+  ok: boolean;
+  mode: AgentOpsHermesRuntimeHealthMode;
+  runtimeGate: AgentOpsHermesEnvGateStatus;
+  ownerApproved: AgentOpsHermesEnvGateStatus;
+  llmRuntimeGate: AgentOpsHermesEnvGateStatus;
+  clientTransportEnabled: boolean;
+  coordinatorActive: false;
+  transportReachable: boolean;
+  hermesEndpointReachable: boolean;
+  llmFallbackReachable: boolean;
+  fallbackAvailable: boolean;
+  productionBlocked: boolean;
+  writesBlocked: true;
+  sotWritesBlocked: true;
+  advisoryOnly: true;
+  message: string;
+  checkedAt: string;
+  loadError?: string;
+}
+
+/** Result from checkHermesStagingHealth — live probe via getAgentOpsHermesRuntimeHealth (A1). */
 export interface AgentOpsHermesStagingHealthCheck {
   checkId: string;
   status: AgentOpsHermesHealthCheckStatus;

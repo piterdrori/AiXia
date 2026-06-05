@@ -70,6 +70,80 @@ function getOllamaConfig(env) {
   return { baseUrl, model, timeoutMs };
 }
 
+function readGateStatus(env, name) {
+  const value = readEnv(env, name);
+  if (value === "true") return "enabled";
+  if (value === "false") return "disabled";
+  return "unknown";
+}
+
+function isProductionBlocked(env) {
+  return readEnv(env, "VERCEL_ENV") === "production";
+}
+
+async function buildHermesRuntimeHealthPayload(env) {
+  const checkedAt = new Date().toISOString();
+  const productionBlocked = isProductionBlocked(env);
+  const runtimeGate = readGateStatus(env, "HERMES_RUNTIME_ACTIVE");
+  const ownerApproved = readGateStatus(env, "HERMES_OWNER_APPROVED");
+  const llmRuntimeGate = readGateStatus(env, "AGENTOPS_LLM_RUNTIME_ACTIVE");
+  const runtimeEnabled = isRuntimeEnabled(env);
+  const config = getOllamaConfig(env);
+  const endpointConfigured = Boolean(config.baseUrl);
+  const ollama = endpointConfigured
+    ? await probeOllamaReachability(env)
+    : { reachable: false, error: "Endpoint not configured" };
+
+  const gatesOpen =
+    !productionBlocked &&
+    runtimeGate !== "disabled" &&
+    ownerApproved !== "disabled" &&
+    runtimeEnabled;
+  const transportReachable = gatesOpen && ollama.reachable;
+  const llmFallbackReachable = gatesOpen && ollama.reachable;
+
+  let mode = "unavailable";
+  let message = "Hermes transport health unavailable.";
+  let ok = false;
+
+  if (productionBlocked) {
+    mode = "blocked";
+    message = "Production activation blocked unless separately approved.";
+  } else if (runtimeGate === "disabled" || ownerApproved === "disabled") {
+    mode = "blocked";
+    message = "Server runtime gate or owner approval is disabled.";
+  } else if (!runtimeEnabled) {
+    mode = "blocked";
+    message = "Server LLM/Hermes runtime gate is not open.";
+  } else if (!ollama.reachable) {
+    mode = "unavailable";
+    message = ollama.error ?? "Ollama/LLM transport not reachable.";
+  } else {
+    mode = "advisory_transport";
+    message = "Read-only advisory transport reachable. Coordinator not active.";
+    ok = true;
+  }
+
+  return {
+    ok,
+    mode,
+    runtimeGate,
+    ownerApproved,
+    llmRuntimeGate,
+    coordinatorActive: false,
+    transportReachable,
+    hermesEndpointReachable: true,
+    llmFallbackReachable,
+    fallbackAvailable: true,
+    productionBlocked,
+    writesBlocked: true,
+    sotWritesBlocked: true,
+    advisoryOnly: true,
+    message,
+    checkedAt,
+  };
+}
+
 function isRuntimeEnabled(env) {
   const llmActive = readEnv(env, "AGENTOPS_LLM_RUNTIME_ACTIVE");
   const hermesActive = readEnv(env, "HERMES_RUNTIME_ACTIVE");
@@ -274,14 +348,16 @@ export function createAgentOpsDevApiHandlers(env) {
 
     async handleHermes(request) {
       if (request.method === "GET") {
-        const runtimeActive = isRuntimeEnabled(env);
-        const config = getOllamaConfig(env);
+        const health = await buildHermesRuntimeHealthPayload(env);
+        const clientFlag = readGateStatus(env, "VITE_AGENTOPS_HERMES_ENABLED");
         return jsonResponse({
-          runtimeActive,
-          appCallable: true,
-          endpointConfigured: Boolean(config.baseUrl),
-          ollamaReachable: null,
+          ...health,
           stagingOnly: true,
+          appCallable: true,
+          clientTransportFlag: clientFlag,
+          runtimeActive: health.transportReachable,
+          ollamaReachable: health.transportReachable,
+          endpointConfigured: Boolean(getOllamaConfig(env).baseUrl),
         });
       }
 

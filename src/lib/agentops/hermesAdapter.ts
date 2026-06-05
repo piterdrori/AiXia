@@ -6,8 +6,11 @@ import type {
   AgentOpsHermesAdapterResult,
   AgentOpsHermesAdapterRunInput,
   AgentOpsHermesAdapterStatus,
+  AgentOpsHermesEnvGateStatus,
   AgentOpsHermesReadinessGate,
   AgentOpsHermesEndpointSource,
+  AgentOpsHermesRuntimeHealth,
+  AgentOpsHermesRuntimeHealthMode,
   AgentOpsHermesStagingHealthCheck,
   AgentOpsIssueAgentMessageType,
 } from "./types";
@@ -83,97 +86,178 @@ function newHealthCheckId(): string {
   return `hermes-hc-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-/**
- * Staging Hermes health check — probes /api/agentops/hermes when client runtime is enabled.
- */
-export async function checkHermesStagingHealthAsync(): Promise<AgentOpsHermesStagingHealthCheck> {
+function normalizeGateStatus(value: unknown): AgentOpsHermesEnvGateStatus {
+  if (value === "enabled" || value === "disabled" || value === "unknown") return value;
+  return "unknown";
+}
+
+function normalizeHealthMode(value: unknown): AgentOpsHermesRuntimeHealthMode {
+  if (value === "advisory_transport" || value === "blocked" || value === "unavailable") return value;
+  return "unavailable";
+}
+
+function unavailableHermesRuntimeHealth(message: string, loadError?: string): AgentOpsHermesRuntimeHealth {
   const checkedAt = new Date().toISOString();
-  const runtimeActive = isRuntimeActive();
-  const appCallable = HERMES_APP_CALLABLE;
-  const blockers: string[] = [];
-
-  if (!runtimeActive) {
-    blockers.push("Hermes client runtime inactive.");
-    blockers.push("Ensure VITE_AGENTOPS_HERMES_ENABLED=true and server HERMES_RUNTIME_ACTIVE=true.");
-  }
-
-  let endpointReachable = false;
-  let probeError: string | undefined;
-
-  if (runtimeActive) {
-    try {
-      const response = await fetch("/api/agentops/hermes", { method: "GET" });
-      const payload = (await response.json()) as {
-        ollamaReachable?: boolean;
-        runtimeActive?: boolean;
-        error?: string;
-      };
-      endpointReachable = Boolean(response.ok && payload.ollamaReachable);
-      if (!endpointReachable) {
-        probeError = payload.error ?? `Hermes health HTTP ${response.status}`;
-        blockers.push(probeError);
-      }
-    } catch (error) {
-      probeError = error instanceof Error ? error.message : String(error);
-      blockers.push(probeError);
-    }
-  }
-
-  let status: AgentOpsHermesStagingHealthCheck["status"] = runtimeActive ? "ready" : "not_configured";
-  if (runtimeActive && !endpointReachable) {
-    status = probeError?.includes("fetch") ? "not_configured" : "unhealthy";
-  }
-  if (runtimeActive && !appCallable) {
-    status = "blocked_by_gate";
-  }
-
   return {
-    checkId: newHealthCheckId(),
-    status: endpointReachable ? "ready" : status,
-    endpointReachable,
-    runtimeAllowed: runtimeActive,
+    status: "unavailable",
+    ok: false,
+    mode: "unavailable",
+    runtimeGate: "unknown",
+    ownerApproved: "unknown",
+    llmRuntimeGate: "unknown",
+    clientTransportEnabled: isClientHermesEnabled(),
+    coordinatorActive: false,
+    transportReachable: false,
+    hermesEndpointReachable: false,
+    llmFallbackReachable: false,
     fallbackAvailable: true,
-    latencyMs: null,
+    productionBlocked: false,
+    writesBlocked: true,
+    sotWritesBlocked: true,
+    advisoryOnly: true,
+    message,
     checkedAt,
-    blockers,
-    nextStep: endpointReachable
-      ? "Hermes server route /api/agentops/hermes is connected to Ollama."
-      : runtimeActive
-        ? "Start Ollama (ollama serve) and pull the configured model."
-        : "Enable VITE_AGENTOPS_HERMES_ENABLED and configure server HERMES_* env vars.",
-    healthCheckContractPath: HERMES_HEALTH_CHECK_CONTRACT_PATH,
+    loadError,
   };
 }
 
-/** Sync stub for initial render — use checkHermesStagingHealthAsync for live probes. */
-export function checkHermesStagingHealth(): AgentOpsHermesStagingHealthCheck {
-  const checkedAt = new Date().toISOString();
-  const runtimeActive = isRuntimeActive();
-  const appCallable = HERMES_APP_CALLABLE;
+/**
+ * Read-only Hermes runtime health (A1) — probes safe GET /api/agentops/hermes.
+ * Transport truth only; coordinator is never active.
+ */
+export async function getAgentOpsHermesRuntimeHealth(): Promise<AgentOpsHermesRuntimeHealth> {
+  try {
+    const response = await fetch("/api/agentops/hermes", { method: "GET" });
+    let payload: Record<string, unknown> = {};
+    try {
+      payload = (await response.json()) as Record<string, unknown>;
+    } catch {
+      return unavailableHermesRuntimeHealth(
+        "Health unavailable — fallback only.",
+        `Invalid health response (HTTP ${response.status}).`,
+      );
+    }
 
+    if (!response.ok) {
+      return unavailableHermesRuntimeHealth(
+        typeof payload.message === "string" ? payload.message : "Health unavailable — fallback only.",
+        `Hermes health HTTP ${response.status}`,
+      );
+    }
+
+    const mode = normalizeHealthMode(payload.mode);
+    const ok = Boolean(payload.ok);
+    const status: AgentOpsHermesRuntimeHealth["status"] =
+      mode === "advisory_transport" && ok ? "ok" : mode === "blocked" ? "blocked" : "unavailable";
+
+    const clientFlag = payload.clientTransportFlag;
+    const clientTransportEnabled =
+      clientFlag === "enabled" || clientFlag === "disabled"
+        ? clientFlag === "enabled"
+        : isClientHermesEnabled();
+
+    return {
+      status,
+      ok,
+      mode,
+      runtimeGate: normalizeGateStatus(payload.runtimeGate),
+      ownerApproved: normalizeGateStatus(payload.ownerApproved),
+      llmRuntimeGate: normalizeGateStatus(payload.llmRuntimeGate),
+      clientTransportEnabled,
+      coordinatorActive: false,
+      transportReachable: Boolean(payload.transportReachable),
+      hermesEndpointReachable: Boolean(payload.hermesEndpointReachable ?? true),
+      llmFallbackReachable: Boolean(payload.llmFallbackReachable),
+      fallbackAvailable: payload.fallbackAvailable !== false,
+      productionBlocked: Boolean(payload.productionBlocked),
+      writesBlocked: true,
+      sotWritesBlocked: true,
+      advisoryOnly: true,
+      message:
+        typeof payload.message === "string"
+          ? payload.message
+          : "Hermes transport health loaded.",
+      checkedAt: typeof payload.checkedAt === "string" ? payload.checkedAt : new Date().toISOString(),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return unavailableHermesRuntimeHealth("Health unavailable — fallback only.", message);
+  }
+}
+
+function stagingHealthFromRuntimeHealth(health: AgentOpsHermesRuntimeHealth): AgentOpsHermesStagingHealthCheck {
   const blockers: string[] = [];
-  if (!runtimeActive) {
-    blockers.push("Hermes client runtime inactive.");
-    blockers.push("Ensure VITE_AGENTOPS_HERMES_ENABLED=true and server HERMES_RUNTIME_ACTIVE=true.");
+  if (health.productionBlocked) {
+    blockers.push("Production activation blocked unless separately approved.");
+  }
+  if (health.runtimeGate === "disabled") {
+    blockers.push("HERMES_RUNTIME_ACTIVE is disabled on server.");
+  }
+  if (health.ownerApproved === "disabled") {
+    blockers.push("HERMES_OWNER_APPROVED is disabled on server.");
+  }
+  if (!health.clientTransportEnabled) {
+    blockers.push("Client VITE_AGENTOPS_HERMES_ENABLED is false.");
+  }
+  if (!health.transportReachable) {
+    blockers.push(health.message);
+  }
+  if (health.loadError) {
+    blockers.push(health.loadError);
   }
 
-  let status: AgentOpsHermesStagingHealthCheck["status"] = runtimeActive ? "ready" : "not_configured";
-  if (runtimeActive && !appCallable) {
+  let status: AgentOpsHermesStagingHealthCheck["status"] = "not_configured";
+  if (health.status === "ok" && health.transportReachable) {
+    status = "ready";
+  } else if (health.status === "blocked" || health.productionBlocked) {
     status = "blocked_by_gate";
+  } else if (health.hermesEndpointReachable) {
+    status = "unhealthy";
   }
 
   return {
     checkId: newHealthCheckId(),
     status,
-    endpointReachable: runtimeActive,
-    runtimeAllowed: runtimeActive,
+    endpointReachable: health.transportReachable,
+    runtimeAllowed: health.transportReachable,
+    fallbackAvailable: health.fallbackAvailable,
+    latencyMs: null,
+    checkedAt: health.checkedAt,
+    blockers,
+    nextStep: health.message,
+    healthCheckContractPath: HERMES_HEALTH_CHECK_CONTRACT_PATH,
+  };
+}
+
+/**
+ * Staging Hermes health check — uses server health payload (A1 gate alignment).
+ */
+export async function checkHermesStagingHealthAsync(): Promise<AgentOpsHermesStagingHealthCheck> {
+  const health = await getAgentOpsHermesRuntimeHealth();
+  return stagingHealthFromRuntimeHealth(health);
+}
+
+/** Sync stub for initial render — does not claim transport ready (use Refresh health). */
+export function checkHermesStagingHealth(): AgentOpsHermesStagingHealthCheck {
+  const checkedAt = new Date().toISOString();
+  const clientEnabled = isClientHermesEnabled();
+  const blockers: string[] = [
+    "Live transport status not loaded — use Refresh health on the Hermes page.",
+  ];
+  if (!clientEnabled) {
+    blockers.push("Client VITE_AGENTOPS_HERMES_ENABLED is false.");
+  }
+
+  return {
+    checkId: newHealthCheckId(),
+    status: "not_configured",
+    endpointReachable: false,
+    runtimeAllowed: false,
     fallbackAvailable: true,
     latencyMs: null,
     checkedAt,
     blockers,
-    nextStep: runtimeActive
-      ? "Hermes server route /api/agentops/hermes is callable when Ollama is running."
-      : "Enable VITE_AGENTOPS_HERMES_ENABLED and configure server HERMES_* env vars.",
+    nextStep: "Open Hermes Runtime Health and click Refresh health for server gate truth.",
     healthCheckContractPath: HERMES_HEALTH_CHECK_CONTRACT_PATH,
   };
 }

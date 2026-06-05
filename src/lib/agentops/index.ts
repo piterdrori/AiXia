@@ -179,6 +179,9 @@ export type {
   AgentOpsHermesEndpointSource,
   AgentOpsHermesHealthCheckStatus,
   AgentOpsHermesStagingHealthCheck,
+  AgentOpsHermesRuntimeHealth,
+  AgentOpsHermesRuntimeHealthMode,
+  AgentOpsHermesEnvGateStatus,
   AgentOpsCodeGraphDiscoveryMode,
   AgentOpsCodeGraphSuggestionSource,
   AgentOpsCodeGraphDiscoverySuggestionItem,
@@ -340,6 +343,7 @@ export {
 
 export {
   getAgentOpsHermesAdapterStatus,
+  getAgentOpsHermesRuntimeHealth,
   getAgentOpsHermesReadinessGate,
   checkHermesStagingHealth,
   checkHermesStagingHealthAsync,

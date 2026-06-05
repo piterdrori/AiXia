@@ -11146,6 +11146,43 @@ button.aixia-action-card:disabled {
   margin: 0;
 }
 
+.aixia-tools-hub-hermes-runtime-health {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-runtime-health-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-runtime-health-actions .aixia-info-block {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-runtime-health-refresh {
+  flex-shrink: 0;
+}
+
+.aixia-tools-hub-hermes-runtime-health-message {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.9);
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-runtime-health-checked {
+  font-size: 0.76rem;
+  color: rgba(148, 163, 184, 0.95);
+}
+
 .aixia-tools-hub-hermes-frequency-segments {
   display: flex;
   flex-wrap: wrap;

@@ -7,9 +7,107 @@ import {
   callOllamaChat,
   getAgentOpsOllamaConfig,
   isAgentOpsLlmRuntimeEnabled,
+  isAgentOpsProductionBlocked,
   jsonResponse,
+  probeOllamaReachability,
+  readAgentOpsLlmRuntimeGateStatus,
+  readHermesOwnerApprovedStatus,
+  readHermesRuntimeGateStatus,
   readOptionalInternalSecret,
+  readServerEnv,
+  type AgentOpsEnvGateStatus,
 } from "./ollamaProxy";
+
+export type AgentOpsHermesRuntimeHealthMode = "advisory_transport" | "blocked" | "unavailable";
+
+export interface AgentOpsHermesRuntimeHealthPayload {
+  ok: boolean;
+  mode: AgentOpsHermesRuntimeHealthMode;
+  runtimeGate: AgentOpsEnvGateStatus;
+  ownerApproved: AgentOpsEnvGateStatus;
+  llmRuntimeGate: AgentOpsEnvGateStatus;
+  coordinatorActive: false;
+  transportReachable: boolean;
+  hermesEndpointReachable: boolean;
+  llmFallbackReachable: boolean;
+  fallbackAvailable: boolean;
+  productionBlocked: boolean;
+  writesBlocked: true;
+  sotWritesBlocked: true;
+  advisoryOnly: true;
+  message: string;
+  checkedAt: string;
+}
+
+function readClientHermesTransportFlagStatus(): AgentOpsEnvGateStatus {
+  const value = readServerEnv("VITE_AGENTOPS_HERMES_ENABLED");
+  if (value === "true") return "enabled";
+  if (value === "false") return "disabled";
+  return "unknown";
+}
+
+/** Safe public health payload for GET /api/agentops/hermes — no secrets or internal URLs. */
+export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOpsHermesRuntimeHealthPayload> {
+  const checkedAt = new Date().toISOString();
+  const productionBlocked = isAgentOpsProductionBlocked();
+  const runtimeGate = readHermesRuntimeGateStatus();
+  const ownerApproved = readHermesOwnerApprovedStatus();
+  const llmRuntimeGate = readAgentOpsLlmRuntimeGateStatus();
+  const runtimeEnabled = isAgentOpsLlmRuntimeEnabled();
+  const config = getAgentOpsOllamaConfig();
+  const endpointConfigured = Boolean(config.baseUrl);
+  const ollama = endpointConfigured ? await probeOllamaReachability() : { reachable: false, error: "Endpoint not configured" };
+
+  const hermesEndpointReachable = true;
+  const gatesOpen =
+    !productionBlocked &&
+    runtimeGate !== "disabled" &&
+    ownerApproved !== "disabled" &&
+    runtimeEnabled;
+  const transportReachable = gatesOpen && ollama.reachable;
+  const llmFallbackReachable = gatesOpen && ollama.reachable;
+
+  let mode: AgentOpsHermesRuntimeHealthMode = "unavailable";
+  let message = "Hermes transport health unavailable.";
+  let ok = false;
+
+  if (productionBlocked) {
+    mode = "blocked";
+    message = "Production activation blocked unless separately approved.";
+  } else if (runtimeGate === "disabled" || ownerApproved === "disabled") {
+    mode = "blocked";
+    message = "Server runtime gate or owner approval is disabled.";
+  } else if (!runtimeEnabled) {
+    mode = "blocked";
+    message = "Server LLM/Hermes runtime gate is not open.";
+  } else if (!ollama.reachable) {
+    mode = "unavailable";
+    message = ollama.error ?? "Ollama/LLM transport not reachable.";
+  } else {
+    mode = "advisory_transport";
+    message = "Read-only advisory transport reachable. Coordinator not active.";
+    ok = true;
+  }
+
+  return {
+    ok,
+    mode,
+    runtimeGate,
+    ownerApproved,
+    llmRuntimeGate,
+    coordinatorActive: false,
+    transportReachable,
+    hermesEndpointReachable,
+    llmFallbackReachable,
+    fallbackAvailable: true,
+    productionBlocked,
+    writesBlocked: true,
+    sotWritesBlocked: true,
+    advisoryOnly: true,
+    message,
+    checkedAt,
+  };
+}
 
 type HermesMode =
   | "issue_clarification"
@@ -46,15 +144,18 @@ function buildDefaultSystemPrompt(body: HermesRunBody): string {
 
 export async function handleAgentOpsHermesRequest(request: Request): Promise<Response> {
   if (request.method === "GET") {
-    const runtimeActive = isAgentOpsLlmRuntimeEnabled();
-    const config = getAgentOpsOllamaConfig();
+    const health = await buildAgentOpsHermesRuntimeHealthPayload();
+    const clientTransportFlag = readClientHermesTransportFlagStatus();
 
     return jsonResponse({
-      runtimeActive,
-      appCallable: true,
-      endpointConfigured: Boolean(config.baseUrl),
-      ollamaReachable: null,
+      ...health,
       stagingOnly: true,
+      appCallable: true,
+      clientTransportFlag,
+      /** @deprecated Use transportReachable — kept for older probes */
+      runtimeActive: health.transportReachable,
+      ollamaReachable: health.transportReachable,
+      endpointConfigured: Boolean(getAgentOpsOllamaConfig().baseUrl),
     });
   }
 

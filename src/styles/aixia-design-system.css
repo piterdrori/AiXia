@@ -11183,6 +11183,108 @@ button.aixia-action-card:disabled {
   color: rgba(148, 163, 184, 0.95);
 }
 
+.aixia-tools-hub-hermes-context-assembler {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-context-assembler-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-context-assembler-actions .aixia-info-block {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-context-assembler-refresh {
+  flex-shrink: 0;
+}
+
+.aixia-tools-hub-hermes-context-assembler-meta {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-context-assembler-summary {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-context-assembler-summary .aixia-navigation-stat-block {
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-context-assembler-sections {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-context-assembler-card {
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(15, 23, 42, 0.35);
+  padding: 0.65rem 0.75rem;
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-context-assembler-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+}
+
+.aixia-tools-hub-hermes-context-assembler-card-title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.aixia-tools-hub-hermes-context-assembler-card-source {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  color: rgba(148, 163, 184, 0.9);
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-context-assembler-card-source code {
+  font-size: 0.7rem;
+}
+
+.aixia-tools-hub-hermes-context-assembler-card-note {
+  margin: 0 0 0.4rem;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: rgba(203, 213, 225, 0.85);
+}
+
+.aixia-tools-hub-hermes-context-assembler-card-entries {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.74rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.9);
+  word-break: break-word;
+}
+
 .aixia-tools-hub-hermes-frequency-segments {
   display: flex;
   flex-wrap: wrap;

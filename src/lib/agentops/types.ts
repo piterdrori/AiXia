@@ -820,6 +820,41 @@ export interface AgentOpsHermesRuntimeHealth {
   loadError?: string;
 }
 
+export type AgentOpsHermesContextAssemblerSectionStatus =
+  | "included"
+  | "empty"
+  | "preview_only"
+  | "not_connected"
+  | "unavailable";
+
+/** A2 read-only Hermes context assembler preview — not sent to runtime. */
+export interface AgentOpsHermesContextAssemblerSection {
+  sectionId: string;
+  title: string;
+  source: string;
+  status: AgentOpsHermesContextAssemblerSectionStatus;
+  entries: string[];
+  safetyNote?: string;
+}
+
+export interface AgentOpsHermesContextAssemblerStats {
+  globalMemoryCount: number;
+  perAgentMemoryCount: number;
+  toolRegistryCount: number;
+  issueContextIncluded: boolean;
+}
+
+export interface AgentOpsHermesContextAssemblerPreview {
+  assembledAt: string;
+  mode: "preview_only";
+  coordinatorActive: false;
+  writesBlocked: true;
+  sourceOfTruthWritesBlocked: true;
+  sections: AgentOpsHermesContextAssemblerSection[];
+  stats: AgentOpsHermesContextAssemblerStats;
+  loadErrors: string[];
+}
+
 /** Result from checkHermesStagingHealth — live probe via getAgentOpsHermesRuntimeHealth (A1). */
 export interface AgentOpsHermesStagingHealthCheck {
   checkId: string;

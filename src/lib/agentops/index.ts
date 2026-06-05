@@ -182,6 +182,10 @@ export type {
   AgentOpsHermesRuntimeHealth,
   AgentOpsHermesRuntimeHealthMode,
   AgentOpsHermesEnvGateStatus,
+  AgentOpsHermesContextAssemblerPreview,
+  AgentOpsHermesContextAssemblerSection,
+  AgentOpsHermesContextAssemblerSectionStatus,
+  AgentOpsHermesContextAssemblerStats,
   AgentOpsCodeGraphDiscoveryMode,
   AgentOpsCodeGraphSuggestionSource,
   AgentOpsCodeGraphDiscoverySuggestionItem,
@@ -353,6 +357,8 @@ export {
   mapIntentToHermesMode,
   mapHermesModeToAgentMessageType,
 } from "./hermesAdapter";
+
+export { assembleAgentOpsHermesPreviewContext } from "./hermesContextAssembler";
 
 export {
   getAgentOpsAgentManifest,

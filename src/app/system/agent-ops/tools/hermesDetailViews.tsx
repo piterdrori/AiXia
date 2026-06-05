@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   BookOpen,
   Brain,
   CalendarClock,
@@ -44,7 +45,11 @@ import {
 import {
   AGENTOPS_GLOBAL_MEMORY_SCAN_FREQUENCIES,
   AGENTOPS_HERMES_ADAPTER_READINESS,
+  assembleAgentOpsHermesPreviewContext,
   getAgentOpsHermesRuntimeHealth,
+  type AgentOpsHermesContextAssemblerPreview,
+  type AgentOpsHermesContextAssemblerSection,
+  type AgentOpsHermesContextAssemblerSectionStatus,
   type AgentOpsHermesRuntimeHealth,
   type AgentOpsHermesEnvGateStatus,
   buildAgentOpsGlobalMemoryPartialSnapshot,
@@ -352,6 +357,190 @@ function hermesHealthTone(
   if (health.status === "blocked" || health.productionBlocked) return "amber";
   if (health.status === "ok" && health.transportReachable) return "emerald";
   return "neutral";
+}
+
+function contextSectionStatusTone(
+  status: AgentOpsHermesContextAssemblerSectionStatus,
+): "emerald" | "amber" | "rose" | "neutral" | "violet" | "cyan" {
+  switch (status) {
+    case "included":
+      return "emerald";
+    case "preview_only":
+      return "cyan";
+    case "not_connected":
+      return "neutral";
+    case "unavailable":
+      return "rose";
+    case "empty":
+    default:
+      return "amber";
+  }
+}
+
+function formatContextSectionStatus(status: AgentOpsHermesContextAssemblerSectionStatus): string {
+  switch (status) {
+    case "included":
+      return "Included";
+    case "preview_only":
+      return "Preview only";
+    case "not_connected":
+      return "Not connected";
+    case "unavailable":
+      return "Unavailable";
+    case "empty":
+    default:
+      return "Empty";
+  }
+}
+
+function HermesContextAssemblerPreviewPanel() {
+  const [preview, setPreview] = useState<AgentOpsHermesContextAssemblerPreview | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const refreshPreview = useCallback(async () => {
+    setLoading(true);
+    try {
+      const next = await assembleAgentOpsHermesPreviewContext({
+        globalLimit: 10,
+        perAgentSnippetLimit: 3,
+      });
+      setPreview(next);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshPreview();
+  }, [refreshPreview]);
+
+  const assembledLabel = preview?.assembledAt
+    ? new Date(preview.assembledAt).toLocaleString()
+    : "Not assembled yet";
+
+  const summaryCards = preview
+    ? [
+        {
+          label: "Global memory lines",
+          value: String(preview.stats.globalMemoryCount),
+          description: "Included in preview (metadata only)",
+          tone: "amber" as const,
+        },
+        {
+          label: "Per-agent active rows",
+          value: String(preview.stats.perAgentMemoryCount),
+          description: "Active Supabase rows across 12 agents",
+          tone: "cyan" as const,
+        },
+        {
+          label: "Registry nodes",
+          value: String(preview.stats.toolRegistryCount),
+          description: "Tools Hub metadata display only",
+          tone: "neutral" as const,
+        },
+        {
+          label: "Issue context",
+          value: preview.stats.issueContextIncluded ? "Provided" : "None",
+          description: preview.stats.issueContextIncluded
+            ? "Issue code only — not full payload"
+            : "No issue selected",
+          tone: "violet" as const,
+        },
+        {
+          label: "Coordinator",
+          value: "Not active",
+          description: "Preview not sent to Hermes runtime",
+          tone: "rose" as const,
+        },
+        {
+          label: "Writes",
+          value: "Blocked",
+          description: "No memory or SOT writes",
+          tone: "rose" as const,
+        },
+      ]
+    : [];
+
+  return (
+    <div
+      className="aixia-tools-hub-hermes-context-assembler"
+      data-testid="hermes-context-assembler-preview"
+    >
+      <div className="aixia-tools-hub-hermes-context-assembler-actions">
+        <AixiaInfoBlock tone="indigo" icon={FileText} title="Preview only — not sent to Hermes">
+          Read-only context assembly for what Hermes would receive later. Coordinator not active.
+          AgentMemory not connected. Official law remains aixia-global only.
+        </AixiaInfoBlock>
+        <AixiaButton
+          variant="secondary"
+          onClick={() => void refreshPreview()}
+          disabled={loading}
+          className="aixia-tools-hub-hermes-context-assembler-refresh"
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
+          Refresh context preview
+        </AixiaButton>
+      </div>
+
+      <p className="aixia-tools-hub-hermes-context-assembler-meta">
+        Assembled: {assembledLabel} · Mode: preview only · Not sent to Hermes runtime
+      </p>
+
+      {preview?.loadErrors.length ? (
+        <AixiaInfoBlock tone="gold" icon={AlertTriangle} title="Partial load">
+          {preview.loadErrors.join(" ")}
+        </AixiaInfoBlock>
+      ) : null}
+
+      {summaryCards.length > 0 ? (
+        <div className="aixia-tools-hub-hermes-context-assembler-summary">
+          {summaryCards.map((card) => (
+            <AixiaNavigationStatBlock
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              description={card.description}
+              tone={card.tone}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <div className="aixia-tools-hub-hermes-context-assembler-sections">
+        {(preview?.sections ?? []).map((section) => (
+          <HermesContextAssemblerSectionCard key={section.sectionId} section={section} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HermesContextAssemblerSectionCard({
+  section,
+}: {
+  section: AgentOpsHermesContextAssemblerSection;
+}) {
+  return (
+    <article className="aixia-tools-hub-hermes-context-assembler-card">
+      <div className="aixia-tools-hub-hermes-context-assembler-card-head">
+        <h4 className="aixia-tools-hub-hermes-context-assembler-card-title">{section.title}</h4>
+        <AixiaBadge tone={contextSectionStatusTone(section.status)}>
+          {formatContextSectionStatus(section.status)}
+        </AixiaBadge>
+      </div>
+      <p className="aixia-tools-hub-hermes-context-assembler-card-source">
+        Source: <code>{section.source}</code>
+      </p>
+      {section.safetyNote ? (
+        <p className="aixia-tools-hub-hermes-context-assembler-card-note">{section.safetyNote}</p>
+      ) : null}
+      <ul className="aixia-tools-hub-hermes-context-assembler-card-entries">
+        {section.entries.map((entry, index) => (
+          <li key={`${section.sectionId}-${index}`}>{entry}</li>
+        ))}
+      </ul>
+    </article>
+  );
 }
 
 function HermesRuntimeHealthPanel() {
@@ -2704,6 +2893,17 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           bodyClassName="aixia-dash-panel-body"
         >
           <HermesRuntimeHealthPanel />
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-context-assembler-section"
+          title="Hermes Context Assembler Preview"
+          description="Read-only preview of context Hermes would receive later — not sent to runtime. Coordinator not active."
+          icon={FileText}
+          bodyClassName="aixia-dash-panel-body"
+        >
+          <HermesContextAssemblerPreviewPanel />
         </AixiaSection>
 
         <AixiaSection

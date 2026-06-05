@@ -85,7 +85,7 @@ export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOp
     message = ollama.error ?? "Ollama/LLM transport not reachable.";
   } else {
     mode = "advisory_transport";
-    message = "Read-only advisory transport reachable. Coordinator not active.";
+    message = "Advisory runtime reachable. Coordinator not active.";
     ok = true;
   }
 

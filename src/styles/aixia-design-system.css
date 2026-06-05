@@ -11275,8 +11275,33 @@ button.aixia-action-card:disabled {
   min-width: 0;
 }
 
-.aixia-tools-hub-hermes-runtime-health-refresh {
+.aixia-tools-hub-hermes-runtime-health-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
   flex-shrink: 0;
+}
+
+.aixia-tools-hub-hermes-runtime-health-refresh,
+.aixia-tools-hub-hermes-runtime-health-probe {
+  flex-shrink: 0;
+}
+
+.aixia-tools-hub-hermes-runtime-health-probe-result,
+.aixia-tools-hub-hermes-runtime-health-probe-error {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.aixia-tools-hub-hermes-runtime-health-probe-result {
+  color: rgba(110, 231, 183, 0.95);
+}
+
+.aixia-tools-hub-hermes-runtime-health-probe-error {
+  color: rgba(252, 165, 165, 0.95);
 }
 
 .aixia-tools-hub-hermes-runtime-health-message {

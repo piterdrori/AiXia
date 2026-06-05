@@ -47,6 +47,7 @@ import {
   AGENTOPS_HERMES_ADAPTER_READINESS,
   assembleAgentOpsHermesPreviewContext,
   getAgentOpsHermesRuntimeHealth,
+  probeAgentOpsHermesAdvisoryRuntime,
   type AgentOpsHermesContextAssemblerPreview,
   type AgentOpsHermesContextAssemblerSection,
   type AgentOpsHermesContextAssemblerSectionStatus,
@@ -347,7 +348,7 @@ function formatHermesTransportMode(health: AgentOpsHermesRuntimeHealth | null): 
   if (health.productionBlocked) return "Blocked (production)";
   switch (health.mode) {
     case "advisory_transport":
-      return "Advisory transport";
+      return health.transportReachable ? "Advisory runtime reachable" : "Advisory transport";
     case "blocked":
       return "Blocked";
     default:
@@ -628,75 +629,86 @@ function HermesToolRegistryContextPreview({
         ))}
       </div>
 
-      <div className="aixia-tools-hub-hermes-tool-registry-preview-categories">
-        <p className="aixia-tools-hub-hermes-tool-registry-preview-subheading">
-          Seven Tools Hub categories
-        </p>
-        <div className="aixia-tools-hub-hermes-tool-registry-preview-category-grid">
-          {categories.map((category) => (
-            <article
-              key={category.categoryId}
-              className="aixia-tools-hub-hermes-tool-registry-preview-category-card"
-            >
-              <div className="aixia-tools-hub-hermes-tool-registry-preview-category-head">
-                <h5 className="aixia-tools-hub-hermes-tool-registry-preview-category-title">
-                  {category.title}
-                </h5>
-                <AixiaBadge tone="neutral">{category.nodeCount} nodes</AixiaBadge>
-              </div>
-              <p className="aixia-tools-hub-hermes-tool-registry-preview-category-meta">
-                {category.directChildCount} group(s) · {category.statusMix}
-              </p>
-              <p className="aixia-tools-hub-hermes-tool-registry-preview-category-keys">
-                Key: {category.keyTools.join(" · ") || "—"}
-              </p>
-              <p className="aixia-tools-hub-hermes-tool-registry-preview-category-relevance">
-                {category.hermesRelevance}
-              </p>
-              <p className="aixia-tools-hub-hermes-tool-registry-preview-category-safety">
-                {category.safetyStatus}
-              </p>
-            </article>
-          ))}
+      <AixiaProgressiveDisclosureGroup
+        title="Tool registry details"
+        description="Seven categories and Hermes-relevant tools — metadata only, collapsed by default."
+        defaultOpen={false}
+        density="compact"
+        className="aixia-progressive-disclosure--secondary"
+        icon={<Wrench className="h-4 w-4" />}
+        badge={<AixiaBadge tone="neutral">{summary.mainCategories} categories</AixiaBadge>}
+        testId="hermes-tool-registry-details"
+      >
+        <div className="aixia-tools-hub-hermes-tool-registry-preview-categories">
+          <p className="aixia-tools-hub-hermes-tool-registry-preview-subheading">
+            Seven Tools Hub categories
+          </p>
+          <div className="aixia-tools-hub-hermes-tool-registry-preview-category-grid">
+            {categories.map((category) => (
+              <article
+                key={category.categoryId}
+                className="aixia-tools-hub-hermes-tool-registry-preview-category-card"
+              >
+                <div className="aixia-tools-hub-hermes-tool-registry-preview-category-head">
+                  <h5 className="aixia-tools-hub-hermes-tool-registry-preview-category-title">
+                    {category.title}
+                  </h5>
+                  <AixiaBadge tone="neutral">{category.nodeCount} nodes</AixiaBadge>
+                </div>
+                <p className="aixia-tools-hub-hermes-tool-registry-preview-category-meta">
+                  {category.directChildCount} group(s) · {category.statusMix}
+                </p>
+                <p className="aixia-tools-hub-hermes-tool-registry-preview-category-keys">
+                  Key: {category.keyTools.join(" · ") || "—"}
+                </p>
+                <p className="aixia-tools-hub-hermes-tool-registry-preview-category-relevance">
+                  {category.hermesRelevance}
+                </p>
+                <p className="aixia-tools-hub-hermes-tool-registry-preview-category-safety">
+                  {category.safetyStatus}
+                </p>
+              </article>
+            ))}
+          </div>
         </div>
-      </div>
 
-      <div className="aixia-tools-hub-hermes-tool-registry-preview-relevant">
-        <p className="aixia-tools-hub-hermes-tool-registry-preview-subheading">
-          Hermes-relevant tools (metadata only)
-        </p>
-        <p className="aixia-tools-hub-hermes-tool-registry-preview-relevant-lead">
-          Preview only · no tool execution · no registry writes · coordinator not active
-        </p>
-        <div
-          className="aixia-tools-hub-hermes-tool-registry-preview-relevant-panel"
-          data-testid="hermes-tool-registry-relevant-panel"
-        >
-          {relevantToolFamilies.map(({ family, tools }) => (
-            <section
-              key={family.id}
-              className="aixia-tools-hub-hermes-tool-registry-preview-family-group"
-            >
-              <div className="aixia-tools-hub-hermes-tool-registry-preview-family-head">
-                <h6 className="aixia-tools-hub-hermes-tool-registry-preview-family-title">
-                  {family.title}
-                </h6>
-                <span className="aixia-tools-hub-hermes-tool-registry-preview-family-count">
-                  {tools.length} tool{tools.length === 1 ? "" : "s"}
-                </span>
-              </div>
-              <p className="aixia-tools-hub-hermes-tool-registry-preview-family-hint">
-                {family.hint}
-              </p>
-              <div className="aixia-tools-hub-hermes-tool-registry-preview-family-tools">
-                {tools.map((tool) => (
-                  <HermesRelevantToolPreviewRow key={tool.id} tool={tool} />
-                ))}
-              </div>
-            </section>
-          ))}
+        <div className="aixia-tools-hub-hermes-tool-registry-preview-relevant">
+          <p className="aixia-tools-hub-hermes-tool-registry-preview-subheading">
+            Hermes-relevant tools (metadata only)
+          </p>
+          <p className="aixia-tools-hub-hermes-tool-registry-preview-relevant-lead">
+            Preview only · no tool execution · no registry writes · coordinator not active
+          </p>
+          <div
+            className="aixia-tools-hub-hermes-tool-registry-preview-relevant-panel"
+            data-testid="hermes-tool-registry-relevant-panel"
+          >
+            {relevantToolFamilies.map(({ family, tools }) => (
+              <section
+                key={family.id}
+                className="aixia-tools-hub-hermes-tool-registry-preview-family-group"
+              >
+                <div className="aixia-tools-hub-hermes-tool-registry-preview-family-head">
+                  <h6 className="aixia-tools-hub-hermes-tool-registry-preview-family-title">
+                    {family.title}
+                  </h6>
+                  <span className="aixia-tools-hub-hermes-tool-registry-preview-family-count">
+                    {tools.length} tool{tools.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <p className="aixia-tools-hub-hermes-tool-registry-preview-family-hint">
+                  {family.hint}
+                </p>
+                <div className="aixia-tools-hub-hermes-tool-registry-preview-family-tools">
+                  {tools.map((tool) => (
+                    <HermesRelevantToolPreviewRow key={tool.id} tool={tool} />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
         </div>
-      </div>
+      </AixiaProgressiveDisclosureGroup>
     </div>
   );
 }
@@ -816,11 +828,24 @@ function HermesContextAssemblerPreviewPanel() {
 
       <HermesToolRegistryContextPreview registryPreview={preview?.toolRegistryPreview ?? null} />
 
-      <div className="aixia-tools-hub-hermes-context-assembler-sections">
-        {(preview?.sections ?? []).map((section) => (
-          <HermesContextAssemblerSectionCard key={section.sectionId} section={section} />
-        ))}
-      </div>
+      <AixiaProgressiveDisclosureGroup
+        title="Assembler section payloads"
+        description="Raw assembled context sections — preview only, not sent to runtime."
+        defaultOpen={false}
+        density="compact"
+        className="aixia-progressive-disclosure--secondary"
+        icon={<FileText className="h-4 w-4" />}
+        badge={
+          <AixiaBadge tone="neutral">{preview?.sections.length ?? 0} sections</AixiaBadge>
+        }
+        testId="hermes-assembler-section-payloads"
+      >
+        <div className="aixia-tools-hub-hermes-context-assembler-sections">
+          {(preview?.sections ?? []).map((section) => (
+            <HermesContextAssemblerSectionCard key={section.sectionId} section={section} />
+          ))}
+        </div>
+      </AixiaProgressiveDisclosureGroup>
     </div>
   );
 }
@@ -856,6 +881,9 @@ function HermesContextAssemblerSectionCard({
 function HermesRuntimeHealthPanel() {
   const [health, setHealth] = useState<AgentOpsHermesRuntimeHealth | null>(null);
   const [loading, setLoading] = useState(false);
+  const [probeLoading, setProbeLoading] = useState(false);
+  const [probeResult, setProbeResult] = useState<string | null>(null);
+  const [probeError, setProbeError] = useState<string | null>(null);
 
   const refreshHealth = useCallback(async () => {
     setLoading(true);
@@ -867,11 +895,31 @@ function HermesRuntimeHealthPanel() {
     }
   }, []);
 
+  const runAdvisoryProbe = useCallback(async () => {
+    setProbeLoading(true);
+    setProbeResult(null);
+    setProbeError(null);
+    try {
+      const probe = await probeAgentOpsHermesAdvisoryRuntime();
+      if (probe.ok && probe.response) {
+        setProbeResult(probe.response);
+      } else {
+        setProbeError(
+          probe.error ??
+            "Advisory probe failed. If HERMES_INTERNAL_SECRET is set on server, use curl with x-agentops-hermes-secret.",
+        );
+      }
+    } finally {
+      setProbeLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void refreshHealth();
   }, [refreshHealth]);
 
   const transportTone = hermesHealthTone(health);
+  const advisoryReachable = Boolean(health?.transportReachable && health.mode === "advisory_transport");
   const lastChecked = health?.checkedAt
     ? new Date(health.checkedAt).toLocaleString()
     : "Not checked yet";
@@ -882,23 +930,44 @@ function HermesRuntimeHealthPanel() {
       data-testid="hermes-runtime-health"
     >
       <div className="aixia-tools-hub-hermes-runtime-health-actions">
-        <AixiaInfoBlock tone="cyan" icon={Server} title="Read-only advisory transport">
-          Transport health is not coordinator activation. Hermes coordinator remains not active.
-          Memory writes and source-of-truth writes are blocked.
+        <AixiaInfoBlock tone="cyan" icon={Server} title="Advisory runtime only">
+          Advisory runtime transport is not full coordinator activation. Coordinator remains not
+          active. Memory, SOT, registry, and AgentMemory writes are blocked.
         </AixiaInfoBlock>
-        <AixiaButton
-          variant="secondary"
-          onClick={() => void refreshHealth()}
-          disabled={loading}
-          className="aixia-tools-hub-hermes-runtime-health-refresh"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
-          Refresh health
-        </AixiaButton>
+        <div className="aixia-tools-hub-hermes-runtime-health-action-row">
+          <AixiaButton
+            variant="secondary"
+            onClick={() => void refreshHealth()}
+            disabled={loading}
+            className="aixia-tools-hub-hermes-runtime-health-refresh"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} aria-hidden />
+            Refresh health
+          </AixiaButton>
+          <AixiaButton
+            variant="secondary"
+            onClick={() => void runAdvisoryProbe()}
+            disabled={probeLoading || !advisoryReachable}
+            className="aixia-tools-hub-hermes-runtime-health-probe"
+            data-testid="hermes-advisory-runtime-probe"
+          >
+            <Sparkles className={`h-4 w-4 ${probeLoading ? "animate-pulse" : ""}`} aria-hidden />
+            Test advisory response
+          </AixiaButton>
+        </div>
       </div>
 
       {health?.message ? (
         <p className="aixia-tools-hub-hermes-runtime-health-message">{health.message}</p>
+      ) : null}
+
+      {probeResult ? (
+        <p className="aixia-tools-hub-hermes-runtime-health-probe-result" data-testid="hermes-advisory-probe-result">
+          Advisory probe: {probeResult}
+        </p>
+      ) : null}
+      {probeError ? (
+        <p className="aixia-tools-hub-hermes-runtime-health-probe-error">{probeError}</p>
       ) : null}
 
       <dl className="aixia-tools-hub-hermes-status-rows">
@@ -906,6 +975,14 @@ function HermesRuntimeHealthPanel() {
           <dt>Coordinator status</dt>
           <dd>
             <AixiaBadge tone="rose">Not active</AixiaBadge>
+          </dd>
+        </div>
+        <div className="aixia-tools-hub-hermes-status-row">
+          <dt>Advisory runtime</dt>
+          <dd>
+            <AixiaBadge tone={advisoryReachable ? "emerald" : "rose"}>
+              {advisoryReachable ? "Reachable" : "Not reachable"}
+            </AixiaBadge>
           </dd>
         </div>
         <div className="aixia-tools-hub-hermes-status-row">

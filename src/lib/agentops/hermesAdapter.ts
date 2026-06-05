@@ -121,6 +121,63 @@ function unavailableHermesRuntimeHealth(message: string, loadError?: string): Ag
   };
 }
 
+const HERMES_ADVISORY_ACTIVATION_TEST_PROMPT =
+  "For activation test only, reply with: Hermes advisory runtime reachable. Do not mention memory updates.";
+
+export interface AgentOpsHermesAdvisoryActivationProbe {
+  ok: boolean;
+  checkedAt: string;
+  response?: string;
+  error?: string;
+  source?: string;
+  httpStatus?: number;
+}
+
+/**
+ * Staging advisory activation probe — POST /api/agentops/hermes (no memory/SOT writes).
+ * Fails with 401 when HERMES_INTERNAL_SECRET is set and header is not supplied.
+ */
+export async function probeAgentOpsHermesAdvisoryRuntime(): Promise<AgentOpsHermesAdvisoryActivationProbe> {
+  const checkedAt = new Date().toISOString();
+  try {
+    const response = await fetch("/api/agentops/hermes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "issue_clarification",
+        question: HERMES_ADVISORY_ACTIVATION_TEST_PROMPT,
+      }),
+    });
+
+    const payload = (await response.json()) as {
+      response?: string;
+      error?: string;
+      source?: string;
+    };
+
+    if (response.ok && payload.source === "hermes_runtime" && payload.response?.trim()) {
+      return {
+        ok: true,
+        checkedAt,
+        response: payload.response.trim(),
+        source: payload.source,
+        httpStatus: response.status,
+      };
+    }
+
+    return {
+      ok: false,
+      checkedAt,
+      error: payload.error ?? `Hermes advisory probe failed (HTTP ${response.status}).`,
+      source: payload.source,
+      httpStatus: response.status,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, checkedAt, error: message };
+  }
+}
+
 /**
  * Read-only Hermes runtime health (A1) — probes safe GET /api/agentops/hermes.
  * Transport truth only; coordinator is never active.

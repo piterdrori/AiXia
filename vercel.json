@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "api/**/*.ts": {
+      "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
+    }
+  },
   "rewrites": [
     {
       "source": "/((?!_next|api|_vercel|_logs|.*\\..*).*)",

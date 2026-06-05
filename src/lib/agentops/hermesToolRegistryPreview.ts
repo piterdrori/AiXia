@@ -7,7 +7,7 @@ import type {
   AgentOpsHermesToolRegistryCategoryPreview,
   AgentOpsHermesToolRegistryPreview,
   AgentOpsHermesToolRegistryRelevantTool,
-} from "./types";
+} from "./types.js";
 import {
   AGENTOPS_TOOL_REGISTRY,
   formatToolRegistryStatus,
@@ -17,7 +17,7 @@ import {
   summarizeChildStatuses,
   type ToolRegistryEntry,
   type ToolRegistryStatus,
-} from "./tools/toolRegistry";
+} from "./tools/toolRegistry.js";
 
 const TOOL_REGISTRY_SOURCE = "src/lib/agentops/tools/toolRegistry.ts";
 

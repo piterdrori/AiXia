@@ -3,7 +3,9 @@
  * Mirrors src/lib/agentops/hermesContextAssembler.ts without @/ imports or owner gates.
  */
 
-import syntheticBrowserUsers from "../../qa-agent/browser-qa/synthetic-browser-users.json" with { type: "json" };
+import fs from "node:fs";
+import path from "node:path";
+
 import { buildAgentOpsHermesToolRegistryPreview } from "../../src/lib/agentops/hermesToolRegistryPreview.js";
 import {
   formatToolRegistryStatus,
@@ -24,6 +26,24 @@ const DEFAULT_GLOBAL_LIMIT = 10;
 const MAX_AGENTS = 12;
 const MAX_SNIPPETS_PER_AGENT = 2;
 const SNIPPET_TEXT_MAX = 140;
+type SyntheticBrowserUserRegistry = {
+  users?: Array<{ qaUserId?: string; displayName?: string }>;
+};
+
+function readSyntheticBrowserUsers(): SyntheticBrowserUserRegistry {
+  try {
+    const filePath = path.join(
+      process.cwd(),
+      "qa-agent",
+      "browser-qa",
+      "synthetic-browser-users.json",
+    );
+    return JSON.parse(fs.readFileSync(filePath, "utf8")) as SyntheticBrowserUserRegistry;
+  } catch {
+    return { users: [] };
+  }
+}
+
 const HERMES_PREVIEW_INCLUDED_STATUSES = new Set([
   "approved_memory",
   "advisory_only",
@@ -184,8 +204,7 @@ async function loadPerAgentMemorySection(
   loadErrors: string[],
 ): Promise<{ section: HermesReadOnlyContextSection; activeRowCount: number }> {
   const supabase = getAgentOpsServerSupabase();
-  const users = (syntheticBrowserUsers as { users?: Array<{ qaUserId?: string; displayName?: string }> })
-    .users ?? [];
+  const users = readSyntheticBrowserUsers().users ?? [];
 
   const agents = users
     .map((user) => ({
@@ -409,6 +428,7 @@ export async function assembleHermesReadOnlyContextForRuntime(
     loadPerAgentMemorySection(perAgentSnippetLimit, loadErrors),
   ]);
 
+  const registryPreview = buildAgentOpsHermesToolRegistryPreview();
   const toolSection = buildToolRegistrySection();
   const issueSection = buildIssueContextSection(options?.issueCode);
   const safetySection = buildSafetySection();
@@ -427,7 +447,7 @@ export async function assembleHermesReadOnlyContextForRuntime(
     stats: {
       globalMemoryCount: globalResult.includedCount,
       perAgentMemoryCount: perAgentResult.activeRowCount,
-      toolRegistryCount: buildAgentOpsHermesToolRegistryPreview().summary.totalRegistryNodes,
+      toolRegistryCount: registryPreview.summary.totalRegistryNodes,
       issueContextIncluded: Boolean(options?.issueCode?.trim()),
     },
     loadErrors,

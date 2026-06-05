@@ -11385,11 +11385,54 @@ button.aixia-action-card:disabled {
   }
 }
 
-/* Issue Workspace — Hermes Advisory Assist (Workflow 1) */
+/* Issue Workspace — Hermes Advisory Assist (Workflow 1 + 2) */
 .aixia-issue-hermes-advisory {
   display: grid;
   gap: 0.75rem;
   min-width: 0;
+}
+
+.aixia-issue-hermes-advisory-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.aixia-issue-hermes-advisory-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+  color: rgba(203, 213, 225, 0.92);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.aixia-issue-hermes-advisory-tab:hover:not(:disabled) {
+  border-color: rgba(34, 211, 238, 0.35);
+  color: rgba(241, 245, 249, 0.98);
+}
+
+.aixia-issue-hermes-advisory-tab.is-active {
+  border-color: rgba(34, 211, 238, 0.55);
+  background: rgba(8, 47, 73, 0.45);
+  color: rgba(224, 242, 254, 0.98);
+}
+
+.aixia-issue-hermes-advisory-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.aixia-issue-hermes-advisory-copy-feedback {
+  margin: 0;
+  font-size: 0.74rem;
+  color: rgba(110, 231, 183, 0.95);
 }
 
 .aixia-issue-hermes-advisory-lead {

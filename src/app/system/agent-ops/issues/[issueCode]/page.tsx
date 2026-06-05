@@ -1001,7 +1001,7 @@ export default function AgentOpsIssueWorkspacePage() {
                 <AixiaSection
                   surface="command"
                   title="Hermes Advisory Assist"
-                  description="Ask Hermes for a read-only advisory review of this issue. No writes, no verification, no tools."
+                  description="Ask Hermes for issue advisory or review the Cursor prompt. No writes, no verification, no tools."
                   icon={Sparkles}
                 >
                   <IssueHermesAdvisoryAssist

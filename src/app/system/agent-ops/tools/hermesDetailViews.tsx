@@ -86,6 +86,7 @@ import {
   type ToolRegistryEntry,
 } from "@/lib/agentops/tools/toolRegistry";
 
+import { PER_AGENT_MEMORY_HUB_PATH } from "./perAgentMemoryHubViews";
 import { ToolsHubShell } from "./toolsHubViews";
 
 const MEMORY_COORDINATION_GROUP_ID = "memory-coordination-tools";
@@ -130,8 +131,9 @@ const HERMES_SUMMARY_CARDS = [
   },
   {
     label: "Remaining layers",
-    value: "3 not started",
-    description: "Per-Agent Memory, User Usage Learning, and MCP / Avatar Task Agent are not built yet.",
+    value: "Per-Agent hub started · 2 not started",
+    description:
+      "Per-Agent Memory read-only hub v1 started (not active). User Usage Learning and MCP / Avatar Task Agent are not built yet.",
     tone: "violet" as const,
   },
 ];
@@ -156,12 +158,14 @@ const HERMES_LAYERS = [
     title: "Per-Agent Memory Support",
     icon: Users,
     tone: "cyan" as const,
-    status: "Not started",
-    purpose: "12-agent Hermes memory support has not been built yet.",
+    status: "Read-only hub started",
+    purpose:
+      "Read-only hub maps 12 agents, Supabase memory rows, manifest permissions, and missing Layer 2 infrastructure. Hermes per-agent coordination is not active.",
     missing:
-      "No full per-agent Hermes layer. AgentMemory integration not connected. Per-agent support is future work.",
-    actionLabel: "Planned",
-    disabled: true,
+      "No Hermes coordinator read path. AgentMemory not connected. Candidate workflow, performance memory, and relationship memory not built.",
+    detailPath: PER_AGENT_MEMORY_HUB_PATH,
+    actionLabel: "Open hub",
+    disabled: false,
   },
   {
     id: "usage-learning",
@@ -212,10 +216,12 @@ const HERMES_BUILD_ROADMAP: HermesRoadmapItem[] = [
   {
     order: 2,
     title: "Per-Agent Memory Support",
-    status: "Not started",
-    statusTone: "neutral",
-    purpose: "Hermes-backed memory for all 12 AgentOps agents with role, tools, findings, and owner feedback.",
-    nextAction: "Define and audit per-agent memory scope; build layer after Global Website Memory is complete.",
+    status: "Read-only hub started",
+    statusTone: "amber",
+    purpose:
+      "Read-only hub v1 maps 12 agents, Supabase agentops_agent_memory, manifests, and advisory file mirrors. Full Hermes coordination not active.",
+    nextAction:
+      "Review read-only hub; build candidate workflow, performance/relationship memory, and Hermes read path after Global Website Memory freeze.",
   },
   {
     order: 3,
@@ -489,8 +495,7 @@ const HERMES_GLOBAL_MEMORY_SOURCES: HermesMemorySourceCard[] = [
 
 const HERMES_NEXT_STEPS = [
   "Finish Global Website Memory page and functionality review (partial foundation — not coordinator-ready).",
-  "Define and audit Per-Agent Memory Support scope (12 agents, AgentMemory, Supabase boundaries).",
-  "Build Per-Agent Memory Support layer.",
+  "Review Per-Agent Memory read-only hub v1; build candidate workflow and Hermes read path next.",
   "Define and audit User Usage Learning (Piter-first, privacy, analytics read path).",
   "Build User Usage Learning layer.",
   "Define MCP / Avatar Task Agent architecture (permission-bound execution — future only).",
@@ -2461,7 +2466,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           key: "layer",
           label: "Built layer",
           value: "Global memory (partial)",
-          detail: "3 Hermes layers not started",
+          detail: "Per-Agent read-only hub started · 2 layers not started",
           tone: "amber",
         },
         {
@@ -2500,7 +2505,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
         <AixiaSection
           surface="command"
           title="Status summary"
-          description="Honest build posture — one partial layer, three not started, coordinator not active."
+          description="Honest build posture — one partial layer, one read-only hub started, two not started, coordinator not active."
           icon={Brain}
           bodyClassName="aixia-dash-panel-body"
         >

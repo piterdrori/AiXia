@@ -10815,6 +10815,138 @@ button.aixia-action-card:disabled {
   color: rgba(148, 163, 184, 0.95);
 }
 
+.aixia-tools-hub-per-agent-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.aixia-tools-hub-per-agent-missing-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* Per-Agent Memory Hub — scrollable agent card grid (4 visible on desktop) */
+.aixia-tools-hub-per-agent-cards-section.aixia-dash-panel,
+.aixia-tools-hub-per-agent-cards-section.aixia-card-shell {
+  flex: 0 0 auto;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.aixia-tools-hub-per-agent-cards-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0.35rem;
+}
+
+.aixia-tools-hub-per-agent-cards-scroll {
+  min-width: 0;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-right: 0.2rem;
+}
+
+.aixia-tools-hub-per-agent-cards-grid {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.aixia-tools-hub-per-agent-cards-grid .aixia-tools-hub-hermes-memory-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  height: auto;
+  min-height: 0;
+  padding: 0.72rem 0.82rem;
+}
+
+.aixia-tools-hub-per-agent-cards-grid .aixia-tools-hub-hermes-memory-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.32rem 0.5rem;
+  flex: 1 1 auto;
+}
+
+.aixia-tools-hub-per-agent-cards-grid .aixia-tools-hub-hermes-memory-meta dt {
+  font-size: 0.64rem;
+}
+
+.aixia-tools-hub-per-agent-cards-grid .aixia-tools-hub-hermes-memory-meta dd {
+  font-size: 0.73rem;
+  line-height: 1.32;
+}
+
+.aixia-tools-hub-per-agent-card-clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.aixia-tools-hub-per-agent-card-clamp-3 {
+  -webkit-line-clamp: 3;
+}
+
+.aixia-tools-hub-per-agent-card-subline {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
+  line-height: 1.3;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.aixia-tools-hub-per-agent-cards-grid .aixia-tools-hub-per-agent-card-actions {
+  margin-top: auto;
+  flex-shrink: 0;
+  padding-top: 0.45rem;
+}
+
+@media (min-width: 640px) {
+  .aixia-tools-hub-per-agent-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .aixia-tools-hub-per-agent-cards-scroll {
+    max-height: min(720px, calc(100vh - 11rem));
+    overflow-y: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  .aixia-tools-hub-per-agent-cards-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .aixia-tools-hub-per-agent-cards-scroll {
+    max-height: min(680px, calc(100vh - 12rem));
+  }
+}
+
+@media (max-width: 639px) {
+  .aixia-tools-hub-per-agent-cards-body {
+    overflow: visible;
+  }
+
+  .aixia-tools-hub-per-agent-cards-scroll {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .aixia-tools-hub-per-agent-cards-grid .aixia-tools-hub-hermes-memory-meta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (min-width: 720px) {
   .aixia-tools-hub-hermes-memory-meta {
     grid-template-columns: repeat(2, minmax(0, 1fr));

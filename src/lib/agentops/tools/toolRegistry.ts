@@ -288,7 +288,7 @@ const TOOL_REGISTRY_ENTRIES: Record<string, ToolRegistryEntry> = {
     sourceType: "internal-app",
     status: "partial",
     installedStatus: "AgentOps agents UI and memory export scripts",
-    configuredStatus: "Export dry-run only; live sync off",
+    configuredStatus: "Read-only hub v1; export dry-run only; live sync off; AgentMemory not connected",
     usedBy: ["AgentOps agents workspace"],
     dataLocation: "Supabase + qa-agent/agent-memory/",
     relatedToolIds: ["agentmemory"],

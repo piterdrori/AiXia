@@ -51,6 +51,7 @@ import {
   type AgentOpsHermesContextAssemblerSection,
   type AgentOpsHermesContextAssemblerSectionStatus,
   type AgentOpsHermesToolRegistryPreview,
+  type AgentOpsHermesToolRegistryRelevantTool,
   type AgentOpsHermesRuntimeHealth,
   type AgentOpsHermesEnvGateStatus,
   buildAgentOpsGlobalMemoryPartialSnapshot,
@@ -397,14 +398,170 @@ function formatContextSectionStatus(status: AgentOpsHermesContextAssemblerSectio
   }
 }
 
+type HermesRelevantToolFamilyId =
+  | "memory"
+  | "code-context"
+  | "evidence"
+  | "build"
+  | "runtime";
+
+const HERMES_RELEVANT_TOOL_FAMILIES: {
+  id: HermesRelevantToolFamilyId;
+  title: string;
+  hint: string;
+}[] = [
+  {
+    id: "memory",
+    title: "Memory & Coordination",
+    hint: "Metadata only · preview only · coordinator not active",
+  },
+  {
+    id: "code-context",
+    title: "Code / Context",
+    hint: "Read-only context tools · no execution from Hermes",
+  },
+  {
+    id: "evidence",
+    title: "Evidence / QA",
+    hint: "QA evidence metadata · not live tool execution",
+  },
+  {
+    id: "build",
+    title: "Build / Development",
+    hint: "Dev toolchain display · no MCP execution",
+  },
+  {
+    id: "runtime",
+    title: "Runtime / Platform",
+    hint: "Platform awareness · not connected for coordinator use",
+  },
+];
+
+const HERMES_RELEVANT_TOOL_FAMILY_BY_ID: Record<string, HermesRelevantToolFamilyId> = {
+  "mct-hermes": "memory",
+  "mct-agentmemory": "memory",
+  "global-memory": "memory",
+  "per-agent-memory": "memory",
+  "memory-coordination-tools": "memory",
+  "gm-tool-registry": "memory",
+  "ccu-codegraph": "code-context",
+  "ccu-understand-anything": "code-context",
+  "ccu-claude-context": "code-context",
+  "build-codegraph-mcp": "code-context",
+  "et-browser-qa": "evidence",
+  "et-playwright": "evidence",
+  "et-reports": "evidence",
+  "et-guardrails": "evidence",
+  "et-verification-results": "evidence",
+  "qa-browser-runner": "evidence",
+  "qa-playwright-runner": "evidence",
+  "qa-verification-runner": "evidence",
+  "build-cursor": "build",
+  "build-github-tools": "build",
+  "build-supabase-mcp": "build",
+  "build-vercel-mcp": "build",
+  "build-local-scripts": "build",
+  "runtime-supabase": "runtime",
+  "runtime-vercel": "runtime",
+  "runtime-auth": "runtime",
+  "runtime-database": "runtime",
+  "runtime-storage": "runtime",
+  "runtime-realtime": "runtime",
+  "runtime-edge-functions": "runtime",
+  "runtime-background-workers": "runtime",
+};
+
+function truncateHermesPreviewLine(text: string, max = 88): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= max) return trimmed;
+  return `${trimmed.slice(0, max - 1)}…`;
+}
+
+function groupHermesRelevantToolsByFamily(
+  tools: AgentOpsHermesToolRegistryRelevantTool[],
+): { family: (typeof HERMES_RELEVANT_TOOL_FAMILIES)[number]; tools: AgentOpsHermesToolRegistryRelevantTool[] }[] {
+  const buckets = new Map<HermesRelevantToolFamilyId, AgentOpsHermesToolRegistryRelevantTool[]>();
+
+  for (const tool of tools) {
+    const familyId = HERMES_RELEVANT_TOOL_FAMILY_BY_ID[tool.id] ?? "runtime";
+    const list = buckets.get(familyId) ?? [];
+    list.push(tool);
+    buckets.set(familyId, list);
+  }
+
+  return HERMES_RELEVANT_TOOL_FAMILIES.filter((family) => (buckets.get(family.id)?.length ?? 0) > 0).map(
+    (family) => ({
+      family,
+      tools: buckets.get(family.id) ?? [],
+    }),
+  );
+}
+
+function HermesRelevantToolPreviewRow({ tool }: { tool: AgentOpsHermesToolRegistryRelevantTool }) {
+  const pathLabel = [tool.groupTitle, tool.categoryTitle].filter(Boolean).join(" · ");
+
+  return (
+    <article className="aixia-tools-hub-hermes-tool-registry-preview-tool-row">
+      <div className="aixia-tools-hub-hermes-tool-registry-preview-tool-row-top">
+        <div className="aixia-tools-hub-hermes-tool-registry-preview-tool-row-title-wrap">
+          <span className="aixia-tools-hub-hermes-tool-registry-preview-tool-row-name">
+            {tool.title}
+          </span>
+          {pathLabel ? (
+            <span className="aixia-tools-hub-hermes-tool-registry-preview-tool-row-path">
+              {pathLabel}
+            </span>
+          ) : null}
+        </div>
+        <AixiaBadge tone="neutral">{tool.statusLabel}</AixiaBadge>
+      </div>
+      <div className="aixia-tools-hub-hermes-tool-registry-preview-tool-row-chips">
+        <span
+          className="aixia-tools-hub-hermes-tool-registry-preview-chip"
+          title={tool.installedStatus}
+        >
+          Install · {truncateHermesPreviewLine(tool.installedStatus, 52)}
+        </span>
+        <span
+          className="aixia-tools-hub-hermes-tool-registry-preview-chip"
+          title={tool.configuredStatus}
+        >
+          Config · {truncateHermesPreviewLine(tool.configuredStatus, 52)}
+        </span>
+        <span
+          className="aixia-tools-hub-hermes-tool-registry-preview-chip"
+          title={tool.currentRuntime}
+        >
+          Runtime · {truncateHermesPreviewLine(tool.currentRuntime, 52)}
+        </span>
+      </div>
+      <div className="aixia-tools-hub-hermes-tool-registry-preview-tool-row-use">
+        <p>
+          <span className="aixia-tools-hub-hermes-tool-registry-preview-use-label">Today</span>{" "}
+          {tool.hermesUseToday}
+        </p>
+        <p>
+          <span className="aixia-tools-hub-hermes-tool-registry-preview-use-label">Future</span>{" "}
+          {tool.futureHermesUse}
+        </p>
+      </div>
+    </article>
+  );
+}
+
 function HermesToolRegistryContextPreview({
   registryPreview,
 }: {
   registryPreview: AgentOpsHermesToolRegistryPreview | null;
 }) {
+  const relevantToolFamilies = useMemo(
+    () => groupHermesRelevantToolsByFamily(registryPreview?.relevantTools ?? []),
+    [registryPreview?.relevantTools],
+  );
+
   if (!registryPreview) return null;
 
-  const { summary, categories, relevantTools, safetyBanner } = registryPreview;
+  const { summary, categories, safetyBanner } = registryPreview;
 
   const summaryCards = [
     {
@@ -508,45 +665,35 @@ function HermesToolRegistryContextPreview({
         <p className="aixia-tools-hub-hermes-tool-registry-preview-subheading">
           Hermes-relevant tools (metadata only)
         </p>
-        <div className="aixia-tools-hub-hermes-tool-registry-preview-relevant-list">
-          {relevantTools.map((tool) => (
-            <article
-              key={tool.id}
-              className="aixia-tools-hub-hermes-tool-registry-preview-relevant-row"
+        <p className="aixia-tools-hub-hermes-tool-registry-preview-relevant-lead">
+          Preview only · no tool execution · no registry writes · coordinator not active
+        </p>
+        <div
+          className="aixia-tools-hub-hermes-tool-registry-preview-relevant-panel"
+          data-testid="hermes-tool-registry-relevant-panel"
+        >
+          {relevantToolFamilies.map(({ family, tools }) => (
+            <section
+              key={family.id}
+              className="aixia-tools-hub-hermes-tool-registry-preview-family-group"
             >
-              <div className="aixia-tools-hub-hermes-tool-registry-preview-relevant-head">
-                <span className="aixia-tools-hub-hermes-tool-registry-preview-relevant-name">
-                  {tool.title}
+              <div className="aixia-tools-hub-hermes-tool-registry-preview-family-head">
+                <h6 className="aixia-tools-hub-hermes-tool-registry-preview-family-title">
+                  {family.title}
+                </h6>
+                <span className="aixia-tools-hub-hermes-tool-registry-preview-family-count">
+                  {tools.length} tool{tools.length === 1 ? "" : "s"}
                 </span>
-                <AixiaBadge tone="neutral">{tool.statusLabel}</AixiaBadge>
               </div>
-              <p className="aixia-tools-hub-hermes-tool-registry-preview-relevant-path">
-                {tool.categoryTitle}
-                {tool.groupTitle ? ` · ${tool.groupTitle}` : ""}
+              <p className="aixia-tools-hub-hermes-tool-registry-preview-family-hint">
+                {family.hint}
               </p>
-              <dl className="aixia-tools-hub-hermes-tool-registry-preview-relevant-meta">
-                <div className="aixia-tools-hub-hermes-status-row">
-                  <dt>Installed</dt>
-                  <dd>{tool.installedStatus}</dd>
-                </div>
-                <div className="aixia-tools-hub-hermes-status-row">
-                  <dt>Configured</dt>
-                  <dd>{tool.configuredStatus}</dd>
-                </div>
-                <div className="aixia-tools-hub-hermes-status-row">
-                  <dt>Runtime</dt>
-                  <dd>{tool.currentRuntime}</dd>
-                </div>
-                <div className="aixia-tools-hub-hermes-status-row">
-                  <dt>Hermes today</dt>
-                  <dd>{tool.hermesUseToday}</dd>
-                </div>
-                <div className="aixia-tools-hub-hermes-status-row">
-                  <dt>Future use</dt>
-                  <dd>{tool.futureHermesUse}</dd>
-                </div>
-              </dl>
-            </article>
+              <div className="aixia-tools-hub-hermes-tool-registry-preview-family-tools">
+                {tools.map((tool) => (
+                  <HermesRelevantToolPreviewRow key={tool.id} tool={tool} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       </div>

@@ -1,3 +1,3 @@
-import { handleAgentOpsLlmRequest } from "./llmHandler";
+import { handleAgentOpsLlmRequest } from "./llmHandler.js";
 
 export default handleAgentOpsLlmRequest;

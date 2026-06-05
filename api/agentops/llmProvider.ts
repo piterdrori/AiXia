@@ -2,13 +2,13 @@
  * AgentOps LLM provider switch — Ollama (local) or Doubao Ark (staging cloud).
  */
 
-import { callDoubaoArkResponses, getDoubaoArkConfig, isDoubaoArkConfigured } from "./doubaoArkProvider";
+import { callDoubaoArkResponses, getDoubaoArkConfig, isDoubaoArkConfigured } from "./doubaoArkProvider.js";
 import {
   callOllamaChat,
   getAgentOpsOllamaConfig,
   probeOllamaReachability,
   readServerEnv,
-} from "./ollamaProxy";
+} from "./ollamaProxy.js";
 
 export type AgentOpsLlmProviderId = "ollama" | "doubao_ark";
 

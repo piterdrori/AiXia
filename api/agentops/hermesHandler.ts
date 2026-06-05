@@ -11,7 +11,7 @@ import {
   probeAgentOpsLlmTransport,
   readAgentOpsLlmProvider,
   type AgentOpsLlmProviderId,
-} from "./llmProvider";
+} from "./llmProvider.js";
 import {
   isAgentOpsLlmRuntimeEnabled,
   isAgentOpsProductionBlocked,
@@ -22,7 +22,7 @@ import {
   readOptionalInternalSecret,
   readServerEnv,
   type AgentOpsEnvGateStatus,
-} from "./ollamaProxy";
+} from "./ollamaProxy.js";
 
 export type AgentOpsHermesRuntimeHealthMode = "advisory_transport" | "blocked" | "unavailable";
 

@@ -2,7 +2,7 @@
  * Volcano Ark (Doubao) Responses API — server-side only. Never expose ARK_API_KEY to clients.
  */
 
-import { readServerEnv } from "./ollamaProxy";
+import { readServerEnv } from "./ollamaProxy.js";
 
 export type DoubaoArkMessageRole = "system" | "user" | "assistant";
 

@@ -5,21 +5,21 @@
 import {
   AGENTOPS_OLLAMA_DEFAULT_MODEL,
   mergeAgentOpsOllamaModelOptions,
-} from "./modelCatalog";
+} from "./modelCatalog.js";
 import {
   callAgentOpsLlmChat,
   formatAgentOpsLlmProviderLabel,
   getAgentOpsLlmProviderModel,
   isAgentOpsLlmProviderConfigured,
   readAgentOpsLlmProvider,
-} from "./llmProvider";
+} from "./llmProvider.js";
 import {
   getAgentOpsOllamaConfig,
   isAgentOpsLlmRuntimeEnabled,
   jsonResponse,
   listOllamaInstalledModels,
   readOptionalInternalSecret,
-} from "./ollamaProxy";
+} from "./ollamaProxy.js";
 
 export type AgentOpsLlmChatScope = "council" | "individual_agent" | "issue";
 

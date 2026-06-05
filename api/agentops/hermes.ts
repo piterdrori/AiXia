@@ -1,3 +1,3 @@
-import { handleAgentOpsHermesRequest } from "./hermesHandler";
+import { handleAgentOpsHermesRequest } from "./hermesHandler.js";
 
 export default handleAgentOpsHermesRequest;

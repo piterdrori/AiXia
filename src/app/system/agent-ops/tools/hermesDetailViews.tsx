@@ -114,10 +114,65 @@ function getHermesDetailPath(): string {
 
 const HERMES_STATUS_BADGES = [
   { label: "Advisory runtime active", tone: "emerald" as const },
+  { label: "Context active", tone: "cyan" as const },
+  { label: "Workflows 1–3 active", tone: "emerald" as const },
   { label: "Coordinator not active", tone: "rose" as const },
-  { label: "Read-only context active", tone: "cyan" as const },
   { label: "Writes blocked", tone: "violet" as const },
 ];
+
+const HERMES_MODULE_READINESS_CARDS = [
+  {
+    label: "Runtime",
+    value: "Active on staging",
+    description: "Doubao Ark advisory transport",
+    tone: "emerald" as const,
+  },
+  {
+    label: "Context",
+    value: "Active",
+    description: "Read-only AiXia context injection",
+    tone: "cyan" as const,
+  },
+  {
+    label: "Issue workflows",
+    value: "1–3 accepted",
+    description: "Advisory, prompt review, fix report review",
+    tone: "emerald" as const,
+  },
+  {
+    label: "Coordinator",
+    value: "Not active",
+    description: "No automation, writes, tools, or production",
+    tone: "rose" as const,
+  },
+] as const;
+
+const HERMES_STAGE_ROADMAP = {
+  completed: [
+    "A1 Runtime Health",
+    "A2 Context injection",
+    "Doubao Ark provider",
+    "Workflow 1 — Issue Advisory Assist",
+    "Workflow 2 — Cursor Prompt Reviewer",
+    "Workflow 3 — Fix Report / Verification Reviewer",
+  ],
+  inProgress: ["Stage B Recommendation Artifact Store final QA"],
+  notStarted: [
+    "Automation",
+    "Scheduler",
+    "AgentMemory",
+    "User Usage Learning",
+    "MCP / avatar",
+    "Production activation",
+    "Full coordinator",
+  ],
+} as const;
+
+const HERMES_NEXT_ACTIVATION_STEP =
+  "Next: finish Stage B save/refresh QA, then align readiness docs. After that, design controlled automation.";
+
+const HERMES_ADVISORY_SAFETY_LINE =
+  "Hermes is advisory-active only. Coordinator automation, memory writes, source-of-truth writes, tool execution, and production activation remain blocked.";
 
 const HERMES_LAYERS = [
   {
@@ -168,63 +223,10 @@ const HERMES_LAYERS = [
   },
 ];
 
-type HermesRoadmapItem = {
-  order: number;
-  title: string;
-  status: string;
-  statusTone: "amber" | "neutral" | "violet" | "rose";
-  purpose: string;
-  nextAction: string;
-};
-
-const HERMES_BUILD_ROADMAP: HermesRoadmapItem[] = [
-  {
-    order: 1,
-    title: "Global Website Memory",
-    status: "Partial foundation built",
-    statusTone: "amber",
-    purpose:
-      "Read index, scan controls, local scan runner, candidate review, approved metadata store, reader preview, Issue Chat preview injection.",
-    nextAction:
-      "Finish page/functionality review; confirm durable memory table path; defer full runtime reader until layer complete.",
-  },
-  {
-    order: 2,
-    title: "Per-Agent Memory Support",
-    status: "Read-only hub started",
-    statusTone: "amber",
-    purpose:
-      "Read-only hub v1 maps 12 agents, Supabase agentops_agent_memory, manifests, and advisory file mirrors. Full Hermes coordination not active.",
-    nextAction:
-      "Review read-only hub; build candidate workflow, performance/relationship memory, and Hermes read path after Global Website Memory freeze.",
-  },
-  {
-    order: 3,
-    title: "User Usage Learning",
-    status: "Not started",
-    statusTone: "neutral",
-    purpose: "Piter-first usage learning, workflow patterns, and friction signals with privacy controls.",
-    nextAction: "Define privacy/permission rules; connect analytics read path; build ingestion layer.",
-  },
-  {
-    order: 4,
-    title: "MCP / Avatar Task Agent Support",
-    status: "Not started",
-    statusTone: "neutral",
-    purpose: "Permission-bound natural-language task agents with confirmations and personalization.",
-    nextAction: "Define architecture only — no implementation until prior layers are approved.",
-  },
-  {
-    order: 5,
-    title: "Hermes activation / readiness",
-    status: "Blocked",
-    statusTone: "rose",
-    purpose:
-      "Staging activation and “Hermes ready” labeling only after required layers, safety gates, and browser QA pass.",
-    nextAction:
-      "Run readiness audit only after layers 1–4 are complete and owner-approved — never label active early.",
-  },
-];
+const HERMES_STAGE_ROADMAP_TOTAL =
+  HERMES_STAGE_ROADMAP.completed.length +
+  HERMES_STAGE_ROADMAP.inProgress.length +
+  HERMES_STAGE_ROADMAP.notStarted.length;
 
 type ConnectionRow = {
   system: string;
@@ -236,16 +238,16 @@ type ConnectionRow = {
 const HERMES_CONNECTIONS: ConnectionRow[] = [
   {
     system: "Issue Workspace",
-    status: "Transport / preview only",
+    status: "Workflows 1–3 active",
     detail:
-      "Issue Chat may use mock fallback or env-gated Ollama advisory proxy. Not coordinator recall.",
+      "Issue Hermes Advisory Assist: W1 advisory, W2 cursor prompt review, W3 fix report review accepted on staging. Stage B artifacts built — final save/refresh QA pending. Not coordinator recall.",
     connected: true,
   },
   {
-    system: "Local LLM / Ollama",
-    status: "Advisory transport only",
+    system: "Doubao Ark / advisory transport",
+    status: "Advisory active on staging",
     detail:
-      "/api/agentops/hermes and /api/agentops/llm are shared proxies — read-only advisory, not coordinator.",
+      "/api/agentops/hermes and /api/agentops/llm are shared proxies — read-only advisory via Doubao Ark, not coordinator.",
     connected: true,
   },
   {
@@ -1158,48 +1160,63 @@ function HermesAdvancedDetailsSection({ health }: { health: AgentOpsHermesRuntim
         </AixiaProgressiveDisclosureGroup>
 
         <AixiaProgressiveDisclosureGroup
-          title="Build roadmap"
-          description="Required work order before coordinator activation."
+          title="Roadmap / status"
+          description="Current Hermes module truth — advisory active, coordinator blocked."
           defaultOpen={false}
           density="compact"
           className="aixia-progressive-disclosure--secondary"
           icon={<MapPin className="h-4 w-4" />}
-          badge={<AixiaBadge tone="amber">{HERMES_BUILD_ROADMAP.length} layers</AixiaBadge>}
+          badge={<AixiaBadge tone="amber">{HERMES_STAGE_ROADMAP_TOTAL} items</AixiaBadge>}
           testId="hermes-build-roadmap"
         >
-          <ol className="aixia-tools-hub-hermes-roadmap-list">
-            {HERMES_BUILD_ROADMAP.map((item) => (
-              <li key={item.order} className="aixia-tools-hub-hermes-roadmap-item">
-                <div className="aixia-tools-hub-hermes-roadmap-head">
-                  <span className="aixia-tools-hub-hermes-roadmap-order">{item.order}</span>
-                  <span className="aixia-tools-hub-hermes-roadmap-title">{item.title}</span>
-                  <AixiaBadge tone={item.statusTone}>{item.status}</AixiaBadge>
-                </div>
-                <p className="aixia-tools-hub-hermes-roadmap-purpose">{item.purpose}</p>
-                <p className="aixia-tools-hub-hermes-roadmap-next">
-                  <span className="aixia-tools-hub-hermes-roadmap-next-label">Next action</span>
-                  {item.nextAction}
-                </p>
-              </li>
-            ))}
-          </ol>
+          <div className="aixia-tools-hub-hermes-stage-roadmap">
+            <div className="aixia-tools-hub-hermes-stage-roadmap-group">
+              <div className="aixia-tools-hub-hermes-stage-roadmap-head">
+                <span className="aixia-tools-hub-hermes-stage-roadmap-title">Completed</span>
+                <AixiaBadge tone="emerald">{HERMES_STAGE_ROADMAP.completed.length}</AixiaBadge>
+              </div>
+              <ul className="aixia-tools-hub-hermes-steps-list">
+                {HERMES_STAGE_ROADMAP.completed.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="aixia-tools-hub-hermes-stage-roadmap-group">
+              <div className="aixia-tools-hub-hermes-stage-roadmap-head">
+                <span className="aixia-tools-hub-hermes-stage-roadmap-title">In progress</span>
+                <AixiaBadge tone="amber">{HERMES_STAGE_ROADMAP.inProgress.length}</AixiaBadge>
+              </div>
+              <ul className="aixia-tools-hub-hermes-steps-list">
+                {HERMES_STAGE_ROADMAP.inProgress.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="aixia-tools-hub-hermes-stage-roadmap-group">
+              <div className="aixia-tools-hub-hermes-stage-roadmap-head">
+                <span className="aixia-tools-hub-hermes-stage-roadmap-title">Not started</span>
+                <AixiaBadge tone="neutral">{HERMES_STAGE_ROADMAP.notStarted.length}</AixiaBadge>
+              </div>
+              <ul className="aixia-tools-hub-hermes-steps-list">
+                {HERMES_STAGE_ROADMAP.notStarted.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </AixiaProgressiveDisclosureGroup>
 
         <AixiaProgressiveDisclosureGroup
-          title="Next steps"
-          description="Layer build order — activation is last, not first."
+          title="Next activation step"
+          description="Advisory foundation is complete — coordinator and automation remain blocked."
           defaultOpen={false}
           density="compact"
           className="aixia-progressive-disclosure--secondary"
           icon={<MessageSquare className="h-4 w-4" />}
-          badge={<AixiaBadge tone="amber">{HERMES_NEXT_STEPS.length} steps</AixiaBadge>}
+          badge={<AixiaBadge tone="amber">1 step</AixiaBadge>}
           testId="hermes-next-steps"
         >
-          <ol className="aixia-tools-hub-hermes-steps-list">
-            {HERMES_NEXT_STEPS.map((step) => (
-              <li key={step}>{step}</li>
-            ))}
-          </ol>
+          <p className="aixia-tools-hub-hermes-activation-next">{HERMES_NEXT_ACTIVATION_STEP}</p>
           <div className="aixia-tools-hub-hermes-doc-links">
             <AixiaInfoBlock tone="indigo" icon={Database} title="Reference artifacts">
               Adapter: <code>src/lib/agentops/hermesAdapter.ts</code> · Contracts:{" "}
@@ -1487,16 +1504,6 @@ const HERMES_GLOBAL_MEMORY_SOURCES: HermesMemorySourceCard[] = [
     notes: "Do not expose private user data or secrets.",
     icon: LineChart,
   },
-];
-
-const HERMES_NEXT_STEPS = [
-  "Finish Global Website Memory page and functionality review (partial foundation — not coordinator-ready).",
-  "Review Per-Agent Memory read-only hub v1; build candidate workflow and Hermes read path next.",
-  "Define and audit User Usage Learning (Piter-first, privacy, analytics read path).",
-  "Build User Usage Learning layer.",
-  "Define MCP / Avatar Task Agent architecture (permission-bound execution — future only).",
-  "Only after required layers are complete: Hermes readiness / activation audit, safety gates, and browser QA.",
-  "Never label Hermes active or memory-coordinator-ready until all of the above are owner-approved.",
 ];
 
 const HERMES_GLOBAL_MEMORY_SOURCE_TITLES = Object.fromEntries(
@@ -3433,15 +3440,12 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
       className="shrink-0 space-y-4"
       gradientTitle="AgentOps"
       title="Hermes"
-      subtitle="Advisory runtime is working with Doubao Ark and read-only AiXia context. Full coordinator activation is still blocked."
+      subtitle="Advisory runtime is active with Doubao Ark and read-only AiXia context. Full coordinator automation is still blocked."
       parentLabel={parentLabel}
       parentPath={parentPath}
       badges={HERMES_STATUS_BADGES}
     >
-      <p className="aixia-tools-hub-hermes-hero-note">
-        Next activation step: finish Global Website Memory and Per-Agent layers, then run
-        owner-approved readiness audit. Coordinator activation remains blocked.
-      </p>
+      <p className="aixia-tools-hub-hermes-hero-note">{HERMES_NEXT_ACTIVATION_STEP}</p>
     </AixiaHero>
   );
 
@@ -3460,22 +3464,29 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           key: "context",
           label: "Context",
           value: contextActive ? "Read-only active" : health ? "Unavailable" : "Checking…",
-          detail: "Optional read-only AiXia context injection",
+          detail: "Read-only AiXia context injection",
           tone: contextActive ? "cyan" : "amber",
+        },
+        {
+          key: "workflows",
+          label: "Workflows",
+          value: "1–3 active",
+          detail: "Issue Advisory, prompt review, fix report review",
+          tone: "emerald",
         },
         {
           key: "coordinator",
           label: "Coordinator",
           value: "Not active",
-          detail: "Memory coordinator not active",
+          detail: "No automation or memory coordinator",
           tone: "neutral",
         },
         {
-          key: "writes",
-          label: "Writes",
-          value: "Blocked",
-          detail: "No memory or source-of-truth writes",
-          tone: "violet",
+          key: "production",
+          label: "Production",
+          value: "Off",
+          detail: "Staging advisory only",
+          tone: "rose",
         },
       ]}
     />
@@ -3496,6 +3507,36 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
           <HermesControlPanel onHealthChange={setHealth} />
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-readiness-section"
+          title="Module readiness"
+          description="Advisory module status on staging — coordinator and automation remain blocked."
+          icon={CheckCircle2}
+          bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
+        >
+          <div
+            className="aixia-tools-hub-hermes-readiness-grid"
+            data-testid="hermes-module-readiness"
+          >
+            {HERMES_MODULE_READINESS_CARDS.map((card) => (
+              <AixiaNavigationStatBlock
+                key={card.label}
+                label={card.label}
+                value={card.value}
+                description={card.description}
+                tone={card.tone}
+              />
+            ))}
+          </div>
+          <p className="aixia-tools-hub-hermes-readiness-note">
+            Stage B recommendation artifacts are built and awaiting final save/refresh QA.
+          </p>
+          <p className="aixia-tools-hub-hermes-safety-line" data-testid="hermes-advisory-safety-line">
+            {HERMES_ADVISORY_SAFETY_LINE}
+          </p>
         </AixiaSection>
 
         <AixiaSection

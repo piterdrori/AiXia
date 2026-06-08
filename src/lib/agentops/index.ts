@@ -197,6 +197,15 @@ export type {
   AgentOpsHermesRecommendationArtifactRecord,
   AgentOpsHermesRecommendationArtifactInput,
   AgentOpsHermesRecommendationArtifactSaveResult,
+  AgentOpsHermesCoordinatorActivationPreference,
+  AgentOpsHermesCoordinatorAdvisoryQueue,
+  AgentOpsHermesCoordinatorAgentMemoryReadPreview,
+  AgentOpsHermesCoordinatorControlSnapshot,
+  AgentOpsHermesCoordinatorQueueItem,
+  AgentOpsHermesCoordinatorQueueItemStatus,
+  AgentOpsHermesCoordinatorSchedulerPlaceholder,
+  AgentOpsHermesCoordinatorToolExecutionGate,
+  AgentOpsHermesCoordinatorWorkflowStepId,
   AgentOpsCodeGraphDiscoveryMode,
   AgentOpsCodeGraphSuggestionSource,
   AgentOpsCodeGraphDiscoverySuggestionItem,
@@ -391,6 +400,16 @@ export {
   getAgentOpsHermesRecommendationArtifacts,
   recordAgentOpsHermesRecommendationArtifact,
 } from "./hermesRecommendationArtifactService";
+
+export {
+  getAgentOpsHermesCoordinatorActivationPreference,
+  recordAgentOpsHermesCoordinatorActivationPreference,
+  getAgentOpsHermesCoordinatorAdvisoryQueue,
+  getAgentOpsHermesCoordinatorSchedulerPlaceholder,
+  getAgentOpsHermesCoordinatorToolExecutionGates,
+  getAgentOpsHermesCoordinatorAgentMemoryReadPreview,
+  getAgentOpsHermesCoordinatorControlSnapshot,
+} from "./hermesCoordinatorService";
 export {
   buildAgentOpsHermesToolRegistryPreview,
   HERMES_TOOL_REGISTRY_RELEVANT_IDS,

@@ -44,8 +44,8 @@ const EXPECTED_AGENT_COUNT = 12;
 
 const HUB_BADGES = [
   { label: "Layer 2", tone: "cyan" as const },
-  { label: "Read-only", tone: "neutral" as const },
-  { label: "Hermes not active", tone: "rose" as const },
+  { label: "Read-only hub started", tone: "neutral" as const },
+  { label: "Per-agent coordination not active", tone: "rose" as const },
   { label: "AgentMemory not connected", tone: "amber" as const },
 ];
 
@@ -257,13 +257,13 @@ export function ToolsHubPerAgentMemoryHubPage() {
       subtitle="Read-only overview of the 12 AgentOps agents and their current memory status."
       parentLabel="Agent Brain & Memory"
       parentPath={categoryPath}
-      description="Per-Agent Memory Support is not active yet. This hub maps existing agent identity, Supabase memory rows, manifest permissions, and missing memory infrastructure before Hermes can coordinate agent-specific memory."
+      description="Read-only hub started. Per-agent memory coordination is not active yet. Hermes advisory runtime (Doubao Ark) is active separately on Hermes Control. This hub maps existing agent identity, Supabase memory rows, manifest permissions, and missing memory infrastructure before Hermes can coordinate agent-specific memory."
       badges={HUB_BADGES}
     >
       <AixiaSection
         surface="command"
         title="Summary"
-        description="Honest counts from existing Supabase reads — no Hermes runtime, no AgentMemory."
+        description="Honest counts from existing Supabase reads — read-only hub; per-agent coordination not active; AgentMemory not connected."
         icon={Brain}
         bodyClassName="aixia-dash-panel-body"
       >
@@ -310,7 +310,7 @@ export function ToolsHubPerAgentMemoryHubPage() {
             <AixiaNavigationStatBlock
               label="Hermes reads directly"
               value="No"
-              description="Chats load snippets through UI; Hermes coordinator read path not built."
+              description="Per-agent memory coordination not active. Chats load snippets through UI; coordinator read path not built."
               tone="rose"
             />
             <AixiaNavigationStatBlock
@@ -433,7 +433,7 @@ export function ToolsHubPerAgentMemoryHubPage() {
                     </div>
                     <div>
                       <dt>Hermes reads today</dt>
-                      <dd>No — chats load snippets through UI</dd>
+                      <dd>No — per-agent coordination not active; chats load snippets through UI</dd>
                     </div>
                     <div>
                       <dt>Chat reads snippets</dt>
@@ -512,7 +512,8 @@ export function ToolsHubPerAgentMemoryHubPage() {
       >
         <AixiaInfoBlock tone="gold" icon={Lock} title="Read-only hub / Layer 2 foundation">
           This page is read-only. It does not write agent memory, AgentMemory, source-of-truth
-          files, registry files, or Hermes runtime memory. Hermes is not active. AgentMemory is not
+          files, registry files, or Hermes runtime memory. Per-agent memory coordination is not
+          active. Hermes advisory runtime is active separately on Hermes Control. AgentMemory is not
           connected.
         </AixiaInfoBlock>
       </AixiaSection>

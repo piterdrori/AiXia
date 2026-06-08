@@ -799,7 +799,7 @@ export type AgentOpsHermesEnvGateStatus = "enabled" | "disabled" | "unknown";
 
 export type AgentOpsLlmProviderId = "ollama" | "doubao_ark";
 
-/** Normalized Hermes runtime health (A1) — transport truth, coordinator always inactive. */
+/** Normalized Hermes runtime health (A1) — transport truth; coordinator active only when owner-enabled on staging. */
 export interface AgentOpsHermesRuntimeHealth {
   status: "ok" | "blocked" | "unavailable" | "loading";
   ok: boolean;
@@ -811,7 +811,7 @@ export interface AgentOpsHermesRuntimeHealth {
   ownerApproved: AgentOpsHermesEnvGateStatus;
   llmRuntimeGate: AgentOpsHermesEnvGateStatus;
   clientTransportEnabled: boolean;
-  coordinatorActive: false;
+  coordinatorActive: boolean;
   transportReachable: boolean;
   hermesEndpointReachable: boolean;
   llmFallbackReachable: boolean;
@@ -896,7 +896,7 @@ export interface AgentOpsHermesToolRegistryPreview {
 export interface AgentOpsHermesContextAssemblerPreview {
   assembledAt: string;
   mode: "preview_only";
-  coordinatorActive: false;
+  coordinatorActive: boolean;
   writesBlocked: true;
   sourceOfTruthWritesBlocked: true;
   sections: AgentOpsHermesContextAssemblerSection[];
@@ -955,10 +955,86 @@ export type AgentOpsHermesRecommendationWorkflowSource =
 export type AgentOpsHermesRecommendationArtifactStatus = "saved_advisory";
 
 export interface AgentOpsHermesRecommendationArtifactSafetyMetadata {
-  coordinatorActive: false;
+  coordinatorActive: boolean;
   writesBlocked: true;
   statusMutation: false;
   toolExecution: false;
+}
+
+/** Stage C — owner-gated coordinator activation preference (metadata only, not AgentMemory). */
+export interface AgentOpsHermesCoordinatorActivationPreference {
+  coordinatorActive: boolean;
+  ownerApprovedAt: string | null;
+  stagingOnly: true;
+  writesBlocked: true;
+  advisoryOnly: true;
+  schedulerActive: false;
+  agentMemoryWritesBlocked: true;
+  toolExecutionBlocked: true;
+}
+
+export type AgentOpsHermesCoordinatorWorkflowStepId =
+  | "workflow_1"
+  | "workflow_2"
+  | "workflow_3"
+  | "fix_report";
+
+export type AgentOpsHermesCoordinatorQueueItemStatus =
+  | "queued_read_only"
+  | "completed_manual_save"
+  | "pending_manual_save"
+  | "awaiting_prior_step";
+
+export interface AgentOpsHermesCoordinatorQueueItem {
+  stepId: AgentOpsHermesCoordinatorWorkflowStepId;
+  label: string;
+  issueCode: string | null;
+  status: AgentOpsHermesCoordinatorQueueItemStatus;
+  artifactId: string | null;
+  savedAt: string | null;
+  note: string;
+}
+
+export interface AgentOpsHermesCoordinatorAdvisoryQueue {
+  mode: "read_only";
+  coordinatorActive: boolean;
+  schedulerActive: false;
+  items: AgentOpsHermesCoordinatorQueueItem[];
+  sequenceNote: string;
+}
+
+export interface AgentOpsHermesCoordinatorSchedulerPlaceholder {
+  schedulerActive: false;
+  queueAdvisoryRequests: "placeholder_inactive";
+  trackWorkflowCompletion: "placeholder_inactive";
+  triggerReviewPrompts: "placeholder_inactive";
+  sequence: AgentOpsHermesCoordinatorWorkflowStepId[];
+  nextAction: "inactive_until_stage_d";
+  note: string;
+}
+
+export interface AgentOpsHermesCoordinatorToolExecutionGate {
+  toolId: string;
+  label: string;
+  wouldExecute: true;
+  executionStatus: "blocked_safety_only";
+  reason: string;
+}
+
+export interface AgentOpsHermesCoordinatorAgentMemoryReadPreview {
+  mode: "read_only";
+  writesBlocked: true;
+  globalMemoryCount: number;
+  perAgentMemoryCount: number;
+  note: string;
+}
+
+export interface AgentOpsHermesCoordinatorControlSnapshot {
+  preference: AgentOpsHermesCoordinatorActivationPreference;
+  queue: AgentOpsHermesCoordinatorAdvisoryQueue;
+  scheduler: AgentOpsHermesCoordinatorSchedulerPlaceholder;
+  agentMemory: AgentOpsHermesCoordinatorAgentMemoryReadPreview;
+  toolGates: AgentOpsHermesCoordinatorToolExecutionGate[];
 }
 
 export interface AgentOpsHermesRecommendationArtifactRecord {
@@ -995,6 +1071,7 @@ export interface AgentOpsHermesRecommendationArtifactInput {
   requestId?: string | null;
   safetyFlags?: string[];
   responseCheckedAt?: string;
+  coordinatorActive?: boolean;
 }
 
 export interface AgentOpsHermesRecommendationArtifactSaveResult {

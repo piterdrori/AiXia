@@ -11407,6 +11407,113 @@ button.aixia-action-card:disabled {
   color: rgba(203, 213, 225, 0.92);
 }
 
+.aixia-tools-hub-hermes-coordinator-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 0.65rem;
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.aixia-tools-hub-hermes-coordinator-toggle-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.aixia-tools-hub-hermes-coordinator-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.aixia-tools-hub-hermes-coordinator-owner-note,
+.aixia-tools-hub-hermes-coordinator-toggle-message,
+.aixia-tools-hub-hermes-coordinator-lead,
+.aixia-tools-hub-hermes-coordinator-loading,
+.aixia-tools-hub-hermes-coordinator-card-note {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: rgba(148, 163, 184, 0.95);
+}
+
+.aixia-tools-hub-hermes-coordinator-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.aixia-tools-hub-hermes-coordinator-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.65rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(100, 116, 139, 0.22);
+  background: rgba(2, 6, 23, 0.35);
+  min-width: 0;
+}
+
+.aixia-tools-hub-hermes-coordinator-card-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.aixia-tools-hub-hermes-coordinator-meta {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.72rem;
+}
+
+.aixia-tools-hub-hermes-coordinator-meta dt {
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.aixia-tools-hub-hermes-coordinator-meta dd {
+  margin: 0;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.aixia-tools-hub-hermes-coordinator-queue-list,
+.aixia-tools-hub-hermes-coordinator-tool-gates {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aixia-tools-hub-hermes-coordinator-queue-list li,
+.aixia-tools-hub-hermes-coordinator-tool-gates li {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.aixia-tools-hub-hermes-coordinator-queue-label,
+.aixia-tools-hub-hermes-coordinator-tool-label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.aixia-tools-hub-hermes-coordinator-queue-note {
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.aixia-tools-hub-hermes-control-compact-status {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: rgba(203, 213, 225, 0.92);
+}
+
 .aixia-tools-hub-hermes-control-probe-result {
   display: grid;
   gap: 0.35rem;

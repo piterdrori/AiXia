@@ -127,6 +127,11 @@ function parseArtifactRow(row: {
   const responseText = typeof meta.responseText === "string" ? meta.responseText : "";
   if (!issueCode || !responseText) return null;
 
+  const safetyMeta =
+    meta.safety && typeof meta.safety === "object"
+      ? (meta.safety as Record<string, unknown>)
+      : null;
+
   return {
     id: row.id,
     issueCode,
@@ -152,7 +157,8 @@ function parseArtifactRow(row: {
     createdAt: row.created_at,
     createdBy: row.owner_user_id ?? null,
     safety: {
-      coordinatorActive: false,
+      coordinatorActive:
+        safetyMeta?.coordinatorActive === true || meta.coordinatorActive === true,
       writesBlocked: true,
       statusMutation: false,
       toolExecution: false,
@@ -219,9 +225,9 @@ export async function recordAgentOpsHermesRecommendationArtifact(
           noIssueStatusChange: true,
           noVerification: true,
           noToolExecution: true,
-          coordinatorActive: false,
+          coordinatorActive: input.coordinatorActive === true,
           safety: {
-            coordinatorActive: false,
+            coordinatorActive: input.coordinatorActive === true,
             writesBlocked: true,
             statusMutation: false,
             toolExecution: false,
@@ -243,16 +249,15 @@ export async function recordAgentOpsHermesRecommendationArtifact(
   }
 }
 
-/** Read saved Hermes recommendation artifacts for an issue (newest first). */
+/** Read saved Hermes recommendation artifacts (newest first). Optional issue filter. */
 export async function getAgentOpsHermesRecommendationArtifacts(
-  issueCode: string,
+  issueCode?: string,
 ): Promise<AgentOpsReadResult<AgentOpsHermesRecommendationArtifactRecord[]>> {
   try {
     const ownerGate = await assertAgentOpsOwner();
     if (ownerGate.error) return fail(ownerGate.error);
 
-    const normalizedCode = issueCode.trim();
-    if (!normalizedCode) return ok([]);
+    const normalizedCode = issueCode?.trim() ?? "";
 
     const { data, error } = await supabase
       .from("agentops_owner_feedback")
@@ -272,7 +277,8 @@ export async function getAgentOpsHermesRecommendationArtifacts(
         metadata: row.metadata,
         created_at: row.created_at as string,
       });
-      if (!parsed || parsed.issueCode !== normalizedCode) continue;
+      if (!parsed) continue;
+      if (normalizedCode && parsed.issueCode !== normalizedCode) continue;
       artifacts.push(parsed);
     }
 

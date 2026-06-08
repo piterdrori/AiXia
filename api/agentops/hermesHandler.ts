@@ -27,6 +27,10 @@ import {
   readServerEnv,
   type AgentOpsEnvGateStatus,
 } from "./ollamaProxy.js";
+import {
+  readHermesCoordinatorActivationState,
+  type HermesCoordinatorActivationState,
+} from "./hermesCoordinatorState.js";
 
 export type AgentOpsHermesRuntimeHealthMode = "advisory_transport" | "blocked" | "unavailable";
 
@@ -39,7 +43,8 @@ export interface AgentOpsHermesRuntimeHealthPayload {
   runtimeGate: AgentOpsEnvGateStatus;
   ownerApproved: AgentOpsEnvGateStatus;
   llmRuntimeGate: AgentOpsEnvGateStatus;
-  coordinatorActive: false;
+  coordinatorActive: boolean;
+  coordinatorSource?: HermesCoordinatorActivationState["source"];
   transportReachable: boolean;
   hermesEndpointReachable: boolean;
   llmFallbackReachable: boolean;
@@ -64,6 +69,7 @@ function readClientHermesTransportFlagStatus(): AgentOpsEnvGateStatus {
 export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOpsHermesRuntimeHealthPayload> {
   const checkedAt = new Date().toISOString();
   const productionBlocked = isAgentOpsProductionBlocked();
+  const coordinatorState = await readHermesCoordinatorActivationState();
   const runtimeGate = readHermesRuntimeGateStatus();
   const ownerApproved = readHermesOwnerApprovedStatus();
   const llmRuntimeGate = readAgentOpsLlmRuntimeGateStatus();
@@ -104,7 +110,9 @@ export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOp
       `${formatAgentOpsLlmProviderLabel(provider)} transport not reachable.`;
   } else {
     mode = "advisory_transport";
-    message = "Advisory runtime reachable. Coordinator not active.";
+    message = coordinatorState.coordinatorActive
+      ? "Advisory runtime reachable. Coordinator active (safe-read only)."
+      : "Advisory runtime reachable. Coordinator not active.";
     ok = true;
   }
 
@@ -117,7 +125,8 @@ export async function buildAgentOpsHermesRuntimeHealthPayload(): Promise<AgentOp
     runtimeGate,
     ownerApproved,
     llmRuntimeGate,
-    coordinatorActive: false,
+    coordinatorActive: coordinatorState.coordinatorActive,
+    coordinatorSource: coordinatorState.source,
     transportReachable,
     hermesEndpointReachable,
     llmFallbackReachable,
@@ -152,8 +161,14 @@ interface HermesRunBody {
 
 const HERMES_ADVISORY_SAFETY_LINES = [
   "Advisory only — no memory writes, no source-of-truth writes, no registry writes.",
-  "No tool execution or MCP tasks. Hermes coordinator is not fully active.",
+  "No tool execution or MCP tasks.",
 ];
+
+function coordinatorSafetyLine(coordinatorActive: boolean): string {
+  return coordinatorActive
+    ? "Hermes coordinator is active (Stage C safe-read only) — advisory artifacts and read-only context only."
+    : "Hermes coordinator is not fully active.";
+}
 
 function resolveIssueCodeFromContext(issueContext?: Record<string, unknown>): string | null {
   if (!issueContext) return null;
@@ -164,6 +179,7 @@ function resolveIssueCodeFromContext(issueContext?: Record<string, unknown>): st
 async function buildDefaultSystemPrompt(
   body: HermesRunBody,
   includeContext: boolean,
+  coordinatorActive: boolean,
 ): Promise<{ systemPrompt: string; contextIncluded: boolean }> {
   const baseLines = body.systemPrompt?.trim()
     ? [body.systemPrompt.trim()]
@@ -172,6 +188,7 @@ async function buildDefaultSystemPrompt(
         "Never claim to have executed Cursor, changed production, or written memory automatically.",
         "Do not expose secrets.",
         ...HERMES_ADVISORY_SAFETY_LINES,
+        coordinatorSafetyLine(coordinatorActive),
         `Mode: ${body.mode ?? "issue_clarification"}`,
       ];
 
@@ -252,7 +269,12 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
   }
 
   const includeContext = body.includeContext === true;
-  const { systemPrompt, contextIncluded } = await buildDefaultSystemPrompt(body, includeContext);
+  const coordinatorState = await readHermesCoordinatorActivationState();
+  const { systemPrompt, contextIncluded } = await buildDefaultSystemPrompt(
+    body,
+    includeContext,
+    coordinatorState.coordinatorActive,
+  );
   const llmResult = await callAgentOpsLlmChat(systemPrompt, question, body.model);
   if (!llmResult.ok) {
     return jsonResponse(
@@ -275,6 +297,10 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
     mode: body.mode ?? "issue_clarification",
     response: llmResult.content,
     contextIncluded,
+    coordinatorActive: coordinatorState.coordinatorActive,
+    writesBlocked: true,
+    sotWritesBlocked: true,
+    advisoryOnly: true,
     promptSuggestions: "",
     riskNotes: "",
     nextRecommendedAction: "",
@@ -285,7 +311,20 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
       "advisory_only",
       "no_auto_cursor",
       "memory_approval_required",
+      "writes_blocked",
+      ...(coordinatorState.coordinatorActive
+        ? ["coordinator_safe_read_only", "tool_execution_blocked"]
+        : ["coordinator_inactive"]),
       ...(contextIncluded ? ["read_only_context_included"] : []),
     ],
+    coordinatorScope: coordinatorState.coordinatorActive
+      ? {
+          advisoryArtifactsOnly: true,
+          workflows: ["workflow_1", "workflow_2", "workflow_3", "fix_report"],
+          agentMemoryWrites: false,
+          toolExecution: "blocked_safety_only",
+          schedulerActive: false,
+        }
+      : null,
   });
 }

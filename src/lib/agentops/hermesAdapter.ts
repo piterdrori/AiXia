@@ -135,6 +135,10 @@ export interface AgentOpsHermesAdvisoryActivationProbe {
   source?: string;
   httpStatus?: number;
   contextIncluded?: boolean;
+  coordinatorActive?: boolean;
+  writesBlocked?: boolean;
+  advisoryOnly?: boolean;
+  safetyFlags?: string[];
 }
 
 export interface AgentOpsHermesAdvisoryProbeOptions {
@@ -321,6 +325,10 @@ export async function probeAgentOpsHermesAdvisoryRuntime(
       error?: string;
       source?: string;
       contextIncluded?: boolean;
+      coordinatorActive?: boolean;
+      writesBlocked?: boolean;
+      advisoryOnly?: boolean;
+      safetyFlags?: string[];
     };
 
     if (response.ok && payload.source === "hermes_runtime" && payload.response?.trim()) {
@@ -331,6 +339,12 @@ export async function probeAgentOpsHermesAdvisoryRuntime(
         source: payload.source,
         httpStatus: response.status,
         contextIncluded: payload.contextIncluded === true,
+        coordinatorActive: payload.coordinatorActive === true,
+        writesBlocked: payload.writesBlocked !== false,
+        advisoryOnly: payload.advisoryOnly !== false,
+        safetyFlags: Array.isArray(payload.safetyFlags)
+          ? payload.safetyFlags.filter((flag): flag is string => typeof flag === "string")
+          : undefined,
       };
     }
 
@@ -584,7 +598,7 @@ export async function getAgentOpsHermesRuntimeHealth(): Promise<AgentOpsHermesRu
       ownerApproved: normalizeGateStatus(payload.ownerApproved),
       llmRuntimeGate: normalizeGateStatus(payload.llmRuntimeGate),
       clientTransportEnabled,
-      coordinatorActive: false,
+      coordinatorActive: payload.coordinatorActive === true,
       transportReachable: Boolean(payload.transportReachable),
       hermesEndpointReachable: Boolean(payload.hermesEndpointReachable ?? true),
       llmFallbackReachable: Boolean(payload.llmFallbackReachable),

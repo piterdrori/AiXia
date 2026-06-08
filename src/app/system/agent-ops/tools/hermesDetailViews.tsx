@@ -46,7 +46,11 @@ import {
   AGENTOPS_HERMES_ADAPTER_READINESS,
   assembleAgentOpsHermesPreviewContext,
   getAgentOpsHermesRuntimeHealth,
+  getAgentOpsHermesCoordinatorControlSnapshot,
   probeAgentOpsHermesAdvisoryRuntime,
+  recordAgentOpsHermesCoordinatorActivationPreference,
+  type AgentOpsHermesCoordinatorControlSnapshot,
+  type AgentOpsHermesCoordinatorQueueItemStatus,
   type AgentOpsHermesContextAssemblerPreview,
   type AgentOpsHermesContextAssemblerSection,
   type AgentOpsHermesContextAssemblerSectionStatus,
@@ -112,40 +116,23 @@ function getHermesDetailPath(): string {
   return `/system/agent-ops/tools/${AGENT_BRAIN_CATEGORY_ID}/${MEMORY_COORDINATION_GROUP_ID}/${HERMES_TOOL_SLUG}`;
 }
 
-const HERMES_STATUS_BADGES = [
+const HERMES_STATUS_BADGES_BASE = [
   { label: "Advisory runtime active", tone: "emerald" as const },
   { label: "Context active", tone: "cyan" as const },
   { label: "Workflows 1–3 active", tone: "emerald" as const },
-  { label: "Coordinator not active", tone: "rose" as const },
   { label: "Writes blocked", tone: "violet" as const },
 ];
 
-const HERMES_MODULE_READINESS_CARDS = [
-  {
-    label: "Runtime",
-    value: "Active on staging",
-    description: "Doubao Ark advisory transport",
-    tone: "emerald" as const,
-  },
-  {
-    label: "Context",
-    value: "Active",
-    description: "Read-only AiXia context injection",
-    tone: "cyan" as const,
-  },
-  {
-    label: "Issue workflows",
-    value: "1–3 accepted",
-    description: "Advisory, prompt review, fix report review",
-    tone: "emerald" as const,
-  },
-  {
-    label: "Coordinator",
-    value: "Not active",
-    description: "No automation, writes, tools, or production",
-    tone: "rose" as const,
-  },
-] as const;
+function buildHermesStatusBadges(coordinatorActive: boolean) {
+  return [
+    ...HERMES_STATUS_BADGES_BASE.slice(0, 3),
+    {
+      label: coordinatorActive ? "Coordinator active (safe-read)" : "Coordinator not active",
+      tone: coordinatorActive ? ("emerald" as const) : ("rose" as const),
+    },
+    HERMES_STATUS_BADGES_BASE[3],
+  ];
+}
 
 const HERMES_STAGE_ROADMAP = {
   completed: [
@@ -155,24 +142,23 @@ const HERMES_STAGE_ROADMAP = {
     "Workflow 1 — Issue Advisory Assist",
     "Workflow 2 — Cursor Prompt Reviewer",
     "Workflow 3 — Fix Report / Verification Reviewer",
+    "Stage B Recommendation Artifact Store",
   ],
-  inProgress: ["Stage B Recommendation Artifact Store final QA"],
+  inProgress: ["Stage C Coordinator + controlled automation (safe-read only)"],
   notStarted: [
-    "Automation",
-    "Scheduler",
-    "AgentMemory",
+    "Stage D AgentMemory writes",
     "User Usage Learning",
-    "MCP / avatar",
+    "MCP / avatar execution",
     "Production activation",
-    "Full coordinator",
+    "Full scheduler automation",
   ],
 } as const;
 
 const HERMES_NEXT_ACTIVATION_STEP =
-  "Next: finish Stage B save/refresh QA, then align readiness docs. After that, design controlled automation.";
+  "Stage B recommendation artifacts accepted on staging. Owner-triggered advisory artifacts persist after refresh. Next: Stage C staging QA, then readiness/docs alignment.";
 
 const HERMES_ADVISORY_SAFETY_LINE =
-  "Hermes is advisory-active only. Coordinator automation, memory writes, source-of-truth writes, tool execution, and production activation remain blocked.";
+  "Hermes is advisory-active only. Stage C coordinator is safe-read only — memory writes, source-of-truth writes, registry writes, tool execution, and production activation remain blocked.";
 
 const HERMES_LAYERS = [
   {
@@ -240,7 +226,7 @@ const HERMES_CONNECTIONS: ConnectionRow[] = [
     system: "Issue Workspace",
     status: "Workflows 1–3 active",
     detail:
-      "Issue Hermes Advisory Assist: W1 advisory, W2 cursor prompt review, W3 fix report review accepted on staging. Stage B artifacts built — final save/refresh QA pending. Not coordinator recall.",
+      "Issue Hermes Advisory Assist: W1 advisory, W2 cursor prompt review, W3 fix report review accepted on staging. Stage B recommendation artifacts accepted on staging. Owner-triggered advisory artifacts persist after refresh. Not coordinator recall.",
     connected: true,
   },
   {
@@ -851,6 +837,196 @@ type HermesControlPanelProps = {
   onHealthChange?: (health: AgentOpsHermesRuntimeHealth | null) => void;
 };
 
+function formatCoordinatorQueueStatus(status: AgentOpsHermesCoordinatorQueueItemStatus): string {
+  switch (status) {
+    case "completed_manual_save":
+      return "Manual save detected";
+    case "pending_manual_save":
+      return "Pending manual save";
+    case "queued_read_only":
+      return "Queued (read-only)";
+    case "awaiting_prior_step":
+      return "Awaiting prior step";
+    default:
+      return status;
+  }
+}
+
+function HermesCoordinatorAutomationPanel({
+  health,
+  onCoordinatorChange,
+}: {
+  health: AgentOpsHermesRuntimeHealth | null;
+  onCoordinatorChange?: () => void;
+}) {
+  const [snapshot, setSnapshot] = useState<AgentOpsHermesCoordinatorControlSnapshot | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [toggleLoading, setToggleLoading] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [toggleMessage, setToggleMessage] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+
+  const refreshSnapshot = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await getAgentOpsHermesCoordinatorControlSnapshot();
+      if (result.error) {
+        setToggleError(result.error);
+        return;
+      }
+      setSnapshot(result.data);
+      setToggleError(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void getAgentOpsOwnerStatus().then((result) => {
+      setIsOwner(Boolean(result.data?.isOwner));
+    });
+    void refreshSnapshot();
+  }, [refreshSnapshot, health?.coordinatorActive]);
+
+  const handleToggle = useCallback(
+    async (nextActive: boolean) => {
+      setToggleLoading(true);
+      setToggleError(null);
+      setToggleMessage(null);
+      try {
+        const result = await recordAgentOpsHermesCoordinatorActivationPreference({
+          coordinatorActive: nextActive,
+        });
+        if (result.error) {
+          setToggleError(result.error);
+          return;
+        }
+        setToggleMessage(result.data?.message ?? null);
+        await refreshSnapshot();
+        onCoordinatorChange?.();
+      } finally {
+        setToggleLoading(false);
+      }
+    },
+    [onCoordinatorChange, refreshSnapshot],
+  );
+
+  const coordinatorActive =
+    health?.coordinatorActive === true || snapshot?.preference.coordinatorActive === true;
+
+  return (
+    <div className="aixia-tools-hub-hermes-coordinator-panel" data-testid="hermes-coordinator-panel">
+      <div className="aixia-tools-hub-hermes-coordinator-toggle-row">
+        <label
+          className="aixia-tools-hub-hermes-coordinator-toggle"
+          data-testid="hermes-coordinator-activation-toggle"
+        >
+          <input
+            type="checkbox"
+            checked={coordinatorActive}
+            disabled={!isOwner || toggleLoading || loading}
+            onChange={(event) => void handleToggle(event.target.checked)}
+          />
+          <span>Coordinator activation (owner-approved, staging only)</span>
+        </label>
+        {!isOwner ? (
+          <p className="aixia-tools-hub-hermes-coordinator-owner-note">
+            AgentOps Owner access required to enable coordinator.
+          </p>
+        ) : null}
+        {toggleMessage ? (
+          <p className="aixia-tools-hub-hermes-coordinator-toggle-message">{toggleMessage}</p>
+        ) : null}
+        {toggleError ? (
+          <p className="aixia-tools-hub-hermes-runtime-health-probe-error">{toggleError}</p>
+        ) : null}
+      </div>
+
+      <p className="aixia-tools-hub-hermes-coordinator-lead">
+        Stage C safe-read automation: advisory artifact queue, scheduler placeholders, AgentMemory
+        read preview, and tool execution gates. No auto-save, no writes, no tool execution.
+      </p>
+
+      {snapshot ? (
+        <div className="aixia-tools-hub-hermes-coordinator-grid">
+          <div className="aixia-tools-hub-hermes-coordinator-card" data-testid="hermes-coordinator-queue">
+            <h4 className="aixia-tools-hub-hermes-coordinator-card-title">Advisory artifact queue</h4>
+            <p className="aixia-tools-hub-hermes-coordinator-card-note">{snapshot.queue.sequenceNote}</p>
+            <ul className="aixia-tools-hub-hermes-coordinator-queue-list">
+              {snapshot.queue.items.map((item) => (
+                <li key={item.stepId}>
+                  <span className="aixia-tools-hub-hermes-coordinator-queue-label">{item.label}</span>
+                  <AixiaBadge tone={item.status === "completed_manual_save" ? "emerald" : "neutral"}>
+                    {formatCoordinatorQueueStatus(item.status)}
+                  </AixiaBadge>
+                  <span className="aixia-tools-hub-hermes-coordinator-queue-note">{item.note}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="aixia-tools-hub-hermes-coordinator-card" data-testid="hermes-coordinator-scheduler">
+            <h4 className="aixia-tools-hub-hermes-coordinator-card-title">Scheduler (inactive)</h4>
+            <dl className="aixia-tools-hub-hermes-coordinator-meta">
+              <div>
+                <dt>Queue advisory requests</dt>
+                <dd>{snapshot.scheduler.queueAdvisoryRequests.replaceAll("_", " ")}</dd>
+              </div>
+              <div>
+                <dt>Track workflow completion</dt>
+                <dd>{snapshot.scheduler.trackWorkflowCompletion.replaceAll("_", " ")}</dd>
+              </div>
+              <div>
+                <dt>Trigger review prompts</dt>
+                <dd>{snapshot.scheduler.triggerReviewPrompts.replaceAll("_", " ")}</dd>
+              </div>
+              <div>
+                <dt>Next action</dt>
+                <dd>{snapshot.scheduler.nextAction.replaceAll("_", " ")}</dd>
+              </div>
+            </dl>
+            <p className="aixia-tools-hub-hermes-coordinator-card-note">{snapshot.scheduler.note}</p>
+          </div>
+
+          <div className="aixia-tools-hub-hermes-coordinator-card" data-testid="hermes-coordinator-agent-memory">
+            <h4 className="aixia-tools-hub-hermes-coordinator-card-title">AgentMemory (read-only)</h4>
+            <dl className="aixia-tools-hub-hermes-coordinator-meta">
+              <div>
+                <dt>Global memory rows</dt>
+                <dd>{snapshot.agentMemory.globalMemoryCount}</dd>
+              </div>
+              <div>
+                <dt>Per-agent memory rows</dt>
+                <dd>{snapshot.agentMemory.perAgentMemoryCount}</dd>
+              </div>
+              <div>
+                <dt>Writes</dt>
+                <dd>Blocked until Stage D</dd>
+              </div>
+            </dl>
+            <p className="aixia-tools-hub-hermes-coordinator-card-note">{snapshot.agentMemory.note}</p>
+          </div>
+
+          <div className="aixia-tools-hub-hermes-coordinator-card" data-testid="hermes-coordinator-tool-gates">
+            <h4 className="aixia-tools-hub-hermes-coordinator-card-title">Tool execution gates</h4>
+            <ul className="aixia-tools-hub-hermes-coordinator-tool-gates">
+              {snapshot.toolGates.map((gate) => (
+                <li key={gate.toolId}>
+                  <span className="aixia-tools-hub-hermes-coordinator-tool-label">{gate.label}</span>
+                  <AixiaBadge tone="rose">Blocked: Safety Only</AixiaBadge>
+                  <span className="aixia-tools-hub-hermes-coordinator-queue-note">{gate.reason}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      ) : loading ? (
+        <p className="aixia-tools-hub-hermes-coordinator-loading">Loading coordinator snapshot…</p>
+      ) : null}
+    </div>
+  );
+}
+
 function HermesControlPanel({ onHealthChange }: HermesControlPanelProps) {
   const [health, setHealth] = useState<AgentOpsHermesRuntimeHealth | null>(null);
   const [loading, setLoading] = useState(false);
@@ -858,6 +1034,8 @@ function HermesControlPanel({ onHealthChange }: HermesControlPanelProps) {
   const [probeResult, setProbeResult] = useState<string | null>(null);
   const [probeError, setProbeError] = useState<string | null>(null);
   const [probeContextIncluded, setProbeContextIncluded] = useState<boolean | null>(null);
+  const [probeCoordinatorActive, setProbeCoordinatorActive] = useState<boolean | null>(null);
+  const [probeWritesBlocked, setProbeWritesBlocked] = useState<boolean | null>(null);
   const [probeSource, setProbeSource] = useState<string | null>(null);
   const [includeReadOnlyContext, setIncludeReadOnlyContext] = useState(false);
 
@@ -877,6 +1055,8 @@ function HermesControlPanel({ onHealthChange }: HermesControlPanelProps) {
     setProbeResult(null);
     setProbeError(null);
     setProbeContextIncluded(null);
+    setProbeCoordinatorActive(null);
+    setProbeWritesBlocked(null);
     setProbeSource(null);
     try {
       const probe = await probeAgentOpsHermesAdvisoryRuntime({
@@ -885,6 +1065,8 @@ function HermesControlPanel({ onHealthChange }: HermesControlPanelProps) {
       if (probe.ok && probe.response) {
         setProbeResult(probe.response);
         setProbeContextIncluded(probe.contextIncluded === true);
+        setProbeCoordinatorActive(probe.coordinatorActive === true);
+        setProbeWritesBlocked(probe.writesBlocked !== false);
         setProbeSource(probe.source ?? null);
       } else {
         setProbeError(
@@ -902,13 +1084,20 @@ function HermesControlPanel({ onHealthChange }: HermesControlPanelProps) {
   }, [refreshHealth]);
 
   const advisoryReachable = Boolean(health?.transportReachable && health.mode === "advisory_transport");
+  const coordinatorActive = health?.coordinatorActive === true;
 
   return (
     <div className="aixia-tools-hub-hermes-control" data-testid="hermes-control">
       <p className="aixia-tools-hub-hermes-control-lead">
         Hermes can answer advisory questions using Doubao Ark. When enabled, read-only AiXia context
-        is included. No writes or tool execution are allowed.
+        is included. Stage C coordinator is owner-gated and safe-read only. No writes or tool
+        execution are allowed.
       </p>
+
+      <HermesCoordinatorAutomationPanel
+        health={health}
+        onCoordinatorChange={() => void refreshHealth()}
+      />
 
       <div className="aixia-tools-hub-hermes-runtime-health-action-row">
         <AixiaButton
@@ -974,6 +1163,18 @@ function HermesControlPanel({ onHealthChange }: HermesControlPanelProps) {
                   {probeContextIncluded ? "Yes" : "No"}
                 </p>
               ) : null}
+              {probeCoordinatorActive !== null ? (
+                <p className="aixia-tools-hub-hermes-control-probe-meta">
+                  <span className="aixia-tools-hub-hermes-control-probe-label">Coordinator:</span>{" "}
+                  {probeCoordinatorActive ? "Active (safe-read only)" : "Not active"}
+                </p>
+              ) : null}
+              {probeWritesBlocked !== null ? (
+                <p className="aixia-tools-hub-hermes-control-probe-meta">
+                  <span className="aixia-tools-hub-hermes-control-probe-label">Writes blocked:</span>{" "}
+                  {probeWritesBlocked ? "Yes" : "No"}
+                </p>
+              ) : null}
             </>
           ) : null}
           {probeError ? (
@@ -1020,7 +1221,9 @@ function HermesControlPanel({ onHealthChange }: HermesControlPanelProps) {
         <div className="aixia-tools-hub-hermes-status-row">
           <dt>Coordinator</dt>
           <dd>
-            <AixiaBadge tone="rose">Not active</AixiaBadge>
+            <AixiaBadge tone={coordinatorActive ? "emerald" : "rose"}>
+              {coordinatorActive ? "Active (safe-read)" : "Not active"}
+            </AixiaBadge>
           </dd>
         </div>
         <div className="aixia-tools-hub-hermes-status-row">
@@ -1161,7 +1364,7 @@ function HermesAdvancedDetailsSection({ health }: { health: AgentOpsHermesRuntim
 
         <AixiaProgressiveDisclosureGroup
           title="Roadmap / status"
-          description="Current Hermes module truth — advisory active, coordinator blocked."
+          description="Current Hermes module truth — Stage C coordinator safe-read when owner-enabled."
           defaultOpen={false}
           density="compact"
           className="aixia-progressive-disclosure--secondary"
@@ -1208,7 +1411,7 @@ function HermesAdvancedDetailsSection({ health }: { health: AgentOpsHermesRuntim
 
         <AixiaProgressiveDisclosureGroup
           title="Next activation step"
-          description="Advisory foundation is complete — coordinator and automation remain blocked."
+          description="Stage B accepted on staging — Stage C staging QA and readiness/docs alignment next."
           defaultOpen={false}
           density="compact"
           className="aixia-progressive-disclosure--secondary"
@@ -1924,9 +2127,15 @@ function HermesGlobalWebsiteMemoryControlsPanel() {
                 </dd>
               </div>
               <div className="aixia-tools-hub-hermes-status-row">
-                <dt>Hermes runtime</dt>
+                <dt>Global memory scan runtime</dt>
                 <dd>
                   <AixiaBadge tone="neutral">Not active</AixiaBadge>
+                </dd>
+              </div>
+              <div className="aixia-tools-hub-hermes-status-row">
+                <dt>Hermes advisory runtime</dt>
+                <dd>
+                  <AixiaBadge tone="emerald">Active separately</AixiaBadge>
                 </dd>
               </div>
             </dl>
@@ -3299,15 +3508,17 @@ export function ToolsHubHermesGlobalWebsiteMemoryPage() {
       parentPath={hermesParentPath}
       badges={[
         { label: "Partial foundation", tone: "amber" as const },
-        { label: "Hermes not ready", tone: "neutral" as const },
+        { label: "Manual/read-only foundation", tone: "neutral" as const },
         { label: "Read-only controls", tone: "violet" as const },
-        { label: "Runtime not active", tone: "rose" as const },
+        { label: "Global memory scan runtime not active", tone: "rose" as const },
       ]}
     >
       <p className="aixia-tools-hub-hermes-hero-note">
         Partial working foundation for Hermes layer 1 only. Owner-gated scan preferences, candidate
-        workflow, approved metadata store, and reader preview. Hermes does not ingest, write, sync, or
-        schedule cloud scans from this page. Issue Chat global memory is preview-only and flag-controlled.
+        workflow, approved metadata store, and reader preview. Global memory scan runtime is manual
+        and not active — no automatic memory writeback. Hermes advisory runtime (Doubao Ark) is
+        active separately on Hermes Control. Hermes does not ingest, write, sync, or schedule cloud
+        scans from this page. Issue Chat global memory is preview-only and flag-controlled.
       </p>
     </AixiaHero>
   );
@@ -3327,7 +3538,7 @@ export function ToolsHubHermesGlobalWebsiteMemoryPage() {
           key: "hermes",
           label: "Hermes",
           value: "Preview only",
-          detail: "Issue Chat flag-controlled · runtime not active",
+          detail: "Issue Chat flag-controlled · global memory scan runtime not active",
           tone: "neutral",
         },
         {
@@ -3433,6 +3644,36 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
 
   const advisoryActive = Boolean(health?.transportReachable && health.mode === "advisory_transport");
   const contextActive = health?.contextAssemblerAvailable === true;
+  const coordinatorActive = health?.coordinatorActive === true;
+
+  const readinessCards = [
+    {
+      label: "Runtime",
+      value: advisoryActive ? "Active on staging" : health ? "Unavailable" : "Checking…",
+      description: "Doubao Ark advisory transport",
+      tone: advisoryActive ? ("emerald" as const) : ("rose" as const),
+    },
+    {
+      label: "Context",
+      value: contextActive ? "Active" : health ? "Unavailable" : "Checking…",
+      description: "Read-only AiXia context injection",
+      tone: contextActive ? ("cyan" as const) : ("amber" as const),
+    },
+    {
+      label: "Issue workflows",
+      value: "1–3 accepted",
+      description: "Advisory, prompt review, fix report review",
+      tone: "emerald" as const,
+    },
+    {
+      label: "Coordinator",
+      value: coordinatorActive ? "Active (safe-read)" : "Not active",
+      description: coordinatorActive
+        ? "Advisory queue + gates — writes/tools blocked"
+        : "Enable in Hermes Control (owner-approved)",
+      tone: coordinatorActive ? ("emerald" as const) : ("rose" as const),
+    },
+  ];
 
   const hermesHero = (
     <AixiaHero
@@ -3440,10 +3681,14 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
       className="shrink-0 space-y-4"
       gradientTitle="AgentOps"
       title="Hermes"
-      subtitle="Advisory runtime is active with Doubao Ark and read-only AiXia context. Full coordinator automation is still blocked."
+      subtitle={
+        coordinatorActive
+          ? "Advisory runtime and Stage C coordinator are active (safe-read only). Writes, tools, and production remain blocked."
+          : "Advisory runtime is active with Doubao Ark and read-only AiXia context. Enable coordinator in Hermes Control when ready."
+      }
       parentLabel={parentLabel}
       parentPath={parentPath}
-      badges={HERMES_STATUS_BADGES}
+      badges={buildHermesStatusBadges(coordinatorActive)}
     >
       <p className="aixia-tools-hub-hermes-hero-note">{HERMES_NEXT_ACTIVATION_STEP}</p>
     </AixiaHero>
@@ -3477,9 +3722,11 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
         {
           key: "coordinator",
           label: "Coordinator",
-          value: "Not active",
-          detail: "No automation or memory coordinator",
-          tone: "neutral",
+          value: coordinatorActive ? "Active (safe-read)" : "Not active",
+          detail: coordinatorActive
+            ? "Stage C advisory queue — writes/tools blocked"
+            : "Owner toggle in Hermes Control",
+          tone: coordinatorActive ? "emerald" : "neutral",
         },
         {
           key: "production",
@@ -3513,7 +3760,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           surface="command"
           className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-readiness-section"
           title="Module readiness"
-          description="Advisory module status on staging — coordinator and automation remain blocked."
+          description="Advisory module status on staging — Stage C coordinator is safe-read only; writes and tools remain blocked."
           icon={CheckCircle2}
           bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
@@ -3521,7 +3768,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
             className="aixia-tools-hub-hermes-readiness-grid"
             data-testid="hermes-module-readiness"
           >
-            {HERMES_MODULE_READINESS_CARDS.map((card) => (
+            {readinessCards.map((card) => (
               <AixiaNavigationStatBlock
                 key={card.label}
                 label={card.label}
@@ -3532,7 +3779,9 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
             ))}
           </div>
           <p className="aixia-tools-hub-hermes-readiness-note">
-            Stage B recommendation artifacts are built and awaiting final save/refresh QA.
+            Stage B recommendation artifacts accepted on staging. Owner-triggered advisory artifacts
+            persist after refresh. Stage C coordinator reads saved artifacts into a read-only W1 →
+            W2 → W3 → Fix Report queue — no auto-save.
           </p>
           <p className="aixia-tools-hub-hermes-safety-line" data-testid="hermes-advisory-safety-line">
             {HERMES_ADVISORY_SAFETY_LINE}

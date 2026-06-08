@@ -281,9 +281,62 @@ function isProductionBlocked(env) {
   return readEnv(env, "VERCEL_ENV") === "production";
 }
 
+const HERMES_COORDINATOR_ACTIVATION_ACTION = "hermes_coordinator_activation";
+
+async function readCoordinatorActivationState(env) {
+  if (isProductionBlocked(env)) {
+    return { coordinatorActive: false, source: "production_blocked" };
+  }
+
+  const envFlag = readEnv(env, "HERMES_COORDINATOR_ACTIVE");
+  if (envFlag === "true") {
+    return { coordinatorActive: true, source: "env_fallback" };
+  }
+  if (envFlag === "false") {
+    return { coordinatorActive: false, source: "default_off" };
+  }
+
+  const url = readEnv(env, "VITE_SUPABASE_URL");
+  const key = readEnv(env, "SUPABASE_SERVICE_ROLE_KEY") || readEnv(env, "VITE_SUPABASE_ANON_KEY");
+  if (!url || !key) {
+    return { coordinatorActive: false, source: "default_off" };
+  }
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await supabase
+      .from("agentops_owner_feedback")
+      .select("metadata, created_at")
+      .eq("feedback_type", "remark")
+      .order("created_at", { ascending: false })
+      .limit(40);
+
+    if (error || !data?.length) {
+      return { coordinatorActive: false, source: "default_off" };
+    }
+
+    for (const row of data) {
+      const meta = row.metadata && typeof row.metadata === "object" ? row.metadata : null;
+      if (!meta || meta.action !== HERMES_COORDINATOR_ACTIVATION_ACTION) continue;
+      return {
+        coordinatorActive: meta.coordinatorActive === true,
+        source: "owner_preference",
+      };
+    }
+
+    return { coordinatorActive: false, source: "default_off" };
+  } catch {
+    return { coordinatorActive: false, source: "default_off" };
+  }
+}
+
 async function buildHermesRuntimeHealthPayload(env) {
   const checkedAt = new Date().toISOString();
   const productionBlocked = isProductionBlocked(env);
+  const coordinatorState = await readCoordinatorActivationState(env);
   const runtimeGate = readGateStatus(env, "HERMES_RUNTIME_ACTIVE");
   const ownerApproved = readGateStatus(env, "HERMES_OWNER_APPROVED");
   const llmRuntimeGate = readGateStatus(env, "AGENTOPS_LLM_RUNTIME_ACTIVE");
@@ -322,7 +375,9 @@ async function buildHermesRuntimeHealthPayload(env) {
       transport.error ?? `${formatLlmProviderLabel(provider)} transport not reachable.`;
   } else {
     mode = "advisory_transport";
-    message = "Advisory runtime reachable. Coordinator not active.";
+    message = coordinatorState.coordinatorActive
+      ? "Advisory runtime reachable. Coordinator active (safe-read only)."
+      : "Advisory runtime reachable. Coordinator not active.";
     ok = true;
   }
 
@@ -335,7 +390,8 @@ async function buildHermesRuntimeHealthPayload(env) {
     runtimeGate,
     ownerApproved,
     llmRuntimeGate,
-    coordinatorActive: false,
+    coordinatorActive: coordinatorState.coordinatorActive,
+    coordinatorSource: coordinatorState.source,
     transportReachable,
     hermesEndpointReachable: true,
     llmFallbackReachable,
@@ -613,10 +669,15 @@ export function createAgentOpsDevApiHandlers(env) {
       const question = body.question?.trim();
       if (!question) return jsonResponse({ error: "question is required" }, 400);
 
+      const coordinatorState = await readCoordinatorActivationState(env);
+
       const HERMES_ADVISORY_SAFETY_LINES = [
         "Advisory only — no memory writes, no source-of-truth writes, no registry writes.",
-        "No tool execution or MCP tasks. Hermes coordinator is not fully active.",
+        "No tool execution or MCP tasks.",
       ];
+      const coordinatorSafetyLine = coordinatorState.coordinatorActive
+        ? "Hermes coordinator is active (Stage C safe-read only) — advisory artifacts and read-only context only."
+        : "Hermes coordinator is not fully active.";
 
       const systemPrompt =
         body.systemPrompt?.trim() ??
@@ -624,6 +685,7 @@ export function createAgentOpsDevApiHandlers(env) {
           "You are a Hermes advisory QA agent for AgentOps (staging only).",
           "Never claim to have executed Cursor, changed production, or written memory automatically.",
           ...HERMES_ADVISORY_SAFETY_LINES,
+          coordinatorSafetyLine,
           `Mode: ${body.mode ?? "issue_clarification"}`,
         ].join("\n");
 
@@ -648,12 +710,36 @@ export function createAgentOpsDevApiHandlers(env) {
         requestId: body.requestId ?? `hermes-req-${Date.now()}`,
         mode: body.mode ?? "issue_clarification",
         response: llmResult.content,
+        contextIncluded: body.includeContext === true,
+        coordinatorActive: coordinatorState.coordinatorActive,
+        writesBlocked: true,
+        sotWritesBlocked: true,
+        advisoryOnly: true,
         promptSuggestions: "",
         riskNotes: "",
         nextRecommendedAction: "",
         confidence: "medium",
         limitations: `Hermes advisory via dev server ${formatLlmProviderLabel(llmResult.provider)} proxy (staging).`,
-        safetyFlags: ["staging_only", "advisory_only", "no_auto_cursor", "memory_approval_required"],
+        safetyFlags: [
+          "staging_only",
+          "advisory_only",
+          "no_auto_cursor",
+          "memory_approval_required",
+          "writes_blocked",
+          ...(coordinatorState.coordinatorActive
+            ? ["coordinator_safe_read_only", "tool_execution_blocked"]
+            : ["coordinator_inactive"]),
+          ...(body.includeContext === true ? ["read_only_context_included"] : []),
+        ],
+        coordinatorScope: coordinatorState.coordinatorActive
+          ? {
+              advisoryArtifactsOnly: true,
+              workflows: ["workflow_1", "workflow_2", "workflow_3", "fix_report"],
+              agentMemoryWrites: false,
+              toolExecution: "blocked_safety_only",
+              schedulerActive: false,
+            }
+          : null,
       });
     },
     handleGlobalMemoryGenerateCandidates: handleGlobalMemoryGenerateCandidatesRequest,

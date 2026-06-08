@@ -143,19 +143,21 @@ const HERMES_STAGE_ROADMAP = {
     "Workflow 2 — Cursor Prompt Reviewer",
     "Workflow 3 — Fix Report / Verification Reviewer",
     "Stage B Recommendation Artifact Store",
+    "Stage C Coordinator + controlled automation (safe-read only)",
   ],
-  inProgress: ["Stage C Coordinator + controlled automation (safe-read only)"],
+  inProgress: ["Hermes readiness/docs alignment"],
   notStarted: [
     "Stage D AgentMemory writes",
     "User Usage Learning",
     "MCP / avatar execution",
     "Production activation",
     "Full scheduler automation",
+    "Tools Hub Category 2 — Chat & Voice Tools",
   ],
 } as const;
 
 const HERMES_NEXT_ACTIVATION_STEP =
-  "Stage B recommendation artifacts accepted on staging. Owner-triggered advisory artifacts persist after refresh. Next: Stage C staging QA, then readiness/docs alignment.";
+  "Stage B recommendation artifacts accepted on staging. Stage C safe-read coordinator verified on staging. Owner-triggered advisory artifacts persist after refresh. Next: finish Hermes readiness/docs alignment, then begin Tools Hub Category 2 — Chat & Voice Tools.";
 
 const HERMES_ADVISORY_SAFETY_LINE =
   "Hermes is advisory-active only. Stage C coordinator is safe-read only — memory writes, source-of-truth writes, registry writes, tool execution, and production activation remain blocked.";
@@ -1364,7 +1366,7 @@ function HermesAdvancedDetailsSection({ health }: { health: AgentOpsHermesRuntim
 
         <AixiaProgressiveDisclosureGroup
           title="Roadmap / status"
-          description="Current Hermes module truth — Stage C coordinator safe-read when owner-enabled."
+          description="Current Hermes module truth — Stage C safe-read coordinator verified; owner-gated when enabled."
           defaultOpen={false}
           density="compact"
           className="aixia-progressive-disclosure--secondary"
@@ -1411,7 +1413,7 @@ function HermesAdvancedDetailsSection({ health }: { health: AgentOpsHermesRuntim
 
         <AixiaProgressiveDisclosureGroup
           title="Next activation step"
-          description="Stage B accepted on staging — Stage C staging QA and readiness/docs alignment next."
+          description="Stage B and Stage C verified on staging — readiness/docs alignment next, then Chat & Voice Tools."
           defaultOpen={false}
           density="compact"
           className="aixia-progressive-disclosure--secondary"
@@ -3825,6 +3827,86 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
         <HermesAdvancedDetailsSection health={health} />
       </div>
     </AixiaCommandPageLayout>
+  );
+}
+
+export type HermesPlannedLayerId = "usage-learning" | "mcp-avatar";
+
+const HERMES_PLANNED_LAYER_CONFIG: Record<
+  HermesPlannedLayerId,
+  {
+    title: string;
+    icon: typeof LineChart;
+    intro: string;
+    safetyItems: string[];
+  }
+> = {
+  "usage-learning": {
+    title: "User Usage Learning",
+    icon: LineChart,
+    intro:
+      "This Hermes layer is planned for a later phase. No usage-learning automation, analytics ingestion, memory learning, or scheduler is active today.",
+    safetyItems: [
+      "No memory writes",
+      "No AgentMemory writes",
+      "No analytics learning",
+      "No scheduler automation",
+      "No production activation",
+    ],
+  },
+  "mcp-avatar": {
+    title: "MCP / Avatar Task Agent Support",
+    icon: Sparkles,
+    intro:
+      "This Hermes layer is planned for a later phase. No MCP execution, avatar task execution, tool execution, or automation is active today.",
+    safetyItems: [
+      "No MCP execution",
+      "No avatar execution",
+      "No tool execution",
+      "No AgentMemory writes",
+      "No production activation",
+    ],
+  },
+};
+
+export function ToolsHubHermesPlannedLayerPage({ layerId }: { layerId: HermesPlannedLayerId }) {
+  const navigate = useNavigate();
+  const config = HERMES_PLANNED_LAYER_CONFIG[layerId];
+  const hermesPath = getHermesDetailPath();
+  const LayerIcon = config.icon;
+
+  return (
+    <ToolsHubShell
+      title={config.title}
+      subtitle="Not started / Planned — Hermes layer placeholder only."
+      parentLabel="Hermes"
+      parentPath={hermesPath}
+      badges={[{ label: "Not started / Planned", tone: "neutral" }]}
+    >
+      <div className="aixia-tools-hub-hermes-page aixia-tools-hub-hermes-planned-layer-page">
+        <AixiaSection
+          surface="command"
+          title="Planned layer"
+          description="Placeholder for direct URL safety — no runtime activation."
+          icon={LayerIcon}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <p className="aixia-tools-hub-hermes-memory-intro">{config.intro}</p>
+          <AixiaInfoBlock tone="gold" icon={Shield} title="Safety boundaries">
+            <ul className="aixia-tools-hub-hermes-safety-list">
+              {config.safetyItems.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </AixiaInfoBlock>
+          <div className="aixia-tools-hub-hermes-planned-layer-actions">
+            <AixiaButton variant="secondary" onClick={() => navigate(hermesPath)}>
+              Back to Hermes
+            </AixiaButton>
+          </div>
+        </AixiaSection>
+      </div>
+    </ToolsHubShell>
   );
 }
 

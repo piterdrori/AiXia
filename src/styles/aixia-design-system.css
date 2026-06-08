@@ -10864,6 +10864,15 @@ button.aixia-action-card:disabled {
   padding-bottom: 6rem;
 }
 
+.aixia-tools-hub-hermes-planned-layer-page {
+  gap: 0.85rem;
+  padding-bottom: 6rem;
+}
+
+.aixia-tools-hub-hermes-planned-layer-actions {
+  margin-top: 1rem;
+}
+
 .aixia-tools-hub-hermes-global-memory-page .aixia-tools-hub-hermes-global-memory-section.aixia-dash-panel,
 .aixia-tools-hub-hermes-global-memory-page .aixia-tools-hub-hermes-global-memory-section.aixia-card-shell {
   flex: 0 0 auto;

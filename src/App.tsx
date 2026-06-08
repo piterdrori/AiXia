@@ -168,6 +168,8 @@ import AgentOpsToolsCategoryPage from "@/app/system/agent-ops/tools/[categoryId]
 import AgentOpsToolsGroupPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/page";
 import AgentOpsToolsToolDetailPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/page";
 import AgentOpsToolsHermesGlobalWebsiteMemoryPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/global-website-memory/page";
+import AgentOpsToolsHermesUsageLearningPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/usage-learning/page";
+import AgentOpsToolsHermesMcpAvatarPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/mcp-avatar/page";
 
 import OnboardingPage from "@/app/onboarding/page";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -1010,6 +1012,26 @@ function AppRoutes() {
           <ProtectedRoute>
             <DashboardLayout>
               <AgentOpsToolsHermesGlobalWebsiteMemoryPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/tools/:categoryId/:groupId/:toolId/usage-learning"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsToolsHermesUsageLearningPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/tools/:categoryId/:groupId/:toolId/mcp-avatar"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsToolsHermesMcpAvatarPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

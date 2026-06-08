@@ -99,7 +99,6 @@ import {
   type ToolRegistryEntry,
 } from "@/lib/agentops/tools/toolRegistry";
 
-import { PER_AGENT_MEMORY_HUB_PATH } from "./perAgentMemoryHubViews";
 import { ToolsHubShell } from "./toolsHubViews";
 
 const MEMORY_COORDINATION_GROUP_ID = "memory-coordination-tools";
@@ -111,10 +110,16 @@ const HERMES_MAIN_PANEL_BODY_CLASS = "aixia-dash-panel-body aixia-tools-hub-herm
 
 /** Hermes layer 1 — Global Website Memory read index (H2). */
 const HERMES_GLOBAL_WEBSITE_MEMORY_PATH = `/system/agent-ops/tools/${AGENT_BRAIN_CATEGORY_ID}/${MEMORY_COORDINATION_GROUP_ID}/${HERMES_TOOL_SLUG}/global-website-memory`;
+const HERMES_PER_AGENT_MEMORY_PATH = `/system/agent-ops/tools/${AGENT_BRAIN_CATEGORY_ID}/${MEMORY_COORDINATION_GROUP_ID}/${HERMES_TOOL_SLUG}/per-agent-memory`;
+const HERMES_USAGE_LEARNING_PATH = `/system/agent-ops/tools/${AGENT_BRAIN_CATEGORY_ID}/${MEMORY_COORDINATION_GROUP_ID}/${HERMES_TOOL_SLUG}/usage-learning`;
+const HERMES_MCP_AVATAR_PATH = `/system/agent-ops/tools/${AGENT_BRAIN_CATEGORY_ID}/${MEMORY_COORDINATION_GROUP_ID}/${HERMES_TOOL_SLUG}/mcp-avatar`;
 
 function getHermesDetailPath(): string {
   return `/system/agent-ops/tools/${AGENT_BRAIN_CATEGORY_ID}/${MEMORY_COORDINATION_GROUP_ID}/${HERMES_TOOL_SLUG}`;
 }
+
+const HERMES_FOUNDATIONS_SUMMARY =
+  "All four Hermes foundations are active at the safe-read/control-surface level. Runtime advisory, read-only context, recommendation artifacts, and safe-read coordinator are working. Execution, writes, scheduler, AgentMemory writes, and production remain blocked.";
 
 const HERMES_STATUS_BADGES_BASE = [
   { label: "Advisory runtime active", tone: "emerald" as const },
@@ -144,11 +149,13 @@ const HERMES_STAGE_ROADMAP = {
     "Workflow 3 — Fix Report / Verification Reviewer",
     "Stage B Recommendation Artifact Store",
     "Stage C Coordinator + controlled automation (safe-read only)",
+    "User Usage Learning foundation (read-only)",
+    "MCP / Avatar Task Agent foundation (execution blocked)",
   ],
   inProgress: ["Hermes readiness/docs alignment"],
   notStarted: [
     "Stage D AgentMemory writes",
-    "User Usage Learning",
+    "Usage learning writes & automation",
     "MCP / avatar execution",
     "Production activation",
     "Full scheduler automation",
@@ -168,11 +175,12 @@ const HERMES_LAYERS = [
     title: "Global Website Memory",
     icon: Layers,
     tone: "amber" as const,
-    status: "Partial foundation / read-only",
-    purpose: "Read-only global memory index, scans, and approved metadata preview.",
-    missing: "Not a full Hermes memory coordinator.",
+    status: "Foundation active",
+    purpose:
+      "Read-only global memory foundation for rules, issue history, verified fixes, tools, and Piter instructions.",
+    missing: "Read-only foundation — not a full memory coordinator or write path.",
     detailPath: HERMES_GLOBAL_WEBSITE_MEMORY_PATH,
-    actionLabel: "Open",
+    actionLabel: "Open layer",
     disabled: false,
   },
   {
@@ -180,34 +188,39 @@ const HERMES_LAYERS = [
     title: "Per-Agent Memory Support",
     icon: Users,
     tone: "cyan" as const,
-    status: "Read-only hub started",
-    purpose: "Read-only hub for 12 agents and Supabase memory rows.",
-    missing: "AgentMemory not connected. Full coordination not active.",
-    detailPath: PER_AGENT_MEMORY_HUB_PATH,
-    actionLabel: "Open hub",
+    status: "Foundation active",
+    purpose:
+      "Read-only per-agent memory foundation for roles, permissions, allowed tools, focus, findings, and lessons.",
+    missing: "Read-only foundation — AgentMemory not connected; no per-agent writes.",
+    detailPath: HERMES_PER_AGENT_MEMORY_PATH,
+    actionLabel: "Open layer",
     disabled: false,
   },
   {
     id: "usage-learning",
     title: "User Usage Learning",
     icon: LineChart,
-    tone: "neutral" as const,
-    status: "Not started",
-    purpose: "Piter/user usage learning — not connected.",
-    missing: "Privacy rules and analytics read path not defined.",
-    actionLabel: "Planned",
-    disabled: true,
+    tone: "emerald" as const,
+    status: "Foundation active",
+    purpose:
+      "Read-only usage-learning foundation for future Piter workflow patterns, friction signals, and personalization gates.",
+    missing: "Learning writes blocked — privacy gated, scheduler off, no analytics ingestion.",
+    detailPath: HERMES_USAGE_LEARNING_PATH,
+    actionLabel: "Open layer",
+    disabled: false,
   },
   {
     id: "mcp-avatar",
     title: "MCP / Avatar Task Agent Support",
     icon: Sparkles,
     tone: "violet" as const,
-    status: "Not started",
-    purpose: "Future permission-bound task agent layer.",
-    missing: "Architecture only — no execution layer built.",
-    actionLabel: "Planned",
-    disabled: true,
+    status: "Foundation active",
+    purpose:
+      "Read-only task-agent foundation for future MCP/avatar actions, approvals, and execution gates.",
+    missing: "Execution blocked — approval required, tools blocked, production off.",
+    detailPath: HERMES_MCP_AVATAR_PATH,
+    actionLabel: "Open layer",
+    disabled: false,
   },
 ];
 
@@ -259,9 +272,10 @@ const HERMES_CONNECTIONS: ConnectionRow[] = [
   },
   {
     system: "Analytics / usage learning",
-    status: "Scripts only · not connected",
-    detail: "export-analytics-for-hermes.mjs and analytics:hermes are manual CLI tools.",
-    connected: false,
+    status: "Foundation active · read-only",
+    detail:
+      "User Usage Learning module surface defines privacy gates and safe inputs. No analytics ingestion or learning writes.",
+    connected: true,
   },
   {
     system: "CodeGraph",
@@ -949,8 +963,52 @@ function HermesCoordinatorAutomationPanel({
         read preview, and tool execution gates. No auto-save, no writes, no tool execution.
       </p>
 
-      {snapshot ? (
-        <div className="aixia-tools-hub-hermes-coordinator-grid">
+      <div className="aixia-tools-hub-hermes-coordinator-grid">
+        <div
+          className="aixia-tools-hub-hermes-coordinator-card"
+          data-testid="hermes-coordinator-foundations"
+        >
+          <h4 className="aixia-tools-hub-hermes-coordinator-card-title">
+            Hermes foundations (4/4 active)
+          </h4>
+          <dl className="aixia-tools-hub-hermes-coordinator-meta">
+            <div>
+              <dt>Global Memory foundation</dt>
+              <dd>Active · read-only</dd>
+            </div>
+            <div>
+              <dt>Per-Agent Memory foundation</dt>
+              <dd>Active · read-only</dd>
+            </div>
+            <div>
+              <dt>User Usage Learning foundation</dt>
+              <dd>Active · read-only</dd>
+            </div>
+            <div>
+              <dt>MCP / Avatar Task Agent foundation</dt>
+              <dd>Active · execution blocked</dd>
+            </div>
+            <div>
+              <dt>Scheduler</dt>
+              <dd>Inactive</dd>
+            </div>
+            <div>
+              <dt>Tool execution</dt>
+              <dd>Blocked</dd>
+            </div>
+            <div>
+              <dt>AgentMemory writes</dt>
+              <dd>Blocked</dd>
+            </div>
+            <div>
+              <dt>Production</dt>
+              <dd>Off</dd>
+            </div>
+          </dl>
+        </div>
+
+        {snapshot ? (
+          <>
           <div className="aixia-tools-hub-hermes-coordinator-card" data-testid="hermes-coordinator-queue">
             <h4 className="aixia-tools-hub-hermes-coordinator-card-title">Advisory artifact queue</h4>
             <p className="aixia-tools-hub-hermes-coordinator-card-note">{snapshot.queue.sequenceNote}</p>
@@ -1021,10 +1079,11 @@ function HermesCoordinatorAutomationPanel({
               ))}
             </ul>
           </div>
-        </div>
-      ) : loading ? (
-        <p className="aixia-tools-hub-hermes-coordinator-loading">Loading coordinator snapshot…</p>
-      ) : null}
+          </>
+        ) : loading ? (
+          <p className="aixia-tools-hub-hermes-coordinator-loading">Loading coordinator snapshot…</p>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -3651,7 +3710,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
   const readinessCards = [
     {
       label: "Runtime",
-      value: advisoryActive ? "Active on staging" : health ? "Unavailable" : "Checking…",
+      value: advisoryActive ? "Active" : health ? "Unavailable" : "Checking…",
       description: "Doubao Ark advisory transport",
       tone: advisoryActive ? ("emerald" as const) : ("rose" as const),
     },
@@ -3662,18 +3721,16 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
       tone: contextActive ? ("cyan" as const) : ("amber" as const),
     },
     {
-      label: "Issue workflows",
-      value: "1–3 accepted",
-      description: "Advisory, prompt review, fix report review",
+      label: "Hermes foundations",
+      value: "4/4 active",
+      description: "Global, per-agent, usage learning, MCP/avatar surfaces",
       tone: "emerald" as const,
     },
     {
-      label: "Coordinator",
-      value: coordinatorActive ? "Active (safe-read)" : "Not active",
-      description: coordinatorActive
-        ? "Advisory queue + gates — writes/tools blocked"
-        : "Enable in Hermes Control (owner-approved)",
-      tone: coordinatorActive ? ("emerald" as const) : ("rose" as const),
+      label: "Execution",
+      value: "Blocked",
+      description: "Tools, MCP, avatar, scheduler, production",
+      tone: "rose" as const,
     },
   ];
 
@@ -3685,14 +3742,14 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
       title="Hermes"
       subtitle={
         coordinatorActive
-          ? "Advisory runtime and Stage C coordinator are active (safe-read only). Writes, tools, and production remain blocked."
-          : "Advisory runtime is active with Doubao Ark and read-only AiXia context. Enable coordinator in Hermes Control when ready."
+          ? "All four Hermes foundations are active at the safe-read level. Stage C coordinator is on (safe-read only). Execution, writes, scheduler, and production remain blocked."
+          : "All four Hermes foundations are active at the safe-read/control-surface level. Advisory runtime and read-only context are working. Coordinator is off by default."
       }
       parentLabel={parentLabel}
       parentPath={parentPath}
       badges={buildHermesStatusBadges(coordinatorActive)}
     >
-      <p className="aixia-tools-hub-hermes-hero-note">{HERMES_NEXT_ACTIVATION_STEP}</p>
+      <p className="aixia-tools-hub-hermes-hero-note">{HERMES_FOUNDATIONS_SUMMARY}</p>
     </AixiaHero>
   );
 
@@ -3762,7 +3819,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           surface="command"
           className="aixia-tools-hub-hermes-section aixia-tools-hub-hermes-readiness-section"
           title="Module readiness"
-          description="Advisory module status on staging — Stage C coordinator is safe-read only; writes and tools remain blocked."
+          description="All four Hermes foundations active at safe-read level — execution, writes, scheduler, and production remain blocked."
           icon={CheckCircle2}
           bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
@@ -3780,11 +3837,8 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
               />
             ))}
           </div>
-          <p className="aixia-tools-hub-hermes-readiness-note">
-            Stage B recommendation artifacts accepted on staging. Owner-triggered advisory artifacts
-            persist after refresh. Stage C coordinator reads saved artifacts into a read-only W1 →
-            W2 → W3 → Fix Report queue — no auto-save.
-          </p>
+          <p className="aixia-tools-hub-hermes-readiness-note">{HERMES_FOUNDATIONS_SUMMARY}</p>
+          <p className="aixia-tools-hub-hermes-readiness-note">{HERMES_NEXT_ACTIVATION_STEP}</p>
           <p className="aixia-tools-hub-hermes-safety-line" data-testid="hermes-advisory-safety-line">
             {HERMES_ADVISORY_SAFETY_LINE}
           </p>
@@ -3794,7 +3848,7 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
           surface="command"
           className="aixia-tools-hub-hermes-section aixia-non-cropping-grid-section"
           title="Four Hermes layers"
-          description="Memory layers — partial, read-only, or not started."
+          description="All four foundations active — read-only or execution-blocked at the safe staging level."
           icon={Layers}
           bodyClassName={HERMES_MAIN_PANEL_BODY_CLASS}
         >
@@ -3809,13 +3863,11 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
                 statusLabel={layer.status}
                 actionLabel={layer.actionLabel}
                 disabled={layer.disabled}
-                onClick={
-                  layer.detailPath ? () => navigate(layer.detailPath) : undefined
-                }
+                onClick={layer.detailPath ? () => navigate(layer.detailPath) : undefined}
                 meta={[
                   {
                     label: "Details",
-                    value: layer.disabled ? "Planned" : "Open layer",
+                    value: "Open layer",
                     description: layer.missing,
                   },
                 ]}
@@ -3830,84 +3882,374 @@ export function ToolsHubHermesDetailPage({ registryEntry }: ToolsHubHermesDetail
   );
 }
 
-export type HermesPlannedLayerId = "usage-learning" | "mcp-avatar";
+export type HermesFoundationLayerId = "usage-learning" | "mcp-avatar";
 
-const HERMES_PLANNED_LAYER_CONFIG: Record<
-  HermesPlannedLayerId,
-  {
-    title: string;
-    icon: typeof LineChart;
-    intro: string;
-    safetyItems: string[];
-  }
-> = {
-  "usage-learning": {
-    title: "User Usage Learning",
-    icon: LineChart,
-    intro:
-      "This Hermes layer is planned for a later phase. No usage-learning automation, analytics ingestion, memory learning, or scheduler is active today.",
-    safetyItems: [
-      "No memory writes",
-      "No AgentMemory writes",
-      "No analytics learning",
-      "No scheduler automation",
-      "No production activation",
-    ],
-  },
-  "mcp-avatar": {
-    title: "MCP / Avatar Task Agent Support",
-    icon: Sparkles,
-    intro:
-      "This Hermes layer is planned for a later phase. No MCP execution, avatar task execution, tool execution, or automation is active today.",
-    safetyItems: [
-      "No MCP execution",
-      "No avatar execution",
-      "No tool execution",
-      "No AgentMemory writes",
-      "No production activation",
-    ],
-  },
+type HermesFoundationStatusItem = {
+  label: string;
+  value: string;
+  tone: "emerald" | "amber" | "rose" | "neutral" | "cyan" | "violet";
 };
 
-export function ToolsHubHermesPlannedLayerPage({ layerId }: { layerId: HermesPlannedLayerId }) {
+function HermesFoundationStatusGrid({ items }: { items: HermesFoundationStatusItem[] }) {
+  return (
+    <div className="aixia-tools-hub-hermes-memory-grid">
+      {items.map((item) => (
+        <div key={item.label} className="aixia-tools-hub-hermes-memory-card">
+          <div className="aixia-tools-hub-hermes-memory-card-head">
+            <div className="aixia-tools-hub-hermes-memory-card-title-row">
+              <CheckCircle2 className="aixia-tools-hub-hermes-memory-card-icon" />
+              <h3 className="aixia-tools-hub-hermes-memory-card-title">{item.label}</h3>
+            </div>
+            <AixiaBadge tone={item.tone}>{item.value}</AixiaBadge>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HermesFoundationTopicGrid({ title, items }: { title: string; items: string[] }) {
+  return (
+    <div className="aixia-tools-hub-hermes-foundation-topic-block">
+      <h3 className="aixia-tools-hub-hermes-foundation-topic-title">{title}</h3>
+      <ul className="aixia-tools-hub-hermes-steps-list">
+        {items.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function HermesFoundationStagePath({ stages }: { stages: string[] }) {
+  return (
+    <ol className="aixia-tools-hub-hermes-foundation-path">
+      {stages.map((stage) => (
+        <li key={stage}>{stage}</li>
+      ))}
+    </ol>
+  );
+}
+
+function HermesFoundationBackButton() {
   const navigate = useNavigate();
-  const config = HERMES_PLANNED_LAYER_CONFIG[layerId];
   const hermesPath = getHermesDetailPath();
-  const LayerIcon = config.icon;
+  return (
+    <div className="aixia-tools-hub-hermes-foundation-layer-actions">
+      <AixiaButton variant="secondary" onClick={() => navigate(hermesPath)}>
+        Back to Hermes
+      </AixiaButton>
+    </div>
+  );
+}
+
+export function ToolsHubHermesUsageLearningFoundationPage() {
+  const moduleStatus: HermesFoundationStatusItem[] = [
+    { label: "Foundation", value: "Active", tone: "emerald" },
+    { label: "Runtime", value: "Read-only", tone: "cyan" },
+    { label: "Learning writes", value: "Blocked", tone: "rose" },
+    { label: "Analytics ingestion", value: "Off", tone: "neutral" },
+    { label: "Scheduler", value: "Off", tone: "neutral" },
+    { label: "Production", value: "Off", tone: "rose" },
+  ];
 
   return (
     <ToolsHubShell
-      title={config.title}
-      subtitle="Not started / Planned — Hermes layer placeholder only."
+      title="User Usage Learning"
+      subtitle="Foundation active — read-only usage-learning control surface for Hermes."
       parentLabel="Hermes"
-      parentPath={hermesPath}
-      badges={[{ label: "Not started / Planned", tone: "neutral" }]}
+      parentPath={getHermesDetailPath()}
+      badges={[
+        { label: "Foundation active", tone: "emerald" },
+        { label: "Read-only", tone: "cyan" },
+        { label: "Learning writes blocked", tone: "rose" },
+        { label: "Privacy gated", tone: "amber" },
+        { label: "Scheduler off", tone: "neutral" },
+        { label: "Production off", tone: "rose" },
+      ]}
     >
-      <div className="aixia-tools-hub-hermes-page aixia-tools-hub-hermes-planned-layer-page">
+      <div
+        className="aixia-tools-hub-hermes-page aixia-tools-hub-hermes-foundation-layer-page"
+        data-testid="hermes-usage-learning-foundation"
+      >
         <AixiaSection
           surface="command"
-          title="Planned layer"
-          description="Placeholder for direct URL safety — no runtime activation."
-          icon={LayerIcon}
+          title="Module status"
+          description="Current safe staging level — no analytics ingestion or learning writes."
+          icon={LineChart}
           bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
         >
-          <p className="aixia-tools-hub-hermes-memory-intro">{config.intro}</p>
-          <AixiaInfoBlock tone="gold" icon={Shield} title="Safety boundaries">
-            <ul className="aixia-tools-hub-hermes-safety-list">
-              {config.safetyItems.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </AixiaInfoBlock>
-          <div className="aixia-tools-hub-hermes-planned-layer-actions">
-            <AixiaButton variant="secondary" onClick={() => navigate(hermesPath)}>
-              Back to Hermes
-            </AixiaButton>
-          </div>
+          <p className="aixia-tools-hub-hermes-memory-intro">
+            This layer will help Hermes learn Piter&apos;s usage patterns, workflow preferences,
+            friction points, and repeated actions. v1 is read-only foundation only — no analytics
+            ingestion, hidden tracking, memory writes, AgentMemory writes, or production learning.
+          </p>
+          <HermesFoundationStatusGrid items={moduleStatus} />
         </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          title="What Hermes can learn later"
+          description="Future approved learning targets — not active in v1."
+          icon={BookOpen}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <HermesFoundationTopicGrid
+            title="Learning targets (future)"
+            items={[
+              "Piter workflow patterns",
+              "Repeated issue types",
+              "Preferred prompt style",
+              "Repeated corrections",
+              "Tool usage preferences",
+              "Friction signals",
+              "Approval habits",
+              "Module priorities",
+            ]}
+          />
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          title="Current safe inputs"
+          description="Read-only inputs Hermes may preview later — no ingestion pipeline active."
+          icon={Database}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <HermesFoundationTopicGrid
+            title="Possible read-only inputs"
+            items={[
+              "Saved Hermes recommendations",
+              "Issue history",
+              "Manual owner feedback",
+              "Workflow outcomes",
+              "Tool registry metadata",
+              "Approved global memory metadata",
+              "Per-agent memory summaries",
+            ]}
+          />
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          title="Privacy and permission gates"
+          description="Owner approval and explicit permission required before any learning write path."
+          icon={Lock}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <HermesFoundationTopicGrid
+            title="Gates"
+            items={[
+              "Owner approval required",
+              "No hidden tracking",
+              "No personal/private learning without explicit permission",
+              "No production learning",
+              "No automatic memory write",
+              "No AgentMemory write",
+              "No scheduler automation",
+            ]}
+          />
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          title="Future automation path"
+          description="Staged rollout — v1 foundation only."
+          icon={MapPin}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <HermesFoundationStagePath
+            stages={[
+              "v1 — read-only foundation active",
+              "v2 — candidate learning records",
+              "v3 — owner approval queue",
+              "v4 — approved usage memory",
+              "v5 — coordinator uses approved patterns",
+            ]}
+          />
+        </AixiaSection>
+
+        <AixiaInfoBlock tone="gold" icon={Shield} title="Safety boundaries">
+          User Usage Learning is foundation-active only. No analytics ingestion, scheduler
+          automation, memory writes, AgentMemory writes, hidden tracking, or production learning is
+          active.
+        </AixiaInfoBlock>
+
+        <HermesFoundationBackButton />
       </div>
     </ToolsHubShell>
   );
+}
+
+export function ToolsHubHermesMcpAvatarFoundationPage() {
+  const moduleStatus: HermesFoundationStatusItem[] = [
+    { label: "Foundation", value: "Active", tone: "emerald" },
+    { label: "Tool execution", value: "Blocked", tone: "rose" },
+    { label: "MCP execution", value: "Blocked", tone: "rose" },
+    { label: "Avatar execution", value: "Blocked", tone: "rose" },
+    { label: "Scheduler", value: "Off", tone: "neutral" },
+    { label: "Production", value: "Off", tone: "rose" },
+  ];
+
+  const toolGateMatrix = [
+    { tool: "Cursor", status: "Blocked", note: "Future owner approval required" },
+    { tool: "Browser QA", status: "Blocked", note: "Future owner approval required" },
+    { tool: "CodeGraph", status: "Read-only context only", note: "Context hints only — no execution" },
+    { tool: "AgentMemory write", status: "Blocked", note: "Stage D not active" },
+    { tool: "MCP tools", status: "Blocked", note: "No MCP server execution" },
+    { tool: "Avatar tasks", status: "Blocked", note: "No avatar/voice execution" },
+  ];
+
+  return (
+    <ToolsHubShell
+      title="MCP / Avatar Task Agent Support"
+      subtitle="Foundation active — execution blocked task-agent control surface for Hermes."
+      parentLabel="Hermes"
+      parentPath={getHermesDetailPath()}
+      badges={[
+        { label: "Foundation active", tone: "emerald" },
+        { label: "Execution blocked", tone: "rose" },
+        { label: "Approval required", tone: "amber" },
+        { label: "Tools blocked", tone: "rose" },
+        { label: "Scheduler off", tone: "neutral" },
+        { label: "Production off", tone: "rose" },
+      ]}
+    >
+      <div
+        className="aixia-tools-hub-hermes-page aixia-tools-hub-hermes-foundation-layer-page"
+        data-testid="hermes-mcp-avatar-foundation"
+      >
+        <AixiaSection
+          surface="command"
+          title="Module status"
+          description="v1 defines safe control surfaces only — no tool, MCP, or avatar execution."
+          icon={Sparkles}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <p className="aixia-tools-hub-hermes-memory-intro">
+            This layer will eventually let Hermes coordinate approved task agents, MCP tools, avatar
+            actions, and execution workflows. v1 only defines architecture, approval gates, and
+            blocked execution state — no MCP, avatar, tool, Cursor, or Browser QA execution.
+          </p>
+          <HermesFoundationStatusGrid items={moduleStatus} />
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          title="Future task-agent capabilities"
+          description="Planned capabilities — all blocked in v1."
+          icon={Wrench}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <HermesFoundationTopicGrid
+            title="Future capabilities"
+            items={[
+              "Run approved tool workflows",
+              "Call MCP servers",
+              "Trigger browser QA",
+              "Prepare Cursor tasks",
+              "Route avatar/voice tasks later",
+              "Execute only after permission",
+              "Log every action",
+              "Stop/rollback controls",
+            ]}
+          />
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          title="Current safe gates"
+          description="Every execution path requires explicit owner and agent permission."
+          icon={Lock}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <HermesFoundationTopicGrid
+            title="Gates"
+            items={[
+              "Owner approval required",
+              "Per-tool permission required",
+              "Agent permission required",
+              "Staging only",
+              "Dry-run first",
+              "Audit log required",
+              "No production by default",
+            ]}
+          />
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          title="Tool gate matrix"
+          description="Safe staging matrix — execution blocked unless future owner approval."
+          icon={Shield}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <div className="aixia-tools-hub-hermes-gate-matrix-wrap">
+            <table className="aixia-tools-hub-hermes-gate-matrix">
+              <thead>
+                <tr>
+                  <th scope="col">Tool / capability</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {toolGateMatrix.map((row) => (
+                  <tr key={row.tool}>
+                    <td>{row.tool}</td>
+                    <td>
+                      <AixiaBadge tone={row.status === "Blocked" ? "rose" : "cyan"}>
+                        {row.status}
+                      </AixiaBadge>
+                    </td>
+                    <td>{row.note}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </AixiaSection>
+
+        <AixiaSection
+          surface="command"
+          title="Future automation path"
+          description="Staged rollout — v1 foundation with execution blocked."
+          icon={MapPin}
+          bodyClassName="aixia-dash-panel-body aixia-tools-hub-hermes-panel-body"
+        >
+          <HermesFoundationStagePath
+            stages={[
+              "v1 — foundation active / execution blocked",
+              "v2 — dry-run task plans",
+              "v3 — owner-approved tool execution in staging",
+              "v4 — automated QA with logs",
+              "v5 — limited autonomous mode",
+              "v6 — production only after explicit approval",
+            ]}
+          />
+        </AixiaSection>
+
+        <AixiaInfoBlock tone="gold" icon={Shield} title="Safety boundaries">
+          MCP / Avatar Task Agent Support is foundation-active only. No MCP execution, avatar
+          execution, tool execution, Cursor execution, scheduler automation, or production action is
+          active.
+        </AixiaInfoBlock>
+
+        <HermesFoundationBackButton />
+      </div>
+    </ToolsHubShell>
+  );
+}
+
+/** @deprecated Use ToolsHubHermesUsageLearningFoundationPage or ToolsHubHermesMcpAvatarFoundationPage */
+export type HermesPlannedLayerId = HermesFoundationLayerId;
+
+/** @deprecated Use ToolsHubHermesUsageLearningFoundationPage or ToolsHubHermesMcpAvatarFoundationPage */
+export function ToolsHubHermesPlannedLayerPage({ layerId }: { layerId: HermesPlannedLayerId }) {
+  if (layerId === "usage-learning") {
+    return <ToolsHubHermesUsageLearningFoundationPage />;
+  }
+  return <ToolsHubHermesMcpAvatarFoundationPage />;
 }
 
 export function ToolsHubHermesDetailNotFound({

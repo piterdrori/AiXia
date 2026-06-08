@@ -5,7 +5,7 @@ import { getToolRegistryToolBySlug } from "@/lib/agentops/tools/toolRegistry";
 
 import {
   ToolsHubHermesDetailNotFound,
-  ToolsHubHermesPlannedLayerPage,
+  ToolsHubHermesUsageLearningFoundationPage,
 } from "../../../../hermesDetailViews";
 
 const HERMES_REGISTRY_ID = "mct-hermes";
@@ -27,5 +27,5 @@ export default function AgentOpsToolsHermesUsageLearningPage() {
     );
   }
 
-  return <ToolsHubHermesPlannedLayerPage layerId="usage-learning" />;
+  return <ToolsHubHermesUsageLearningFoundationPage />;
 }

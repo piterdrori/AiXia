@@ -168,6 +168,7 @@ import AgentOpsToolsCategoryPage from "@/app/system/agent-ops/tools/[categoryId]
 import AgentOpsToolsGroupPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/page";
 import AgentOpsToolsToolDetailPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/page";
 import AgentOpsToolsHermesGlobalWebsiteMemoryPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/global-website-memory/page";
+import AgentOpsToolsHermesPerAgentMemoryPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/per-agent-memory/page";
 import AgentOpsToolsHermesUsageLearningPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/usage-learning/page";
 import AgentOpsToolsHermesMcpAvatarPage from "@/app/system/agent-ops/tools/[categoryId]/[groupId]/[toolId]/mcp-avatar/page";
 
@@ -1012,6 +1013,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <DashboardLayout>
               <AgentOpsToolsHermesGlobalWebsiteMemoryPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/tools/:categoryId/:groupId/:toolId/per-agent-memory"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsToolsHermesPerAgentMemoryPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

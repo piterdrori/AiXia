@@ -10864,13 +10864,72 @@ button.aixia-action-card:disabled {
   padding-bottom: 6rem;
 }
 
-.aixia-tools-hub-hermes-planned-layer-page {
+.aixia-tools-hub-hermes-planned-layer-page,
+.aixia-tools-hub-hermes-foundation-layer-page {
   gap: 0.85rem;
   padding-bottom: 6rem;
 }
 
-.aixia-tools-hub-hermes-planned-layer-actions {
+.aixia-tools-hub-hermes-planned-layer-actions,
+.aixia-tools-hub-hermes-foundation-layer-actions {
   margin-top: 1rem;
+}
+
+.aixia-tools-hub-hermes-foundation-topic-block {
+  margin-top: 0.5rem;
+}
+
+.aixia-tools-hub-hermes-foundation-topic-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.aixia-tools-hub-hermes-foundation-path {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.45rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(203, 213, 225, 0.92);
+}
+
+.aixia-tools-hub-hermes-gate-matrix-wrap {
+  margin-top: 0.65rem;
+  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.aixia-tools-hub-hermes-gate-matrix {
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.aixia-tools-hub-hermes-gate-matrix th,
+.aixia-tools-hub-hermes-gate-matrix td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  text-align: left;
+  vertical-align: top;
+}
+
+.aixia-tools-hub-hermes-gate-matrix th {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.aixia-tools-hub-hermes-gate-matrix td {
+  color: rgba(203, 213, 225, 0.92);
 }
 
 .aixia-tools-hub-hermes-global-memory-page .aixia-tools-hub-hermes-global-memory-section.aixia-dash-panel,

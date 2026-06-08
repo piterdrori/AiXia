@@ -43,10 +43,11 @@ export const PER_AGENT_MEMORY_HUB_PATH = `/system/agent-ops/tools/${AGENT_BRAIN_
 const EXPECTED_AGENT_COUNT = 12;
 
 const HUB_BADGES = [
-  { label: "Layer 2", tone: "cyan" as const },
-  { label: "Read-only hub started", tone: "neutral" as const },
+  { label: "Foundation active", tone: "emerald" as const },
+  { label: "Read-only hub", tone: "neutral" as const },
   { label: "Per-agent coordination not active", tone: "rose" as const },
   { label: "AgentMemory not connected", tone: "amber" as const },
+  { label: "No runtime writes", tone: "violet" as const },
 ];
 
 const MEMORY_SOURCES = [
@@ -149,7 +150,13 @@ function agentMemoryDetailPath(agentId: string): string {
   return `/system/agent-ops/agents/${encodeURIComponent(agentId)}?panel=memory&mode=view`;
 }
 
-export function ToolsHubPerAgentMemoryHubPage() {
+export function ToolsHubPerAgentMemoryHubPage({
+  parentLabel = "Agent Brain & Memory",
+  parentPath,
+}: {
+  parentLabel?: string;
+  parentPath?: string;
+} = {}) {
   const navigate = useNavigate();
   const [agents, setAgents] = useState<AgentOpsManagedAgent[]>([]);
   const [memoryByAgent, setMemoryByAgent] = useState<Map<string, AgentMemorySnapshot>>(new Map());
@@ -250,14 +257,15 @@ export function ToolsHubPerAgentMemoryHubPage() {
 
   const categoryPath = getToolRegistryCategoryRoute(AGENT_BRAIN_CATEGORY_ID);
   const groupPath = getToolRegistryGroupRoute(AGENT_BRAIN_CATEGORY_ID, PER_AGENT_MEMORY_GROUP_ID);
+  const resolvedParentPath = parentPath ?? categoryPath;
 
   return (
     <ToolsHubShell
       title="Per-Agent Memory Support"
       subtitle="Read-only overview of the 12 AgentOps agents and their current memory status."
-      parentLabel="Agent Brain & Memory"
-      parentPath={categoryPath}
-      description="Read-only hub started. Per-agent memory coordination is not active yet. Hermes advisory runtime (Doubao Ark) is active separately on Hermes Control. This hub maps existing agent identity, Supabase memory rows, manifest permissions, and missing memory infrastructure before Hermes can coordinate agent-specific memory."
+      parentLabel={parentLabel}
+      parentPath={resolvedParentPath}
+      description="Foundation active read-only hub. Per-agent memory coordination is not active. AgentMemory is not connected. No runtime writes. Hermes advisory runtime (Doubao Ark) is active separately on Hermes Control. This hub maps existing agent identity, Supabase memory rows, manifest permissions, and missing memory infrastructure before Hermes can coordinate agent-specific memory."
       badges={HUB_BADGES}
     >
       <AixiaSection
@@ -519,7 +527,8 @@ export function ToolsHubPerAgentMemoryHubPage() {
       </AixiaSection>
 
       <AixiaInfoBlock tone="cyan" icon={FileText} title="Registry route">
-        Hub path: <code>{groupPath}</code> · Parent Hermes layer card links here for status only.
+        Legacy hub path: <code>{groupPath}</code> · Hermes layer card uses the Hermes child route under
+        memory-coordination-tools/hermes/per-agent-memory.
       </AixiaInfoBlock>
     </ToolsHubShell>
   );

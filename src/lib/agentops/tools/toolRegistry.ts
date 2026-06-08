@@ -265,6 +265,8 @@ const TOOL_REGISTRY_ENTRIES: Record<string, ToolRegistryEntry> = {
     dataLocation: "Repo files + Supabase",
     relatedToolIds: [],
     route: `${TOOLS_HUB_BASE_PATH}/agent-brain-memory/global-memory`,
+    notes:
+      "Registry taxonomy only — hidden from Agent Brain & Memory hub grid. Global Website Memory layer is owned by Hermes.",
   },
   "per-agent-memory": {
     id: "per-agent-memory",
@@ -293,6 +295,8 @@ const TOOL_REGISTRY_ENTRIES: Record<string, ToolRegistryEntry> = {
     dataLocation: "Supabase + qa-agent/agent-memory/",
     relatedToolIds: ["agentmemory"],
     route: `${TOOLS_HUB_BASE_PATH}/agent-brain-memory/per-agent-memory`,
+    notes:
+      "Registry taxonomy only — hidden from Agent Brain & Memory hub grid. Per-Agent Memory Support layer is owned by Hermes.",
   },
   "memory-coordination-tools": {
     id: "memory-coordination-tools",
@@ -1729,6 +1733,17 @@ export function getToolRegistryChildren(parentId: string): ToolRegistryEntry[] {
   return parent.childrenIds
     .map((id) => AGENTOPS_TOOL_REGISTRY[id])
     .filter(Boolean);
+}
+
+/** Level-2 groups hidden from Agent Brain & Memory hub grid — Hermes owns those layer cards. Routes stay valid. */
+export const AGENT_BRAIN_HUB_HIDDEN_GROUP_IDS = ["global-memory", "per-agent-memory"] as const;
+
+/** Category hub cards — filters Hermes-owned foundations from the parent grid. */
+export function getToolRegistryCategoryHubGroups(categoryId: string): ToolRegistryEntry[] {
+  const groups = getToolRegistryChildren(categoryId);
+  if (categoryId !== "agent-brain-memory") return groups;
+  const hidden = new Set<string>(AGENT_BRAIN_HUB_HIDDEN_GROUP_IDS);
+  return groups.filter((group) => !hidden.has(group.id));
 }
 
 export function getToolRegistryCategoryBySlug(

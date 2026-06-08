@@ -30,6 +30,7 @@ import {
   TOOLS_HUB_BASE_PATH,
   categoryHasNestedLevel3,
   formatToolRegistryStatus,
+  getToolRegistryCategoryHubGroups,
   getToolRegistryCategoryRoute,
   getToolRegistryChildren,
   getToolRegistryEntry,
@@ -317,8 +318,13 @@ export function ToolsHubCategoryPage({ categoryId }: { categoryId: string }) {
     );
   }
 
-  const groups = getToolRegistryChildren(categoryId);
+  const hubGroups = getToolRegistryCategoryHubGroups(categoryId);
   const showNestedOnPage = categoryHasNestedLevel3(categoryId);
+  const hubDescription = showNestedOnPage
+    ? categoryId === "agent-brain-memory"
+      ? `${hubGroups.length} operational groups · Global and per-agent memory foundations live inside Hermes · ${formatToolRegistryStatus(category.status)}`
+      : `${hubGroups.length} groups · open a card for Level 3 items · ${formatToolRegistryStatus(category.status)}`
+    : `${hubGroups.length} child tools · ${formatToolRegistryStatus(category.status)} · detail pages planned later`;
 
   return (
     <ToolsHubShell
@@ -330,18 +336,14 @@ export function ToolsHubCategoryPage({ categoryId }: { categoryId: string }) {
       <AixiaSection
         surface="command"
         title="Category overview"
-        description={
-          showNestedOnPage
-            ? `${groups.length} groups · open a card for Level 3 items · ${formatToolRegistryStatus(category.status)}`
-            : `${groups.length} child tools · ${formatToolRegistryStatus(category.status)} · detail pages planned later`
-        }
+        description={hubDescription}
         icon={resolveCategoryIcon(categoryId)}
         bodyClassName="aixia-dash-panel-body"
       >
         <AixiaNavigationGrid
           className={showNestedOnPage ? "aixia-tools-hub-category-grid" : "aixia-tools-hub-tool-grid"}
         >
-          {groups.map((group) => {
+          {hubGroups.map((group) => {
             const nested = getToolRegistryChildren(group.id);
             const hasNested = nested.length > 0;
             const groupRoute = getToolRegistryGroupRoute(categoryId, group.id);

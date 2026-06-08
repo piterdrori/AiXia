@@ -285,10 +285,11 @@ const HERMES_CONNECTIONS: ConnectionRow[] = [
     connected: true,
   },
   {
-    system: "Browser QA / reports",
-    status: "Not connected to Hermes runtime",
-    detail: "Evidence tools are separate; no Hermes ingestion of QA artifacts.",
-    connected: false,
+    system: "Evidence Tools",
+    status: "Foundation active · execution blocked",
+    detail:
+      "Browser QA, Playwright, reports, guardrails, and verification results are foundation-active read-only evidence sources. Hermes cannot execute them today.",
+    connected: true,
   },
   {
     system: "Tools Hub registry",
@@ -1097,6 +1098,46 @@ function HermesCoordinatorAutomationPanel({
               Code / Context tools are foundation-active as read-only context sources. CodeGraph,
               Understand-Anything, and claude-context can support future Hermes context enrichment,
               but Hermes cannot execute them today.
+            </p>
+          </div>
+
+          <div
+            className="aixia-tools-hub-hermes-coordinator-card"
+            data-testid="hermes-coordinator-evidence-tools"
+          >
+            <h4 className="aixia-tools-hub-hermes-coordinator-card-title">
+              Evidence Tools (read-only)
+            </h4>
+            <dl className="aixia-tools-hub-hermes-coordinator-meta">
+              <div>
+                <dt>Browser QA</dt>
+                <dd>Foundation active / execution blocked</dd>
+              </div>
+              <div>
+                <dt>Playwright</dt>
+                <dd>Foundation active / execution blocked</dd>
+              </div>
+              <div>
+                <dt>reports</dt>
+                <dd>Foundation active / read-only</dd>
+              </div>
+              <div>
+                <dt>guardrails</dt>
+                <dd>Foundation active / execution blocked</dd>
+              </div>
+              <div>
+                <dt>verification results</dt>
+                <dd>Foundation active / read-only</dd>
+              </div>
+              <div>
+                <dt>Execution</dt>
+                <dd>Blocked</dd>
+              </div>
+            </dl>
+            <p className="aixia-tools-hub-hermes-coordinator-card-note">
+              Evidence Tools are foundation-active as read-only evidence sources. Browser QA,
+              Playwright, reports, guardrails, and verification results can support future Hermes
+              evidence context, but Hermes cannot execute them today.
             </p>
           </div>
 

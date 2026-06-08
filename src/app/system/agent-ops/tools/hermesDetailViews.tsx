@@ -278,10 +278,11 @@ const HERMES_CONNECTIONS: ConnectionRow[] = [
     connected: true,
   },
   {
-    system: "CodeGraph",
-    status: "Planned · not connected to Hermes runtime",
-    detail: "Separate MCP; sanitized hints planned in specs only.",
-    connected: false,
+    system: "Code / Context Understanding",
+    status: "Foundation active · execution blocked",
+    detail:
+      "CodeGraph, Understand-Anything, and claude-context are foundation-active read-only context sources. Hermes cannot execute them today.",
+    connected: true,
   },
   {
     system: "Browser QA / reports",
@@ -1065,6 +1066,38 @@ function HermesCoordinatorAutomationPanel({
               </div>
             </dl>
             <p className="aixia-tools-hub-hermes-coordinator-card-note">{snapshot.agentMemory.note}</p>
+          </div>
+
+          <div
+            className="aixia-tools-hub-hermes-coordinator-card"
+            data-testid="hermes-coordinator-code-context"
+          >
+            <h4 className="aixia-tools-hub-hermes-coordinator-card-title">
+              Code / Context Understanding (read-only)
+            </h4>
+            <dl className="aixia-tools-hub-hermes-coordinator-meta">
+              <div>
+                <dt>CodeGraph context</dt>
+                <dd>Foundation active</dd>
+              </div>
+              <div>
+                <dt>Understand-Anything</dt>
+                <dd>Local clone / reference</dd>
+              </div>
+              <div>
+                <dt>claude-context</dt>
+                <dd>Local clone / reference</dd>
+              </div>
+              <div>
+                <dt>Execution</dt>
+                <dd>Blocked</dd>
+              </div>
+            </dl>
+            <p className="aixia-tools-hub-hermes-coordinator-card-note">
+              Code / Context tools are foundation-active as read-only context sources. CodeGraph,
+              Understand-Anything, and claude-context can support future Hermes context enrichment,
+              but Hermes cannot execute them today.
+            </p>
           </div>
 
           <div className="aixia-tools-hub-hermes-coordinator-card" data-testid="hermes-coordinator-tool-gates">

@@ -5,6 +5,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import {
+  evaluateAgentOpsStagingGuard,
+  guardAgentOpsExecutionResponse,
+  stagingGuardStatusPayload,
+} from "./agentops-staging-guard.mjs";
+
 const REPO_ROOT = process.cwd();
 
 export const GLOBAL_MEMORY_WHITELISTED_REPORT_IDS = [
@@ -292,17 +298,21 @@ export function buildGlobalMemoryCandidatesFromReports(options = {}) {
 
 export function getGlobalMemoryCandidateGeneratorStatus(env = process.env) {
   const available = isGlobalMemoryCandidateGeneratorAllowed(env);
+  const stagingGuard = evaluateAgentOpsStagingGuard(env);
+  const executionAvailable = available && stagingGuard.ok;
   const primaryPath = path.join(REPO_ROOT, REPORT_PATH_BY_ID[PRIMARY_REPORT_ID]);
   const primaryReportExists = fs.existsSync(primaryPath);
   return {
-    available,
+    available: executionAvailable,
     stagingOnly: true,
+    ...stagingGuardStatusPayload(env),
     primaryReport: REPORT_PATH_BY_ID[PRIMARY_REPORT_ID],
     primaryReportExists,
     allowedReportIds: GLOBAL_MEMORY_WHITELISTED_REPORT_IDS,
-    rejectionReason: available
+    rejectionReason: executionAvailable
       ? null
-      : "Candidate generator is disabled in production.",
+      : stagingGuard.reason ??
+        (available ? null : "Candidate generator is disabled in production."),
   };
 }
 
@@ -314,6 +324,9 @@ export async function handleGlobalMemoryGenerateCandidatesRequest(request, env =
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
+
+  const stagingBlocked = guardAgentOpsExecutionResponse(env);
+  if (stagingBlocked) return stagingBlocked;
 
   if (!isGlobalMemoryCandidateGeneratorAllowed(env)) {
     return Response.json(

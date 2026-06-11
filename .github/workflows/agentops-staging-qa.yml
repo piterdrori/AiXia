@@ -1,0 +1,66 @@
+# STAGING-TOOLS-1 — manual staging QA worker skeleton (staging repo only).
+# Does not deploy production. Does not write production Supabase.
+# Configure repository secret: AGENTOPS_QA_BASE_URL = deployed staging site URL.
+
+name: AgentOps Staging QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Optional run note (audit only)"
+        required: false
+        default: "manual staging QA smoke"
+
+# Optional schedule — disabled by default until staging URL + secrets are verified.
+# schedule:
+#   - cron: "0 6 * * 1"
+
+jobs:
+  playwright-smoke:
+    name: Playwright smoke (staging URL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      AGENTOPS_ENVIRONMENT: staging
+      AGENTOPS_PRODUCTION_BLOCKED: "true"
+      AGENTOPS_ALLOW_NON_STAGING: "false"
+      AGENTOPS_STAGING_SUPABASE_PROJECT_REF: ydppcpbxrvvardeslzrk
+      AGENTOPS_QA_BASE_URL: ${{ secrets.AGENTOPS_QA_BASE_URL }}
+    steps:
+      - name: Checkout staging repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Verify staging URL secret
+        run: |
+          if [ -z "$AGENTOPS_QA_BASE_URL" ]; then
+            echo "Missing AGENTOPS_QA_BASE_URL repository secret."
+            exit 1
+          fi
+          node -e "console.log('Targeting staging URL host:', new URL(process.env.AGENTOPS_QA_BASE_URL).host)"
+
+      - name: Run Playwright smoke against staging
+        run: npm run qa:agentops-playwright-smoke-fast
+
+      - name: Upload browser QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentops-staging-qa-artifacts
+          path: |
+            qa-agent/reports/browser-qa/browser-smoke-report.json
+            qa-agent/reports/browser-qa/browser-smoke-report.md
+            qa-agent/reports/browser-qa/playwright-report.json
+          if-no-files-found: warn

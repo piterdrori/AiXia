@@ -8,6 +8,12 @@ import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
 
+import {
+  evaluateAgentOpsStagingGuard,
+  guardAgentOpsExecutionResponse,
+  stagingGuardStatusPayload,
+} from "./agentops-staging-guard.mjs";
+
 const REPO_ROOT = process.cwd();
 
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
@@ -280,13 +286,19 @@ export async function runGlobalMemoryWhitelistedCommand(commandId) {
 
 export function getGlobalMemoryCommandRunnerStatus(env = process.env) {
   const available = isGlobalMemoryCommandRunnerAllowed(env);
+  const stagingGuard = evaluateAgentOpsStagingGuard(env);
+  const executionAvailable = available && stagingGuard.ok;
   return {
-    available,
+    available: executionAvailable,
     stagingOnly: true,
+    ...stagingGuardStatusPayload(env),
     allowedCommandIds: GLOBAL_MEMORY_COMMAND_IDS,
-    rejectionReason: available
+    rejectionReason: executionAvailable
       ? null
-      : "Local command runner is disabled in production. Use copy-command fallback.",
+      : stagingGuard.reason ??
+        (available
+          ? null
+          : "Local command runner is disabled in production. Use copy-command fallback."),
   };
 }
 
@@ -298,6 +310,9 @@ export async function handleGlobalMemoryRunCommandRequest(request, env = process
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
+
+  const stagingBlocked = guardAgentOpsExecutionResponse(env);
+  if (stagingBlocked) return stagingBlocked;
 
   if (!isGlobalMemoryCommandRunnerAllowed(env)) {
     return Response.json(

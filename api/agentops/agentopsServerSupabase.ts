@@ -1,6 +1,7 @@
 /**
  * Server-only Supabase client for read-only AgentOps Hermes context assembly.
  * Uses backend env vars only — never exposed to the browser.
+ * Execution/write routes must pass agentopsStagingGuard before using this client for writes.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";

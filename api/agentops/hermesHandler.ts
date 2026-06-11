@@ -31,6 +31,7 @@ import {
   readHermesCoordinatorActivationState,
   type HermesCoordinatorActivationState,
 } from "./hermesCoordinatorState.js";
+import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 
 export type AgentOpsHermesRuntimeHealthMode = "advisory_transport" | "blocked" | "unavailable";
 
@@ -241,6 +242,9 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
+
+  const stagingBlocked = guardAgentOpsExecutionResponse();
+  if (stagingBlocked) return stagingBlocked;
 
   if (!readOptionalInternalSecret(request)) {
     return jsonResponse({ error: "Unauthorized" }, 401);

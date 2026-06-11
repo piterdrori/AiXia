@@ -24,6 +24,8 @@ import {
   AixiaSection,
 } from "@/components/aixia";
 
+import { ToolsHubEnvironmentBadge } from "./ToolsHubEnvironmentBadge";
+
 type AixiaNavigationTone = NonNullable<ComponentProps<typeof AixiaNavigationCard>["tone"]>;
 
 import {
@@ -235,6 +237,7 @@ export function ToolsHubShell({
         />
       }
     >
+      <ToolsHubEnvironmentBadge />
       {showRegistryNote && infoTitle ? (
         <AixiaSection surface="command" title="Registry note" description={infoDescription} icon={Wrench}>
           <AixiaInfoBlock tone="cyan" icon={Wrench} title={infoTitle}>

@@ -3,6 +3,10 @@
  * Uses AGENTOPS_TOOL_REGISTRY metadata only — no execution, writes, or MCP.
  */
 
+import {
+  DESIGN_CREW_MEMORY_METADATA,
+  DESIGN_CREW_MEMORY_METADATA_TOOL_IDS,
+} from "./designCrewReferencesService.js";
 import type {
   AgentOpsHermesToolRegistryCategoryPreview,
   AgentOpsHermesToolRegistryPreview,
@@ -34,6 +38,11 @@ const PLANNED_OR_NOT_CONNECTED: ReadonlySet<ToolRegistryStatus> = new Set([
 
 /** Curated Hermes-relevant tools for compact preview (registry ids). */
 export const HERMES_TOOL_REGISTRY_RELEVANT_IDS: readonly string[] = [
+  "design-shadcn-admin",
+  "design-tailadmin-react",
+  "design-tailadmin-multi",
+  "design-aixia-global-sot",
+  "design-visual-qa-rules",
   "mct-hermes",
   "mct-agentmemory",
   "global-memory",
@@ -67,6 +76,12 @@ export const HERMES_TOOL_REGISTRY_RELEVANT_IDS: readonly string[] = [
   "runtime-background-workers",
 ] as const;
 
+/** DESIGN-1D — design crew tools exposed to Hermes as metadata-only (no live recall). */
+export const HERMES_DESIGN_CREW_METADATA_ONLY_TOOL_IDS: readonly string[] =
+  DESIGN_CREW_MEMORY_METADATA_TOOL_IDS;
+
+const DESIGN_CREW_METADATA_ONLY_IDS = new Set<string>(DESIGN_CREW_MEMORY_METADATA_TOOL_IDS);
+
 const CATEGORY_HERMES_RELEVANCE: Record<string, string> = {
   "agent-brain-memory":
     "Primary — global/per-agent memory, Hermes, AgentMemory, CodeGraph, and reasoning layers.",
@@ -76,7 +91,7 @@ const CATEGORY_HERMES_RELEVANCE: Record<string, string> = {
   "build-development":
     "Build/dev — Cursor, GitHub, Supabase/Vercel MCP, guardrails; metadata only, no MCP execution.",
   "design-crew-references":
-    "Design law — aixia-global and reference clones; read-only context, not coordinator law.",
+    "Design law — aixia-global and reference clones; metadata-only memory alignment (DESIGN-1D); no sibling repo read from Hermes preview.",
   "automation-integrations": "Planned — webhooks and connectors not wired; Hermes must not assign tools.",
   "runtime-platform":
     "Platform — Supabase, Vercel, auth, DB, storage; awareness only, no runtime activation.",
@@ -117,11 +132,25 @@ function resolveRegistryGroupTitle(entry: ToolRegistryEntry): string | null {
 }
 
 function describeHermesUseToday(entry: ToolRegistryEntry): string {
+  const designMeta = DESIGN_CREW_MEMORY_METADATA[entry.id as keyof typeof DESIGN_CREW_MEMORY_METADATA];
+  if (designMeta) {
+    if (designMeta.type === "external_design_reference") {
+      return "Metadata only — local sibling clone reference · no runtime import · no sibling repo file read from Hermes";
+    }
+    if (designMeta.authorityLevel === "final_design_law") {
+      return "Metadata only — final design authority (aixia-global) · memory cannot override source-of-truth · live recall not connected";
+    }
+    if (designMeta.authorityLevel === "guardrail_rules") {
+      return "Metadata only — guardrail rules reference · execution owner-triggered on Evidence Tools / Guardrails · no auto-run here";
+    }
+    return `Metadata only — ${designMeta.memoryConnectionMode} · live memory not connected`;
+  }
+
   if (entry.id === "mct-hermes") {
-    return "Health + assembler preview only — coordinator not active";
+    return "Foundation active — advisory runtime reachable · coordinator activation owner-gated";
   }
   if (entry.id === "mct-agentmemory") {
-    return "Not connected — no recall, install, or writes";
+    return "Read-Only Active — external package not connected by design · Write Protected";
   }
   if (entry.status === "not-installed" || entry.status === "planned" || entry.status === "target-only") {
     return "Not available — metadata display only";
@@ -139,6 +168,14 @@ function describeHermesUseToday(entry: ToolRegistryEntry): string {
 }
 
 function describeFutureHermesUse(entry: ToolRegistryEntry): string {
+  if (DESIGN_CREW_METADATA_ONLY_IDS.has(entry.id)) {
+    const designMeta = DESIGN_CREW_MEMORY_METADATA[entry.id as keyof typeof DESIGN_CREW_MEMORY_METADATA];
+    if (designMeta?.relatedMemoryToolId) {
+      return `Memory Hub metadata prepared — related tool ${designMeta.relatedMemoryToolId} · live recall owner-gated after staging guards verified`;
+    }
+    return "Memory Hub metadata prepared — live recall owner-gated after staging guards verified · no Supabase writes in preview";
+  }
+
   const target = entry.targetRuntime?.trim();
   if (target) {
     return target.length > 120 ? `${target.slice(0, 119)}…` : target;
@@ -220,6 +257,6 @@ export function buildAgentOpsHermesToolRegistryPreview(): AgentOpsHermesToolRegi
     categories: buildCategoryPreviews(),
     relevantTools: buildRelevantToolRows(),
     safetyBanner:
-      "Tool registry context is read-only. Hermes cannot execute, install, configure, or assign tools from this preview.",
+      "Tool registry context is read-only. Hermes cannot execute, install, configure, or assign tools from this preview. Design Crew tools are metadata-only — no sibling ../reference/ file read, no live memory recall, no Supabase writes.",
   };
 }

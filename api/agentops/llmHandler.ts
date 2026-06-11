@@ -20,6 +20,7 @@ import {
   listOllamaInstalledModels,
   readOptionalInternalSecret,
 } from "./ollamaProxy.js";
+import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 
 export type AgentOpsLlmChatScope = "council" | "individual_agent" | "issue";
 
@@ -77,6 +78,9 @@ export async function handleAgentOpsLlmRequest(request: Request): Promise<Respon
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
+
+  const stagingBlocked = guardAgentOpsExecutionResponse();
+  if (stagingBlocked) return stagingBlocked;
 
   if (!readOptionalInternalSecret(request)) {
     return jsonResponse({ error: "Unauthorized" }, 401);

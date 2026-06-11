@@ -1,8 +1,17 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "environment": "staging-only",
   "baseUrlDefault": "http://localhost:5173",
+  "baseUrlEnvNames": ["AGENTOPS_QA_BASE_URL", "VITE_APP_URL"],
+  "auditBaseUrlEnvNames": ["AGENTOPS_AUDIT_BASE", "AGENTOPS_QA_BASE_URL"],
+  "deployedStagingUrlPlaceholder": "https://YOUR-STAGING-DEPLOY-URL",
   "stagingProjectRef": "ydppcpbxrvvardeslzrk",
+  "agentopsGuardEnv": {
+    "AGENTOPS_ENVIRONMENT": "staging",
+    "AGENTOPS_STAGING_SUPABASE_PROJECT_REF": "ydppcpbxrvvardeslzrk",
+    "AGENTOPS_ALLOW_NON_STAGING": "false",
+    "AGENTOPS_PRODUCTION_BLOCKED": "true"
+  },
   "outputFolder": "qa-agent/reports/orchestrator",
   "allowedCommands": [
     "npm run qa:validate-foundation",

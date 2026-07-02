@@ -61,12 +61,13 @@ export async function handleAgentOpsLlmRequest(request: Request): Promise<Respon
       installed.ok ?
         mergeAgentOpsOllamaModelOptions(installed.models)
       : mergeAgentOpsOllamaModelOptions([]);
+    const ollamaError = !installed.ok ? installed.error : null;
 
     return jsonResponse({
       runtimeActive,
       appCallable: true,
       ollamaReachable: installed.ok ? true : false,
-      ollamaError: installed.ok ? null : installed.error,
+      ollamaError,
       model: config.model,
       defaultModel: AGENTOPS_OLLAMA_DEFAULT_MODEL,
       models,
@@ -117,10 +118,11 @@ export async function handleAgentOpsLlmRequest(request: Request): Promise<Respon
   const requestId = body.requestId ?? `agentops-llm-${Date.now()}`;
 
   if (!llmResult.ok) {
+    const llmError = llmResult.error;
     return jsonResponse(
       {
         source: "unavailable",
-        error: llmResult.error,
+        error: llmError,
         requestId,
         chatScope: body.chatScope ?? null,
         agentId: body.agentId ?? null,

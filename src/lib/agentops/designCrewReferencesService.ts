@@ -9,7 +9,7 @@ import {
   getToolRegistryEntry,
   TOOLS_HUB_BASE_PATH,
   type ToolRegistryEntry,
-} from "@/lib/agentops/tools/toolRegistry";
+} from "./tools/toolRegistry.js";
 
 export const DESIGN_CREW_CATEGORY_ID = "design-crew-references";
 

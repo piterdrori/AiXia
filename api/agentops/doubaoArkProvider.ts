@@ -196,25 +196,26 @@ export async function callDoubaoArkResponses(options: {
       if (content) return { ok: true, content, model };
       return { ok: false, error: "Doubao Ark returned empty content." };
     }
-    if (firstAttempt.status && firstAttempt.status >= 400 && firstAttempt.status < 500) {
-      const merged = buildDoubaoInput(options.messages, true);
-      const retry = await postDoubaoResponsesRequest(
-        merged,
-        model,
-        timeoutMs,
-        config.apiKey,
-        config.baseUrl,
-      );
-      if (retry.ok) {
-        const content = parseDoubaoArkResponseText(retry.payload);
-        if (content) return { ok: true, content, model };
-        return { ok: false, error: "Doubao Ark returned empty content." };
-      }
-      if (isOkResultFailed(retry)) {
-        return { ok: false, error: okResultError(retry) };
-      }
-    }
     if (isOkResultFailed(firstAttempt)) {
+      const status = firstAttempt.status;
+      if (status && status >= 400 && status < 500) {
+        const merged = buildDoubaoInput(options.messages, true);
+        const retry = await postDoubaoResponsesRequest(
+          merged,
+          model,
+          timeoutMs,
+          config.apiKey,
+          config.baseUrl,
+        );
+        if (retry.ok) {
+          const content = parseDoubaoArkResponseText(retry.payload);
+          if (content) return { ok: true, content, model };
+          return { ok: false, error: "Doubao Ark returned empty content." };
+        }
+        if (isOkResultFailed(retry)) {
+          return { ok: false, error: okResultError(retry) };
+        }
+      }
       return { ok: false, error: okResultError(firstAttempt) };
     }
   }

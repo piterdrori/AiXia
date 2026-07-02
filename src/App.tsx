@@ -154,10 +154,17 @@ import AIStateOfMindPage from "@/app/ai-management/state-of-mind/page";
 import AIVoicePage from "@/app/ai-management/voice/page";
 import AIAnimationPage from "@/app/ai-management/animation/page";
 import AgentOpsPage from "@/app/system/agent-ops/page";
-import AgentOpsIssuesPage from "@/app/system/agent-ops/issues/page";
+import AgentOpsProductIssuesHubPage from "@/app/system/agent-ops/issues/page";
 import AgentOpsIssueWorkspacePage from "@/app/system/agent-ops/issues/[issueCode]/page";
+import AgentOpsRuntimeIssuesMirrorPage from "@/app/system/agent-ops/issues/runtime/page";
 import AgentOpsAgentsPage from "@/app/system/agent-ops/agents/page";
-import AgentOpsAgentWorkspacePage from "@/app/system/agent-ops/agents/[agentId]/page";
+import AgentOpsAgentsRuntimePage from "@/app/system/agent-ops/agents/runtime/page";
+import AgentOpsAgentDetailPage from "@/app/system/agent-ops/agents/[agentId]/page";
+import AgentOpsEvolutionPage from "@/app/system/agent-ops/evolution/page";
+import AgentOpsFixPipelinePage from "@/app/system/agent-ops/fix/page";
+import AgentOpsMemoryPage from "@/app/system/agent-ops/memory/page";
+import AgentOpsConfigPage from "@/app/system/agent-ops/config/page";
+import AgentOpsRuntimeDiagnosticsHubPage from "@/app/system/agent-ops/runtime/page";
 import AgentOpsCouncilPage from "@/app/system/agent-ops/council/page";
 import AgentOpsAdvancedPage from "@/app/system/agent-ops/advanced/page";
 import AgentOpsKnowledgePage from "@/app/system/agent-ops/knowledge/page";
@@ -918,11 +925,89 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/system/agent-ops/issues"
+        path="/system/agent-ops/intelligence"
+        element={<Navigate to="/system/agent-ops" replace />}
+      />
+      <Route
+        path="/system/agent-ops/execution"
+        element={<Navigate to="/system/agent-ops" replace />}
+      />
+      <Route
+        path="/system/agent-ops/governance"
+        element={<Navigate to="/system/agent-ops" replace />}
+      />
+      <Route
+        path="/system/agent-ops/runtime/evolution"
         element={
           <ProtectedRoute>
             <DashboardLayout>
-              <AgentOpsIssuesPage />
+              <AgentOpsEvolutionPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/runtime/fix"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsFixPipelinePage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/runtime/memory"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsMemoryPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/runtime/config"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsConfigPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/runtime"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsRuntimeDiagnosticsHubPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/evolution"
+        element={<Navigate to="/system/agent-ops/runtime/memory?view=evolution" replace />}
+      />
+      <Route
+        path="/system/agent-ops/fix"
+        element={<Navigate to="/system/agent-ops/issues/runtime?filter=diagnostic-trace" replace />}
+      />
+      <Route
+        path="/system/agent-ops/memory"
+        element={<Navigate to="/system/agent-ops/runtime/memory" replace />}
+      />
+      <Route
+        path="/system/agent-ops/config"
+        element={<Navigate to="/system/agent-ops/runtime#system-config" replace />}
+      />
+      <Route
+        path="/system/agent-ops/issues/runtime"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsRuntimeIssuesMirrorPage />
             </DashboardLayout>
           </ProtectedRoute>
         }
@@ -938,6 +1023,16 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/system/agent-ops/issues"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsProductIssuesHubPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/system/agent-ops/agents"
         element={
           <ProtectedRoute>
@@ -948,11 +1043,25 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/system/agent-ops/agents/runtime"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsAgentsRuntimePage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/agents/council"
+        element={<Navigate to="/system/agent-ops/council" replace />}
+      />
+      <Route
         path="/system/agent-ops/agents/:agentId"
         element={
           <ProtectedRoute>
             <DashboardLayout>
-              <AgentOpsAgentWorkspacePage />
+              <AgentOpsAgentDetailPage />
             </DashboardLayout>
           </ProtectedRoute>
         }

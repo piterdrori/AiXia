@@ -9,6 +9,7 @@ import {
   probeOllamaReachability,
   readServerEnv,
 } from "./ollamaProxy.js";
+import { isOkResultFailed, okResultError } from "./okResult.js";
 
 export type AgentOpsLlmProviderId = "ollama" | "doubao_ark";
 
@@ -66,12 +67,12 @@ export async function callAgentOpsLlmChat(
       ],
       model: modelOverride ?? undefined,
     });
-    if (!result.ok) return { ok: false, error: result.error, provider };
+    if (isOkResultFailed(result)) return { ok: false, error: okResultError(result), provider };
     return { ok: true, content: result.content, model: result.model, provider };
   }
 
   const result = await callOllamaChat(systemPrompt, userMessage, modelOverride);
-  if (!result.ok) return { ok: false, error: result.error, provider };
+  if (isOkResultFailed(result)) return { ok: false, error: okResultError(result), provider };
   return { ok: true, content: result.content, model: result.model, provider };
 }
 

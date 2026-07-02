@@ -21,6 +21,7 @@ import {
   readOptionalInternalSecret,
 } from "./ollamaProxy.js";
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
+import { isOkResultFailed, okResultError } from "./okResult.js";
 
 export type AgentOpsLlmChatScope = "council" | "individual_agent" | "issue";
 
@@ -61,7 +62,7 @@ export async function handleAgentOpsLlmRequest(request: Request): Promise<Respon
       installed.ok ?
         mergeAgentOpsOllamaModelOptions(installed.models)
       : mergeAgentOpsOllamaModelOptions([]);
-    const ollamaError = !installed.ok ? installed.error : null;
+    const ollamaError = isOkResultFailed(installed) ? okResultError(installed) : null;
 
     return jsonResponse({
       runtimeActive,
@@ -117,12 +118,11 @@ export async function handleAgentOpsLlmRequest(request: Request): Promise<Respon
   const llmResult = await callAgentOpsLlmChat(systemPrompt, userMessage, body.model);
   const requestId = body.requestId ?? `agentops-llm-${Date.now()}`;
 
-  if (!llmResult.ok) {
-    const llmError = llmResult.error;
+  if (isOkResultFailed(llmResult)) {
     return jsonResponse(
       {
         source: "unavailable",
-        error: llmError,
+        error: okResultError(llmResult),
         requestId,
         chatScope: body.chatScope ?? null,
         agentId: body.agentId ?? null,

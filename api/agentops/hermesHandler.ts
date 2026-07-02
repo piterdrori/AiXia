@@ -32,6 +32,7 @@ import {
   type HermesCoordinatorActivationState,
 } from "./hermesCoordinatorState.js";
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
+import { isOkResultFailed, okResultError } from "./okResult.js";
 
 export type AgentOpsHermesRuntimeHealthMode = "advisory_transport" | "blocked" | "unavailable";
 
@@ -280,13 +281,13 @@ export async function handleAgentOpsHermesRequest(request: Request): Promise<Res
     coordinatorState.coordinatorActive,
   );
   const llmResult = await callAgentOpsLlmChat(systemPrompt, question, body.model);
-  if (!llmResult.ok) {
+  if (isOkResultFailed(llmResult)) {
     return jsonResponse(
       {
         source: "mock_fallback",
         hermesRuntimeCalled: true,
         shouldFallbackToMock: true,
-        error: llmResult.error,
+        error: okResultError(llmResult),
         requestId: body.requestId ?? `hermes-req-${Date.now()}`,
       },
       502,

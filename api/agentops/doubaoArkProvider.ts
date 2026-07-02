@@ -3,6 +3,7 @@
  */
 
 import { readServerEnv } from "./ollamaProxy.js";
+import { isOkResultFailed, okResultError } from "./okResult.js";
 
 export type DoubaoArkMessageRole = "system" | "user" | "assistant";
 
@@ -209,9 +210,13 @@ export async function callDoubaoArkResponses(options: {
         if (content) return { ok: true, content, model };
         return { ok: false, error: "Doubao Ark returned empty content." };
       }
-      return { ok: false, error: retry.error };
+      if (isOkResultFailed(retry)) {
+        return { ok: false, error: okResultError(retry) };
+      }
     }
-    return { ok: false, error: firstAttempt.error };
+    if (isOkResultFailed(firstAttempt)) {
+      return { ok: false, error: okResultError(firstAttempt) };
+    }
   }
 
   const userOnly = buildDoubaoInput(options.messages, false);
@@ -222,7 +227,7 @@ export async function callDoubaoArkResponses(options: {
     config.apiKey,
     config.baseUrl,
   );
-  if (!attempt.ok) return { ok: false, error: attempt.error };
+  if (isOkResultFailed(attempt)) return { ok: false, error: okResultError(attempt) };
   const content = parseDoubaoArkResponseText(attempt.payload);
   if (!content) return { ok: false, error: "Doubao Ark returned empty content." };
   return { ok: true, content, model };

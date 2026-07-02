@@ -1,0 +1,139 @@
+/**
+ * Phase 5A GitHub Actions scheduled dry-run workflow verification.
+ * Usage: npm run agentops:monitoring-gha-dry-run-verify
+ */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const REPO_ROOT = process.cwd();
+const WORKFLOW_PATH = join(
+  REPO_ROOT,
+  ".github/workflows/agentops-monitoring-scheduled-dry-run.yml",
+);
+const PACKAGE_JSON = join(REPO_ROOT, "package.json");
+const RUNNER_SCRIPT = join(REPO_ROOT, "scripts/agentops-monitoring-scheduled-run.mjs");
+const failures: string[] = [];
+
+function fail(message: string): void {
+  failures.push(message);
+}
+
+function main(): void {
+  let workflow: string;
+  try {
+    workflow = readFileSync(WORKFLOW_PATH, "utf8");
+  } catch {
+    fail("Missing .github/workflows/agentops-monitoring-scheduled-dry-run.yml");
+    workflow = "";
+  }
+
+  if (workflow) {
+    if (!/workflow_dispatch:/m.test(workflow)) {
+      fail("Workflow must include workflow_dispatch trigger");
+    }
+
+    const scheduleActive =
+      /^\s*schedule:\s*$/m.test(workflow) &&
+      !workflow.includes("# schedule:") &&
+      workflow.match(/^[^#]*schedule:/m);
+    const hasUncommentedSchedule = (() => {
+      const lines = workflow.split("\n");
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.trim().startsWith("#")) continue;
+        if (/^\s*schedule:\s*$/.test(line)) return true;
+        if (/^\s*-\s*cron:/.test(line) && !lines[i].trim().startsWith("#")) return true;
+      }
+      return false;
+    })();
+    if (hasUncommentedSchedule) {
+      fail("Workflow schedule must be commented out for Phase 5A");
+    }
+
+    if (!workflow.includes('AGENTOPS_MONITORING_DRY_RUN: "true"')) {
+      fail("Workflow must set AGENTOPS_MONITORING_DRY_RUN=true");
+    }
+    if (!workflow.includes('AGENTOPS_MONITORING_CONTINUOUS_ENABLED: "false"')) {
+      fail("Workflow must set AGENTOPS_MONITORING_CONTINUOUS_ENABLED=false");
+    }
+    if (!workflow.includes('AGENTOPS_MONITORING_LEVEL: "1"')) {
+      fail("Workflow must set AGENTOPS_MONITORING_LEVEL=1");
+    }
+    if (!workflow.includes("secrets.AGENTOPS_QA_BASE_URL")) {
+      fail("Workflow target must use secrets.AGENTOPS_QA_BASE_URL");
+    }
+    if (workflow.includes("AGENTOPS_OWNER_APPROVED_MONITORING_WRITE")) {
+      fail("Workflow must not reference AGENTOPS_OWNER_APPROVED_MONITORING_WRITE");
+    }
+    if (/AGENTOPS_MONITORING_DRY_RUN:\s*"false"/.test(workflow)) {
+      fail("Workflow must not set AGENTOPS_MONITORING_DRY_RUN=false");
+    }
+
+    const runLines = workflow
+      .split("\n")
+      .filter((line) => /^\s+run:/.test(line))
+      .join("\n");
+    const forbidden = [/vercel\s+--prod/i, /deploy\s+--prod/i, /npm run build.*deploy/i];
+    for (const pattern of forbidden) {
+      if (pattern.test(runLines)) {
+        fail(`Workflow run step contains forbidden pattern: ${pattern}`);
+      }
+    }
+
+    if (!workflow.includes("agentops:monitoring:scheduled:gha-dry-run")) {
+      fail("Workflow must run npm run agentops:monitoring:scheduled:gha-dry-run");
+    }
+    if (!workflow.includes("actions/upload-artifact@v4")) {
+      fail("Workflow must upload artifacts");
+    }
+    if (!workflow.includes("monitoring-scheduled-dry-run-")) {
+      fail("Artifact upload must include monitoring-scheduled-dry-run JSON reports");
+    }
+    if (!workflow.includes("retention-days: 14")) {
+      fail("Artifact retention must be 14 days");
+    }
+    if (!workflow.includes("agentops-monitoring-gha-preflight.mjs")) {
+      fail("Workflow must run agentops-monitoring-gha-preflight.mjs");
+    }
+  }
+
+  const pkg = JSON.parse(readFileSync(PACKAGE_JSON, "utf8")) as {
+    scripts?: Record<string, string>;
+  };
+  if (!pkg.scripts?.["agentops:monitoring:scheduled:gha-dry-run"]) {
+    fail("Missing npm script agentops:monitoring:scheduled:gha-dry-run");
+  }
+  if (!pkg.scripts?.["agentops:monitoring-gha-dry-run-verify"]) {
+    fail("Missing npm script agentops:monitoring-gha-dry-run-verify");
+  }
+
+  const runner = readFileSync(RUNNER_SCRIPT, "utf8");
+  if (!runner.includes('"gha-dry-run"')) {
+    fail("Runner script must define gha-dry-run preset");
+  }
+  if (!runner.includes("AGENTOPS_OWNER_APPROVED_MONITORING_WRITE")) {
+    fail("gha-dry-run preset must reject owner write approval env");
+  }
+
+  const vercelJson = join(REPO_ROOT, "vercel.json");
+  try {
+    const raw = readFileSync(vercelJson, "utf8");
+    if (/^\s*"crons"/m.test(raw) || /^\s*crons:/m.test(raw)) {
+      fail("vercel.json must not define crons for Phase 5A");
+    }
+  } catch {
+    // ok
+  }
+
+  if (failures.length > 0) {
+    console.error("AGENTOPS MONITORING GHA DRY-RUN VERIFY — FAILED");
+    for (const message of failures) {
+      console.error(`  ✗ ${message}`);
+    }
+    process.exit(1);
+  }
+
+  console.log("AGENTOPS MONITORING GHA DRY-RUN VERIFY — PASSED");
+}
+
+main();

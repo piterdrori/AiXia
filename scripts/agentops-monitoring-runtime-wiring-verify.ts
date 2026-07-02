@@ -1,0 +1,244 @@
+/**
+ * AgentOps monitoring runtime wiring verification — Phase 2.
+ * Usage: npx tsx scripts/agentops-monitoring-runtime-wiring-verify.ts
+ */
+import { encodeScheduleTool } from "../src/lib/agentops/agentScheduleConfig";
+import { canonicalAgentToolTag } from "../src/lib/agentops/canonicalAgents";
+import type { AgentOpsRuntimeAgentRow } from "../src/lib/agentops/db/agentOpsRuntimeTypes";
+import {
+  getAgentMonitoringEligibility,
+  getAgentMonitoringMode,
+  isAgentDueForScheduledRun,
+} from "../src/lib/agentops/runtime/agentOpsMonitoringEligibility";
+import {
+  assertMonitoringActionAllowed,
+  listCanonicalAgentSlugs,
+} from "../src/lib/agentops/runtime/agentOpsMonitoringPolicy";
+import {
+  MONITORING_CONFIG_DEFAULTS,
+  type AgentOpsMonitoringRuntimeConfig,
+} from "../src/lib/agentops/runtime/agentOpsMonitoringRuntimeConfig";
+import { assertStagingScanUrl } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
+
+const failures: string[] = [];
+
+function fail(message: string): void {
+  failures.push(message);
+}
+
+function baseConfig(overrides: Partial<AgentOpsMonitoringRuntimeConfig> = {}): AgentOpsMonitoringRuntimeConfig {
+  return {
+    level: 0,
+    scheduledEnabled: false,
+    continuousEnabled: false,
+    targetBaseUrl: "http://127.0.0.1:5173",
+    defaultIntervalMinutes: 60,
+    continuousCooldownSeconds: 15,
+    maxAgentsPerTick: 2,
+    maxRoutesPerAgent: 4,
+    dryRunRequested: true,
+    dryRun: true,
+    ownerWriteApproved: false,
+    effectiveDryRun: true,
+    writesBlockedReason: "dry-run mode — mutations disabled",
+    valid: true,
+    fallbackReasons: [],
+    ...overrides,
+  };
+}
+
+function mockAgent(input: {
+  slug: string;
+  mode?: "scheduled" | "continuous";
+  enableSchedule?: boolean;
+  status?: "active" | "paused" | "blocked";
+  intervalMinutes?: number;
+}): AgentOpsRuntimeAgentRow {
+  const schedule = encodeScheduleTool({
+    enableSchedule: input.enableSchedule ?? false,
+    scheduleType: input.mode === "scheduled" ? "interval" : "manual",
+    intervalMinutes: input.intervalMinutes ?? 60,
+    cronPreset: null,
+    allowedWorkTypes: ["browser_qa"],
+  });
+  return {
+    id: `id-${input.slug}`,
+    name: input.slug,
+    role: "testing",
+    scope: ["/dashboard"],
+    mode: input.mode ?? "scheduled",
+    status: input.status ?? "active",
+    tools: [canonicalAgentToolTag(input.slug), schedule],
+    environment: "staging",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function verifySafeDefaults(): void {
+  if (MONITORING_CONFIG_DEFAULTS.level !== 0) fail("Default level must be 0");
+  if (MONITORING_CONFIG_DEFAULTS.scheduledEnabled) fail("Default scheduled must be false");
+  if (MONITORING_CONFIG_DEFAULTS.continuousEnabled) fail("Default continuous must be false");
+  if (!MONITORING_CONFIG_DEFAULTS.dryRun) fail("Default dryRun must be true");
+  if (MONITORING_CONFIG_DEFAULTS.maxAgentsPerTick > 5) {
+    fail("maxAgentsPerTick default should be a small safe value");
+  }
+}
+
+function verifyLevel0BlocksAutomatic(): void {
+  const config = baseConfig();
+  const agent = mockAgent({ slug: "qa-agent", mode: "scheduled", enableSchedule: true });
+  const scheduled = getAgentMonitoringEligibility(agent, new Date(), config, {
+    tickKind: "scheduled",
+  });
+  if (scheduled.eligible) fail("Level 0 should block scheduled eligibility");
+  if (scheduled.reason !== "env_disabled") {
+    fail(`Level 0 scheduled reason expected env_disabled, got ${scheduled.reason}`);
+  }
+
+  const continuousAgent = mockAgent({ slug: "qa-agent", mode: "continuous" });
+  const continuous = getAgentMonitoringEligibility(continuousAgent, new Date(), config, {
+    tickKind: "continuous",
+  });
+  if (continuous.eligible) fail("Level 0 should block continuous eligibility");
+}
+
+function verifyLevel1ScheduledEligibility(): void {
+  const config = baseConfig({ level: 1, scheduledEnabled: true });
+  const eligibleAgent = mockAgent({ slug: "qa-agent", mode: "scheduled", enableSchedule: true });
+  const result = getAgentMonitoringEligibility(eligibleAgent, new Date(), config, {
+    tickKind: "scheduled",
+    lastRunAt: null,
+  });
+  if (!result.eligible) {
+    fail(`Level 1 qa-agent scheduled should be eligible: ${result.reason} ${result.detail}`);
+  }
+
+  const disabledSchedule = mockAgent({ slug: "qa-agent", mode: "scheduled", enableSchedule: false });
+  const disabled = getAgentMonitoringEligibility(disabledSchedule, new Date(), config, {
+    tickKind: "scheduled",
+  });
+  if (disabled.eligible) fail("enableSchedule false should block scheduled run");
+  if (disabled.reason !== "schedule_disabled") {
+    fail(`Expected schedule_disabled, got ${disabled.reason}`);
+  }
+
+  const policyBlock = mockAgent({ slug: "system-agent", mode: "scheduled", enableSchedule: true });
+  const blocked = getAgentMonitoringEligibility(policyBlock, new Date(), config, {
+    tickKind: "scheduled",
+  });
+  if (blocked.eligible) fail("system-agent should be policy-blocked for scheduled");
+  if (blocked.reason !== "policy_disallows") {
+    fail(`Expected policy_disallows, got ${blocked.reason}`);
+  }
+}
+
+function verifyLevel2ContinuousEligibility(): void {
+  const config = baseConfig({ level: 2, continuousEnabled: true });
+  const agent = mockAgent({ slug: "qa-agent", mode: "continuous" });
+  const result = getAgentMonitoringEligibility(agent, new Date(), config, {
+    tickKind: "continuous",
+    lastRunAt: null,
+  });
+  if (!result.eligible) {
+    fail(`Level 2 qa-agent continuous should be eligible: ${result.reason}`);
+  }
+
+  const level1 = baseConfig({ level: 1, continuousEnabled: true });
+  const blocked = getAgentMonitoringEligibility(agent, new Date(), level1, {
+    tickKind: "continuous",
+  });
+  if (blocked.eligible) fail("Continuous should require level >= 2");
+}
+
+function verifyLevel4Forbidden(): void {
+  for (const slug of listCanonicalAgentSlugs()) {
+    for (const action of ["apply_fix", "deploy"] as const) {
+      const decision = assertMonitoringActionAllowed(action, { agentSlug: slug });
+      if (decision.allowed) fail(`${slug} allowed forbidden action ${action}`);
+    }
+  }
+}
+
+function verifyProductionBlocked(): void {
+  const guard = assertStagingScanUrl("https://aixia.app/dashboard");
+  if (guard.ok) fail("Production URL must be rejected");
+
+  const config = baseConfig({ targetBaseUrl: "https://aixia.app" });
+  const agent = mockAgent({ slug: "qa-agent" });
+  const result = getAgentMonitoringEligibility(agent, new Date(), config, {
+    tickKind: "manual",
+  });
+  if (result.eligible) fail("Production target should block eligibility");
+  if (result.reason !== "production_blocked") {
+    fail(`Expected production_blocked, got ${result.reason}`);
+  }
+}
+
+function verifyAllTwelveDeterministic(): void {
+  const now = new Date();
+  const config = baseConfig({ level: 1, scheduledEnabled: true });
+  for (const slug of listCanonicalAgentSlugs()) {
+    const agent = mockAgent({
+      slug,
+      mode: slug === "qa-agent" || slug === "design-agent" ? "continuous" : "scheduled",
+      enableSchedule: slug !== "chat-agent",
+    });
+    const mode = getAgentMonitoringMode(agent);
+    if (typeof mode !== "string") fail(`${slug} mode not deterministic`);
+
+    const scheduled = getAgentMonitoringEligibility(agent, now, config, { tickKind: "scheduled" });
+    const manual = getAgentMonitoringEligibility(agent, now, config, { tickKind: "manual" });
+    if (typeof scheduled.reason !== "string") fail(`${slug} scheduled reason missing`);
+    if (!manual.eligible) fail(`${slug} manual tick should always be eligible when active`);
+  }
+}
+
+function verifyIntervalDue(): void {
+  const now = new Date("2026-06-16T12:00:00.000Z");
+  const last = new Date("2026-06-16T10:00:00.000Z");
+  if (!isAgentDueForScheduledRun(last, now, 60)) {
+    fail("120 minutes elapsed should be due for 60m interval");
+  }
+  if (isAgentDueForScheduledRun(last, new Date("2026-06-16T10:30:00.000Z"), 60)) {
+    fail("30 minutes elapsed should not be due for 60m interval");
+  }
+}
+
+function verifyDryRunDefault(): void {
+  const config = baseConfig();
+  if (!config.dryRun) fail("Dry run must default true in wiring config helper");
+}
+
+function verifyManualTickSafeAtLevel0(): void {
+  const config = baseConfig();
+  const agent = mockAgent({ slug: "qa-agent" });
+  const manual = getAgentMonitoringEligibility(agent, new Date(), config, { tickKind: "manual" });
+  if (!manual.eligible) fail("Manual tick must work at level 0");
+}
+
+function main(): void {
+  verifySafeDefaults();
+  verifyLevel0BlocksAutomatic();
+  verifyLevel1ScheduledEligibility();
+  verifyLevel2ContinuousEligibility();
+  verifyLevel4Forbidden();
+  verifyProductionBlocked();
+  verifyAllTwelveDeterministic();
+  verifyIntervalDue();
+  verifyDryRunDefault();
+  verifyManualTickSafeAtLevel0();
+
+  if (failures.length > 0) {
+    console.error("AGENTOPS MONITORING RUNTIME WIRING VERIFY — FAILED");
+    for (const message of failures) console.error(`  ✗ ${message}`);
+    process.exit(1);
+  }
+
+  console.log("AGENTOPS MONITORING RUNTIME WIRING VERIFY — PASSED");
+  console.log(`  default level: ${MONITORING_CONFIG_DEFAULTS.level}`);
+  console.log(`  default dryRun: ${MONITORING_CONFIG_DEFAULTS.dryRun}`);
+  console.log(`  agents checked: ${listCanonicalAgentSlugs().length}`);
+}
+
+main();

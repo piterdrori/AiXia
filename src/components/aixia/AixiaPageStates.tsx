@@ -11,6 +11,8 @@ type AixiaPageStateProps = {
   action?: ReactNode;
   fullPage?: boolean;
   loading?: boolean;
+  stateType?: "generic" | "loading" | "not-found" | "access-denied";
+  refreshSafe?: boolean;
   className?: string;
 };
 
@@ -21,10 +23,41 @@ export function AixiaPageState({
   action,
   fullPage = false,
   loading = false,
+  stateType = "generic",
+  refreshSafe = false,
   className = "",
 }: AixiaPageStateProps) {
+  const stateVariantClassName =
+    stateType === "loading"
+      ? "aixia-page-state--loading"
+      : stateType === "not-found"
+        ? "aixia-page-state--not-found"
+        : stateType === "access-denied"
+          ? "aixia-page-state--access-denied"
+          : "aixia-page-state--generic";
+
+  const stateClassName = [
+    "aixia-card-shell",
+    "aixia-page-state",
+    loading ? "aixia-page-state--loading" : "",
+    stateVariantClassName,
+    fullPage ? "aixia-page-state--full-page" : "",
+    refreshSafe ? "aixia-page-state--refresh-safe" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   const content = (
-    <section className={`aixia-card-shell aixia-page-state ${className}`}>
+    <section
+      className={stateClassName}
+      aria-busy={loading ? "true" : undefined}
+      aria-live={loading ? "polite" : undefined}
+      data-page-state={stateType}
+      data-page-state-layout={fullPage ? "full-page" : "inline"}
+      data-page-state-loading={loading ? "true" : "false"}
+      data-refresh-safe={refreshSafe ? "true" : "false"}
+    >
       <div className="aixia-page-state-icon">
         {loading ? (
           <Loader2 className="h-6 w-6 animate-spin" />
@@ -51,6 +84,7 @@ type AixiaLoadingStateProps = {
   title?: ReactNode;
   description?: ReactNode;
   fullPage?: boolean;
+  refreshSafe?: boolean;
   className?: string;
 };
 
@@ -58,6 +92,7 @@ export function AixiaLoadingState({
   title = "Loading",
   description = "The page data and permission state are being checked.",
   fullPage = true,
+  refreshSafe = true,
   className = "",
 }: AixiaLoadingStateProps) {
   return (
@@ -66,6 +101,8 @@ export function AixiaLoadingState({
       description={description}
       fullPage={fullPage}
       loading
+      stateType="loading"
+      refreshSafe={refreshSafe}
       className={className}
     />
   );
@@ -76,6 +113,7 @@ type AixiaNotFoundStateProps = {
   description?: ReactNode;
   action?: ReactNode;
   fullPage?: boolean;
+  refreshSafe?: boolean;
   className?: string;
 };
 
@@ -84,6 +122,7 @@ export function AixiaNotFoundState({
   description = "The requested record could not be found or is no longer available.",
   action,
   fullPage = false,
+  refreshSafe = false,
   className = "",
 }: AixiaNotFoundStateProps) {
   return (
@@ -93,6 +132,8 @@ export function AixiaNotFoundState({
       description={description}
       action={action}
       fullPage={fullPage}
+      stateType="not-found"
+      refreshSafe={refreshSafe}
       className={className}
     />
   );
@@ -103,6 +144,7 @@ type AixiaAccessDeniedStateProps = {
   description?: ReactNode;
   action?: ReactNode;
   fullPage?: boolean;
+  refreshSafe?: boolean;
   className?: string;
 };
 
@@ -111,6 +153,7 @@ export function AixiaAccessDeniedState({
   description = "You do not have permission to access this page or run this action.",
   action,
   fullPage = false,
+  refreshSafe = false,
   className = "",
 }: AixiaAccessDeniedStateProps) {
   return (
@@ -120,6 +163,8 @@ export function AixiaAccessDeniedState({
       description={description}
       action={action}
       fullPage={fullPage}
+      stateType="access-denied"
+      refreshSafe={refreshSafe}
       className={className}
     />
   );

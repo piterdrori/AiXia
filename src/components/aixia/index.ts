@@ -33,6 +33,18 @@ export {
   type AixiaCommandPageLayoutProps,
 } from "./AixiaCommandPageLayout";
 export { FinancePage } from "./FinancePage";
+export {
+  AixiaFinanceCommandCreatePage,
+  type AixiaFinanceCommandCreatePageProps,
+} from "./AixiaFinanceCommandCreatePage";
+export {
+  AixiaFinanceCommandDetailPage,
+  type AixiaFinanceCommandDetailPageProps,
+} from "./AixiaFinanceCommandDetailPage";
+export {
+  AixiaFinanceWorkflowRegistryTabs,
+  type AixiaFinanceWorkflowRegistryTabItem,
+} from "./AixiaFinanceWorkflowRegistryTabs";
 export { AixiaStickyActionFooter } from "./AixiaStickyActionFooter";
 export {
   AixiaCommandMetrics,
@@ -209,12 +221,21 @@ export {
 } from "./AixiaPageStates";
 export { AixiaActionStack, AixiaAlertText } from "./AixiaContentBlocks";
 export { AixiaReviewBlock, AixiaReviewGrid } from "./AixiaReviewBlocks";
-export { AixiaSortableHeader, AixiaTableShell } from "./AixiaTable";
+export {
+  AixiaSortableHeader,
+  AixiaTableShell,
+  type AixiaEqualGapColumn,
+  type AixiaEqualGapLayoutResult,
+  type AixiaTableWidthPreset,
+} from "./AixiaTable";
 export {
   AixiaTableActionsCell,
   AixiaTableBadgeCell,
   AixiaTableDateCell,
+  AixiaTableHeaderCell,
   AixiaTableTextCell,
+  type AixiaTableColumnTier,
+  type AixiaTableTextCellWidth,
 } from "./AixiaTableCells";
 export {
   AixiaFinancePrintBankBlock,

@@ -83,6 +83,15 @@ import {
   flattenCodeGraphMockSuggestions,
   formatCodeGraphHintsForPromptDraft,
 } from "@/lib/agentops";
+import {
+  DOUBAO_API_CONNECTION_FAILED,
+} from "@/lib/agentops/llmRouter";
+import {
+  DOUBAO_CHAT_SOURCE,
+  assertDoubaoChatSource,
+  isRenderableDoubaoChatSource,
+  logChatSource,
+} from "@/lib/agentops/agentChatRenderer";
 import { useAgentOpsLlmProbe } from "@/hooks/useAgentOpsLlmProbe";
 import { useAgentOpsLlmModelSelection } from "@/hooks/useAgentOpsLlmModelSelection";
 
@@ -94,9 +103,31 @@ import {
   parseCursorReportFromHistory,
   type ExecutionLifecycleContext,
 } from "@/lib/agentops/executionLifecycle";
+import { detectAgentOpsMemoryIntent } from "@/lib/agentops/agentMemoryIntent";
+import { ISSUE_DETAIL_DISPLAY } from "@/lib/agentops/issues/issueDetailDisplayCopy";
+import {
+  issueBehaviorStatusLabel,
+  normalizeIssueDisplayString,
+  normalizeIssueLifecycleStepsForDisplay,
+  normalizeIssueTimelineEventsForDisplay,
+} from "@/lib/agentops/issues/issueDisplayMappers";
+import { UslDisplayText } from "@/components/agentops/UslDisplayText";
 import { IssueHermesAdvisoryAssist } from "../IssueHermesAdvisoryAssist";
 import { IssueLifecycleRail } from "../IssueLifecycleRail";
 import { normalizeCursorPrompt } from "../normalizeCursorPrompt";
+import {
+  ProductIssueEvidenceSummary,
+  formatRuntimeEvidenceJson,
+} from "../ProductIssueEvidenceSummary";
+import {
+  getProductIssueByCode,
+  getRuntimeIssueById,
+} from "@/lib/agentops/issues/productIssuesService";
+import {
+  buildSyntheticFindingFromProductIssue,
+} from "@/lib/agentops/issues/productIssueMappers";
+import type { ProductIssue } from "@/lib/agentops/issues/productIssueTypes";
+import type { AgentOpsRuntimeIssueRow } from "@/lib/agentops/db/agentOpsRuntimeTypes";
 
 function decodeIssueCode(value: string | undefined): string {
   if (!value) return "";
@@ -130,6 +161,11 @@ export default function AgentOpsIssueWorkspacePage() {
   const [verificationItem, setVerificationItem] = useState<AgentOpsVerificationRequestItem | null>(null);
   const [handoffHistory, setHandoffHistory] = useState<AgentOpsOwnerFeedback[]>([]);
   const [fixDecisionHistory, setFixDecisionHistory] = useState<AgentOpsOwnerFeedback[]>([]);
+  const [productIssue, setProductIssue] = useState<ProductIssue | null>(null);
+  const [bridgedRuntimeIssue, setBridgedRuntimeIssue] = useState<AgentOpsRuntimeIssueRow | null>(
+    null,
+  );
+  const [issueLoadMode, setIssueLoadMode] = useState<"finding" | "bridged_runtime" | null>(null);
 
   const [note, setNote] = useState("");
   const [cursorReportText, setCursorReportText] = useState("");
@@ -218,6 +254,9 @@ export default function AgentOpsIssueWorkspacePage() {
       setError(null);
       setOptionalWarnings([]);
       setFeedback(null);
+      setProductIssue(null);
+      setBridgedRuntimeIssue(null);
+      setIssueLoadMode(null);
     }
 
     const warnings: string[] = [];
@@ -225,6 +264,60 @@ export default function AgentOpsIssueWorkspacePage() {
     const ownerResult = await getAgentOpsOwnerStatus();
     if (ownerResult.error || !ownerResult.data?.isOwner) {
       setError(ownerResult.error ?? "AgentOps Owner access required.");
+      setLoading(false);
+      return;
+    }
+
+    const productLoad = await getProductIssueByCode(issueCode);
+    if (productLoad.error) {
+      setError(productLoad.error);
+      setLoading(false);
+      return;
+    }
+    if (!productLoad.data) {
+      setFinding(null);
+      setDetail(null);
+      setHandoffHistory([]);
+      setFixDecisionHistory([]);
+      setAgentMemoryItems([]);
+      setError("Issue not found in current staging issue sources.");
+      setLoading(false);
+      return;
+    }
+
+    setProductIssue(productLoad.data.productIssue);
+    setIssueLoadMode(productLoad.data.mode);
+
+    if (productLoad.data.mode === "bridged_runtime" && productLoad.data.runtimeIssueId) {
+      const runtimeResult = await getRuntimeIssueById(productLoad.data.runtimeIssueId);
+      const runtimeRow = runtimeResult.data ?? null;
+      setBridgedRuntimeIssue(runtimeRow);
+      const synthetic = buildSyntheticFindingFromProductIssue(
+        productLoad.data.productIssue,
+        runtimeRow,
+      );
+      setFinding(synthetic);
+      setDetail({
+        finding: synthetic,
+        evidenceFiles: [],
+        ownerFeedback: [],
+        opinions: [],
+        verifications: [],
+        prompts: [],
+      });
+      setVerificationItem(null);
+      setFixPlan(null);
+      setHandoffHistory([]);
+      setFixDecisionHistory([]);
+      setOptionalWarnings([
+        "Browser QA bridged issue — full verification queue may be limited until promoted to findings.",
+      ]);
+      if (synthetic.agent_id) {
+        const memoryResult = await getAgentOpsAgentMemory(synthetic.agent_id);
+        setAgentMemoryItems(memoryResult.data ?? []);
+      } else {
+        setAgentMemoryItems([]);
+      }
       setLoading(false);
       return;
     }
@@ -248,7 +341,7 @@ export default function AgentOpsIssueWorkspacePage() {
     }
 
     if (fixPlansResult.error) {
-      warnings.push(`Fix plan summary unavailable: ${fixPlansResult.error}`);
+      warnings.push(`Diagnostic trace summary unavailable: ${fixPlansResult.error}`);
     }
 
     const activeFinding = (activeResult.data ?? []).find((item) => item.issue_code === issueCode) ?? null;
@@ -299,7 +392,7 @@ export default function AgentOpsIssueWorkspacePage() {
       warnings.push(`Cursor handoff history unavailable: ${handoffResult.error}`);
     }
     if (fixHistoryResult.error) {
-      warnings.push(`Fix plan decision history unavailable: ${fixHistoryResult.error}`);
+      warnings.push(`Diagnostic trace observation history unavailable: ${fixHistoryResult.error}`);
     }
 
     setFinding(detailFinding);
@@ -392,13 +485,18 @@ export default function AgentOpsIssueWorkspacePage() {
   );
 
   const lifecycleRailSteps = useMemo(
-    () => buildLifecycleRail(lifecycleContext, executionState),
+    () => normalizeIssueLifecycleStepsForDisplay(buildLifecycleRail(lifecycleContext, executionState)),
     [lifecycleContext, executionState],
   );
 
   const issueTimeline = useMemo(
     () => buildIssueTimeline(lifecycleContext),
     [lifecycleContext],
+  );
+
+  const displayIssueTimeline = useMemo(
+    () => normalizeIssueTimelineEventsForDisplay(issueTimeline),
+    [issueTimeline],
   );
 
   const latestCursorReport = useMemo(
@@ -435,7 +533,7 @@ export default function AgentOpsIssueWorkspacePage() {
     const currentStep = lifecycleRailSteps.find((step) => step.status === "current");
     if (currentStep) return currentStep.nextAction;
     if (!finding) return "Load issue";
-    return "Review summary and decide next manual step";
+    return "Review summary and choose next manual step";
   }, [finding, lifecycleRailSteps]);
 
   const runAction = useCallback(
@@ -520,6 +618,19 @@ export default function AgentOpsIssueWorkspacePage() {
       globalApprovedMemoryIncludedCount: chatGlobalAttached ? chatGlobalIncludedCount : 0,
     });
 
+    setSubmitting(false);
+
+    if (adapterResult.source !== DOUBAO_CHAT_SOURCE || !adapterResult.response?.trim()) {
+      setChatError(
+        adapterResult.limitations || DOUBAO_API_CONNECTION_FAILED,
+      );
+      setFeedback(DOUBAO_API_CONNECTION_FAILED);
+      return;
+    }
+
+    assertDoubaoChatSource(adapterResult.source);
+    logChatSource(DOUBAO_CHAT_SOURCE);
+
     const parsed = parseAgentCreativeProposal(adapterResult.response);
     if (parsed.proposal && finding?.agent_id) {
       await recordAgentOpsCreativeProposal({
@@ -534,24 +645,17 @@ export default function AgentOpsIssueWorkspacePage() {
       });
     }
 
-    const usedLiveResponse =
-      adapterResult.source === "local_llm" || adapterResult.source === "hermes_runtime";
     const agentResult = await recordAgentOpsIssueAgentMessage({
       issueCode,
       findingId: finding?.id ?? null,
       agentId: finding?.agent_id ?? null,
-      sender: usedLiveResponse ? "reporting_agent" : "reporting_agent_mock",
+      sender: "reporting_agent",
       messageType: mapHermesModeToAgentMessageType(adapterResult.mode),
       content: parsed.cleanedResponse || adapterResult.response,
-      source:
-        adapterResult.source === "hermes_runtime" ? "hermes_runtime"
-        : usedLiveResponse ? "local_llm_runtime"
-        : "mock_response_layer",
+      source: "doubao",
       metadata: {
         intent: agentIntent,
         adapterSource: adapterResult.source,
-        hermesRuntimeCalled: adapterResult.hermesRuntimeCalled,
-        shouldFallbackToMock: adapterResult.shouldFallbackToMock,
         requestId: adapterResult.requestId,
         hermesMode: adapterResult.mode,
         suggestedPromptChanges: adapterResult.promptSuggestions,
@@ -561,20 +665,16 @@ export default function AgentOpsIssueWorkspacePage() {
         limitations: adapterResult.limitations,
         safetyFlags: adapterResult.safetyFlags,
         piterMessageId: piterResult.data?.messageId ?? null,
-        localLlmCalled: adapterResult.localLlmCalled,
         memoryIntentDetected: adapterResult.memoryIntentDetected,
         memorySourceText: adapterResult.memoryIntentDetected ? question : null,
-        mockResponseLayer: !usedLiveResponse,
-        noLiveAiResponse: !usedLiveResponse,
-        noHermes: !adapterResult.hermesRuntimeCalled,
         creativeProposal: parsed.proposal,
         globalMemoryAttached: chatGlobalAttached,
         globalMemorySnippetCount: chatGlobalAttached ? chatGlobalIncludedCount : 0,
         globalMemoryPreviewOnly: chatGlobalAttached,
+        mockResponseLayer: false,
+        noLiveAiResponse: false,
       },
     });
-
-    setSubmitting(false);
 
     if (agentResult.error) {
       setChatError(agentResult.error);
@@ -585,19 +685,7 @@ export default function AgentOpsIssueWorkspacePage() {
     setLastAdapterResponse(adapterResult);
     setAgentQuestion("");
     clearAttachments();
-    if (!usedLiveResponse) {
-      setChatError(
-        adapterResult.limitations ||
-          "Local LLM and Hermes are unavailable. Start Ollama with: ollama serve",
-      );
-    }
-    setFeedback(
-      adapterResult.source === "hermes_runtime" ?
-        "Hermes advisory response recorded."
-      : usedLiveResponse ?
-        "Local LLM response recorded."
-      : "Mock fallback recorded (Hermes/local LLM unavailable).",
-    );
+    setFeedback("Doubao response recorded.");
     await loadIssue({ silent: true });
   }, [
     agentIntent,
@@ -650,7 +738,12 @@ export default function AgentOpsIssueWorkspacePage() {
   );
 
   const issueMessengerMessages = useMemo((): AixiaMessengerMessage[] => {
-    return agentMessages.map((message) => {
+    return agentMessages
+      .filter((message) => {
+        if (message.sender === "piter") return true;
+        return isRenderableDoubaoChatSource(message.source);
+      })
+      .map((message) => {
       const isPiter = message.sender === "piter";
       const memoryIntentDetected = message.metadata.memoryIntentDetected === true;
       const approvalStatus =
@@ -659,11 +752,6 @@ export default function AgentOpsIssueWorkspacePage() {
         typeof message.metadata.memorySourceText === "string" ?
           message.metadata.memorySourceText
         : message.content;
-      const sourceLabel =
-        message.source === "hermes_runtime" ? "Hermes"
-        : message.source === "local_llm_runtime" ? "LLM"
-        : message.sender === "reporting_agent_mock" ? "Fallback"
-        : null;
 
       if (isPiter) {
         return {
@@ -679,7 +767,6 @@ export default function AgentOpsIssueWorkspacePage() {
         senderType: "agent",
         senderName: "Reporting agent",
         senderRole: message.messageType.replaceAll("_", " "),
-        badges: sourceLabel ? <AixiaBadge tone="cyan">{sourceLabel}</AixiaBadge> : undefined,
         content: message.content,
         footer:
           memoryIntentDetected && finding?.agent_id ?
@@ -690,6 +777,9 @@ export default function AgentOpsIssueWorkspacePage() {
               scope="issue"
               agentName={reportingAgentLabel}
               contextLabel={`Issue ${issueCode}`}
+              approveLabel={ISSUE_DETAIL_DISPLAY.chatSendToProposal}
+              rejectLabel="Discard"
+              helperText="Memory proposal — pending owner review. Does not mutate memory automatically."
               onApprove={() =>
                 void handleIssueMemoryApproval(message.id, memorySourceText, true)
               }
@@ -736,8 +826,22 @@ export default function AgentOpsIssueWorkspacePage() {
     executionState === "reopened";
 
   const chatRoleLabel = latestCursorReport
-    ? "Post-fix review agent"
+    ? "Post-cursor behavior trace review"
     : "Prompt-solving agent";
+
+  const composerMemoryIntent = useMemo(
+    () => detectAgentOpsMemoryIntent(agentQuestion),
+    [agentQuestion],
+  );
+
+  const issueChatMemoryIntent = useMemo(() => {
+    if (composerMemoryIntent) return true;
+    const lastAgent = [...agentMessages].reverse().find((message) => message.sender !== "piter");
+    if (lastAgent && detectAgentOpsMemoryIntent(lastAgent.content)) return true;
+    return agentMessages.some(
+      (message) => message.metadata.memoryIntentDetected === true && message.sender !== "piter",
+    );
+  }, [agentMessages, composerMemoryIntent]);
 
   const lessonDraftForIssue = useMemo(() => {
     const fromFeedback = (detail?.ownerFeedback ?? []).find((row) => {
@@ -784,7 +888,7 @@ export default function AgentOpsIssueWorkspacePage() {
         key: "runtime",
         label: "Runtime mode",
         value: "Manual-first",
-        detail: "No automatic Cursor, Hermes, or scheduler execution.",
+        detail: "No automatic Cursor, Hermes, or scheduler behavior.",
         tone: "cyan" as const,
       },
       {
@@ -798,7 +902,7 @@ export default function AgentOpsIssueWorkspacePage() {
         key: "scope",
         label: "Workspace scope",
         value: "Issue-solving workbench",
-        detail: "Lifecycle rail, agent chat, prompt, verification, and closure.",
+        detail: "Lifecycle rail, agent chat, diagnostic trace, stored validation, and outcome (observed).",
         tone: "violet" as const,
       },
     ],
@@ -824,18 +928,18 @@ export default function AgentOpsIssueWorkspacePage() {
         tone: "amber" as const,
       },
       {
-        key: "execution",
-        title: "Execution state",
-        value: loading ? "Checking…" : executionStateLabel(executionState),
-        subtitle: nextRecommendedAction,
+        key: "behavior",
+        title: ISSUE_DETAIL_DISPLAY.behaviorStatus,
+        value: loading ? "Checking…" : issueBehaviorStatusLabel(executionStateLabel(executionState)),
+        subtitle: normalizeIssueDisplayString(nextRecommendedAction),
         icon: Activity,
         tone: "cyan" as const,
       },
       {
         key: "timeline",
-        title: "Timeline events",
+        title: ISSUE_DETAIL_DISPLAY.timelineTitle,
         value: loading ? "Checking…" : String(issueTimeline.length),
-        subtitle: "Owner, cursor, and verification signals",
+        subtitle: "Owner, cursor, and stored validation signals",
         icon: History,
         tone: "indigo" as const,
       },
@@ -848,10 +952,10 @@ export default function AgentOpsIssueWorkspacePage() {
         tone: "emerald" as const,
       },
       {
-        key: "fix-plan",
-        title: "Fix plan",
+        key: "diagnostic-trace",
+        title: ISSUE_DETAIL_DISPLAY.diagnosticTrace,
         value: loading ? "Checking…" : (fixPlan?.planStatus?.replaceAll("_", " ") ?? "None"),
-        subtitle: fixPlan?.planId ? `Plan ${fixPlan.planId}` : "No generated plan loaded",
+        subtitle: fixPlan?.planId ? `Artifact ${fixPlan.planId} (non-authoritative)` : "No stored artifact loaded",
         icon: CheckCircle2,
         tone: "violet" as const,
       },
@@ -895,6 +999,21 @@ export default function AgentOpsIssueWorkspacePage() {
             Refresh
           </AixiaButton>
           {finding ? <AixiaStatusBadge value={finding.status} /> : null}
+          {issueLoadMode === "bridged_runtime" ? (
+            <AixiaBadge tone="amber">Browser QA bridged</AixiaBadge>
+          ) : null}
+          {finding && !isVerifiedFixedLifecycle ? (
+            <AixiaButton
+              variant="primary"
+              onClick={() => {
+                document
+                  .querySelector("[data-testid='agentops-issue-workbench']")
+                  ?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              Open workbench
+            </AixiaButton>
+          ) : null}
         </>
       }
     >
@@ -954,7 +1073,7 @@ export default function AgentOpsIssueWorkspacePage() {
               <AixiaEmptyState
                 icon={History}
                 title="Loading issue workspace"
-                description="Issue detail, fix plan, verification, and timeline are being prepared."
+                description="Issue detail, diagnostic trace, verification, and timeline are being prepared."
               />
             </AixiaSection>
           }
@@ -984,13 +1103,13 @@ export default function AgentOpsIssueWorkspacePage() {
               <div data-testid="agentops-lifecycle-rail">
                 <AixiaSection
                 surface="command"
-                title="Lifecycle rail"
-                description="Manual-first path from issue discovery to closure."
+                title={ISSUE_DETAIL_DISPLAY.lifecycleTitle}
+                description={ISSUE_DETAIL_DISPLAY.lifecycleDescription}
                 icon={History}
               >
                 <IssueLifecycleRail
                   steps={lifecycleRailSteps}
-                  executionStateLabel={executionStateLabel(executionState)}
+                  executionStateLabel={issueBehaviorStatusLabel(executionStateLabel(executionState))}
                 />
                 </AixiaSection>
               </div>
@@ -1000,8 +1119,8 @@ export default function AgentOpsIssueWorkspacePage() {
               <div data-testid="agentops-issue-hermes-advisory">
                 <AixiaSection
                   surface="command"
-                  title="Hermes Advisory Assist"
-                  description="Ask Hermes for issue advisory, Cursor prompt review, or fix report verification guidance. No writes, no verification, no tools."
+                  title="Hermes suggested text drafts (advisory only)"
+                  description="W1 advisory · W2 Cursor prompt review · W3 fix report + C6 verification · C3 prompt drafts. Memory and draft text only — not ACDL reasoning."
                   icon={Sparkles}
                 >
                   <IssueHermesAdvisoryAssist
@@ -1009,7 +1128,7 @@ export default function AgentOpsIssueWorkspacePage() {
                     finding={finding}
                     fixPlan={fixPlan}
                     approvedCursorPrompt={approvedCursorPrompt}
-                    executionStateLabel={executionStateLabel(executionState)}
+                    executionStateLabel={issueBehaviorStatusLabel(executionStateLabel(executionState))}
                   />
                 </AixiaSection>
               </div>
@@ -1018,8 +1137,8 @@ export default function AgentOpsIssueWorkspacePage() {
             <div data-testid="agentops-issue-workbench">
               <AixiaSection
               surface="command"
-              title="Issue-solving workbench"
-              description="Chat with the reporting agent and prepare the Cursor prompt in one place."
+              title={ISSUE_DETAIL_DISPLAY.workspaceTitle}
+              description={ISSUE_DETAIL_DISPLAY.workspaceDescription}
               icon={Sparkles}
             >
               <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
@@ -1070,10 +1189,10 @@ export default function AgentOpsIssueWorkspacePage() {
                       onComposerChange={setAgentQuestion}
                       onSend={() => void handleAskAgent()}
                       sending={submitting}
-                      statusText={`${chatRoleLabel} · ${selectedLlmLabel} · Hermes ${hermesAdapterStatus.runtimeActive ? "ready" : "fallback"} · LLM ${localLlmStatus.runtimeActive ? "active" : "inactive"}${globalApprovedMemoryAttached ? ` · Global memory preview attached (${globalApprovedMemoryIncludedCount})` : ""}`}
+                      statusText={`${chatRoleLabel} · ${selectedLlmLabel} · Hermes ${hermesAdapterStatus.runtimeActive ? "ready" : "inactive"} · Doubao ${localLlmStatus.runtimeActive ? "active" : "inactive"}${globalApprovedMemoryAttached ? ` · Global memory preview attached (${globalApprovedMemoryIncludedCount})` : ""}`}
                       errorText={chatError}
                       emptyTitle="Issue agent chat"
-                      emptyDescription="Ask the reporting agent for clarification, prompt improvements, or next steps."
+                      emptyDescription="Advisory chat — use memory intent phrases to open a memory proposal."
                       composerPresets={[
                         { label: "Clarify issue", value: "clarification" },
                         { label: "Improve prompt", value: "prompt_improvement" },
@@ -1096,19 +1215,30 @@ export default function AgentOpsIssueWorkspacePage() {
                       llmModelRefreshing={llmModelRefreshing}
                       llmInstalledCount={llmInstalledCount}
                     />
+                    {!issueChatMemoryIntent ? (
+                      <AixiaInfoBlock
+                        title={ISSUE_DETAIL_DISPLAY.chatAdvisoryOnly}
+                        tone="indigo"
+                        className="mt-3"
+                      >
+                        {ISSUE_DETAIL_DISPLAY.chatAdvisoryOnly}
+                      </AixiaInfoBlock>
+                    ) : null}
                   </div>
 
                   <div className="space-y-3 rounded-xl border border-white/10 bg-black/20 p-3">
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-xs uppercase tracking-wide text-slate-400">
-                        Cursor prompt / execution
+                        {ISSUE_DETAIL_DISPLAY.cursorPromptSection}
                       </p>
-                      <p className="text-xs text-slate-500">{executionStateLabel(executionState)}</p>
+                      <p className="text-xs text-slate-500">
+                        {issueBehaviorStatusLabel(executionStateLabel(executionState))}
+                      </p>
                     </div>
                     {executionPrepared ? (
                       <div className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 p-2">
                         <p className="text-xs text-cyan-100">
-                          Execution request prepared. Prompt remains editable until manual handoff decisions.
+                          {ISSUE_DETAIL_DISPLAY.handoffPrepared}
                         </p>
                       </div>
                     ) : null}
@@ -1116,7 +1246,7 @@ export default function AgentOpsIssueWorkspacePage() {
                       data-testid="agentops-cursor-prompt-editor"
                       value={approvedCursorPrompt}
                       onChange={(event) => setEditedCursorPrompt(event.target.value)}
-                      placeholder="No prompt available yet. Ask agent or review fix plan details."
+                      placeholder="No prompt available yet. Ask agent or review diagnostic trace details."
                       className="h-[280px] w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-xs text-slate-200"
                       spellCheck={false}
                     />
@@ -1164,7 +1294,7 @@ export default function AgentOpsIssueWorkspacePage() {
                                 ownerApproved: true,
                                 note: note || "Approve & Prepare Execution Request",
                               }),
-                            "Execution request prepared (manual-first — Cursor not started).",
+                            "Handoff request prepared (manual-first — Cursor not started).",
                           )
                         }
                       >
@@ -1184,11 +1314,11 @@ export default function AgentOpsIssueWorkspacePage() {
                                 ownerApproved: true,
                                 note: note || "Prepare execution request",
                               }),
-                            "Execution request prepared (manual-first — Cursor not started).",
+                            "Handoff request prepared (manual-first — Cursor not started).",
                           )
                         }
                       >
-                        Prepare Execution Request
+                        Prepare Handoff Request
                       </AixiaButton>
                       <AixiaButton
                         variant="secondary"
@@ -1234,7 +1364,7 @@ export default function AgentOpsIssueWorkspacePage() {
               className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
             >
               <summary className="cursor-pointer text-sm font-semibold text-slate-200">
-                Supporting artifacts (evidence, fix plan, verification, timeline)
+                Supporting artifacts (evidence, diagnostic trace, verification, timeline)
               </summary>
               <div className="mt-4 space-y-6">
               <details
@@ -1245,20 +1375,39 @@ export default function AgentOpsIssueWorkspacePage() {
                 Evidence / Source
               </summary>
               <div className="mt-3 space-y-2">
-                <p className="text-xs text-slate-400">Evidence summary</p>
-                <p className="text-sm text-white">{finding?.evidence_summary ?? "—"}</p>
-                <p className="text-xs text-slate-400">Evidence files</p>
-                {detail?.evidenceFiles?.length ? (
-                  <ul className="space-y-1 text-xs text-slate-300">
-                    {detail.evidenceFiles.map((item) => (
-                      <li key={item.id}>
-                        <code>{item.file_path}</code> — {item.summary ?? item.evidence_type}
-                      </li>
-                    ))}
-                  </ul>
+                {productIssue ? (
+                  <ProductIssueEvidenceSummary
+                    productIssue={productIssue}
+                    runtimeEvidence={bridgedRuntimeIssue?.evidence ?? null}
+                  />
                 ) : (
-                  <p className="text-sm text-slate-400">No linked evidence paths.</p>
+                  <>
+                    <p className="text-xs text-slate-400">Evidence summary</p>
+                    <p className="text-sm text-white">{finding?.evidence_summary ?? "—"}</p>
+                  </>
                 )}
+                {detail?.evidenceFiles?.length ? (
+                  <>
+                    <p className="text-xs text-slate-400">Evidence files</p>
+                    <ul className="space-y-1 text-xs text-slate-300">
+                      {detail.evidenceFiles.map((item) => (
+                        <li key={item.id}>
+                          <code>{item.file_path}</code> — {item.summary ?? item.evidence_type}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+                {bridgedRuntimeIssue ? (
+                  <details className="rounded-lg border border-white/10 bg-white/[0.02] p-2">
+                    <summary className="cursor-pointer text-xs text-slate-400">
+                      Developer diagnostics · raw runtime bridge (read-only JSON)
+                    </summary>
+                    <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-xs text-slate-300">
+                      {formatRuntimeEvidenceJson(bridgedRuntimeIssue)}
+                    </pre>
+                  </details>
+                ) : null}
               </div>
               </details>
 
@@ -1267,15 +1416,15 @@ export default function AgentOpsIssueWorkspacePage() {
                 className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
               >
               <summary className="cursor-pointer text-sm font-semibold text-slate-200">
-                Fix plan details
+                Stored diagnostic trace artifact (non-authoritative · not ACDL)
               </summary>
               <div className="mt-3 space-y-3">
                 {fixPlan ? (
                   <>
                     <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                      <p className="text-xs text-slate-400">Readable summary</p>
+                      <p className="text-xs text-slate-400">Stored summary (display layer · verify against ACDL)</p>
                       <p className="mt-1 text-sm text-white">{fixPlan.readableSummary}</p>
-                      <p className="mt-2 text-xs text-slate-400">Plan status: {fixPlan.planStatus}</p>
+                      <p className="mt-2 text-xs text-slate-400">Plan status (stored): {fixPlan.planStatus}</p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <AixiaButton
@@ -1292,11 +1441,11 @@ export default function AgentOpsIssueWorkspacePage() {
                                 ownerApproved: true,
                                 note: note || "Approved in Issue Workspace.",
                               }),
-                            "Fix plan approved.",
+                            "Diagnostic trace approved.",
                           )
                         }
                       >
-                        Approve Plan
+                        Approve Diagnostic Trace
                       </AixiaButton>
                       <AixiaButton
                         variant="secondary"
@@ -1312,7 +1461,7 @@ export default function AgentOpsIssueWorkspacePage() {
                                 ownerApproved: true,
                                 note: note || "Rejected in Issue Workspace.",
                               }),
-                            "Fix plan rejected.",
+                            "Diagnostic trace rejected.",
                           )
                         }
                       >
@@ -1336,13 +1485,13 @@ export default function AgentOpsIssueWorkspacePage() {
                           )
                         }
                       >
-                        Needs Better Plan
+                        Needs Better Trace
                       </AixiaButton>
                     </div>
                   </>
                 ) : (
-                  <AixiaInfoBlock tone="gold" icon={AlertTriangle} title="No generated fix plan found">
-                    This issue is not present in current generated fix plan summary.
+                  <AixiaInfoBlock tone="gold" icon={AlertTriangle} title="No generated diagnostic trace found">
+                    This issue is not present in current generated diagnostic trace summary.
                   </AixiaInfoBlock>
                 )}
               </div>
@@ -1435,7 +1584,7 @@ export default function AgentOpsIssueWorkspacePage() {
                       </p>
                     ) : null}
                     <p className="text-xs text-cyan-200/90">
-                      Next recommended action:{" "}
+                      Suggested observation (draft):{" "}
                       {showVerificationPanel
                         ? "Record or review verification result."
                         : "Request verification to complete post-fix review."}
@@ -1445,12 +1594,12 @@ export default function AgentOpsIssueWorkspacePage() {
                   <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
                     <p className="text-sm text-white">Waiting for Cursor report.</p>
                     <p className="mt-1 text-xs text-slate-400">
-                      Execution request is prepared. Record Cursor report when work is finished.
+                      Handoff request is prepared. Record Cursor report when work is finished.
                     </p>
                   </div>
                 ) : (
                   <p className="text-sm text-slate-400">
-                    Post-Cursor review stays hidden until execution is prepared.
+                    Post-Cursor review stays hidden until handoff request is prepared.
                   </p>
                 )}
 
@@ -1610,11 +1759,11 @@ export default function AgentOpsIssueWorkspacePage() {
                                 verificationReportPath: verificationReportPath || undefined,
                                 note: note || undefined,
                               }),
-                            "Verification result recorded (verified fixed).",
+                            "Stored validation recorded.",
                           )
                         }
                       >
-                        Mark Verified Fixed
+                        Record Stored Validation
                       </AixiaButton>
                       <AixiaButton
                         variant="primary"
@@ -1716,7 +1865,7 @@ export default function AgentOpsIssueWorkspacePage() {
                     <p className="text-xs uppercase tracking-wide text-slate-400">Closure state</p>
                     <p className="text-sm text-white">
                       {executionState === "closed_verified"
-                        ? "Issue verified fixed."
+                        ? "Issue stored validation recorded."
                         : executionState === "follow_up_required"
                           ? "Follow-up required."
                           : "Review closure status."}
@@ -1730,7 +1879,7 @@ export default function AgentOpsIssueWorkspacePage() {
                     >
                       {!isVerifiedFixedLifecycle ? (
                         <p className="text-xs text-slate-400">
-                          Prepare Lesson Candidate is enabled after verified fixed lifecycle state.
+                          Prepare Lesson Candidate is enabled after stored validation lifecycle state.
                         </p>
                       ) : lessonDraftForIssue ? (
                         <div data-testid="agentops-lesson-candidate-status" className="space-y-2">
@@ -1747,16 +1896,18 @@ export default function AgentOpsIssueWorkspacePage() {
                             <AixiaButton
                               variant="secondary"
                               className="text-xs px-3 py-1.5"
-                              onClick={() => navigate("/system/agent-ops/knowledge")}
+                              onClick={() =>
+                                navigate("/system/agent-ops/tools/agent-brain-memory/global-memory")
+                              }
                             >
-                              Open Knowledge
+                              Open memory hub
                             </AixiaButton>
                           </div>
                         </div>
                       ) : (
                         <div className="space-y-2">
                           <p className="text-xs text-slate-300">
-                            Verified fixed reached. Prepare a review-only draft lesson candidate from issue context.
+                            Stored validation reached. Prepare a review-only draft lesson candidate from issue context.
                           </p>
                           <AixiaButton
                             data-testid="agentops-prepare-lesson-candidate"
@@ -1877,19 +2028,23 @@ export default function AgentOpsIssueWorkspacePage() {
                 data-testid="agentops-timeline-disclosure"
                 className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
               >
-              <summary className="cursor-pointer text-sm font-semibold text-slate-200">Timeline</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-slate-200">{ISSUE_DETAIL_DISPLAY.behaviorTrace} timeline</summary>
               <div className="mt-3 space-y-2">
-                {issueTimeline.slice(0, 40).map((event) => (
+                {displayIssueTimeline.slice(0, 40).map((event) => (
                   <div key={event.id} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm text-white">{event.title}</p>
+                      <p className="text-sm text-white">
+                        <UslDisplayText as="span">{event.title}</UslDisplayText>
+                      </p>
                       <p className="text-xs text-slate-500">{new Date(event.at).toLocaleString()}</p>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">{event.source}</p>
-                    <p className="mt-1 text-xs text-slate-300">{event.summary}</p>
+                    <p className="mt-1 text-xs text-slate-300">
+                      <UslDisplayText as="span">{event.summary}</UslDisplayText>
+                    </p>
                   </div>
                 ))}
-                {issueTimeline.length === 0 ? (
+                {displayIssueTimeline.length === 0 ? (
                   <p className="text-sm text-slate-400">Timeline data not available yet for this issue.</p>
                 ) : null}
               </div>

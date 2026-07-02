@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ClipboardCheck, Copy, FileText, GitBranch, Save, Sparkles, X } from "lucide-react";
+import { AlertTriangle, ClipboardCheck, Copy, FileText, Save, Sparkles, X } from "lucide-react";
 
 import { AixiaBadge, AixiaButton } from "@/components/aixia";
-import { HermesAdvisoryAuthorityBanner } from "@/components/agentops/AcdlAuthorityLabel";
-import { UslDisplayText } from "@/components/agentops/UslDisplayText";
-import { normalizeDisplayString } from "@/lib/agentops/usl";
 import {
   buildHermesRecommendationResponsePreview,
   extractHermesRecommendationVerdict,
@@ -24,15 +21,6 @@ import {
   type AgentOpsHermesRecommendationWorkflowSource,
   type AgentOpsHermesRuntimeHealth,
 } from "@/lib/agentops";
-import {
-  IssueHermesPromptCoordinatorPanel,
-  type IssueHermesPromptWorkflowSource,
-} from "./IssueHermesPromptCoordinatorPanel";
-import { IssueHermesVerificationReviewerPanel } from "./IssueHermesVerificationReviewerPanel";
-
-const HERMES_LABEL_WRITE_PROTECTED = "Write Protected";
-const HERMES_LABEL_READ_ONLY_ACTIVE = "Read-Only Active";
-const HERMES_LABEL_MANUAL_HANDOFF = "Manual Handoff Active";
 
 type IssueHermesAdvisoryAssistProps = {
   issueCode: string;
@@ -42,11 +30,7 @@ type IssueHermesAdvisoryAssistProps = {
   executionStateLabel: string;
 };
 
-type HermesAssistWorkflow =
-  | "advisory"
-  | "cursor_prompt_review"
-  | "fix_report_review"
-  | "prompt_drafts";
+type HermesAssistWorkflow = "advisory" | "cursor_prompt_review" | "fix_report_review";
 
 function workflowArtifactMeta(workflow: HermesAssistWorkflow): {
   advisoryType: AgentOpsHermesRecommendationAdvisoryType;
@@ -57,8 +41,6 @@ function workflowArtifactMeta(workflow: HermesAssistWorkflow): {
       return { advisoryType: "cursor_prompt_review", workflowSource: "workflow_2" };
     case "fix_report_review":
       return { advisoryType: "fix_report_review", workflowSource: "workflow_3" };
-    case "prompt_drafts":
-      return { advisoryType: "issue_advisory", workflowSource: "workflow_1" };
     default:
       return { advisoryType: "issue_advisory", workflowSource: "workflow_1" };
   }
@@ -73,7 +55,8 @@ function buildRecommendationSaveKey(
 
 function formatProviderLabel(health: AgentOpsHermesRuntimeHealth | null): string {
   if (health?.provider === "doubao_ark") return "Doubao Ark";
-  return health?.provider ?? "Doubao Ark";
+  if (health?.provider === "ollama") return "Ollama";
+  return health?.provider ?? "—";
 }
 
 function HermesResultMeta({
@@ -101,11 +84,11 @@ function HermesResultMeta({
       </div>
       <div>
         <dt>Coordinator</dt>
-        <dd>Advisory transport</dd>
+        <dd>Not active</dd>
       </div>
       <div>
         <dt>Writes</dt>
-        <dd>{HERMES_LABEL_WRITE_PROTECTED}</dd>
+        <dd>Blocked</dd>
       </div>
       {showStatusMutation ? (
         <div>
@@ -150,9 +133,6 @@ export function IssueHermesAdvisoryAssist({
   const [savedArtifactsLoading, setSavedArtifactsLoading] = useState(false);
   const [savedArtifactsError, setSavedArtifactsError] = useState<string | null>(null);
   const [expandedArtifactId, setExpandedArtifactId] = useState<string | null>(null);
-  const [promptDraftWorkflowSource, setPromptDraftWorkflowSource] =
-    useState<IssueHermesPromptWorkflowSource>("prompt_drafts");
-  const [promptAutoGenerateToken, setPromptAutoGenerateToken] = useState(0);
 
   const refreshHealth = useCallback(async () => {
     setHealthLoading(true);
@@ -186,12 +166,6 @@ export function IssueHermesAdvisoryAssist({
   useEffect(() => {
     void loadSavedArtifacts();
   }, [loadSavedArtifacts]);
-
-  const openPromptDrafts = useCallback((source: IssueHermesPromptWorkflowSource) => {
-    setPromptDraftWorkflowSource(source);
-    setWorkflow("prompt_drafts");
-    setPromptAutoGenerateToken((current) => current + 1);
-  }, []);
 
   const advisoryReachable = Boolean(
     health?.transportReachable && health.mode === "advisory_transport",
@@ -300,7 +274,7 @@ export function IssueHermesAdvisoryAssist({
     if (!fixReportResult?.ok || !fixReportResult.response) return;
     try {
       await navigator.clipboard.writeText(fixReportResult.response);
-      setCopyFeedback("Verification advisory note copied.");
+      setCopyFeedback("Verification recommendation copied.");
     } catch {
       setCopyFeedback("Copy failed — select text manually.");
     }
@@ -364,7 +338,7 @@ export function IssueHermesAdvisoryAssist({
       });
 
       if (saveResult.error || !saveResult.data) {
-        setSaveError(saveResult.error ?? "Could not save Hermes suggested text draft.");
+        setSaveError(saveResult.error ?? "Could not save Hermes recommendation.");
         return;
       }
 
@@ -389,21 +363,17 @@ export function IssueHermesAdvisoryAssist({
 
   const contextAssemblerAvailable = health?.contextAssemblerAvailable !== false;
   const workflowLoading =
-    workflow === "prompt_drafts"
-      ? false
-      : workflow === "advisory"
-        ? advisoryLoading
-        : workflow === "cursor_prompt_review"
-          ? reviewLoading
-          : fixReportLoading;
+    workflow === "advisory"
+      ? advisoryLoading
+      : workflow === "cursor_prompt_review"
+        ? reviewLoading
+        : fixReportLoading;
   const activeResult =
-    workflow === "prompt_drafts"
-      ? null
-      : workflow === "advisory"
-        ? advisoryResult
-        : workflow === "cursor_prompt_review"
-          ? reviewResult
-          : fixReportResult;
+    workflow === "advisory"
+      ? advisoryResult
+      : workflow === "cursor_prompt_review"
+        ? reviewResult
+        : fixReportResult;
   const hasFixReportText = fixReportText.trim().length > 0;
   const currentSaveKey =
     activeResult?.ok && activeResult.response
@@ -418,11 +388,10 @@ export function IssueHermesAdvisoryAssist({
 
   return (
     <div className="aixia-issue-hermes-advisory" data-testid="issue-hermes-advisory-assist">
-      <HermesAdvisoryAuthorityBanner />
-      <p className="aixia-issue-hermes-advisory-lead mt-3">
-        {workflow === "prompt_drafts"
-          ? `${HERMES_LABEL_READ_ONLY_ACTIVE} · ${HERMES_LABEL_WRITE_PROTECTED} · ${HERMES_LABEL_MANUAL_HANDOFF} · Stage C3 prompt drafts · No auto-dispatch`
-          : `Advisory transport · ${HERMES_LABEL_WRITE_PROTECTED} · No issue status change · No verification · No automatic tool runs${workflow === "fix_report_review" ? " · Suggested text draft only" : ""}`}
+      <p className="aixia-issue-hermes-advisory-lead">
+        Advisory only · Coordinator not active · Writes blocked · No issue status change · No
+        verification · No tool execution
+        {workflow === "fix_report_review" ? " · Recommendation only" : ""}
       </p>
 
       <div
@@ -466,21 +435,6 @@ export function IssueHermesAdvisoryAssist({
           <ClipboardCheck className="h-3.5 w-3.5" aria-hidden />
           Fix Report Review
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={workflow === "prompt_drafts"}
-          className={`aixia-issue-hermes-advisory-tab${workflow === "prompt_drafts" ? " is-active" : ""}`}
-          disabled={workflowLoading}
-          onClick={() => {
-            setPromptDraftWorkflowSource("prompt_drafts");
-            setWorkflow("prompt_drafts");
-          }}
-          data-testid="issue-hermes-tab-prompt-drafts"
-        >
-          <GitBranch className="h-3.5 w-3.5" aria-hidden />
-          Prompt Drafts
-        </button>
       </div>
 
       {workflow === "fix_report_review" ? (
@@ -499,21 +453,19 @@ export function IssueHermesAdvisoryAssist({
       ) : null}
 
       <div className="aixia-issue-hermes-advisory-actions">
-        {workflow !== "prompt_drafts" ? (
-          <label
-            className="aixia-issue-hermes-advisory-toggle"
-            data-testid="issue-hermes-include-context-toggle"
-          >
-            <input
-              type="checkbox"
-              checked={includeReadOnlyContext}
-              disabled={workflowLoading || !contextAssemblerAvailable}
-              onChange={(event) => setIncludeReadOnlyContext(event.target.checked)}
-            />
-            <span>Include read-only AiXia context</span>
-          </label>
-        ) : null}
-        {!contextAssemblerAvailable && workflow !== "prompt_drafts" ? (
+        <label
+          className="aixia-issue-hermes-advisory-toggle"
+          data-testid="issue-hermes-include-context-toggle"
+        >
+          <input
+            type="checkbox"
+            checked={includeReadOnlyContext}
+            disabled={workflowLoading || !contextAssemblerAvailable}
+            onChange={(event) => setIncludeReadOnlyContext(event.target.checked)}
+          />
+          <span>Include read-only AiXia context</span>
+        </label>
+        {!contextAssemblerAvailable ? (
           <span className="aixia-issue-hermes-advisory-hint">Context assembler unavailable</span>
         ) : null}
 
@@ -527,14 +479,6 @@ export function IssueHermesAdvisoryAssist({
             >
               <Sparkles className={`h-4 w-4 ${advisoryLoading ? "animate-pulse" : ""}`} aria-hidden />
               Ask Hermes
-            </AixiaButton>
-            <AixiaButton
-              variant="secondary"
-              onClick={() => openPromptDrafts("workflow_1")}
-              data-testid="issue-hermes-w1-generate-prompt"
-            >
-              <GitBranch className="h-4 w-4" aria-hidden />
-              Generate Hermes Prompt
             </AixiaButton>
             <AixiaButton
               variant="secondary"
@@ -558,14 +502,6 @@ export function IssueHermesAdvisoryAssist({
             >
               <FileText className={`h-4 w-4 ${reviewLoading ? "animate-pulse" : ""}`} aria-hidden />
               Review Cursor prompt
-            </AixiaButton>
-            <AixiaButton
-              variant="secondary"
-              onClick={() => openPromptDrafts("workflow_2")}
-              data-testid="issue-hermes-w2-generate-prompt"
-            >
-              <GitBranch className="h-4 w-4" aria-hidden />
-              Generate Hermes Prompt
             </AixiaButton>
             <AixiaButton
               variant="secondary"
@@ -604,21 +540,12 @@ export function IssueHermesAdvisoryAssist({
             </AixiaButton>
             <AixiaButton
               variant="secondary"
-              onClick={() => openPromptDrafts("workflow_3")}
-              disabled={!hasFixReportText}
-              data-testid="issue-hermes-w3-generate-prompt"
-            >
-              <GitBranch className="h-4 w-4" aria-hidden />
-              Generate Hermes Prompt
-            </AixiaButton>
-            <AixiaButton
-              variant="secondary"
               onClick={() => void handleCopyFixReportRecommendation()}
               disabled={fixReportLoading || !fixReportResult?.ok}
               data-testid="issue-hermes-copy-fix-report-button"
             >
               <Copy className="h-4 w-4" aria-hidden />
-              Copy verification advisory note
+              Copy verification recommendation
             </AixiaButton>
             <AixiaButton
               variant="secondary"
@@ -632,7 +559,7 @@ export function IssueHermesAdvisoryAssist({
           </>
         ) : null}
 
-        {activeResult?.ok && activeResult.response && workflow !== "prompt_drafts" ? (
+        {activeResult?.ok && activeResult.response ? (
           <AixiaButton
             variant="secondary"
             onClick={() => void handleSaveRecommendation()}
@@ -640,7 +567,7 @@ export function IssueHermesAdvisoryAssist({
             data-testid="issue-hermes-save-recommendation-button"
           >
             <Save className={`h-4 w-4 ${saveLoading ? "animate-pulse" : ""}`} aria-hidden />
-            {currentResponseAlreadySaved ? "Saved" : "Save suggested text draft"}
+            {currentResponseAlreadySaved ? "Saved" : "Save recommendation"}
           </AixiaButton>
         ) : null}
       </div>
@@ -653,38 +580,14 @@ export function IssueHermesAdvisoryAssist({
 
       {workflow === "fix_report_review" ? (
         <p className="aixia-issue-hermes-advisory-hint">
-          Suggested text draft only — no issue status changes are made.
+          Recommendation only — no issue status changes are made.
         </p>
       ) : null}
 
-      {!advisoryReachable && !healthLoading && workflow !== "prompt_drafts" ? (
+      {!advisoryReachable && !healthLoading ? (
         <p className="aixia-issue-hermes-advisory-error" data-testid="issue-hermes-unavailable">
           Hermes advisory runtime unavailable. Refresh health or check staging gates.
         </p>
-      ) : null}
-
-      {workflow === "fix_report_review" ? (
-        <IssueHermesVerificationReviewerPanel
-          issueCode={issueCode}
-          finding={finding}
-          fixPlan={fixPlan}
-          approvedCursorPrompt={approvedCursorPrompt}
-          executionStateLabel={executionStateLabel}
-          pastedCursorReport={fixReportText}
-        />
-      ) : null}
-
-      {workflow === "prompt_drafts" ? (
-        <IssueHermesPromptCoordinatorPanel
-          issueCode={issueCode}
-          finding={finding}
-          fixPlan={fixPlan}
-          approvedCursorPrompt={approvedCursorPrompt}
-          executionStateLabel={executionStateLabel}
-          workflowSource={promptDraftWorkflowSource}
-          pastedCursorReport={fixReportText}
-          autoGenerateToken={promptAutoGenerateToken}
-        />
       ) : null}
 
       {workflow === "advisory" && advisoryLoading ? (
@@ -710,9 +613,7 @@ export function IssueHermesAdvisoryAssist({
 
       {workflow === "advisory" && advisoryResult?.ok && advisoryResult.response ? (
         <div className="aixia-issue-hermes-advisory-result" data-testid="issue-hermes-advisory-result">
-          <p className="aixia-issue-hermes-advisory-response">
-            <UslDisplayText as="span">{advisoryResult.response}</UslDisplayText>
-          </p>
+          <p className="aixia-issue-hermes-advisory-response">{advisoryResult.response}</p>
           <HermesResultMeta result={advisoryResult} health={health} />
         </div>
       ) : null}
@@ -722,9 +623,7 @@ export function IssueHermesAdvisoryAssist({
           className="aixia-issue-hermes-advisory-result"
           data-testid="issue-hermes-cursor-review-result"
         >
-          <p className="aixia-issue-hermes-advisory-response">
-            <UslDisplayText as="span">{reviewResult.response}</UslDisplayText>
-          </p>
+          <p className="aixia-issue-hermes-advisory-response">{reviewResult.response}</p>
           {improvedPromptText ? (
             <p
               className="aixia-issue-hermes-advisory-hint"
@@ -742,9 +641,7 @@ export function IssueHermesAdvisoryAssist({
           className="aixia-issue-hermes-advisory-result"
           data-testid="issue-hermes-fix-report-review-result"
         >
-          <p className="aixia-issue-hermes-advisory-response">
-            <UslDisplayText as="span">{fixReportResult.response}</UslDisplayText>
-          </p>
+          <p className="aixia-issue-hermes-advisory-response">{fixReportResult.response}</p>
           <HermesResultMeta result={fixReportResult} health={health} showStatusMutation />
         </div>
       ) : null}
@@ -795,22 +692,23 @@ export function IssueHermesAdvisoryAssist({
         data-testid="issue-hermes-saved-artifacts"
       >
         <summary>
-          Saved Hermes suggested text drafts
+          Saved Hermes recommendations
           {savedArtifacts.length > 0 ? ` (${savedArtifacts.length})` : ""}
         </summary>
         <p className="aixia-issue-hermes-advisory-saved-history-lead">
-          Advisory artifact only · No issue status change · No memory write · No SOT write · No automatic tool runs
+          Advisory artifact only · No issue status change · No memory write · No SOT write · No tool
+          execution
         </p>
         {savedArtifactsLoading ? (
-          <p className="aixia-issue-hermes-advisory-hint">Loading saved suggested text drafts…</p>
+          <p className="aixia-issue-hermes-advisory-hint">Loading saved recommendations…</p>
         ) : null}
         {savedArtifactsError ? (
           <p className="aixia-issue-hermes-advisory-hint" data-testid="issue-hermes-saved-error">
-            Saved suggested text drafts unavailable: {savedArtifactsError}
+            Saved recommendations unavailable: {savedArtifactsError}
           </p>
         ) : null}
         {!savedArtifactsLoading && !savedArtifactsError && savedArtifacts.length === 0 ? (
-          <p className="aixia-issue-hermes-advisory-hint">No saved suggested text drafts for this issue yet.</p>
+          <p className="aixia-issue-hermes-advisory-hint">No saved recommendations for this issue yet.</p>
         ) : null}
         {!savedArtifactsLoading && savedArtifacts.length > 0 ? (
           <ul className="aixia-issue-hermes-advisory-saved-history-list">
@@ -841,13 +739,13 @@ export function IssueHermesAdvisoryAssist({
                     </div>
                     {artifact.verdict ? (
                       <div>
-                        <dt>Advisory note (draft)</dt>
-                        <dd>{normalizeDisplayString(artifact.verdict)}</dd>
+                        <dt>Verdict</dt>
+                        <dd>{artifact.verdict}</dd>
                       </div>
                     ) : null}
                   </dl>
                   <p className="aixia-issue-hermes-advisory-saved-history-preview">
-                    {normalizeDisplayString(buildHermesRecommendationResponsePreview(artifact.responseText))}
+                    {buildHermesRecommendationResponsePreview(artifact.responseText)}
                   </p>
                   <AixiaButton
                     variant="secondary"
@@ -860,7 +758,7 @@ export function IssueHermesAdvisoryAssist({
                   </AixiaButton>
                   {isExpanded ? (
                     <p className="aixia-issue-hermes-advisory-saved-history-full">
-                      {normalizeDisplayString(artifact.responseText)}
+                      {artifact.responseText}
                     </p>
                   ) : null}
                 </li>
@@ -871,21 +769,12 @@ export function IssueHermesAdvisoryAssist({
       </details>
 
       <div className="aixia-issue-hermes-advisory-badges">
-        {workflow === "prompt_drafts" ? (
-          <>
-            <AixiaBadge tone="cyan">{HERMES_LABEL_READ_ONLY_ACTIVE}</AixiaBadge>
-            <AixiaBadge tone="violet">{HERMES_LABEL_WRITE_PROTECTED}</AixiaBadge>
-            <AixiaBadge tone="amber">{HERMES_LABEL_MANUAL_HANDOFF}</AixiaBadge>
-          </>
-        ) : (
-          <>
-            <AixiaBadge tone="amber">Advisory only</AixiaBadge>
-            <AixiaBadge tone="violet">{HERMES_LABEL_WRITE_PROTECTED}</AixiaBadge>
-            <AixiaBadge tone={advisoryReachable ? "emerald" : "rose"}>
-              {advisoryReachable ? "Runtime reachable" : "Runtime unavailable"}
-            </AixiaBadge>
-          </>
-        )}
+        <AixiaBadge tone="amber">Advisory only</AixiaBadge>
+        <AixiaBadge tone="neutral">Coordinator not active</AixiaBadge>
+        <AixiaBadge tone="rose">Writes blocked</AixiaBadge>
+        <AixiaBadge tone={advisoryReachable ? "emerald" : "rose"}>
+          {advisoryReachable ? "Runtime reachable" : "Runtime unavailable"}
+        </AixiaBadge>
       </div>
     </div>
   );

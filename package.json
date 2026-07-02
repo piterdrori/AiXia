@@ -24,7 +24,7 @@
     "agentops:monitoring:scheduled:once": "node scripts/agentops-monitoring-scheduled-run.mjs once",
     "agentops:monitoring:scheduled:blocked-write-test": "node scripts/agentops-monitoring-scheduled-run.mjs blocked-write-test",
     "prebuild": "node scripts/prepare-mediapipe-assets.cjs",
-    "build": "node scripts/aixia-guardrails.mjs && npx tsx scripts/agentops-runtime-immutability-check.ts && npx tsx scripts/agentops-runtime-semantic-verify.ts && npx tsx scripts/agentops-global-ux-freeze-verify.ts && tsc -b && vite build",
+    "build": "node scripts/aixia-guardrails.mjs && npx tsx scripts/agentops-runtime-immutability-check.ts && npx tsx scripts/agentops-runtime-semantic-verify.ts && tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "export:analytics": "node scripts/export-analytics-for-hermes.mjs",

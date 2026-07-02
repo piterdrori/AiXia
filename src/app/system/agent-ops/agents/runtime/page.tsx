@@ -172,8 +172,8 @@ export default function AgentOpsAgentsRuntimePage() {
                     </span>
                   }
                   actionLabel={agent.runtimeState === "MISSING" ? "Unavailable" : "Open"}
-                  actionDisabled={agent.runtimeState === "MISSING"}
-                  onActionClick={
+                  disabled={agent.runtimeState === "MISSING"}
+                  onClick={
                     agent.runtimeState === "MISSING"
                       ? undefined
                       : () => navigate(`/system/agent-ops/agents/${agent.canonicalId}`)

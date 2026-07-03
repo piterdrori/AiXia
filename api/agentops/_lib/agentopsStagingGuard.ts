@@ -6,6 +6,9 @@
 export const AGENTOPS_STAGING_GUARD_ERROR =
   "AgentOps is staging-only. Supabase project ref does not match configured staging project.";
 
+/** Staging Supabase project ref — read-only inference when env var is unset on preview. */
+export const AGENTOPS_STAGING_SUPABASE_PROJECT_REF = "ydppcpbxrvvardeslzrk";
+
 export type AgentOpsStagingGuardResult = {
   ok: boolean;
   blocked: boolean;
@@ -82,6 +85,25 @@ export function evaluateAgentOpsStagingGuard(
   }
 
   if (!expectedProjectRef) {
+    const inferredExpectedRef =
+      configuredProjectRef === AGENTOPS_STAGING_SUPABASE_PROJECT_REF &&
+      readEnvValue(env, "VERCEL_ENV") !== "production"
+        ? AGENTOPS_STAGING_SUPABASE_PROJECT_REF
+        : null;
+
+    if (inferredExpectedRef && configuredProjectRef === inferredExpectedRef) {
+      return {
+        ok: true,
+        blocked: false,
+        reason: null,
+        expectedProjectRef: inferredExpectedRef,
+        configuredProjectRef,
+        allowNonStaging: false,
+        productionBlocked: false,
+        environment,
+      };
+    }
+
     return {
       ok: false,
       blocked: true,

@@ -207,12 +207,22 @@ export async function handleMonitoringLatestReportRequest(request: Request): Pro
   });
 }
 
+function resolveMonitoringPathname(request: Request): string {
+  const [pathPart, queryPart = ""] = request.url.split("?");
+  const normalized = (pathPart ?? request.url).replace(/\/+$/, "");
+  if (normalized.startsWith("/api/agentops/monitoring/")) {
+    return normalized;
+  }
+  const params = new URLSearchParams(queryPart);
+  const subpath = params.get("monitoringSubpath") ?? params.get("subpath");
+  if (subpath) {
+    return `/api/agentops/monitoring/${subpath.replace(/^\/+|\/+$/g, "")}`.replace(/\/+$/, "");
+  }
+  return normalized || "/api/agentops/monitoring";
+}
+
 export async function routeMonitoringRequest(request: Request): Promise<Response> {
-  const url = new URL(request.url);
-  const rewrittenSubpath = url.searchParams.get("monitoringSubpath")?.replace(/^\/+|\/+$/g, "");
-  const pathname = rewrittenSubpath
-    ? `/api/agentops/monitoring/${rewrittenSubpath}`.replace(/\/+$/, "")
-    : url.pathname.replace(/\/+$/, "");
+  const pathname = resolveMonitoringPathname(request);
 
   if (pathname === "/api/agentops/monitoring/status") {
     return handleMonitoringStatusRequest(request);

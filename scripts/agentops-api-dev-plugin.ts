@@ -26,28 +26,99 @@ async function writeFetchResponse(res: ServerResponse, response: Response): Prom
 }
 
 /**
- * Serves AgentOps API routes during `npm run dev` (Vite) so LLM proxy works locally
- * without requiring a separate `vercel dev` process.
+ * Serves non-LLM AgentOps API routes during `npm run dev`.
+ * LLM (`/api/agentops/llm`) is owned by the Express backend on port 3001 — see `server/index.ts`.
  */
 export function agentOpsApiDevPlugin(): Plugin {
   return {
     name: "agentops-api-dev",
     configureServer(server) {
+      // Vite loadEnv does not override keys already present in process.env (e.g. stale shell exports).
+      // Clear Chat & Voice provider keys so .env.local updates apply after dev:restart.
+      for (const key of Object.keys(process.env)) {
+        if (
+          key.startsWith("DOUBAO_") ||
+          key.startsWith("AGENTOPS_DOUBAO_") ||
+          key.startsWith("AGENTOPS_SUPERTONIC_")
+        ) {
+          delete process.env[key];
+        }
+      }
       const env = loadEnv(server.config.mode, process.cwd(), "");
       Object.assign(process.env, env);
+      if (!process.env.AGENTOPS_STAGING_SUPABASE_PROJECT_REF) {
+        const supabaseUrl = process.env.VITE_SUPABASE_URL ?? "";
+        if (supabaseUrl.includes("ydppcpbxrvvardeslzrk")) {
+          process.env.AGENTOPS_STAGING_SUPABASE_PROJECT_REF = "ydppcpbxrvvardeslzrk";
+        }
+      }
       const handlers = createAgentOpsDevApiHandlers(env);
 
       server.middlewares.use(async (req, res, next) => {
         const pathname = req.url?.split("?")[0] ?? "";
+
+        if (pathname === "/api/agentops/llm") {
+          res.statusCode = 410;
+          res.setHeader("Content-Type", "application/json");
+          res.end(
+            JSON.stringify({
+              error: "LLM route moved to Express backend",
+              llmUrl: "http://127.0.0.1:3001/api/agentops/llm",
+              provider: "doubao",
+            }),
+          );
+          return;
+        }
+
         const isGlobalMemoryRun =
           pathname === "/api/agentops/global-memory/run-command";
         const isGlobalMemoryCandidates =
           pathname === "/api/agentops/global-memory/generate-candidates";
+        const isEvidenceTools = pathname === "/api/agentops/evidence-tools";
+        const isCodeContextTools = pathname === "/api/agentops/code-context-tools";
+        const isHermesContextIngestion =
+          pathname === "/api/agentops/hermes-context-ingestion";
+        const isSupertonicTts = pathname === "/api/agentops/chat-voice/supertonic-tts";
+        const isDoubaoAsr =
+          pathname === "/api/agentops/chat-voice/doubao-asr" ||
+          pathname === "/api/agentops/chat-voice/doubao-stt";
+        const isDoubaoTts = pathname === "/api/agentops/chat-voice/doubao-tts";
+        const isLiveStatus = pathname === "/api/agentops/live-status";
+        const isExecuteFixedRun = pathname === "/api/agentops/execute-fixed-run";
+        const isChatBrowserQa = pathname === "/api/agentops/chat-browser-qa";
+        const isExecuteWorkflow = pathname === "/api/agentops/workflows/execute-workflow";
+        const isWorkflowRuns = pathname === "/api/agentops/workflows/workflow-runs";
+        const isWorkflowStream = pathname === "/api/agentops/workflows/workflow-stream";
+        const isWorkflowEvents = pathname === "/api/agentops/workflows/workflow-events";
+        const isWorkflowDebugger = pathname === "/api/agentops/workflows/workflow-debugger";
+        const isInitializeCanonicalAgents =
+          pathname === "/api/agentops/initialize-canonical-agents";
+        const isMonitoringStatus = pathname === "/api/agentops/monitoring/status";
+        const isMonitoringDryRun = pathname === "/api/agentops/monitoring/dry-run";
+        const isMonitoringLatestReport =
+          pathname === "/api/agentops/monitoring/reports/latest";
         if (
-          pathname !== "/api/agentops/llm" &&
           pathname !== "/api/agentops/hermes" &&
+          !isLiveStatus &&
+          !isExecuteFixedRun &&
+          !isChatBrowserQa &&
+          !isExecuteWorkflow &&
+          !isWorkflowRuns &&
+          !isWorkflowStream &&
+          !isWorkflowEvents &&
+          !isWorkflowDebugger &&
+          !isInitializeCanonicalAgents &&
+          !isMonitoringStatus &&
+          !isMonitoringDryRun &&
+          !isMonitoringLatestReport &&
           !isGlobalMemoryRun &&
-          !isGlobalMemoryCandidates
+          !isGlobalMemoryCandidates &&
+          !isEvidenceTools &&
+          !isCodeContextTools &&
+          !isHermesContextIngestion &&
+          !isSupertonicTts &&
+          !isDoubaoAsr &&
+          !isDoubaoTts
         ) {
           return next();
         }
@@ -81,14 +152,71 @@ export function agentOpsApiDevPlugin(): Plugin {
 
           let response: Response;
           if (pathname === "/api/agentops/hermes") {
-            const mod = await server.ssrLoadModule("/api/agentops/hermesHandler.ts");
+            const mod = await server.ssrLoadModule("/api/agentops/_lib/hermesHandler.ts");
             response = await mod.handleAgentOpsHermesRequest(request);
+          } else if (isLiveStatus) {
+            const mod = await server.ssrLoadModule("/api/agentops/live-status.ts");
+            response = await mod.handleAgentOpsLiveStatusRequest(request);
+          } else if (isExecuteFixedRun) {
+            const mod = await server.ssrLoadModule("/api/agentops/execute-fixed-run.ts");
+            response = await mod.handleExecuteFixedRunRequest(request);
+          } else if (isChatBrowserQa) {
+            const mod = await server.ssrLoadModule("/api/agentops/chat-browser-qa.ts");
+            response = await mod.handleChatBrowserQaRequest(request);
+          } else if (isExecuteWorkflow) {
+            const mod = await server.ssrLoadModule("/api/agentops/workflows/execute-workflow.ts");
+            response = await mod.handleExecuteWorkflowRequest(request);
+          } else if (isWorkflowRuns) {
+            const mod = await server.ssrLoadModule("/api/agentops/workflows/workflow-runs.ts");
+            response = await mod.handleWorkflowRunsRequest(request);
+          } else if (isWorkflowStream) {
+            const mod = await server.ssrLoadModule("/api/agentops/workflows/workflow-stream.ts");
+            response = await mod.handleWorkflowStreamRequest(request);
+          } else if (isWorkflowEvents) {
+            const mod = await server.ssrLoadModule("/api/agentops/workflows/workflow-events.ts");
+            response = await mod.handleWorkflowEventsRequest(request);
+          } else if (isWorkflowDebugger) {
+            const mod = await server.ssrLoadModule("/api/agentops/workflows/workflow-debugger.ts");
+            response = await mod.handleWorkflowDebuggerRequest(request);
+          } else if (isInitializeCanonicalAgents) {
+            const mod = await server.ssrLoadModule("/api/agentops/initialize-canonical-agents.ts");
+            response = await mod.handleInitializeCanonicalAgentsRequest();
+          } else if (isMonitoringStatus) {
+            const mod = await server.ssrLoadModule("/api/agentops/monitoring/handler.ts");
+            response = await mod.handleMonitoringStatusRequest(request);
+          } else if (isMonitoringDryRun) {
+            const mod = await server.ssrLoadModule("/api/agentops/monitoring/handler.ts");
+            response = await mod.handleMonitoringDryRunRequest(request);
+          } else if (isMonitoringLatestReport) {
+            const mod = await server.ssrLoadModule("/api/agentops/monitoring/handler.ts");
+            response = await mod.handleMonitoringLatestReportRequest(request);
+          } else if (isSupertonicTts) {
+            const mod = await server.ssrLoadModule("/api/agentops/supertonicTtsHandler.ts");
+            response = await mod.handleSupertonicTtsRequest(request);
+          } else if (isDoubaoAsr) {
+            const mod = await server.ssrLoadModule("/api/agentops/doubaoAsrHandler.ts");
+            response = await mod.handleDoubaoAsrRequest(request, { ...process.env, ...env });
+          } else if (isDoubaoTts) {
+            const mod = await server.ssrLoadModule("/api/agentops/doubaoTtsHandler.ts");
+            response = await mod.handleDoubaoTtsRequest(request, { ...process.env, ...env });
+          } else if (isGlobalMemoryRun) {
+            const mod = await server.ssrLoadModule(
+              "/api/agentops/global-memory/run-command-handler.ts",
+            );
+            response = await mod.handleGlobalMemoryRunCommandRequest(request, {
+              ...process.env,
+              ...env,
+            });
+          } else if (isEvidenceTools) {
+            const mod = await server.ssrLoadModule("/api/agentops/evidence-tools-handler.ts");
+            response = await mod.handleEvidenceToolsRequest(request, { ...process.env, ...env });
+          } else if (isCodeContextTools) {
+            const mod = await server.ssrLoadModule("/api/agentops/code-context-tools-handler.ts");
+            response = await mod.handleCodeContextToolsRequest(request, { ...process.env, ...env });
           } else {
-            const handler = isGlobalMemoryRun
-              ? handlers.handleGlobalMemoryRunCommand
-              : isGlobalMemoryCandidates
-                ? handlers.handleGlobalMemoryGenerateCandidates
-                : handlers.handleLlm;
+            const handler = isGlobalMemoryCandidates
+              ? handlers.handleGlobalMemoryGenerateCandidates
+              : handlers.handleHermesContextIngestion;
             response = await handler(request);
           }
           await writeFetchResponse(res, response);

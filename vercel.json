@@ -1,7 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/**/*.ts": {
+    "api/agentops/hermes.ts": {
+      "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
+    },
+    "api/agentops/llm.ts": {
+      "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
+    },
+    "api/agentops/code-context-tools.ts": {
+      "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
+    },
+    "api/agentops/evidence-tools.ts": {
+      "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
+    },
+    "api/agentops/global-memory/*.ts": {
+      "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
+    },
+    "api/cron/*.ts": {
       "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
     }
   },

@@ -6,12 +6,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { buildAgentOpsHermesToolRegistryPreview } from "../../src/lib/agentops/hermesToolRegistryPreview.js";
+import { buildAgentOpsHermesToolRegistryPreview } from "../../../src/lib/agentops/hermesToolRegistryPreview.js";
 import {
   formatToolRegistryStatus,
   getToolRegistryEntry,
   summarizeChildStatuses,
-} from "../../src/lib/agentops/tools/toolRegistry.js";
+} from "../../../src/lib/agentops/tools/toolRegistry.js";
 
 import {
   getAgentOpsServerSupabase,

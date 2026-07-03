@@ -40,7 +40,8 @@ function main(): void {
       base !== "hermes.ts" &&
       base !== "llm.ts" &&
       base !== "code-context-tools.ts" &&
-      base !== "evidence-tools.ts"
+      base !== "evidence-tools.ts" &&
+      base !== "monitoring.ts"
     );
   });
 

@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { buildMonitoringScheduledRunReport } from "../src/lib/agentops/runtime/agentOpsMonitoringScheduledReport";
+import { buildMonitoringRunIndexRecord } from "../src/lib/agentops/runtime/agentOpsMonitoringRunIndex";
 import { MONITORING_CONFIG_DEFAULTS } from "../src/lib/agentops/runtime/agentOpsMonitoringRuntimeConfig";
 import { resolveOwnerWriteGate } from "../src/lib/agentops/runtime/agentOpsMonitoringOwnerWriteGate";
 import { resolveMonitoringProductionGuardReport } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
@@ -80,6 +81,18 @@ function verifyProductionBlockedReportSemantics(): void {
   }
   if (!report.productionGuardActive) {
     fail("buildMonitoringScheduledRunReport must set productionGuardActive=true");
+  }
+
+  const indexRecord = buildMonitoringRunIndexRecord(report, {
+    source: "verify",
+    mode: "scheduled_dry_run",
+  });
+  if (!indexRecord.dry_run) fail("Run index record must be dry_run=true for staging dry-run");
+  if (!indexRecord.production_blocked) {
+    fail("Run index record must set production_blocked=true for staging dry-run");
+  }
+  if (indexRecord.actual_issues_created !== 0 || indexRecord.actual_memory_writes !== 0) {
+    fail("Run index record must have zero writes");
   }
 }
 
@@ -159,6 +172,9 @@ function main(): void {
     }
     if (!workflow.includes("agentops-monitoring-gha-preflight.mjs")) {
       fail("Workflow must run agentops-monitoring-gha-preflight.mjs");
+    }
+    if (!workflow.includes("agentops-monitoring-gha-run-index-insert.ts")) {
+      fail("Workflow must insert monitoring run index to staging Supabase after dry-run");
     }
   }
 

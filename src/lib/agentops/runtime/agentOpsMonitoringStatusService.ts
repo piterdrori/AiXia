@@ -19,6 +19,12 @@ import {
   loadAgentOpsMonitoringRuntimeConfig,
 } from "./agentOpsMonitoringRuntimeConfig";
 import { readLatestMonitoringReport, type MonitoringReportSummary } from "./agentOpsMonitoringReportReader";
+import {
+  listMonitoringRunIndexRecords,
+  toMonitoringRunIndexSummary,
+} from "./agentOpsMonitoringRunIndex";
+
+export type MonitoringRunIndexSummary = ReturnType<typeof toMonitoringRunIndexSummary>;
 
 export type AgentMonitoringEligibilityRow = {
   agentSlug: string;
@@ -49,6 +55,9 @@ export type MonitoringOwnerStatusPayload = {
   eligibleAgentSlugs: string[];
   eligibility: AgentMonitoringEligibilityRow[];
   lastReport: MonitoringReportSummary | null;
+  latestMonitoringRuns: MonitoringRunIndexSummary[];
+  latestIndexedRun: MonitoringRunIndexSummary | null;
+  dryRunDefault: true;
   safety: {
     productionBlocked: true;
     autoFixDeployBlocked: true;
@@ -121,6 +130,20 @@ export async function buildMonitoringOwnerStatus(
   const writeMode = writeModeLabels(config.effectiveDryRun);
   const lastReportResult = await readLatestMonitoringReport();
 
+  let latestMonitoringRuns: MonitoringRunIndexSummary[] = [];
+  let latestIndexedRun: MonitoringRunIndexSummary | null = null;
+  let indexError: string | null = null;
+
+  if (client) {
+    const indexResult = await listMonitoringRunIndexRecords(client, 10);
+    if (indexResult.ok) {
+      latestMonitoringRuns = indexResult.data.map(toMonitoringRunIndexSummary);
+      latestIndexedRun = latestMonitoringRuns[0] ?? null;
+    } else {
+      indexError = indexResult.error;
+    }
+  }
+
   let eligibility: AgentMonitoringEligibilityRow[] = [];
   let configError: string | null = null;
   let agentsLoaded = false;
@@ -135,6 +158,10 @@ export async function buildMonitoringOwnerStatus(
     }
   } else {
     configError = "Staging Supabase is not configured.";
+  }
+
+  if (indexError && !configError) {
+    configError = indexError;
   }
 
   const eligible = eligibility.filter((row) => row.scheduledEligible);
@@ -156,6 +183,9 @@ export async function buildMonitoringOwnerStatus(
     eligibleAgentSlugs: eligible.map((row) => row.agentSlug),
     eligibility,
     lastReport: lastReportResult?.summary ?? null,
+    latestMonitoringRuns,
+    latestIndexedRun,
+    dryRunDefault: true,
     safety: {
       productionBlocked: true,
       autoFixDeployBlocked: isLevel4Forbidden() as true,

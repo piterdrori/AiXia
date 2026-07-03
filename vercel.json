@@ -18,6 +18,9 @@
     },
     "api/cron/*.ts": {
       "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
+    },
+    "api/agentops/monitoring/[...path].ts": {
+      "includeFiles": "qa-agent/browser-qa/synthetic-browser-users.json"
     }
   },
   "rewrites": [

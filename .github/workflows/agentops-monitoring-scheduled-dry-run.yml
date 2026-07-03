@@ -64,6 +64,10 @@ jobs:
         if: always()
         run: node scripts/agentops-monitoring-gha-dry-run-summary.mjs
 
+      - name: Insert monitoring run index (staging Supabase)
+        if: always()
+        run: npx tsx scripts/agentops-monitoring-gha-run-index-insert.ts
+
       - name: Upload monitoring dry-run artifacts
         if: always()
         uses: actions/upload-artifact@v4

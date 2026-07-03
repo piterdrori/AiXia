@@ -20,6 +20,7 @@
     "agentops:monitoring:scheduled:dry-run": "node scripts/agentops-monitoring-scheduled-run.mjs dry-run-once",
     "agentops:monitoring:scheduled:gha-dry-run": "node scripts/agentops-monitoring-scheduled-run.mjs gha-dry-run",
     "agentops:monitoring-gha-dry-run-verify": "tsx scripts/agentops-monitoring-gha-dry-run-verify.ts",
+    "agentops:vercel-function-count-verify": "tsx scripts/agentops-vercel-function-count-verify.ts",
     "agentops:monitoring:scheduled:loop:dry-run": "node scripts/agentops-monitoring-scheduled-run.mjs dry-run-loop",
     "agentops:monitoring:scheduled:once": "node scripts/agentops-monitoring-scheduled-run.mjs once",
     "agentops:monitoring:scheduled:blocked-write-test": "node scripts/agentops-monitoring-scheduled-run.mjs blocked-write-test",

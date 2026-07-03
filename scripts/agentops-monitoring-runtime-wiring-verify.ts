@@ -20,6 +20,7 @@ import {
 } from "../src/lib/agentops/runtime/agentOpsMonitoringRuntimeConfig";
 import { assertStagingScanUrl, resolveMonitoringProductionGuardReport } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
 import { buildMonitoringScheduledRunReport } from "../src/lib/agentops/runtime/agentOpsMonitoringScheduledReport";
+import { buildMonitoringRunIndexRecord } from "../src/lib/agentops/runtime/agentOpsMonitoringRunIndex";
 import { resolveOwnerWriteGate } from "../src/lib/agentops/runtime/agentOpsMonitoringOwnerWriteGate";
 
 const failures: string[] = [];
@@ -203,6 +204,11 @@ function verifyProductionBlocked(): void {
   });
   if (!built.productionBlocked) {
     fail("buildMonitoringScheduledRunReport productionBlocked must be true for staging dry-run");
+  }
+
+  const indexRecord = buildMonitoringRunIndexRecord(built, { source: "wiring-verify" });
+  if (!indexRecord.dry_run || !indexRecord.production_blocked) {
+    fail("buildMonitoringRunIndexRecord must preserve dry_run and production_blocked");
   }
 }
 

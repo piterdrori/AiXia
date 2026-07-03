@@ -182,7 +182,7 @@ export function agentOpsApiDevPlugin(): Plugin {
             const mod = await server.ssrLoadModule("/api/agentops/initialize-canonical-agents.ts");
             response = await mod.handleInitializeCanonicalAgentsRequest();
           } else if (isMonitoringStatus || isMonitoringDryRun || isMonitoringLatestReport) {
-            const mod = await server.ssrLoadModule("/api/agentops/monitoring/_lib/routes.ts");
+            const mod = await server.ssrLoadModule("/api/agentops/_lib/monitoringRoutes.ts");
             response = await mod.routeMonitoringRequest(request);
           } else if (isSupertonicTts) {
             const mod = await server.ssrLoadModule("/api/agentops/supertonicTtsHandler.ts");

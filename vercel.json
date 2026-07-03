@@ -25,8 +25,8 @@
   },
   "rewrites": [
     {
-      "source": "/api/agentops/monitoring/(.*)",
-      "destination": "/api/agentops/monitoring"
+      "source": "/api/agentops/monitoring/:subpath*",
+      "destination": "/api/agentops/monitoring?monitoringSubpath=:subpath*"
     },
     {
       "source": "/((?!_next|api|_vercel|_logs|.*\\..*).*)",

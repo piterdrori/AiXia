@@ -5,15 +5,15 @@
  * GET  /api/agentops/monitoring/reports/latest
  */
 
-import { guardAgentOpsExecutionResponse } from "../../_lib/agentopsStagingGuard.js";
-import { jsonResponse } from "../../_lib/ollamaProxy.js";
-import { buildMonitoringOwnerStatus } from "../../../../src/lib/agentops/runtime/agentOpsMonitoringStatusService.js";
+import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
+import { jsonResponse } from "./ollamaProxy.js";
+import { buildMonitoringOwnerStatus } from "../../../src/lib/agentops/runtime/agentOpsMonitoringStatusService.js";
 import {
   readLatestMonitoringReport,
   summarizeMonitoringReport,
-} from "../../../../src/lib/agentops/runtime/agentOpsMonitoringReportReader.js";
-import { runOwnerUiScheduledDryRun } from "../../../../src/lib/agentops/runtime/agentOpsMonitoringScheduledWorker.js";
-import { createAgentOpsRuntimeSupabaseClient } from "../../../../src/lib/agentops/runtime/agentOpsRuntimeSupabase.js";
+} from "../../../src/lib/agentops/runtime/agentOpsMonitoringReportReader.js";
+import { runOwnerUiScheduledDryRun } from "../../../src/lib/agentops/runtime/agentOpsMonitoringScheduledWorker.js";
+import { createAgentOpsRuntimeSupabaseClient } from "../../../src/lib/agentops/runtime/agentOpsRuntimeSupabase.js";
 
 function methodNotAllowed(): Response {
   return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
@@ -88,7 +88,10 @@ export async function handleMonitoringLatestReportRequest(request: Request): Pro
 
 export async function routeMonitoringRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const pathname = url.pathname.replace(/\/+$/, "");
+  const rewrittenSubpath = url.searchParams.get("monitoringSubpath")?.replace(/^\/+|\/+$/g, "");
+  const pathname = rewrittenSubpath
+    ? `/api/agentops/monitoring/${rewrittenSubpath}`.replace(/\/+$/, "")
+    : url.pathname.replace(/\/+$/, "");
 
   if (pathname === "/api/agentops/monitoring/status") {
     return handleMonitoringStatusRequest(request);

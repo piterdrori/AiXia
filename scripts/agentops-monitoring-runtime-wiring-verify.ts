@@ -21,6 +21,11 @@ import {
 import { assertStagingScanUrl, resolveMonitoringProductionGuardReport } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
 import { buildMonitoringScheduledRunReport } from "../src/lib/agentops/runtime/agentOpsMonitoringScheduledReport";
 import { buildMonitoringRunIndexRecord } from "../src/lib/agentops/runtime/agentOpsMonitoringRunIndex";
+import {
+  canCreateMonitoringIssueDraft,
+  buildMonitoringIssueDraftCandidate,
+} from "../src/lib/agentops/runtime/agentOpsMonitoringIssueDraftPolicy";
+import { extractIssueDraftCandidatesFromReport } from "../src/lib/agentops/runtime/agentOpsMonitoringIssueDrafts";
 import { resolveOwnerWriteGate } from "../src/lib/agentops/runtime/agentOpsMonitoringOwnerWriteGate";
 
 const failures: string[] = [];
@@ -254,6 +259,67 @@ function verifyManualTickSafeAtLevel0(): void {
   if (!manual.eligible) fail("Manual tick must work at level 0");
 }
 
+function verifyIssueDraftPolicy(): void {
+  const ownerGate = resolveOwnerWriteGate({ effectiveDryRun: true, ownerWriteApproved: false });
+  const report = buildMonitoringScheduledRunReport({
+    runId: "draft-policy-test",
+    startedAt: new Date().toISOString(),
+    endedAt: new Date().toISOString(),
+    monitoringConfig: baseConfig({ level: 1, scheduledEnabled: true }),
+    ownerGate,
+    tick: {
+      config: null,
+      agents: [],
+      cycles: [],
+      skipped: [],
+      errors: [],
+      tickKind: "scheduled",
+      dryRun: true,
+    },
+    targetBaseUrl: "https://ai-xia-staging.vercel.app",
+  });
+  report.productionBlocked = true;
+  report.agentsRun = [
+    {
+      agentId: "a",
+      agentSlug: "qa-agent",
+      agentName: "QA Agent",
+      routesScanned: ["/dashboard"],
+      findingsCount: 1,
+      findings: [
+        {
+          page_url: "/dashboard",
+          issue: "Hydration stall detected",
+          severity: "medium",
+          evidence: {
+            scan_mode: "playwright",
+            route: "/dashboard",
+            absolute_url: "https://ai-xia-staging.vercel.app/dashboard",
+          },
+        },
+      ],
+      issuesCreated: 0,
+      issuesBlockedByPolicy: 1,
+      memoryProposals: 0,
+      errors: [],
+    },
+  ];
+
+  const finding = report.agentsRun[0].findings![0];
+  const policyError = canCreateMonitoringIssueDraft({
+    report,
+    finding,
+    agentSlug: "qa-agent",
+  });
+  if (policyError) fail(`Draft policy should allow evidence-backed dry-run finding: ${policyError}`);
+
+  const candidate = buildMonitoringIssueDraftCandidate(finding, { report, agentSlug: "qa-agent" });
+  if (!candidate.duplicateKey) fail("Draft candidate must include duplicateKey");
+
+  const candidates = extractIssueDraftCandidatesFromReport(report);
+  if (candidates.length !== 1) fail(`Expected 1 draft candidate, got ${candidates.length}`);
+}
+
 function main(): void {
   verifySafeDefaults();
   verifyLevel0BlocksAutomatic();
@@ -265,6 +331,7 @@ function main(): void {
   verifyIntervalDue();
   verifyDryRunDefault();
   verifyManualTickSafeAtLevel0();
+  verifyIssueDraftPolicy();
 
   if (failures.length > 0) {
     console.error("AGENTOPS MONITORING RUNTIME WIRING VERIFY — FAILED");

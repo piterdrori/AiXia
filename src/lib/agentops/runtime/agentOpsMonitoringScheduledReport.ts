@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import type { AgentOpsMonitoringRuntimeConfig } from "./agentOpsMonitoringRuntimeConfig";
 import type { AgentOpsRuntimeTickResult } from "./agentOpsRuntimeEngine";
 import type { OwnerWriteGateStatus } from "./agentOpsMonitoringOwnerWriteGate";
+import { sanitizeFindingEvidence } from "./agentOpsMonitoringIssueDraftPolicy";
 import { resolveMonitoringProductionGuardReport } from "./stagingScanUrlGuard";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
@@ -37,6 +38,12 @@ export type MonitoringScheduledRunReport = {
     agentName: string;
     routesScanned: string[];
     findingsCount: number;
+    findings?: Array<{
+      page_url: string;
+      issue: string;
+      severity: "low" | "medium" | "high" | "critical";
+      evidence: Record<string, unknown>;
+    }>;
     issuesCreated: number;
     issuesBlockedByPolicy: number;
     memoryProposals: number;
@@ -79,6 +86,12 @@ export function buildMonitoringScheduledRunReport(input: {
     agentName: cycle.agentName,
     routesScanned: cycle.routesScanned ?? [],
     findingsCount: cycle.findingsCount,
+    findings: (cycle.findings ?? []).map((finding) => ({
+      page_url: finding.page_url,
+      issue: finding.issue,
+      severity: finding.severity,
+      evidence: sanitizeFindingEvidence(finding.evidence),
+    })),
     issuesCreated: cycle.issuesCreated,
     issuesBlockedByPolicy: cycle.issuesBlockedByPolicy,
     memoryProposals: cycle.memoryProposals,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { CalendarClock, RefreshCw, Play, FileText } from "lucide-react";
 
 import {
@@ -18,6 +19,22 @@ import type {
   MonitoringRunIndexSummary,
 } from "@/lib/agentops/runtime/agentOpsMonitoringStatusService";
 import type { MonitoringReportSummary } from "@/lib/agentops/runtime/agentOpsMonitoringReportReader";
+
+type MonitoringIssueDraftSummary = {
+  id: string;
+  title: string;
+  route: string | null;
+  severity: string;
+  status: string;
+  runId: string;
+  githubRunId: string | null;
+  createdAt: string;
+};
+
+type ExtendedMonitoringStatus = MonitoringOwnerStatusPayload & {
+  latestIssueDrafts?: MonitoringIssueDraftSummary[];
+  issueDraftCounts?: Record<string, number>;
+};
 
 type StatusRowProps = {
   label: string;
@@ -93,6 +110,48 @@ function IndexedCloudRunBlock({ run }: { run: MonitoringRunIndexSummary | null }
   );
 }
 
+function IssueDraftsBlock({
+  drafts,
+  draftCount,
+  onReview,
+}: {
+  drafts: MonitoringIssueDraftSummary[];
+  draftCount: number;
+  onReview: () => void;
+}) {
+  const latest = drafts[0] ?? null;
+  if (!latest && draftCount === 0) {
+    return (
+      <StatusRow
+        label="Issue drafts from monitoring"
+        value="No monitoring issue drafts yet"
+      />
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
+        Issue drafts from monitoring
+      </p>
+      <p className="text-sm font-medium text-white/90">
+        {draftCount} open draft{draftCount === 1 ? "" : "s"} · Needs owner review
+      </p>
+      {latest ? (
+        <ul className="text-xs text-white/60 space-y-1">
+          <li>Latest: {latest.title}</li>
+          <li>Route: {latest.route ?? "—"} · Severity: {latest.severity}</li>
+          <li>Run: {latest.runId}</li>
+          {latest.githubRunId ? <li>GitHub run: {latest.githubRunId}</li> : null}
+        </ul>
+      ) : null}
+      <AixiaButton type="button" variant="secondary" className="text-xs px-3 py-1.5" onClick={onReview}>
+        Review drafts
+      </AixiaButton>
+    </div>
+  );
+}
+
 function LastRunBlock({ report }: { report: MonitoringReportSummary | null }) {
   if (!report) {
     return (
@@ -155,7 +214,8 @@ function EligibilityTable({ rows }: { rows: AgentMonitoringEligibilityRow[] }) {
 }
 
 export function AgentScheduledMonitoringCard() {
-  const [status, setStatus] = useState<MonitoringOwnerStatusPayload | null>(null);
+  const navigate = useNavigate();
+  const [status, setStatus] = useState<ExtendedMonitoringStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dryRunLoading, setDryRunLoading] = useState(false);
@@ -171,7 +231,7 @@ export function AgentScheduledMonitoringCard() {
       const payload = (await response.json()) as {
         ok?: boolean;
         error?: string;
-        status?: MonitoringOwnerStatusPayload;
+        status?: ExtendedMonitoringStatus;
       };
       if (!response.ok || !payload.ok || !payload.status) {
         throw new Error(payload.error ?? "Could not load monitoring status.");
@@ -271,6 +331,11 @@ export function AgentScheduledMonitoringCard() {
             <StatusRow label="Target" value={status.targetLabel} />
             <StatusRow label="Continuous mode" value={status.continuousLabel} />
             <IndexedCloudRunBlock run={status.latestIndexedRun} />
+            <IssueDraftsBlock
+              drafts={status.latestIssueDrafts ?? []}
+              draftCount={status.issueDraftCounts?.draft ?? 0}
+              onReview={() => navigate("/system/agent-ops/issues?panel=monitoring-drafts")}
+            />
             <LastRunBlock report={inlineReport ?? status.lastReport} />
           </div>
 

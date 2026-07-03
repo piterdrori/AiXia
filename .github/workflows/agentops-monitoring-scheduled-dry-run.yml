@@ -68,6 +68,10 @@ jobs:
         if: always()
         run: npx tsx scripts/agentops-monitoring-gha-run-index-insert.ts
 
+      - name: Insert monitoring issue drafts (staging Supabase)
+        if: always()
+        run: npx tsx scripts/agentops-monitoring-gha-issue-drafts-insert.ts
+
       - name: Upload monitoring dry-run artifacts
         if: always()
         uses: actions/upload-artifact@v4

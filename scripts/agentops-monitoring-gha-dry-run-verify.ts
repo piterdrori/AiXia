@@ -176,6 +176,9 @@ function main(): void {
     if (!workflow.includes("agentops-monitoring-gha-run-index-insert.ts")) {
       fail("Workflow must insert monitoring run index to staging Supabase after dry-run");
     }
+    if (!workflow.includes("agentops-monitoring-gha-issue-drafts-insert.ts")) {
+      fail("Workflow must insert monitoring issue drafts after run index (Phase 5C)");
+    }
   }
 
   const pkg = JSON.parse(readFileSync(PACKAGE_JSON, "utf8")) as {

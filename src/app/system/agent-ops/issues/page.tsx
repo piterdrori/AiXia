@@ -38,6 +38,7 @@ import {
   type AgentOpsVerificationRequestItem,
 } from "@/lib/agentops";
 import { AgentOpsQueueOperatorSurface } from "@/app/system/agent-ops/operators/AgentOpsQueueOperatorSurface";
+import { MonitoringIssueDraftsReview } from "@/app/system/agent-ops/issues/MonitoringIssueDraftsReview";
 
 type IssueListItem = {
   id: string;
@@ -788,6 +789,8 @@ export default function AgentOpsIssuesPage() {
                 </div>
               )}
             </AixiaSection>
+
+            <MonitoringIssueDraftsReview />
 
             <AgentOpsQueueOperatorSurface onRefresh={loadIssues} />
           </>

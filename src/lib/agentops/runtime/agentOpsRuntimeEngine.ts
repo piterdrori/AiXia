@@ -55,6 +55,7 @@ import {
 } from "./agentOpsMonitoringEligibility";
 
 import { logMonitoringEvent } from "./agentOpsMonitoringLogger";
+import { sanitizeFindingEvidence } from "./agentOpsMonitoringIssueDraftPolicy";
 
 import {
 
@@ -136,6 +137,8 @@ export type AgentOpsRuntimeCycleResult = {
   dryRun: boolean;
 
   routesScanned: string[];
+
+  findings?: StagingScanFinding[];
 
   monitoringMode: MonitoringMode;
 
@@ -779,6 +782,11 @@ export async function runAgentCycle(
     dryRun,
 
     routesScanned,
+
+    findings: findings.map((finding) => ({
+      ...finding,
+      evidence: sanitizeFindingEvidence(finding.evidence),
+    })),
 
     monitoringMode,
 

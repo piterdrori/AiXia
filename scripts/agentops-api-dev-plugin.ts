@@ -97,6 +97,9 @@ export function agentOpsApiDevPlugin(): Plugin {
         const isMonitoringDryRun = pathname === "/api/agentops/monitoring/dry-run";
         const isMonitoringLatestReport =
           pathname === "/api/agentops/monitoring/reports/latest";
+        const isMonitoringDrafts = pathname === "/api/agentops/monitoring/drafts";
+        const isMonitoringDraftDecision =
+          pathname === "/api/agentops/monitoring/drafts/decision";
         if (
           pathname !== "/api/agentops/hermes" &&
           !isLiveStatus &&
@@ -111,6 +114,8 @@ export function agentOpsApiDevPlugin(): Plugin {
           !isMonitoringStatus &&
           !isMonitoringDryRun &&
           !isMonitoringLatestReport &&
+          !isMonitoringDrafts &&
+          !isMonitoringDraftDecision &&
           !isGlobalMemoryRun &&
           !isGlobalMemoryCandidates &&
           !isEvidenceTools &&
@@ -181,7 +186,13 @@ export function agentOpsApiDevPlugin(): Plugin {
           } else if (isInitializeCanonicalAgents) {
             const mod = await server.ssrLoadModule("/api/agentops/initialize-canonical-agents.ts");
             response = await mod.handleInitializeCanonicalAgentsRequest();
-          } else if (isMonitoringStatus || isMonitoringDryRun || isMonitoringLatestReport) {
+          } else if (
+            isMonitoringStatus ||
+            isMonitoringDryRun ||
+            isMonitoringLatestReport ||
+            isMonitoringDrafts ||
+            isMonitoringDraftDecision
+          ) {
             const mod = await server.ssrLoadModule("/api/agentops/_lib/monitoringRoutes.ts");
             response = await mod.routeMonitoringRequest(request);
           } else if (isSupertonicTts) {

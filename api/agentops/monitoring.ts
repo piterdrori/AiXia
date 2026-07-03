@@ -1,4 +1,4 @@
-import { routeMonitoringRequest } from "./_lib/routes.js";
+import { routeMonitoringRequest } from "./monitoring/_lib/routes.js";
 
 export default async function handler(request: Request): Promise<Response> {
   return routeMonitoringRequest(request);

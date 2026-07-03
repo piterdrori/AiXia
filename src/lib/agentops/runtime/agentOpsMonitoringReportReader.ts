@@ -26,6 +26,9 @@ export type MonitoringReportSummary = {
   wouldCreateIssues: number;
   wouldWriteMemory: number;
   productionBlocked: boolean;
+  productionGuardActive?: boolean;
+  productionTargetRejected?: boolean;
+  targetClass?: string;
   errors: string[];
   reportFilename: string;
 };
@@ -50,6 +53,9 @@ function toSummary(
     wouldCreateIssues: report.wouldCreateIssues,
     wouldWriteMemory: report.wouldWriteMemory,
     productionBlocked: report.productionBlocked,
+    productionGuardActive: report.productionGuardActive,
+    productionTargetRejected: report.productionTargetRejected,
+    targetClass: report.targetClass,
     errors: report.errors,
     reportFilename,
   };

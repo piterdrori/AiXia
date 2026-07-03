@@ -80,7 +80,10 @@ async function main() {
     "",
     "## Safety",
     "",
-    `- Production blocked: ${report.productionBlocked === false ? "n/a (staging target)" : "yes"}`,
+    `- Production blocked: ${report.productionBlocked ? "yes" : "no"}`,
+    `- Production guard active: ${report.productionGuardActive === false ? "no" : "yes"}`,
+    `- Production target rejected (probe): ${report.productionTargetRejected ? "yes" : "no"}`,
+    `- Target class: ${report.targetClass ?? "unknown"}`,
     `- Writes blocked reason: ${report.writesBlockedReason ?? "dry-run"}`,
     "",
   );

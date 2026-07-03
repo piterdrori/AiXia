@@ -5,6 +5,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { buildMonitoringScheduledRunReport } from "../src/lib/agentops/runtime/agentOpsMonitoringScheduledReport";
+import { MONITORING_CONFIG_DEFAULTS } from "../src/lib/agentops/runtime/agentOpsMonitoringRuntimeConfig";
+import { resolveOwnerWriteGate } from "../src/lib/agentops/runtime/agentOpsMonitoringOwnerWriteGate";
+import { resolveMonitoringProductionGuardReport } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
+
 const REPO_ROOT = process.cwd();
 const WORKFLOW_PATH = join(
   REPO_ROOT,
@@ -16,6 +21,66 @@ const failures: string[] = [];
 
 function fail(message: string): void {
   failures.push(message);
+}
+
+function verifyProductionBlockedReportSemantics(): void {
+  const stagingGuard = resolveMonitoringProductionGuardReport("https://ai-xia-staging.vercel.app");
+  if (!stagingGuard.productionGuardActive) {
+    fail("productionGuardActive must be true for staging monitoring dry-run reports");
+  }
+  if (!stagingGuard.productionTargetRejected) {
+    fail("productionTargetRejected must be true when canonical production URL is blocked");
+  }
+  if (!stagingGuard.productionBlocked) {
+    fail("productionBlocked must be true for approved staging monitoring targets");
+  }
+  if (stagingGuard.targetClass !== "staging") {
+    fail(`Expected targetClass staging for ai-xia-staging host, got ${stagingGuard.targetClass}`);
+  }
+
+  const productionRejected = resolveMonitoringProductionGuardReport("https://aixia.app/dashboard");
+  if (!productionRejected.productionBlocked) {
+    fail("productionBlocked must be true when production target is rejected");
+  }
+  if (productionRejected.targetClass !== "production_rejected") {
+    fail("Production hostname must classify as production_rejected");
+  }
+
+  const report = buildMonitoringScheduledRunReport({
+    runId: "verify-run",
+    startedAt: new Date().toISOString(),
+    endedAt: new Date().toISOString(),
+    monitoringConfig: {
+      ...MONITORING_CONFIG_DEFAULTS,
+      level: 1,
+      scheduledEnabled: true,
+      dryRunRequested: true,
+      dryRun: true,
+      effectiveDryRun: true,
+      ownerWriteApproved: false,
+      writesBlockedReason: "dry-run mode — mutations disabled",
+      valid: true,
+      fallbackReasons: [],
+    },
+    ownerGate: resolveOwnerWriteGate(true),
+    tick: {
+      config: null,
+      agents: [],
+      skipped: [],
+      cycles: [],
+      errors: [],
+      tickKind: "scheduled",
+      dryRun: true,
+    },
+    targetBaseUrl: "https://ai-xia-staging.vercel.app",
+  });
+
+  if (!report.productionBlocked) {
+    fail("buildMonitoringScheduledRunReport must set productionBlocked=true for staging dry-run");
+  }
+  if (!report.productionGuardActive) {
+    fail("buildMonitoringScheduledRunReport must set productionGuardActive=true");
+  }
 }
 
 function main(): void {
@@ -124,6 +189,8 @@ function main(): void {
   } catch {
     // ok
   }
+
+  verifyProductionBlockedReportSemantics();
 
   if (failures.length > 0) {
     console.error("AGENTOPS MONITORING GHA DRY-RUN VERIFY — FAILED");

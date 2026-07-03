@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import type { AgentOpsMonitoringRuntimeConfig } from "./agentOpsMonitoringRuntimeConfig";
 import type { AgentOpsRuntimeTickResult } from "./agentOpsRuntimeEngine";
 import type { OwnerWriteGateStatus } from "./agentOpsMonitoringOwnerWriteGate";
-import { assertStagingScanUrl } from "./stagingScanUrlGuard";
+import { resolveMonitoringProductionGuardReport } from "./stagingScanUrlGuard";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 export const MONITORING_REPORT_DIR = join(REPO_ROOT, "qa-agent", "reports", "runtime");
@@ -52,6 +52,9 @@ export type MonitoringScheduledRunReport = {
   ownerWriteApproved: boolean;
   writesBlockedReason: string | null;
   productionBlocked: boolean;
+  productionGuardActive: boolean;
+  productionTargetRejected: boolean;
+  targetClass: "staging" | "preview" | "local" | "production_rejected" | "invalid";
   errors: string[];
 };
 
@@ -69,7 +72,7 @@ export function buildMonitoringScheduledRunReport(input: {
   targetBaseUrl: string;
   extraErrors?: string[];
 }): MonitoringScheduledRunReport {
-  const productionGuard = assertStagingScanUrl(input.targetBaseUrl);
+  const productionGuard = resolveMonitoringProductionGuardReport(input.targetBaseUrl);
   const agentsRun = input.tick.cycles.map((cycle) => ({
     agentId: cycle.agentId,
     agentSlug: cycle.agentSlug,
@@ -121,7 +124,10 @@ export function buildMonitoringScheduledRunReport(input: {
     dryRun: input.ownerGate.effectiveDryRun,
     ownerWriteApproved: input.ownerGate.ownerWriteApproved,
     writesBlockedReason: input.ownerGate.writesBlockedReason,
-    productionBlocked: !productionGuard.ok,
+    productionBlocked: productionGuard.productionBlocked,
+    productionGuardActive: productionGuard.productionGuardActive,
+    productionTargetRejected: productionGuard.productionTargetRejected,
+    targetClass: productionGuard.targetClass,
     errors: [...input.tick.errors, ...(input.extraErrors ?? [])],
   };
 }

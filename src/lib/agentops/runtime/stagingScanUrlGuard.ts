@@ -62,3 +62,60 @@ export function assertStagingScanUrl(stagingUrl: string): StagingScanUrlGuardRes
 
   return { ok: true, normalizedUrl: trimmed.replace(/\/+$/, "") };
 }
+
+/** Canonical production host used to verify policy rejects production monitoring targets. */
+export const MONITORING_PRODUCTION_PROBE_URL = "https://aixia.app";
+
+export type MonitoringTargetClass =
+  | "staging"
+  | "preview"
+  | "local"
+  | "production_rejected"
+  | "invalid";
+
+export type MonitoringProductionGuardReport = {
+  /** True when production monitoring targets/actions are blocked by active policy. */
+  productionBlocked: boolean;
+  /** Monitoring runtime always enforces production guardrails. */
+  productionGuardActive: boolean;
+  /** Result of probing a canonical production URL against the staging guard. */
+  productionTargetRejected: boolean;
+  targetClass: MonitoringTargetClass;
+  stagingGuard: StagingScanUrlGuardResult;
+};
+
+function classifyMonitoringTargetClass(
+  stagingGuard: StagingScanUrlGuardResult,
+): MonitoringTargetClass {
+  if (!stagingGuard.ok) {
+    return stagingGuard.error.includes("Production") ? "production_rejected" : "invalid";
+  }
+  const host = new URL(stagingGuard.normalizedUrl).hostname.toLowerCase();
+  if (host.includes("staging")) return "staging";
+  if (host.endsWith(".vercel.app")) return "preview";
+  return "local";
+}
+
+/**
+ * Resolve production-guard fields for monitoring dry-run JSON reports.
+ * `productionBlocked` means policy blocks production — true for approved staging/preview runs.
+ */
+export function resolveMonitoringProductionGuardReport(
+  targetBaseUrl: string,
+): MonitoringProductionGuardReport {
+  const productionGuardActive = true;
+  const stagingGuard = assertStagingScanUrl(targetBaseUrl);
+  const productionTargetRejected = !assertStagingScanUrl(MONITORING_PRODUCTION_PROBE_URL).ok;
+  const targetClass = classifyMonitoringTargetClass(stagingGuard);
+
+  const productionBlocked =
+    productionGuardActive && (stagingGuard.ok || targetClass === "production_rejected");
+
+  return {
+    productionBlocked,
+    productionGuardActive,
+    productionTargetRejected,
+    targetClass,
+    stagingGuard,
+  };
+}

@@ -18,7 +18,9 @@ import {
   MONITORING_CONFIG_DEFAULTS,
   type AgentOpsMonitoringRuntimeConfig,
 } from "../src/lib/agentops/runtime/agentOpsMonitoringRuntimeConfig";
-import { assertStagingScanUrl } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
+import { assertStagingScanUrl, resolveMonitoringProductionGuardReport } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
+import { buildMonitoringScheduledRunReport } from "../src/lib/agentops/runtime/agentOpsMonitoringScheduledReport";
+import { resolveOwnerWriteGate } from "../src/lib/agentops/runtime/agentOpsMonitoringOwnerWriteGate";
 
 const failures: string[] = [];
 
@@ -172,6 +174,35 @@ function verifyProductionBlocked(): void {
   if (result.eligible) fail("Production target should block eligibility");
   if (result.reason !== "production_blocked") {
     fail(`Expected production_blocked, got ${result.reason}`);
+  }
+
+  const stagingReport = resolveMonitoringProductionGuardReport("https://ai-xia-staging.vercel.app");
+  if (!stagingReport.productionBlocked) {
+    fail("Monitoring report productionBlocked must be true for approved staging target");
+  }
+  if (!stagingReport.productionGuardActive) {
+    fail("Monitoring report productionGuardActive must be true");
+  }
+
+  const built = buildMonitoringScheduledRunReport({
+    runId: "wiring-verify",
+    startedAt: new Date().toISOString(),
+    endedAt: new Date().toISOString(),
+    monitoringConfig: baseConfig({ level: 1, scheduledEnabled: true }),
+    ownerGate: resolveOwnerWriteGate(true),
+    tick: {
+      config: null,
+      agents: [],
+      skipped: [],
+      cycles: [],
+      errors: [],
+      tickKind: "scheduled",
+      dryRun: true,
+    },
+    targetBaseUrl: "https://ai-xia-staging.vercel.app",
+  });
+  if (!built.productionBlocked) {
+    fail("buildMonitoringScheduledRunReport productionBlocked must be true for staging dry-run");
   }
 }
 

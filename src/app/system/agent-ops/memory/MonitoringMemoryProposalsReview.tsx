@@ -120,7 +120,7 @@ export function MonitoringMemoryProposalsReview() {
           {error}
         </AixiaInfoBlock>
       ) : proposals.length === 0 ? (
-        <AixiaInfoBlock title="No monitoring memory proposals yet" tone="neutral">
+        <AixiaInfoBlock title="No monitoring memory proposals yet" tone="cyan">
           GitHub Actions dry-runs create proposals only when repeated or high-signal patterns are
           detected. Zero proposals is acceptable when policy finds no eligible signals.
         </AixiaInfoBlock>

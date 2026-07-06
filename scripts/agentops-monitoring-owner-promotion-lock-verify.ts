@@ -207,6 +207,57 @@ function verifyVercelFunctionCount(): void {
   }
 }
 
+function verifyMemoryProposalPhase5eSafety(): void {
+  mustExist(
+    "supabase/migrations/20260706120000_agentops_monitoring_memory_proposals.sql",
+    "memory proposals migration",
+  );
+  mustExist(
+    "src/lib/agentops/runtime/agentOpsMonitoringMemoryProposalPolicy.ts",
+    "memory proposal policy",
+  );
+  mustExist(
+    "src/lib/agentops/runtime/agentOpsMonitoringMemoryProposals.ts",
+    "memory proposals repository",
+  );
+  mustExist(
+    "scripts/agentops-monitoring-gha-memory-proposals-insert.ts",
+    "GHA memory proposals insert",
+  );
+
+  const workflow = mustExist(
+    ".github/workflows/agentops-monitoring-scheduled-dry-run.yml",
+    "monitoring GHA workflow",
+  );
+  if (workflow && !workflow.includes("agentops-monitoring-gha-memory-proposals-insert.ts")) {
+    fail("Workflow must insert memory proposals after issue drafts (Phase 5E)");
+  }
+
+  const routes = mustExist("api/agentops/_lib/monitoringRoutes.ts", "monitoring routes");
+  if (routes) {
+    if (!routes.includes("handleMonitoringMemoryProposalsListRequest")) {
+      fail("monitoringRoutes must list memory proposals");
+    }
+    if (!routes.includes("handleMonitoringMemoryProposalDecisionRequest")) {
+      fail("monitoringRoutes must handle memory proposal decisions");
+    }
+    if (!routes.includes("activeMemoryWritten: false")) {
+      fail("Memory proposal decision API must assert activeMemoryWritten: false");
+    }
+    if (/agentops_memory.*insert/i.test(routes) && routes.includes("MemoryProposal")) {
+      fail("Memory proposal routes must not insert into agentops_memory");
+    }
+  }
+
+  const proposalsLib = mustExist(
+    "src/lib/agentops/runtime/agentOpsMonitoringMemoryProposals.ts",
+    "memory proposals lib",
+  );
+  if (proposalsLib && /from\(["']agentops_memory["']\)/.test(proposalsLib)) {
+    fail("Memory proposals lib must not write to agentops_memory");
+  }
+}
+
 function main(): void {
   verifyRegistryLock();
   verifyReports();
@@ -215,6 +266,7 @@ function main(): void {
   verifyPromotionApi();
   verifyNoUnsafeAutoPromoteInMonitoringPaths();
   verifyPolicyModules();
+  verifyMemoryProposalPhase5eSafety();
   verifyVercelFunctionCount();
 
   if (failures.length > 0) {

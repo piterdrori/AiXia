@@ -102,6 +102,10 @@ export function agentOpsApiDevPlugin(): Plugin {
           pathname === "/api/agentops/monitoring/drafts/decision";
         const isMonitoringDraftPromote =
           pathname === "/api/agentops/monitoring/drafts/promote";
+        const isMonitoringMemoryProposals =
+          pathname === "/api/agentops/monitoring/memory-proposals";
+        const isMonitoringMemoryProposalDecision =
+          pathname === "/api/agentops/monitoring/memory-proposals/decision";
         if (
           pathname !== "/api/agentops/hermes" &&
           !isLiveStatus &&
@@ -119,6 +123,8 @@ export function agentOpsApiDevPlugin(): Plugin {
           !isMonitoringDrafts &&
           !isMonitoringDraftDecision &&
           !isMonitoringDraftPromote &&
+          !isMonitoringMemoryProposals &&
+          !isMonitoringMemoryProposalDecision &&
           !isGlobalMemoryRun &&
           !isGlobalMemoryCandidates &&
           !isEvidenceTools &&

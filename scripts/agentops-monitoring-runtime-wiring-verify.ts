@@ -32,6 +32,12 @@ import {
 } from "../src/lib/agentops/runtime/agentOpsMonitoringIssuePromotionPolicy";
 import { buildAgentOpsIssueFromDraft } from "../src/lib/agentops/runtime/agentOpsMonitoringIssuePromotion";
 import type { MonitoringIssueDraftRow } from "../src/lib/agentops/runtime/agentOpsMonitoringIssueDrafts";
+import {
+  canCreateMonitoringMemoryProposal,
+  buildMonitoringMemoryProposalCandidate,
+  buildMemoryProposalDuplicateKey,
+} from "../src/lib/agentops/runtime/agentOpsMonitoringMemoryProposalPolicy";
+import { extractMemoryProposalCandidatesFromReport } from "../src/lib/agentops/runtime/agentOpsMonitoringMemoryProposals";
 import { resolveOwnerWriteGate } from "../src/lib/agentops/runtime/agentOpsMonitoringOwnerWriteGate";
 
 const failures: string[] = [];
@@ -405,6 +411,119 @@ function verifyIssuePromotionPolicy(): void {
   }
 }
 
+function verifyMemoryProposalPolicy(): void {
+  const report = {
+    runId: "run-memory-proposal-test",
+    startedAt: new Date().toISOString(),
+    endedAt: new Date().toISOString(),
+    config: {
+      level: 1,
+      scheduledEnabled: true,
+      continuousEnabled: false,
+      dryRunRequested: true,
+      effectiveDryRun: true,
+      maxAgentsPerTick: 2,
+      maxRoutesPerAgent: 4,
+      defaultIntervalMinutes: 60,
+    },
+    targetBaseUrl: "https://ai-xia-staging.vercel.app",
+    agentsConsidered: 2,
+    agentsSkipped: [],
+    agentsRun: [
+      {
+        agentId: "a1",
+        agentSlug: "analytics-agent",
+        agentName: "Analytics Agent",
+        routesScanned: ["/metrics"],
+        findingsCount: 1,
+        findings: [
+          {
+            page_url: "/metrics",
+            issue: "Broken navigation links detected (7)",
+            severity: "medium" as const,
+            evidence: { scan_mode: "playwright", route: "/metrics", category: "navigation" },
+          },
+        ],
+        issuesCreated: 0,
+        issuesBlockedByPolicy: 0,
+        memoryProposals: 0,
+        errors: [],
+      },
+      {
+        agentId: "a2",
+        agentSlug: "config-agent",
+        agentName: "Config Agent",
+        routesScanned: ["/configuration"],
+        findingsCount: 1,
+        findings: [
+          {
+            page_url: "/configuration",
+            issue: "Broken navigation links detected (7)",
+            severity: "medium" as const,
+            evidence: {
+              scan_mode: "playwright",
+              route: "/configuration",
+              category: "navigation",
+            },
+          },
+        ],
+        issuesCreated: 0,
+        issuesBlockedByPolicy: 0,
+        memoryProposals: 0,
+        errors: [],
+      },
+    ],
+    routesScanned: ["/metrics", "/configuration"],
+    findingsCount: 2,
+    wouldCreateIssues: 0,
+    wouldWriteMemory: 0,
+    actualIssuesCreated: 0,
+    actualMemoryWrites: 0,
+    dryRun: true,
+    ownerWriteApproved: false,
+    writesBlockedReason: "dry-run",
+    productionBlocked: true,
+    productionGuardActive: true,
+    productionTargetRejected: false,
+    targetClass: "staging" as const,
+    errors: [],
+  };
+
+  const policyError = canCreateMonitoringMemoryProposal({ report });
+  if (policyError) fail(`Memory proposal policy should allow dry-run report: ${policyError}`);
+
+  const candidates = extractMemoryProposalCandidatesFromReport(report);
+  if (candidates.length !== 1) {
+    fail(`Expected 1 memory proposal candidate from repeated cross-agent pattern, got ${candidates.length}`);
+  }
+
+  const candidate = candidates[0];
+  if (!candidate.duplicateKey) fail("Memory proposal candidate must include duplicateKey");
+  if (candidate.confidence < 0.68) fail("Repeated cross-agent pattern should meet confidence threshold");
+
+  const keyed = buildMemoryProposalDuplicateKey(candidate);
+  if (keyed !== candidate.duplicateKey) fail("Duplicate key helper must match candidate duplicateKey");
+
+  const prodReport = { ...report, productionBlocked: false };
+  if (canCreateMonitoringMemoryProposal({ report: prodReport }) === null) {
+    fail("Memory proposals must block when productionBlocked=false");
+  }
+
+  const memoryWriteReport = { ...report, actualMemoryWrites: 1 };
+  if (canCreateMonitoringMemoryProposal({ report: memoryWriteReport }) === null) {
+    fail("Memory proposals must block when actualMemoryWrites > 0");
+  }
+
+  const singleAgentReport = {
+    ...report,
+    agentsRun: [report.agentsRun[0]],
+  };
+  const singleCandidates = extractMemoryProposalCandidatesFromReport(singleAgentReport);
+  if (singleCandidates.length !== 0) {
+    fail("Single-run single-agent findings should not create memory proposals without repeated signal");
+  }
+}
+
 function main(): void {
   verifySafeDefaults();
   verifyLevel0BlocksAutomatic();
@@ -418,6 +537,7 @@ function main(): void {
   verifyManualTickSafeAtLevel0();
   verifyIssueDraftPolicy();
   verifyIssuePromotionPolicy();
+  verifyMemoryProposalPolicy();
 
   if (failures.length > 0) {
     console.error("AGENTOPS MONITORING RUNTIME WIRING VERIFY — FAILED");

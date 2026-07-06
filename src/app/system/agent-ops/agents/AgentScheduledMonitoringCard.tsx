@@ -31,9 +31,22 @@ type MonitoringIssueDraftSummary = {
   createdAt: string;
 };
 
+type MonitoringMemoryProposalSummary = {
+  id: string;
+  title: string;
+  memoryScope: string;
+  memoryType: string;
+  status: string;
+  runId: string;
+  githubRunId: string | null;
+  createdAt: string;
+};
+
 type ExtendedMonitoringStatus = MonitoringOwnerStatusPayload & {
   latestIssueDrafts?: MonitoringIssueDraftSummary[];
   issueDraftCounts?: Record<string, number>;
+  latestMemoryProposals?: MonitoringMemoryProposalSummary[];
+  memoryProposalCounts?: Record<string, number>;
 };
 
 type StatusRowProps = {
@@ -147,6 +160,50 @@ function IssueDraftsBlock({
       ) : null}
       <AixiaButton type="button" variant="secondary" className="text-xs px-3 py-1.5" onClick={onReview}>
         Review drafts
+      </AixiaButton>
+    </div>
+  );
+}
+
+function MemoryProposalsBlock({
+  proposals,
+  proposalCount,
+  onReview,
+}: {
+  proposals: MonitoringMemoryProposalSummary[];
+  proposalCount: number;
+  onReview: () => void;
+}) {
+  const latest = proposals[0] ?? null;
+  if (!latest && proposalCount === 0) {
+    return (
+      <StatusRow
+        label="Memory proposals from monitoring"
+        value="No monitoring memory proposals yet"
+      />
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
+        Memory proposals from monitoring
+      </p>
+      <p className="text-sm font-medium text-white/90">
+        {proposalCount} open proposal{proposalCount === 1 ? "" : "s"} · Needs owner review
+      </p>
+      {latest ? (
+        <ul className="text-xs text-white/60 space-y-1">
+          <li>Latest: {latest.title}</li>
+          <li>
+            Scope: {latest.memoryScope} · Type: {latest.memoryType} · Status: {latest.status}
+          </li>
+          <li>Run: {latest.runId}</li>
+          {latest.githubRunId ? <li>GitHub run: {latest.githubRunId}</li> : null}
+        </ul>
+      ) : null}
+      <AixiaButton type="button" variant="secondary" className="text-xs px-3 py-1.5" onClick={onReview}>
+        Review memory proposals
       </AixiaButton>
     </div>
   );
@@ -335,6 +392,11 @@ export function AgentScheduledMonitoringCard() {
               drafts={status.latestIssueDrafts ?? []}
               draftCount={status.issueDraftCounts?.draft ?? 0}
               onReview={() => navigate("/system/agent-ops/issues?panel=monitoring-drafts")}
+            />
+            <MemoryProposalsBlock
+              proposals={status.latestMemoryProposals ?? []}
+              proposalCount={status.memoryProposalCounts?.proposal ?? 0}
+              onReview={() => navigate("/system/agent-ops/memory?panel=monitoring-proposals")}
             />
             <LastRunBlock report={inlineReport ?? status.lastReport} />
           </div>

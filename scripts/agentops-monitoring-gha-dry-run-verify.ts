@@ -179,6 +179,9 @@ function main(): void {
     if (!workflow.includes("agentops-monitoring-gha-issue-drafts-insert.ts")) {
       fail("Workflow must insert monitoring issue drafts after run index (Phase 5C)");
     }
+    if (!workflow.includes("agentops-monitoring-gha-memory-proposals-insert.ts")) {
+      fail("Workflow must insert monitoring memory proposals after issue drafts (Phase 5E)");
+    }
   }
 
   const pkg = JSON.parse(readFileSync(PACKAGE_JSON, "utf8")) as {

@@ -12,6 +12,7 @@ import { jsonResponse } from "./ollamaProxy.js";
 
 const MONITORING_TABLE = "agentops_monitoring_runs";
 const ISSUE_DRAFTS_TABLE = "agentops_monitoring_issue_drafts";
+const MEMORY_PROPOSALS_TABLE = "agentops_monitoring_memory_proposals";
 const STAGING_PROJECT_REF = "ydppcpbxrvvardeslzrk";
 
 type MonitoringRunRow = {
@@ -62,6 +63,28 @@ type IssueDraftRow = {
   confidence: number | null;
   duplicate_key: string;
   promoted_issue_id: string | null;
+  created_at: string;
+  updated_at: string;
+  owner_decision_by: string | null;
+  owner_decision_at: string | null;
+};
+
+type MemoryProposalRow = {
+  id: string;
+  run_id: string;
+  github_run_id: string | null;
+  source: string;
+  status: string;
+  agent_slug: string | null;
+  memory_scope: string;
+  memory_type: string;
+  title: string;
+  proposal: string;
+  rationale: string;
+  evidence: Record<string, unknown>;
+  confidence: number | null;
+  duplicate_key: string | null;
+  applied_memory_id: string | null;
   created_at: string;
   updated_at: string;
   owner_decision_by: string | null;
@@ -165,6 +188,35 @@ async function countIssueDraftsByStatus(client: SupabaseClient) {
   return { ok: true as const, counts };
 }
 
+async function listMemoryProposals(client: SupabaseClient, limit = 20, status?: string) {
+  const safeLimit = Math.min(Math.max(limit, 1), 50);
+  let query = client
+    .from(MEMORY_PROPOSALS_TABLE)
+    .select(
+      "id, run_id, github_run_id, source, status, agent_slug, memory_scope, memory_type, title, proposal, rationale, evidence, confidence, duplicate_key, applied_memory_id, created_at, updated_at, owner_decision_by, owner_decision_at",
+    )
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+  if (status) query = query.eq("status", status);
+  const { data, error } = await query;
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, data: (data ?? []) as MemoryProposalRow[] };
+}
+
+async function countMemoryProposalsByStatus(client: SupabaseClient) {
+  const statuses = ["proposal", "owner_approved", "rejected", "deferred", "applied"] as const;
+  const counts: Record<string, number> = {};
+  for (const status of statuses) {
+    const { count, error } = await client
+      .from(MEMORY_PROPOSALS_TABLE)
+      .select("*", { count: "exact", head: true })
+      .eq("status", status);
+    if (error) return { ok: false as const, error: error.message };
+    counts[status] = count ?? 0;
+  }
+  return { ok: true as const, counts };
+}
+
 function runtimeIssueDisplayCode(issueId: string): string {
   return `BQA-${issueId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
@@ -250,15 +302,43 @@ function toIssueDraftSummary(row: IssueDraftRow) {
   };
 }
 
+function toMemoryProposalSummary(row: MemoryProposalRow) {
+  return {
+    id: row.id,
+    runId: row.run_id,
+    githubRunId: row.github_run_id,
+    source: row.source,
+    status: row.status,
+    agentSlug: row.agent_slug,
+    memoryScope: row.memory_scope,
+    memoryType: row.memory_type,
+    title: row.title,
+    proposal: row.proposal,
+    rationale: row.rationale,
+    evidence: row.evidence,
+    confidence: row.confidence,
+    duplicateKey: row.duplicate_key,
+    appliedMemoryId: row.applied_memory_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    ownerDecisionBy: row.owner_decision_by,
+    ownerDecisionAt: row.owner_decision_at,
+  };
+}
+
 function buildOwnerStatusPayload(
   rows: MonitoringRunRow[],
   indexError: string | null,
   draftRows: IssueDraftRow[],
   draftCounts: Record<string, number> | null,
   draftsError: string | null,
+  proposalRows: MemoryProposalRow[],
+  proposalCounts: Record<string, number> | null,
+  proposalsError: string | null,
 ): Record<string, unknown> {
   const latestMonitoringRuns = rows.map(toRunIndexSummary);
   const latestIssueDrafts = draftRows.map(toIssueDraftSummary);
+  const latestMemoryProposals = proposalRows.map(toMemoryProposalSummary);
 
   return {
     monitoringLevelLabel: "Level 1 (scheduled dry-run)",
@@ -287,6 +367,14 @@ function buildOwnerStatusPayload(
       deferred: 0,
       promoted: 0,
     },
+    latestMemoryProposals,
+    memoryProposalCounts: proposalCounts ?? {
+      proposal: 0,
+      owner_approved: 0,
+      rejected: 0,
+      deferred: 0,
+      applied: 0,
+    },
     dryRunDefault: true,
     safety: {
       productionBlocked: true,
@@ -297,8 +385,9 @@ function buildOwnerStatusPayload(
       level4Forbidden: true,
       liveIssuesCreated: false,
       ownerApprovalRequired: true,
+      activeMemoryWrites: false,
     },
-    configError: indexError ?? draftsError,
+    configError: indexError ?? draftsError ?? proposalsError,
     agentsLoaded: false,
   };
 }
@@ -314,10 +403,14 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
   let rows: MonitoringRunRow[] = [];
   let draftRows: IssueDraftRow[] = [];
   let draftCounts: Record<string, number> | null = null;
+  let proposalRows: MemoryProposalRow[] = [];
+  let proposalCounts: Record<string, number> | null = null;
+  let proposalsError: string | null = null;
 
   if (!client) {
     indexError = "Staging Supabase is not configured for run index reads.";
     draftsError = indexError;
+    proposalsError = indexError;
   } else {
     const listed = await listIndexedRuns(client, 10);
     if (listed.ok) {
@@ -339,12 +432,35 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
     } else if (!draftsError) {
       draftsError = counts.error;
     }
+
+    const proposalsListed = await listMemoryProposals(client, 10);
+    if (proposalsListed.ok) {
+      proposalRows = proposalsListed.data;
+    } else {
+      proposalsError = proposalsListed.error;
+    }
+
+    const proposalStatusCounts = await countMemoryProposalsByStatus(client);
+    if (proposalStatusCounts.ok) {
+      proposalCounts = proposalStatusCounts.counts;
+    } else if (!proposalsError) {
+      proposalsError = proposalStatusCounts.error;
+    }
   }
 
   return jsonResponse({
     ok: true,
     environment: "staging",
-    status: buildOwnerStatusPayload(rows, indexError, draftRows, draftCounts, draftsError),
+    status: buildOwnerStatusPayload(
+      rows,
+      indexError,
+      draftRows,
+      draftCounts,
+      draftsError,
+      proposalRows,
+      proposalCounts,
+      proposalsError,
+    ),
   });
 }
 
@@ -684,6 +800,95 @@ export async function handleMonitoringDraftPromoteRequest(request: Request): Pro
   });
 }
 
+export async function handleMonitoringMemoryProposalsListRequest(request: Request): Promise<Response> {
+  const blocked = guardAgentOpsExecutionResponse(process.env);
+  if (blocked) return blocked;
+  if (request.method !== "GET") return methodNotAllowed();
+
+  const client = createStagingSupabaseClient();
+  if (!client) {
+    return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
+  }
+
+  const [, queryPart = ""] = request.url.split("?");
+  const params = new URLSearchParams(queryPart);
+  const status = params.get("status") ?? undefined;
+  const limit = Number(params.get("limit") ?? "20");
+  const listed = await listMemoryProposals(client, Number.isFinite(limit) ? limit : 20, status);
+  if (!listed.ok) return jsonResponse({ ok: false, error: listed.error }, 503);
+
+  return jsonResponse({
+    ok: true,
+    environment: "staging",
+    proposals: listed.data.map(toMemoryProposalSummary),
+  });
+}
+
+export async function handleMonitoringMemoryProposalDecisionRequest(request: Request): Promise<Response> {
+  const blocked = guardAgentOpsExecutionResponse(process.env);
+  if (blocked) return blocked;
+  if (request.method !== "POST") return methodNotAllowed();
+
+  const client = createStagingSupabaseClient();
+  if (!client) {
+    return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
+  }
+
+  let body: { proposalId?: string; decision?: string; ownerId?: string };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return jsonResponse({ ok: false, error: "Invalid JSON body." }, 400);
+  }
+
+  const proposalId = body.proposalId?.trim();
+  const decision = body.decision?.trim();
+  const ownerId = body.ownerId?.trim() ?? "owner";
+
+  if (!proposalId || !decision) {
+    return jsonResponse({ ok: false, error: "proposalId and decision are required." }, 400);
+  }
+
+  if (!["owner_approved", "rejected", "deferred"].includes(decision)) {
+    return jsonResponse({ ok: false, error: "Invalid decision." }, 400);
+  }
+
+  const { data: existing, error: fetchError } = await client
+    .from(MEMORY_PROPOSALS_TABLE)
+    .select("*")
+    .eq("id", proposalId)
+    .maybeSingle();
+
+  if (fetchError) return jsonResponse({ ok: false, error: fetchError.message }, 503);
+  if (!existing) return jsonResponse({ ok: false, error: "Memory proposal not found." }, 404);
+
+  const row = existing as MemoryProposalRow;
+  if (row.status === "applied") {
+    return jsonResponse({ ok: false, error: "Applied proposals cannot be changed in Phase 5E." }, 409);
+  }
+
+  const { data, error } = await client
+    .from(MEMORY_PROPOSALS_TABLE)
+    .update({
+      status: decision,
+      owner_decision_by: ownerId,
+      owner_decision_at: new Date().toISOString(),
+    })
+    .eq("id", proposalId)
+    .select("*")
+    .single();
+
+  if (error) return jsonResponse({ ok: false, error: error.message }, 503);
+
+  return jsonResponse({
+    ok: true,
+    environment: "staging",
+    proposal: toMemoryProposalSummary(data as MemoryProposalRow),
+    applied: false,
+    activeMemoryWritten: false,
+  });
+}
+
 export async function handleMonitoringLatestReportRequest(request: Request): Promise<Response> {
   const blocked = guardAgentOpsExecutionResponse(process.env);
   if (blocked) return blocked;
@@ -732,6 +937,12 @@ export async function routeMonitoringRequest(request: Request): Promise<Response
   }
   if (pathname === "/api/agentops/monitoring/drafts/promote") {
     return handleMonitoringDraftPromoteRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/memory-proposals") {
+    return handleMonitoringMemoryProposalsListRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/memory-proposals/decision") {
+    return handleMonitoringMemoryProposalDecisionRequest(request);
   }
 
   return jsonResponse({ ok: false, error: "Not found" }, 404);

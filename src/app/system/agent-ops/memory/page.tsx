@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Brain, Database, RefreshCw } from "lucide-react";
 
+import { MonitoringMemoryProposalsReview } from "@/app/system/agent-ops/memory/MonitoringMemoryProposalsReview";
 import {
   AgentOpsRuntimeMirrorGate,
   AgentOpsRuntimeNoDataState,
@@ -45,6 +46,8 @@ export default function AgentOpsRuntimeMemoryPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const view: MemoryView = searchParams.get("view") === "evolution" ? "evolution" : "memory";
+  const panel = searchParams.get("panel");
+  const showMonitoringProposals = panel === "monitoring-proposals";
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("all");
 
   const memoryFetcher = useCallback(() => fetchRuntimeMemory(), []);
@@ -151,7 +154,9 @@ export default function AgentOpsRuntimeMemoryPage() {
         </AixiaButton>
       </div>
 
-      {view === "memory" ? (
+      {showMonitoringProposals ? (
+        <MonitoringMemoryProposalsReview />
+      ) : view === "memory" ? (
         <>
           <div className="flex flex-wrap gap-2">
             {(["all", "global", "agent"] as ScopeFilter[]).map((filter) => (

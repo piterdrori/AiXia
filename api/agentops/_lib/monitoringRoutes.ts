@@ -56,9 +56,12 @@ type IssueDraftRow = {
   severity: string;
   title: string;
   summary: string;
+  evidence: Record<string, unknown>;
   browser_qa_evidence: Record<string, unknown>;
+  suggested_fix_prompt: string | null;
   confidence: number | null;
   duplicate_key: string;
+  promoted_issue_id: string | null;
   created_at: string;
   updated_at: string;
   owner_decision_by: string | null;
@@ -138,7 +141,7 @@ async function listIssueDrafts(client: SupabaseClient, limit = 20, status?: stri
   let query = client
     .from(ISSUE_DRAFTS_TABLE)
     .select(
-      "id, run_id, github_run_id, source, status, agent_slug, module, route, issue_type, severity, title, summary, browser_qa_evidence, confidence, duplicate_key, created_at, updated_at, owner_decision_by, owner_decision_at",
+      "id, run_id, github_run_id, source, status, agent_slug, module, route, issue_type, severity, title, summary, evidence, browser_qa_evidence, suggested_fix_prompt, confidence, duplicate_key, promoted_issue_id, created_at, updated_at, owner_decision_by, owner_decision_at",
     )
     .order("created_at", { ascending: false })
     .limit(safeLimit);
@@ -162,6 +165,65 @@ async function countIssueDraftsByStatus(client: SupabaseClient) {
   return { ok: true as const, counts };
 }
 
+function runtimeIssueDisplayCode(issueId: string): string {
+  return `BQA-${issueId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+}
+
+function normalizePageUrl(pageUrl: string): string {
+  const trimmed = pageUrl.trim();
+  if (!trimmed) return "/";
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+}
+
+function isDuplicateIssueError(message: string): boolean {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes("duplicate key") ||
+    normalized.includes("unique constraint") ||
+    normalized.includes("idx_agentops_issues_open_dedupe")
+  );
+}
+
+function hasBrowserQaEvidenceDraft(draft: IssueDraftRow): boolean {
+  const evidence = draft.browser_qa_evidence ?? {};
+  const scanMode = evidence.scan_mode;
+  const hasRoute =
+    (typeof evidence.route === "string" && evidence.route.length > 0) ||
+    (typeof evidence.absolute_url === "string" && evidence.absolute_url.length > 0);
+  return scanMode === "playwright" && hasRoute;
+}
+
+function validateDraftPromotion(draft: IssueDraftRow, ownerId: string): string | null {
+  if (!ownerId.trim()) return "Owner identity is required for promotion.";
+  if (draft.status === "promoted" || draft.promoted_issue_id) return "Draft is already promoted.";
+  if (draft.status !== "owner_approved") {
+    return `Draft must be owner_approved before promotion (current: ${draft.status}).`;
+  }
+  if (["draft", "rejected", "deferred"].includes(draft.status)) {
+    return `Draft status ${draft.status} cannot be promoted.`;
+  }
+  if (!hasBrowserQaEvidenceDraft(draft)) return "Draft lacks Browser QA evidence.";
+  if (!draft.title?.trim() || !draft.summary?.trim()) return "Draft must have title and summary.";
+  if (!draft.route?.trim() && !draft.module?.trim()) return "Draft must have route or module.";
+  return null;
+}
+
+async function resolveAgentIdBySlug(client: SupabaseClient, slug: string): Promise<string | null> {
+  const { data, error } = await client
+    .from("agentops_agents")
+    .select("id, name, tools")
+    .eq("environment", "staging");
+  if (error || !data) return null;
+  for (const agent of data) {
+    const tools = (agent.tools ?? []) as string[];
+    if (tools.includes(`canonical:${slug}`)) return agent.id as string;
+    const normalizedName =
+      typeof agent.name === "string" ? agent.name.trim().toLowerCase().replace(/\s+/g, "-") : "";
+    if (normalizedName === slug) return agent.id as string;
+  }
+  return null;
+}
+
 function toIssueDraftSummary(row: IssueDraftRow) {
   return {
     id: row.id,
@@ -179,6 +241,8 @@ function toIssueDraftSummary(row: IssueDraftRow) {
     browserQaEvidence: row.browser_qa_evidence,
     confidence: row.confidence,
     duplicateKey: row.duplicate_key,
+    promotedIssueId: row.promoted_issue_id,
+    issueDisplayCode: row.promoted_issue_id ? runtimeIssueDisplayCode(row.promoted_issue_id) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ownerDecisionBy: row.owner_decision_by,
@@ -388,6 +452,238 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
   });
 }
 
+export async function handleMonitoringDraftPromoteRequest(request: Request): Promise<Response> {
+  const blocked = guardAgentOpsExecutionResponse(process.env);
+  if (blocked) return blocked;
+  if (request.method !== "POST") return methodNotAllowed();
+
+  const client = createStagingSupabaseClient();
+  if (!client) {
+    return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
+  }
+
+  let body: { draftId?: string; ownerId?: string };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return jsonResponse({ ok: false, error: "Invalid JSON body." }, 400);
+  }
+
+  const draftId = body.draftId?.trim();
+  const ownerId = body.ownerId?.trim() ?? "owner";
+
+  if (!draftId) {
+    return jsonResponse({ ok: false, error: "draftId is required." }, 400);
+  }
+
+  const { data: draft, error: fetchError } = await client
+    .from(ISSUE_DRAFTS_TABLE)
+    .select("*")
+    .eq("id", draftId)
+    .maybeSingle();
+
+  if (fetchError) return jsonResponse({ ok: false, error: fetchError.message }, 503);
+  if (!draft) return jsonResponse({ ok: false, error: "Draft not found." }, 404);
+
+  const row = draft as IssueDraftRow;
+
+  if (row.promoted_issue_id) {
+    return jsonResponse({
+      ok: true,
+      environment: "staging",
+      issueId: row.promoted_issue_id,
+      issueDisplayCode: runtimeIssueDisplayCode(row.promoted_issue_id),
+      alreadyPromoted: true,
+      duplicateBlocked: true,
+      draft: toIssueDraftSummary(row),
+    });
+  }
+
+  const policyError = validateDraftPromotion(row, ownerId);
+  if (policyError) {
+    return jsonResponse({ ok: false, error: policyError }, 409);
+  }
+
+  const { data: existingByDraft } = await client
+    .from("agentops_issues")
+    .select("id")
+    .eq("environment", "staging")
+    .contains("evidence", { source_draft_id: draftId })
+    .maybeSingle();
+
+  if (existingByDraft?.id) {
+    await client
+      .from(ISSUE_DRAFTS_TABLE)
+      .update({
+        status: "promoted",
+        promoted_issue_id: existingByDraft.id,
+        owner_decision_by: ownerId,
+        owner_decision_at: new Date().toISOString(),
+      })
+      .eq("id", draftId);
+
+    return jsonResponse({
+      ok: true,
+      environment: "staging",
+      issueId: existingByDraft.id,
+      issueDisplayCode: runtimeIssueDisplayCode(existingByDraft.id as string),
+      alreadyPromoted: true,
+      duplicateBlocked: true,
+      draft: toIssueDraftSummary({ ...row, status: "promoted", promoted_issue_id: existingByDraft.id as string }),
+    });
+  }
+
+  const { data: duplicateDraft } = await client
+    .from(ISSUE_DRAFTS_TABLE)
+    .select("promoted_issue_id")
+    .eq("duplicate_key", row.duplicate_key)
+    .eq("status", "promoted")
+    .not("promoted_issue_id", "is", null)
+    .neq("id", draftId)
+    .limit(1)
+    .maybeSingle();
+
+  if (duplicateDraft?.promoted_issue_id) {
+    const issueId = duplicateDraft.promoted_issue_id as string;
+    await client
+      .from(ISSUE_DRAFTS_TABLE)
+      .update({
+        status: "promoted",
+        promoted_issue_id: issueId,
+        owner_decision_by: ownerId,
+        owner_decision_at: new Date().toISOString(),
+      })
+      .eq("id", draftId);
+
+    return jsonResponse({
+      ok: true,
+      environment: "staging",
+      issueId,
+      issueDisplayCode: runtimeIssueDisplayCode(issueId),
+      alreadyPromoted: false,
+      duplicateBlocked: true,
+      draft: toIssueDraftSummary({ ...row, status: "promoted", promoted_issue_id: issueId }),
+    });
+  }
+
+  const agentId = await resolveAgentIdBySlug(client, row.agent_slug);
+  if (!agentId) {
+    return jsonResponse(
+      { ok: false, error: `No staging agent found for slug ${row.agent_slug}.` },
+      503,
+    );
+  }
+
+  const route = normalizePageUrl(row.route ?? row.module ?? "/");
+  const pageUrl = `${route}#monitoring-draft:${row.id}`;
+  const severity = ["low", "medium", "high", "critical"].includes(row.severity)
+    ? row.severity
+    : "medium";
+
+  const issueRow = {
+    title: row.title.trim(),
+    description: row.summary.trim(),
+    severity,
+    agent_id: agentId,
+    page_url: pageUrl,
+    evidence: {
+      ...row.evidence,
+      browser_qa: row.browser_qa_evidence,
+      source: "monitoring_issue_draft",
+      source_draft_id: row.id,
+      source_run_id: row.run_id,
+      github_run_id: row.github_run_id,
+      issue_type: row.issue_type,
+      module: row.module,
+      route: row.route,
+      agent_slug: row.agent_slug,
+      duplicate_key: row.duplicate_key,
+      owner_decision_by: row.owner_decision_by,
+      promoted_at: new Date().toISOString(),
+    },
+    fix_prompt: row.suggested_fix_prompt,
+    status: "open",
+    environment: "staging",
+  };
+
+  const { data: createdIssue, error: insertError } = await client
+    .from("agentops_issues")
+    .insert(issueRow)
+    .select("id")
+    .single();
+
+  if (insertError) {
+    if (isDuplicateIssueError(insertError.message)) {
+      const { data: openMatch } = await client
+        .from("agentops_issues")
+        .select("id")
+        .eq("environment", "staging")
+        .eq("agent_id", agentId)
+        .in("status", ["open", "in_progress"])
+        .eq("page_url", pageUrl)
+        .maybeSingle();
+
+      if (openMatch?.id) {
+        const issueId = openMatch.id as string;
+        await client
+          .from(ISSUE_DRAFTS_TABLE)
+          .update({
+            status: "promoted",
+            promoted_issue_id: issueId,
+            owner_decision_by: ownerId,
+            owner_decision_at: new Date().toISOString(),
+          })
+          .eq("id", draftId);
+
+        return jsonResponse({
+          ok: true,
+          environment: "staging",
+          issueId,
+          issueDisplayCode: runtimeIssueDisplayCode(issueId),
+          alreadyPromoted: false,
+          duplicateBlocked: true,
+          draft: toIssueDraftSummary({ ...row, status: "promoted", promoted_issue_id: issueId }),
+        });
+      }
+    }
+    return jsonResponse({ ok: false, error: insertError.message }, 503);
+  }
+
+  const issueId = createdIssue.id as string;
+
+  await client
+    .from(ISSUE_DRAFTS_TABLE)
+    .update({
+      status: "promoted",
+      promoted_issue_id: issueId,
+      owner_decision_by: ownerId,
+      owner_decision_at: new Date().toISOString(),
+    })
+    .eq("id", draftId);
+
+  await client.from("agentops_agent_logs").insert({
+    agent_id: agentId,
+    action: "issue_detected",
+    payload: {
+      source: "monitoring_issue_draft_promotion",
+      draft_id: draftId,
+      issue_id: issueId,
+      owner_id: ownerId,
+    },
+    environment: "staging",
+  });
+
+  return jsonResponse({
+    ok: true,
+    environment: "staging",
+    issueId,
+    issueDisplayCode: runtimeIssueDisplayCode(issueId),
+    alreadyPromoted: false,
+    duplicateBlocked: false,
+    draft: toIssueDraftSummary({ ...row, status: "promoted", promoted_issue_id: issueId }),
+  });
+}
+
 export async function handleMonitoringLatestReportRequest(request: Request): Promise<Response> {
   const blocked = guardAgentOpsExecutionResponse(process.env);
   if (blocked) return blocked;
@@ -433,6 +729,9 @@ export async function routeMonitoringRequest(request: Request): Promise<Response
   }
   if (pathname === "/api/agentops/monitoring/drafts/decision") {
     return handleMonitoringDraftDecisionRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/drafts/promote") {
+    return handleMonitoringDraftPromoteRequest(request);
   }
 
   return jsonResponse({ ok: false, error: "Not found" }, 404);

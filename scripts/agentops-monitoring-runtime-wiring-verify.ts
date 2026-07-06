@@ -26,6 +26,12 @@ import {
   buildMonitoringIssueDraftCandidate,
 } from "../src/lib/agentops/runtime/agentOpsMonitoringIssueDraftPolicy";
 import { extractIssueDraftCandidatesFromReport } from "../src/lib/agentops/runtime/agentOpsMonitoringIssueDrafts";
+import {
+  isPromotionAllowed,
+  validatePromotionPreconditions,
+} from "../src/lib/agentops/runtime/agentOpsMonitoringIssuePromotionPolicy";
+import { buildAgentOpsIssueFromDraft } from "../src/lib/agentops/runtime/agentOpsMonitoringIssuePromotion";
+import type { MonitoringIssueDraftRow } from "../src/lib/agentops/runtime/agentOpsMonitoringIssueDrafts";
 import { resolveOwnerWriteGate } from "../src/lib/agentops/runtime/agentOpsMonitoringOwnerWriteGate";
 
 const failures: string[] = [];
@@ -320,6 +326,85 @@ function verifyIssueDraftPolicy(): void {
   if (candidates.length !== 1) fail(`Expected 1 draft candidate, got ${candidates.length}`);
 }
 
+function mockApprovedDraft(
+  overrides: Partial<MonitoringIssueDraftRow> = {},
+): MonitoringIssueDraftRow {
+  return {
+    id: "draft-test-id",
+    monitoring_run_id: null,
+    run_id: "run-test",
+    github_run_id: "12345",
+    source: "monitoring_dry_run",
+    status: "owner_approved",
+    agent_slug: "qa-agent",
+    module: "dashboard",
+    route: "/dashboard",
+    issue_type: "monitoring_finding",
+    severity: "medium",
+    title: "[Monitoring draft] Test finding",
+    summary: "Dry-run monitoring finding on /dashboard.",
+    evidence: { scan_mode: "playwright", route: "/dashboard" },
+    browser_qa_evidence: {
+      scan_mode: "playwright",
+      route: "/dashboard",
+      absolute_url: "https://ai-xia-staging.vercel.app/dashboard",
+    },
+    suggested_fix_prompt: "Review evidence",
+    confidence: 0.65,
+    duplicate_key: "abc123",
+    duplicate_of: null,
+    owner_decision_by: "owner",
+    owner_decision_at: new Date().toISOString(),
+    promoted_issue_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function verifyIssuePromotionPolicy(): void {
+  const ownerContext = {
+    ownerId: "owner",
+    explicitOwnerClick: true,
+    supabaseProjectRef: "ydppcpbxrvvardeslzrk",
+    pipelineContext: "owner_ui" as const,
+  };
+
+  const approved = mockApprovedDraft();
+  if (!isPromotionAllowed(approved, ownerContext)) {
+    fail(`Approved draft should allow promotion: ${validatePromotionPreconditions(approved, ownerContext)}`);
+  }
+
+  const draftStatus = mockApprovedDraft({ status: "draft" });
+  if (isPromotionAllowed(draftStatus, ownerContext)) {
+    fail("Draft status must block promotion");
+  }
+
+  const autoContext = { ...ownerContext, explicitOwnerClick: false };
+  if (isPromotionAllowed(approved, autoContext)) {
+    fail("Non-explicit owner click must block promotion");
+  }
+
+  const pipelineAuto = { ...ownerContext, pipelineContext: "automatic" as const };
+  if (isPromotionAllowed(approved, pipelineAuto)) {
+    fail("Automatic pipeline context must block promotion");
+  }
+
+  const prodRef = { ...ownerContext, supabaseProjectRef: "production-ref" };
+  if (isPromotionAllowed(approved, prodRef)) {
+    fail("Production Supabase ref must block promotion");
+  }
+
+  const issueInput = buildAgentOpsIssueFromDraft(approved, "agent-uuid");
+  if (issueInput.status !== "open") fail("Promoted issue status must be open");
+  if (issueInput.evidence.source !== "monitoring_issue_draft") {
+    fail("Promoted issue evidence.source must be monitoring_issue_draft");
+  }
+  if (issueInput.evidence.source_draft_id !== approved.id) {
+    fail("Promoted issue must store source_draft_id in evidence");
+  }
+}
+
 function main(): void {
   verifySafeDefaults();
   verifyLevel0BlocksAutomatic();
@@ -332,6 +417,7 @@ function main(): void {
   verifyDryRunDefault();
   verifyManualTickSafeAtLevel0();
   verifyIssueDraftPolicy();
+  verifyIssuePromotionPolicy();
 
   if (failures.length > 0) {
     console.error("AGENTOPS MONITORING RUNTIME WIRING VERIFY — FAILED");

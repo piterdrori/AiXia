@@ -288,6 +288,7 @@ export function toIssueDraftSummary(row: MonitoringIssueDraftRow) {
     browserQaEvidence: row.browser_qa_evidence,
     confidence: row.confidence,
     duplicateKey: row.duplicate_key,
+    promotedIssueId: row.promoted_issue_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     ownerDecisionBy: row.owner_decision_by,

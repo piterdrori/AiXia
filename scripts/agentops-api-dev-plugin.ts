@@ -100,6 +100,8 @@ export function agentOpsApiDevPlugin(): Plugin {
         const isMonitoringDrafts = pathname === "/api/agentops/monitoring/drafts";
         const isMonitoringDraftDecision =
           pathname === "/api/agentops/monitoring/drafts/decision";
+        const isMonitoringDraftPromote =
+          pathname === "/api/agentops/monitoring/drafts/promote";
         if (
           pathname !== "/api/agentops/hermes" &&
           !isLiveStatus &&
@@ -116,6 +118,7 @@ export function agentOpsApiDevPlugin(): Plugin {
           !isMonitoringLatestReport &&
           !isMonitoringDrafts &&
           !isMonitoringDraftDecision &&
+          !isMonitoringDraftPromote &&
           !isGlobalMemoryRun &&
           !isGlobalMemoryCandidates &&
           !isEvidenceTools &&
@@ -191,7 +194,8 @@ export function agentOpsApiDevPlugin(): Plugin {
             isMonitoringDryRun ||
             isMonitoringLatestReport ||
             isMonitoringDrafts ||
-            isMonitoringDraftDecision
+            isMonitoringDraftDecision ||
+            isMonitoringDraftPromote
           ) {
             const mod = await server.ssrLoadModule("/api/agentops/_lib/monitoringRoutes.ts");
             response = await mod.routeMonitoringRequest(request);

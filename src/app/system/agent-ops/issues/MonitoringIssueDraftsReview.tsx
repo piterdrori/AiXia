@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FileWarning, RefreshCw } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ExternalLink, FileWarning, RefreshCw } from "lucide-react";
 
 import { AixiaBadge, AixiaButton, AixiaInfoBlock, AixiaSection } from "@/components/aixia";
 
@@ -15,15 +15,19 @@ export type MonitoringIssueDraftSummary = {
   title: string;
   summary: string;
   browserQaEvidence: Record<string, unknown>;
+  promotedIssueId?: string | null;
+  issueDisplayCode?: string | null;
   createdAt: string;
 };
 
 type DraftDecision = "owner_approved" | "rejected" | "deferred";
 
-function severityTone(severity: string): "rose" | "amber" | "cyan" | "neutral" {
-  if (severity === "critical" || severity === "high") return "rose";
-  if (severity === "medium") return "amber";
-  return "neutral";
+function statusTone(status: string): "emerald" | "amber" | "rose" | "cyan" | "neutral" {
+  if (status === "owner_approved") return "emerald";
+  if (status === "promoted") return "cyan";
+  if (status === "rejected") return "rose";
+  if (status === "deferred") return "neutral";
+  return "amber";
 }
 
 export function MonitoringIssueDraftsReview() {
@@ -79,17 +83,45 @@ export function MonitoringIssueDraftsReview() {
     }
   };
 
+  const promoteDraft = async (draftId: string) => {
+    setActionId(draftId);
+    try {
+      const response = await fetch("/api/agentops/monitoring/drafts/promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ draftId, ownerId: "owner" }),
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        issueDisplayCode?: string;
+        alreadyPromoted?: boolean;
+      };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Promotion failed.");
+      }
+      await loadDrafts();
+    } catch (promoteError) {
+      setError(promoteError instanceof Error ? promoteError.message : String(promoteError));
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const openDrafts = drafts.filter((draft) => draft.status === "draft");
+  const approvedDrafts = drafts.filter((draft) => draft.status === "owner_approved");
 
   return (
     <AixiaSection
       surface="command"
       title="Monitoring issue drafts"
-      description="Owner-gated drafts from scheduled monitoring dry-runs. No auto-promotion to live issues."
+      description="Owner-gated drafts from scheduled monitoring dry-runs. Promote to live issues only by explicit owner click."
       icon={FileWarning}
       badge={
         openDrafts.length > 0 ? (
           <AixiaBadge tone="amber">{openDrafts.length} need review</AixiaBadge>
+        ) : approvedDrafts.length > 0 ? (
+          <AixiaBadge tone="emerald">{approvedDrafts.length} ready to promote</AixiaBadge>
         ) : (
           <AixiaBadge tone="neutral">Review only</AixiaBadge>
         )
@@ -117,7 +149,7 @@ export function MonitoringIssueDraftsReview() {
                     {draft.agentSlug} · {draft.route ?? "—"} · {draft.severity}
                   </p>
                 </div>
-                <AixiaBadge tone={severityTone(draft.severity)}>{draft.status}</AixiaBadge>
+                <AixiaBadge tone={statusTone(draft.status)}>{draft.status}</AixiaBadge>
               </div>
               <p className="text-xs text-white/65 line-clamp-3">{draft.summary}</p>
               <ul className="text-xs text-white/50 space-y-0.5">
@@ -127,7 +159,20 @@ export function MonitoringIssueDraftsReview() {
                 {typeof draft.browserQaEvidence.scan_mode === "string" ? (
                   <li>Browser QA: {draft.browserQaEvidence.scan_mode as string}</li>
                 ) : null}
+                {draft.status === "promoted" && draft.issueDisplayCode ? (
+                  <li>
+                    Promoted issue:{" "}
+                    <Link
+                      to={`/system/agent-ops/issues/${draft.issueDisplayCode}`}
+                      className="text-cyan-300/90 hover:text-cyan-200 inline-flex items-center gap-1"
+                    >
+                      {draft.issueDisplayCode}
+                      <ExternalLink className="h-3 w-3" />
+                    </Link>
+                  </li>
+                ) : null}
               </ul>
+
               {draft.status === "draft" ? (
                 <div className="flex flex-wrap gap-2 pt-1">
                   <AixiaButton
@@ -156,6 +201,42 @@ export function MonitoringIssueDraftsReview() {
                   </AixiaButton>
                 </div>
               ) : null}
+
+              {draft.status === "owner_approved" ? (
+                <div className="space-y-2 pt-1">
+                  <AixiaInfoBlock tone="gold" title="Owner approved">
+                    This draft is approved. Promote only when you want a real AgentOps issue on staging.
+                  </AixiaInfoBlock>
+                  <AixiaButton
+                    variant="primary"
+                    className="text-xs px-3 py-1.5"
+                    disabled={actionId === draft.id}
+                    onClick={() => void promoteDraft(draft.id)}
+                  >
+                    Promote to Issue
+                  </AixiaButton>
+                  <p className="text-xs text-amber-200/80">
+                    Creates a real AgentOps issue on staging. No automatic promotion.
+                  </p>
+                </div>
+              ) : null}
+
+              {draft.status === "promoted" ? (
+                <div className="pt-1">
+                  <AixiaBadge tone="cyan">Promoted</AixiaBadge>
+                  {draft.issueDisplayCode ? (
+                    <AixiaButton
+                      variant="secondary"
+                      className="text-xs px-3 py-1.5 mt-2"
+                      onClick={() => navigate(`/system/agent-ops/issues/${draft.issueDisplayCode}`)}
+                    >
+                      Open issue workspace
+                    </AixiaButton>
+                  ) : draft.promotedIssueId ? (
+                    <p className="mt-2 text-xs text-white/55">Issue id: {draft.promotedIssueId}</p>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -171,8 +252,9 @@ export function MonitoringIssueDraftsReview() {
         </AixiaButton>
       </div>
 
-      <AixiaInfoBlock tone="cyan" title="Phase 5C safety">
-        Approve marks the draft as owner-approved only. Promote to live issue is disabled until Phase 5D.
+      <AixiaInfoBlock tone="cyan" title="Phase 5D safety">
+        Approve marks the draft as owner-approved only. Promote creates one live staging issue per
+        owner click. Repeat promote returns the existing issue — no duplicates.
       </AixiaInfoBlock>
     </AixiaSection>
   );

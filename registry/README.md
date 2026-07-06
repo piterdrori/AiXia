@@ -12,6 +12,34 @@ This folder is **Cursor's routing map** for external repositories and workflow t
 
 ## Authority order (what wins when sources conflict)
 
+### AgentOps / ACDL (reasoning and display freeze)
+
+When the task touches AgentOps, ACDL, Browser QA stack, or USL display:
+
+| Priority | Source | Role |
+|----------|--------|------|
+| 1 | `registry/AGENTOPS_ACDL_STABLE_BASELINE.md` | Verified stable baseline — production-architecture freeze record |
+| 2 | `registry/ACDL_SYSTEM_LOCK_v2.1.md` | **Absolute architecture freeze** — hard prohibitions, immutable stack order, regression gate |
+| 3 | `registry/AGENTOPS_RUNTIME_ARCHITECTURE_FREEZE.md` | **Runtime diagnostics freeze** — read-only observability contract; A/B/C routes |
+| 4 | `registry/AGENTOPS_RUNTIME_SEMANTIC_BOUNDARY.md` | **Runtime semantic boundary** — observation-only display rules; no UI inference |
+| 5 | `registry/AGENTOPS_MONITORING_RUNTIME_CONTRACT.md` | **Monitoring runtime contract** — levels 0–3, staging-only, evidence gates |
+| 6 | `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` | **Monitoring owner promotion lock** — draft → owner approval → owner-click promote → live issue (Phase 5D) |
+| 7 | `registry/AGENTOPS_GLOBAL_UX_FREEZE.md` | **Global product UX freeze** — Agents Hub, Agent Detail, Issues contracts; forbidden drift |
+| 8 | `registry/ACDL_SYSTEM_LOCK_v2.md` | Prior lock — semantic firewall, report structure (verify scripts reference v2 constants) |
+| 9 | `registry/ACDL_CORE_LOCK_v1.md` | Single reasoning authority — ACDL CORE sole interpreter |
+| 10 | `registry/HERMES_COORDINATION_CONTRACT.md` | Hermes coordination boundaries (subordinate to ACDL lock) |
+| 11 | `registry/TOOL_REGISTRY.md` | External tool selection for workflow tasks |
+
+**USL v1 implementation:** `src/lib/agentops/usl/` · verify: `scripts/agentops-usl-verify.ts`
+
+**Runtime immutability guard:** `src/lib/agentops/runtime/acdlRuntimeImmutabilityGuard.ts` · verify: `scripts/agentops-runtime-immutability-check.ts` (CI build gate)
+
+**Global product UX freeze:** `registry/AGENTOPS_GLOBAL_UX_FREEZE.md` · verify: `scripts/agentops-global-ux-freeze-verify.ts` · `npm run agentops:global-ux-freeze-verify` (CI build gate, after runtime checks)
+
+**Monitoring owner promotion lock (Phase 5D):** `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` · verify: `scripts/agentops-monitoring-owner-promotion-lock-verify.ts` · `npm run agentops:monitoring-owner-promotion-lock-verify`
+
+### General AiXia (design and app law)
+
 | Priority | Source | Role |
 |----------|--------|------|
 | 1 | `src/design-system/aixia-global/` | Living design and implementation law for AiXia |
@@ -39,11 +67,23 @@ Parent folder: `AiXia-staging (42)/` — **do not** treat as the Cursor app root
 
 | File | Use |
 |------|-----|
+| `AGENTOPS_ACDL_STABLE_BASELINE.md` | **Stable baseline freeze** — Lock v2.1 + USL v1 verified record; change-control gate |
+| `AGENTOPS_RUNTIME_ARCHITECTURE_FREEZE.md` | **Runtime diagnostics freeze** — read-only observability contract; forbidden behavior; A/B/C routes |
+| `AGENTOPS_RUNTIME_SEMANTIC_BOUNDARY.md` | **Runtime semantic boundary** — observation-only display; no inference in observatory UI |
+| `AGENTOPS_MONITORING_RUNTIME_CONTRACT.md` | **Monitoring runtime contract** — levels 0–3, staging-only, evidence gates, Phase 1 foundation |
+| `AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` | **Monitoring owner promotion lock** — Phase 5D verified workflow; owner-click promote only; subordinate to ACDL + monitoring contract |
+| `AGENTOPS_GLOBAL_UX_FREEZE.md` | **Global product UX freeze** — Hub, Detail, Issues vocabulary and structure lock |
+| `ACDL_SYSTEM_LOCK_v2.1.md` | **Absolute architecture freeze** — immutable stack, hard prohibitions, regression checklist |
 | `TOOL_REGISTRY.md` | Master list of tools and repos with status and triggers |
 | `DESIGN_REPO_REGISTRY.md` | When to consult each design reference repo |
 | `CURSOR_AUTO_TOOL_USE_RULES.md` | Automatic decision rules per task type |
 | `REPO_IMPORT_RULES.md` | How to add new repos safely |
 | `APP_DEPENDENCY_APPROVAL_RULES.md` | When something may enter `package.json` or runtime |
+| `ACDL_CORE_LOCK_v1.md` | Single Reasoning Authority — ACDL CORE is sole interpreter; all other layers are non-thinking infrastructure |
+| `ACDL_SYSTEM_LOCK_v2.md` | Complete system lock — semantic firewall, report structure, v10.4-only final gate, regression detection |
+| `HERMES_COORDINATION_CONTRACT.md` | Hermes coordination boundaries (subordinate to ACDL lock on reasoning) |
+
+**USL v1 (display shim, not a registry file):** `src/lib/agentops/usl/` · `scripts/agentops-usl-verify.ts`
 
 ## Core rules (summary)
 
@@ -64,4 +104,6 @@ Parent folder: `AiXia-staging (42)/` — **do not** treat as the Cursor app root
 
 ## Last updated
 
-Registry created: 2026-06-01 (documentation bootstrap).
+Registry created: 2026-06-01 (documentation bootstrap).  
+AgentOps ACDL stable baseline freeze: 2026-06-25 (`AGENTOPS_ACDL_STABLE_BASELINE.md`, `ACDL_SYSTEM_LOCK_v2.1.md`).  
+AgentOps monitoring owner promotion lock: 2026-07-06 (`AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md`).

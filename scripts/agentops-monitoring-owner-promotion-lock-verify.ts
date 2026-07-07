@@ -35,9 +35,14 @@ function verifyRegistryLock(): void {
     "promoted",
     "ydppcpbxrvvardeslzrk",
     "agentops_monitoring_issue_drafts",
+    "agentops_monitoring_memory_proposals",
     "agentops_issues",
     "No auto-promotion",
-    "Phase 5E",
+    "Monitoring Memory Proposal Queue — Phase 5E",
+    "owner_approved` ≠ active memory",
+    "Phase 5F",
+    "activeMemoryWritten=false",
+    "No bulk approval",
     "ACDL_SYSTEM_LOCK_v2.1",
     "AGENTOPS_MONITORING_RUNTIME_CONTRACT",
   ];
@@ -212,7 +217,7 @@ function verifyMemoryProposalPhase5eSafety(): void {
     "supabase/migrations/20260706120000_agentops_monitoring_memory_proposals.sql",
     "memory proposals migration",
   );
-  mustExist(
+  const policy = mustExist(
     "src/lib/agentops/runtime/agentOpsMonitoringMemoryProposalPolicy.ts",
     "memory proposal policy",
   );
@@ -224,6 +229,32 @@ function verifyMemoryProposalPhase5eSafety(): void {
     "scripts/agentops-monitoring-gha-memory-proposals-insert.ts",
     "GHA memory proposals insert",
   );
+  const uiReview = mustExist(
+    "src/app/system/agent-ops/memory/MonitoringMemoryProposalsReview.tsx",
+    "memory proposal review UI",
+  );
+
+  if (policy) {
+    if (!policy.includes("actualMemoryWrites")) {
+      fail("Memory proposal policy must block when actualMemoryWrites > 0");
+    }
+    if (!policy.includes("canCreateMonitoringMemoryProposal")) {
+      fail("Memory proposal policy must export canCreateMonitoringMemoryProposal");
+    }
+  }
+
+  const ghaInsert = mustExist(
+    "scripts/agentops-monitoring-gha-memory-proposals-insert.ts",
+    "GHA memory proposals insert script",
+  );
+  if (ghaInsert) {
+    if (!ghaInsert.includes("actualMemoryWrites")) {
+      fail("GHA memory proposals insert must refuse when actualMemoryWrites > 0");
+    }
+    if (/from\(["']agentops_memory["']\)/.test(ghaInsert)) {
+      fail("GHA memory proposals insert must not write to agentops_memory");
+    }
+  }
 
   const workflow = mustExist(
     ".github/workflows/agentops-monitoring-scheduled-dry-run.yml",
@@ -244,8 +275,14 @@ function verifyMemoryProposalPhase5eSafety(): void {
     if (!routes.includes("activeMemoryWritten: false")) {
       fail("Memory proposal decision API must assert activeMemoryWritten: false");
     }
+    if (!routes.includes('["owner_approved", "rejected", "deferred"].includes(decision)')) {
+      fail("Memory proposal decision must allow only owner_approved, rejected, deferred");
+    }
     if (/agentops_memory.*insert/i.test(routes) && routes.includes("MemoryProposal")) {
       fail("Memory proposal routes must not insert into agentops_memory");
+    }
+    if (/memory-proposals\/apply|applyMemoryProposal|handleMonitoringMemoryProposalApply/i.test(routes)) {
+      fail("No auto-apply memory proposal route may exist in Phase 5E");
     }
   }
 
@@ -253,8 +290,22 @@ function verifyMemoryProposalPhase5eSafety(): void {
     "src/lib/agentops/runtime/agentOpsMonitoringMemoryProposals.ts",
     "memory proposals lib",
   );
-  if (proposalsLib && /from\(["']agentops_memory["']\)/.test(proposalsLib)) {
-    fail("Memory proposals lib must not write to agentops_memory");
+  if (proposalsLib) {
+    if (/from\(["']agentops_memory["']\)/.test(proposalsLib)) {
+      fail("Memory proposals lib must not write to agentops_memory");
+    }
+    if (!/Applied proposals cannot be changed in Phase 5E/.test(proposalsLib)) {
+      fail("Memory proposals lib must block mutation of applied proposals in Phase 5E");
+    }
+  }
+
+  if (uiReview) {
+    if (/Apply to memory|Auto-apply|Bulk approve|Promote all/i.test(uiReview)) {
+      fail("Memory proposal UI must not offer apply, auto-apply, or bulk approve");
+    }
+    if (!uiReview.includes("owner_approved")) {
+      fail("Memory proposal UI must support owner_approved decision");
+    }
   }
 }
 
@@ -278,13 +329,15 @@ function main(): void {
   }
 
   console.log("AGENTOPS MONITORING OWNER PROMOTION LOCK VERIFY — PASSED");
-  console.log("  registry lock: present");
+  console.log("  registry lock: present (5D + 5E)");
   console.log("  phase 5C/5D reports: present");
   console.log("  browser QA report: passed");
   console.log("  cron: disabled");
   console.log("  continuous: disabled");
   console.log("  dry-run: enforced");
   console.log("  owner promotion API: present");
+  console.log("  memory proposal policy: present");
+  console.log("  memory proposal auto-apply: blocked");
   console.log("  vercel function count: safe");
 }
 

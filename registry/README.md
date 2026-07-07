@@ -23,7 +23,7 @@ When the task touches AgentOps, ACDL, Browser QA stack, or USL display:
 | 3 | `registry/AGENTOPS_RUNTIME_ARCHITECTURE_FREEZE.md` | **Runtime diagnostics freeze** — read-only observability contract; A/B/C routes |
 | 4 | `registry/AGENTOPS_RUNTIME_SEMANTIC_BOUNDARY.md` | **Runtime semantic boundary** — observation-only display rules; no UI inference |
 | 5 | `registry/AGENTOPS_MONITORING_RUNTIME_CONTRACT.md` | **Monitoring runtime contract** — levels 0–3, staging-only, evidence gates |
-| 6 | `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` | **Monitoring owner promotion lock** — draft → owner approval → owner-click promote → live issue (Phase 5D) |
+| 6 | `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` | **Monitoring owner promotion + memory proposal lock** — draft → promote → live issue (5D); proposal-only memory queue (5E) |
 | 7 | `registry/AGENTOPS_GLOBAL_UX_FREEZE.md` | **Global product UX freeze** — Agents Hub, Agent Detail, Issues contracts; forbidden drift |
 | 8 | `registry/ACDL_SYSTEM_LOCK_v2.md` | Prior lock — semantic firewall, report structure (verify scripts reference v2 constants) |
 | 9 | `registry/ACDL_CORE_LOCK_v1.md` | Single reasoning authority — ACDL CORE sole interpreter |
@@ -36,7 +36,7 @@ When the task touches AgentOps, ACDL, Browser QA stack, or USL display:
 
 **Global product UX freeze:** `registry/AGENTOPS_GLOBAL_UX_FREEZE.md` · verify: `scripts/agentops-global-ux-freeze-verify.ts` · `npm run agentops:global-ux-freeze-verify` (CI build gate, after runtime checks)
 
-**Monitoring owner promotion lock (Phase 5D):** `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` · verify: `scripts/agentops-monitoring-owner-promotion-lock-verify.ts` · `npm run agentops:monitoring-owner-promotion-lock-verify`
+**Monitoring owner promotion + memory proposal lock (Phase 5D + 5E):** `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` · verify: `scripts/agentops-monitoring-owner-promotion-lock-verify.ts` · `npm run agentops:monitoring-owner-promotion-lock-verify`
 
 ### General AiXia (design and app law)
 
@@ -71,7 +71,7 @@ Parent folder: `AiXia-staging (42)/` — **do not** treat as the Cursor app root
 | `AGENTOPS_RUNTIME_ARCHITECTURE_FREEZE.md` | **Runtime diagnostics freeze** — read-only observability contract; forbidden behavior; A/B/C routes |
 | `AGENTOPS_RUNTIME_SEMANTIC_BOUNDARY.md` | **Runtime semantic boundary** — observation-only display; no inference in observatory UI |
 | `AGENTOPS_MONITORING_RUNTIME_CONTRACT.md` | **Monitoring runtime contract** — levels 0–3, staging-only, evidence gates, Phase 1 foundation |
-| `AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` | **Monitoring owner promotion lock** — Phase 5D verified workflow; owner-click promote only; subordinate to ACDL + monitoring contract |
+| `AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` | **Monitoring owner promotion + memory proposal lock** — Phase 5D promote + Phase 5E proposal-only memory; subordinate to ACDL + monitoring contract |
 | `AGENTOPS_GLOBAL_UX_FREEZE.md` | **Global product UX freeze** — Hub, Detail, Issues vocabulary and structure lock |
 | `ACDL_SYSTEM_LOCK_v2.1.md` | **Absolute architecture freeze** — immutable stack, hard prohibitions, regression checklist |
 | `TOOL_REGISTRY.md` | Master list of tools and repos with status and triggers |
@@ -106,4 +106,4 @@ Parent folder: `AiXia-staging (42)/` — **do not** treat as the Cursor app root
 
 Registry created: 2026-06-01 (documentation bootstrap).  
 AgentOps ACDL stable baseline freeze: 2026-06-25 (`AGENTOPS_ACDL_STABLE_BASELINE.md`, `ACDL_SYSTEM_LOCK_v2.1.md`).  
-AgentOps monitoring owner promotion lock: 2026-07-06 (`AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md`).
+AgentOps monitoring owner promotion + memory proposal lock: 2026-07-07 (`AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` — Phase 5D + 5E).

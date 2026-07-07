@@ -1,9 +1,9 @@
-# AgentOps Monitoring Owner Promotion Lock — Phase 5D Final
+# AgentOps Monitoring Owner Promotion Lock — Phase 5D + 5E Final
 
-**Status:** Active governance — owner-click promotion locked  
-**Effective:** 2026-07-06  
-**Branch verified:** `staging` @ `ac253af7`  
-**Supersedes:** Informal Phase 5C draft-only notes for promotion behavior  
+**Status:** Active governance — owner-click promotion + proposal-only memory queue locked  
+**Effective:** 2026-07-06 (5D) · 2026-07-07 (5E memory proposal lock)  
+**Branch verified:** `staging` @ `686686ef`  
+**Supersedes:** Informal Phase 5C draft-only notes; Phase 5D-only lock without memory proposal section  
 **Subordinate to:**
 
 1. `registry/ACDL_SYSTEM_LOCK_v2.1.md`
@@ -11,7 +11,7 @@
 3. `registry/AGENTOPS_RUNTIME_SEMANTIC_BOUNDARY.md`
 4. `registry/AGENTOPS_MONITORING_RUNTIME_CONTRACT.md`
 
-**This document is governance only. It does not enable cron, continuous monitoring, auto-promotion, auto-fix, auto-deploy, or approved memory writes.**
+**This document is governance only. It does not enable cron, continuous monitoring, auto-promotion, auto-fix, auto-deploy, active memory application, or approved memory writes.**
 
 ---
 
@@ -25,7 +25,7 @@ No step in this chain may bypass explicit owner action for promotion. GHA and ru
 
 ---
 
-## 2. Current capability (Phase 5D verified)
+## 2. Current capability (Phase 5D + 5E verified)
 
 | Phase | Capability | Status |
 |-------|------------|--------|
@@ -33,13 +33,21 @@ No step in this chain may bypass explicit owner action for promotion. GHA and ru
 | 5B | Staging Supabase run index (`agentops_monitoring_runs`) | Active |
 | 5C | Owner-gated issue **drafts** from dry-run findings | Active |
 | 5D | Owner-click **promotion** to live `agentops_issues` | Active |
-| 5E | Memory proposal queue / approved memory from monitoring | **Not enabled** |
+| 5E | Memory **proposal queue** from monitoring (proposal-only) | Active |
+| 5F | Owner-click **apply** approved proposal → `agentops_memory` | **Not enabled** |
 
-**Verified on staging (2026-07-06):**
+**Verified on staging (2026-07-06 — 5D):**
 
 - Browser QA: `qa-agent/browser-qa/tests/monitoring-phase5d-promote-smoke.spec.mjs` — **PASS**
 - Promoted issues: analytics-agent → **BQA-0B036BE3**; config-agent → **BQA-7121AF8F**
 - Supabase: exactly **one** live issue per promoted draft; duplicate promotion blocked
+
+**Verified on staging (2026-07-06 — 5E):**
+
+- GHA run [28774559888](https://github.com/piterdrori/AiXia/actions/runs/28774559888) — **1 memory proposal** inserted
+- Run index: `actualMemoryWrites=0`, `actualIssuesCreated=0`
+- Status API: `memoryProposalOnly=true`, `activeMemoryWrites=false`, `ownerApprovalRequired=true`
+- Staging alias: `https://ai-xia-staging.vercel.app` → Phase 5E deployment
 
 ---
 
@@ -109,6 +117,7 @@ All must pass (`agentOpsMonitoringIssuePromotionPolicy.ts`):
 ## 6. Safety guarantees
 
 - **No auto-promotion** — GHA inserts drafts only; promotion is API + UI owner click
+- **No auto-apply memory** — GHA inserts memory proposals only; approve sets `owner_approved` without writing `agentops_memory`
 - **No live writes from GHA dry-run** — `actual_issues_created=0`, `actual_memory_writes=0` on run index
 - **Duplicate promotion blocked** — `promoted_issue_id`, `source_draft_id` evidence, duplicate_key, DB open dedupe index
 - **Staging only** — production URLs and non-staging Supabase refs rejected
@@ -127,6 +136,8 @@ All must pass (`agentOpsMonitoringIssuePromotionPolicy.ts`):
 | Auto-create live issues from monitoring | **Forbidden** in dry-run / default paths |
 | Auto-fix / auto-deploy from monitoring | **Forbidden** (Level 4) |
 | Approved memory writes from monitoring | **Forbidden** |
+| Auto-apply memory proposal → `agentops_memory` | **Forbidden** (Phase 5E) |
+| Bulk approve memory proposals | **Forbidden** (Phase 5E) |
 | Production Supabase / production URL | **Forbidden** |
 | Bulk promote | **Forbidden** (UI: one draft at a time) |
 | Modify ACDL engines for monitoring promotion | **Forbidden** |
@@ -139,7 +150,9 @@ All must pass (`agentOpsMonitoringIssuePromotionPolicy.ts`):
 |-------|------|
 | `agentops_monitoring_runs` | GHA dry-run run index (summaries, counts, github_run_id) |
 | `agentops_monitoring_issue_drafts` | Owner-gated drafts; status lifecycle; `promoted_issue_id` |
+| `agentops_monitoring_memory_proposals` | Owner-gated memory proposals; no auto-apply in Phase 5E |
 | `agentops_issues` | Live staging issues after owner-click promotion |
+| `agentops_memory` | Active memory — **not written** by Phase 5E monitoring paths |
 | `agentops_agents` | Agent slug → `agent_id` resolution for promotion |
 | `agentops_agent_logs` | Audit log entry on promotion (`issue_detected` payload) |
 
@@ -190,21 +203,96 @@ Repeat promote returns same `issueId` with `alreadyPromoted: true`.
 
 ---
 
-## 13. Phase 5E boundaries (not in scope of this lock)
+## 13. Monitoring Memory Proposal Queue — Phase 5E
 
-Phase 5E may address **memory proposal queue** from monitoring observations — still **proposal-only**:
+**Table:** `agentops_monitoring_memory_proposals`  
+**Migration:** `supabase/migrations/20260706120000_agentops_monitoring_memory_proposals.sql`
 
-- No `approved: true` memory writes from monitoring paths
-- No silent Hermes/memory approval
-- Owner review UI for memory proposals remains separate
-- Does **not** relax promotion lock or enable auto-promotion
-- Requires separate governance revision and verification script
+Monitoring findings may create **memory proposals only** — never active memory. GHA and runtime paths insert proposal rows; they do **not** write to `agentops_memory`, Hermes memory, or global memory providers.
 
-**Do not enable Phase 5E without explicit owner approval and new lock document.**
+### 13.1 Proposal creation requirements
+
+All must pass (`agentOpsMonitoringMemoryProposalPolicy.ts`):
+
+| Requirement | Detail |
+|-------------|--------|
+| Dry-run | `dryRun === true` |
+| Production blocked | `productionBlocked === true` |
+| No active memory writes | `actualMemoryWrites === 0` |
+| No live issues created | `actualIssuesCreated === 0` |
+| Target class | `staging`, `preview`, or `local` only |
+| Supabase project | Staging ref `ydppcpbxrvvardeslzrk` only |
+| Evidence | Non-empty `proposal`, `rationale`, and `evidence` jsonb on each row |
+| Repeated / high-signal | ≥2 agents **or** ≥2 routes for same normalized pattern; confidence ≥ 0.68 |
+
+Single-run, single-agent-only findings → **zero proposals** (conservative; acceptable).
+
+### 13.2 Proposal status lifecycle
+
+| Status | Meaning | Active memory written |
+|--------|---------|----------------------|
+| `proposal` | Awaiting owner review | **No** |
+| `owner_approved` | Owner approved intent only | **No** |
+| `rejected` | Owner rejected | **No** |
+| `deferred` | Owner deferred | **No** |
+| `applied` | Reserved for Phase 5F apply | **No** in Phase 5E |
+
+**Phase 5E supports only:** Approve · Reject · Defer
+
+- **Approve** sets `status=owner_approved` only — it does **not** mean active memory.
+- **`owner_approved` ≠ active memory.** Applying to `agentops_memory` is **Phase 5F** and requires a separate explicit owner click.
+- No automatic Hermes/global memory mutation.
+- No bulk approval or auto-apply.
+
+### 13.3 End-to-end memory proposal workflow
+
+```
+GHA workflow_dispatch (dry-run)
+  → JSON report + run index row
+  → Issue draft rows (unchanged Phase 5C behavior)
+  → Memory proposal candidates extracted (conservative)
+  → Proposal rows inserted (status=proposal) — service role only
+  → Owner reviews in Memory hub → Monitoring proposals panel
+  → Owner clicks Approve / Reject / Defer
+  → POST /api/agentops/monitoring/memory-proposals/decision
+  → Status updated; activeMemoryWritten=false returned
+  → (Phase 5F) separate owner-click apply → agentops_memory — NOT in 5E
+```
+
+**API routes (same `api/agentops/monitoring.ts` function):**
+
+- `GET /api/agentops/monitoring/memory-proposals`
+- `POST /api/agentops/monitoring/memory-proposals/decision` — payload `{ proposalId, decision, ownerId }`
+- Decision values: `owner_approved` | `rejected` | `deferred` only (no `apply`, no `applied` transition in 5E)
+
+### 13.4 Phase 5E forbidden actions
+
+| Action | Status |
+|--------|--------|
+| Auto-apply proposal → `agentops_memory` | **Forbidden** |
+| Approve writes active memory | **Forbidden** |
+| Bulk approve / promote all proposals | **Forbidden** |
+| Hermes/global memory mutation from monitoring | **Forbidden** |
+| GHA writes `approved: true` memory | **Forbidden** |
+| Production Supabase for proposals | **Forbidden** |
+
+**Does not relax Phase 5D promotion lock.** Issue draft → promote workflow unchanged.
 
 ---
 
-## 14. Implementation map
+## 14. Phase 5F boundaries (not in scope of this lock)
+
+Phase 5F may address **owner-click apply** of `owner_approved` memory proposals to `agentops_memory`:
+
+- Requires separate explicit owner click (not automatic on approve)
+- Requires separate governance revision and verification script
+- Does **not** relax Phase 5D promotion lock or Phase 5E proposal-only rules until approved
+
+**Do not enable Phase 5F without explicit owner approval and lock document update.**
+
+---
+
+## 15. Implementation map
 
 | Artifact | Path |
 |----------|------|
@@ -212,14 +300,19 @@ Phase 5E may address **memory proposal queue** from monitoring observations — 
 | Draft persistence | `src/lib/agentops/runtime/agentOpsMonitoringIssueDrafts.ts` |
 | Promotion policy | `src/lib/agentops/runtime/agentOpsMonitoringIssuePromotionPolicy.ts` |
 | Promotion repository | `src/lib/agentops/runtime/agentOpsMonitoringIssuePromotion.ts` |
+| Memory proposal policy | `src/lib/agentops/runtime/agentOpsMonitoringMemoryProposalPolicy.ts` |
+| Memory proposal persistence | `src/lib/agentops/runtime/agentOpsMonitoringMemoryProposals.ts` |
 | Owner API | `api/agentops/_lib/monitoringRoutes.ts` |
-| UI review | `src/app/system/agent-ops/issues/MonitoringIssueDraftsReview.tsx` |
+| Issue draft UI | `src/app/system/agent-ops/issues/MonitoringIssueDraftsReview.tsx` |
+| Memory proposal UI | `src/app/system/agent-ops/memory/MonitoringMemoryProposalsReview.tsx` |
+| Agents hub summary | `src/app/system/agent-ops/agents/AgentScheduledMonitoringCard.tsx` |
 | GHA workflow | `.github/workflows/agentops-monitoring-scheduled-dry-run.yml` |
-| Browser QA | `qa-agent/browser-qa/tests/monitoring-phase5d-promote-smoke.spec.mjs` |
+| GHA memory proposals insert | `scripts/agentops-monitoring-gha-memory-proposals-insert.ts` |
+| Browser QA (5D) | `qa-agent/browser-qa/tests/monitoring-phase5d-promote-smoke.spec.mjs` |
 
 ---
 
-## 15. Verification commands
+## 16. Verification commands
 
 ```bash
 npm run agentops:monitoring-owner-promotion-lock-verify
@@ -233,17 +326,20 @@ npx playwright test -c qa-agent/browser-qa/playwright.config.mjs \
 
 ---
 
-## 16. Reports (evidence)
+## 17. Reports (evidence)
 
 | Report | Path |
 |--------|------|
 | Phase 5C draft pipeline | `qa-agent/reports/agentops-monitoring-phase5c-issue-draft-pipeline.md` |
 | Phase 5D promotion | `qa-agent/reports/agentops-monitoring-phase5d-owner-click-issue-promotion.md` |
 | Phase 5D final lock | `qa-agent/reports/agentops-monitoring-phase5d-final-lock.md` |
+| Phase 5E memory proposal queue | `qa-agent/reports/agentops-monitoring-phase5e-memory-proposal-queue.md` |
+| Phase 5E final lock | `qa-agent/reports/agentops-monitoring-phase5e-final-lock.md` |
 | Browser QA JSON | `qa-agent/reports/browser-qa/monitoring-phase5d-promote-smoke-report.json` |
 
 ---
 
 ## Last updated
 
-Phase 5D owner promotion lock: 2026-07-06
+Phase 5D owner promotion lock: 2026-07-06  
+Phase 5E memory proposal queue lock: 2026-07-07

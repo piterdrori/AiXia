@@ -69,7 +69,7 @@ function MemoryFocusedCard({
   return (
     <AixiaInfoBlock
       title={title}
-      tone={highlight ? "cyan" : "neutral"}
+      tone={highlight ? "cyan" : "indigo"}
       className={highlight ? "ring-1 ring-cyan-400/40" : undefined}
     >
       <div className="grid gap-2 text-xs text-white/70 md:grid-cols-2">
@@ -424,7 +424,7 @@ export default function AgentOpsRuntimeMemoryPage() {
 
           {memoryIdParam ? (
             focusedMemoryLoading ? (
-              <AixiaInfoBlock title="Loading memory record" tone="neutral">
+              <AixiaInfoBlock title="Loading memory record" tone="indigo">
                 Fetching memory id {memoryIdParam}…
               </AixiaInfoBlock>
             ) : focusedMemoryError ? (

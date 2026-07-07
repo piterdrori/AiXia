@@ -615,6 +615,16 @@ function LegacyExpensePaymentRedirect() {
   );
 }
 
+function AgentOpsMemoryLegacyRedirect() {
+  const location = useLocation();
+  return (
+    <Navigate
+      to={`/system/agent-ops/runtime/memory${location.search}`}
+      replace
+    />
+  );
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -996,7 +1006,7 @@ function AppRoutes() {
       />
       <Route
         path="/system/agent-ops/memory"
-        element={<Navigate to="/system/agent-ops/runtime/memory" replace />}
+        element={<AgentOpsMemoryLegacyRedirect />}
       />
       <Route
         path="/system/agent-ops/config"

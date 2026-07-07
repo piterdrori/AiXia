@@ -1,52 +1,74 @@
-/** Owner-friendly copy for scheduled monitoring UI — Phase 4. */
+/** Owner-friendly copy for scheduled monitoring UI — Phase 4 + 5G. */
 
 export const MONITORING_OWNER_DISPLAY = {
   sectionTitle: "Scheduled monitoring",
   sectionDescription:
-    "Owner view of whether agents can automatically inspect the website on staging. Not cloud-active.",
+    "Staging-only scheduled cloud monitoring (dry-run). Operational scans every 6 hours; weekly improvement review Sunday 02:00 UTC.",
 
-  monitoringLevelPrepared: "Level 1 prepared — scheduled monitoring",
+  monitoringLevelPrepared: "Level 1 — scheduled monitoring active",
   monitoringLevelManual: "Level 0 — manual only",
 
   activationNotCloud: "Not cloud-active",
-  activationLocalDryRun: "Local dry-run available",
+  activationLocalDryRun: "Scheduled cloud monitoring active",
   activationWaiting: "Waiting for owner command",
 
-  writeModeDryRun: "Dry-run by default",
+  writeModeDryRun: "Dry-run / proposals only",
   writeModeOwnerApproval: "Manual/live writes require owner approval env",
 
-  targetStagingOnly: "Local/staging only",
+  targetStagingOnly: "Staging only",
 
-  continuousPrepared: "Prepared, not active",
+  continuousPrepared: "Disabled",
+  continuousDisabled: "Disabled",
+
+  scheduleActive: "Active",
+  scheduleOperational: "Operational scan: every 6 hours",
+  scheduleWeekly: "Weekly improvement review: Sunday 02:00 UTC",
 
   safetyProductionBlocked: "Production blocked",
   safetyAutoFixBlocked: "Auto-fix/deploy blocked",
-  safetyMemoryProposal: "Memory proposal-only",
-  safetyEvidenceRequired: "Evidence required for issue creation",
+  safetyMemoryProposal: "Memory proposal-only (owner apply required)",
+  safetyEvidenceRequired: "Evidence required for drafts and proposals",
 
   eligibleSummary: "{count} eligible for scheduled monitoring",
   noEligibleAgents: "No agents currently eligible for scheduled monitoring",
 
   lastRunNone: "No monitoring run recorded yet",
   lastRunAt: "Last run",
+  lastOperationalRun: "Last operational run",
+  lastWeeklyReview: "Last weekly review",
+  nextOperationalRun: "Next expected operational run",
+  nextWeeklyReview: "Next weekly review",
 
-  runDryRunNow: "Run dry-run now",
-  openLastReport: "Open last report",
+  runDryRunNow: "Run operational check now (GitHub Actions)",
+  runWeeklyReviewNow: "Run weekly improvement review now (GitHub Actions)",
+  openLastReport: "View latest monitoring report",
+  reviewIssueDrafts: "Review issue drafts",
+  reviewMemoryProposals: "Review memory proposals",
   refreshStatus: "Refresh status",
 
-  runningDryRun: "Running scheduled dry-run…",
+  runningDryRun: "Opening GitHub Actions…",
   dryRunComplete: "Dry-run complete",
   dryRunFailed: "Dry-run could not complete",
 
   reportPanelTitle: "Last monitoring report",
   eligibilityTitle: "Agent eligibility",
   safetyTitle: "Safety summary",
+  scheduleTitle: "Schedule status",
 
-  cloudBlockedDetail: "Cloud cron and continuous loops are not enabled from this UI.",
-  liveWritesBlockedDetail: "Live issue/memory writes are not exposed in the product UI.",
+  cloudBlockedDetail:
+    "Continuous monitoring remains disabled. Cron runs are staging dry-run only with owner gates after detection.",
+  liveWritesBlockedDetail:
+    "Live issues and active memory require separate owner-click promotion/apply.",
 } as const;
 
 export function formatEligibleSummary(count: number): string {
   if (count === 0) return MONITORING_OWNER_DISPLAY.noEligibleAgents;
   return MONITORING_OWNER_DISPLAY.eligibleSummary.replace("{count}", String(count));
+}
+
+export function formatTimestamp(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString();
 }

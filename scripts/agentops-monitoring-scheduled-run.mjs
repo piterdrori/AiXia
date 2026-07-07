@@ -43,8 +43,37 @@ const PRESETS = {
     env: {
       AGENTOPS_MONITORING_LEVEL: "1",
       AGENTOPS_MONITORING_SCHEDULED_ENABLED: "true",
+      AGENTOPS_MONITORING_SCHEDULED: "true",
       AGENTOPS_MONITORING_CONTINUOUS_ENABLED: "false",
       AGENTOPS_MONITORING_DRY_RUN: "true",
+      AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING: "true",
+    },
+    args: ["--once", "--dry-run"],
+  },
+  "gha-operational": {
+    env: {
+      AGENTOPS_MONITORING_LEVEL: "1",
+      AGENTOPS_MONITORING_SCHEDULED_ENABLED: "true",
+      AGENTOPS_MONITORING_SCHEDULED: "true",
+      AGENTOPS_MONITORING_CONTINUOUS_ENABLED: "false",
+      AGENTOPS_MONITORING_DRY_RUN: "true",
+      AGENTOPS_MONITORING_MODE: "operational",
+      AGENTOPS_MONITORING_MAX_AGENTS_PER_TICK: "3",
+      AGENTOPS_MONITORING_MAX_ROUTES_PER_AGENT: "6",
+      AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING: "true",
+    },
+    args: ["--once", "--dry-run"],
+  },
+  "gha-weekly-improvement": {
+    env: {
+      AGENTOPS_MONITORING_LEVEL: "1",
+      AGENTOPS_MONITORING_SCHEDULED_ENABLED: "true",
+      AGENTOPS_MONITORING_SCHEDULED: "true",
+      AGENTOPS_MONITORING_CONTINUOUS_ENABLED: "false",
+      AGENTOPS_MONITORING_DRY_RUN: "true",
+      AGENTOPS_MONITORING_MODE: "weekly_improvement",
+      AGENTOPS_MONITORING_MAX_AGENTS_PER_TICK: "6",
+      AGENTOPS_MONITORING_MAX_ROUTES_PER_AGENT: "12",
       AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING: "true",
     },
     args: ["--once", "--dry-run"],
@@ -96,7 +125,7 @@ if (!existsSync(workerCli)) {
 
 const mergedEnv = { ...process.env, ...preset.env };
 
-if (presetName === "gha-dry-run") {
+if (presetName === "gha-dry-run" || presetName === "gha-operational" || presetName === "gha-weekly-improvement") {
   const target =
     mergedEnv.AGENTOPS_MONITORING_TARGET_BASE_URL?.trim() ||
     mergedEnv.AGENTOPS_QA_BASE_URL?.trim() ||
@@ -106,6 +135,9 @@ if (presetName === "gha-dry-run") {
       "[agentops-monitoring] gha-dry-run requires AGENTOPS_MONITORING_TARGET_BASE_URL or AGENTOPS_QA_BASE_URL.",
     );
     process.exit(1);
+  }
+  if (!mergedEnv.AGENTOPS_MONITORING_MODE?.trim()) {
+    mergedEnv.AGENTOPS_MONITORING_MODE = "operational";
   }
   mergedEnv.AGENTOPS_MONITORING_TARGET_BASE_URL = target;
   if (mergedEnv.AGENTOPS_MONITORING_DRY_RUN?.trim().toLowerCase() !== "true") {

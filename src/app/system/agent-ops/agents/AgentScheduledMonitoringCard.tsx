@@ -12,6 +12,7 @@ import {
 import {
   MONITORING_OWNER_DISPLAY,
   formatEligibleSummary,
+  formatTimestamp,
 } from "@/lib/agentops/agents/monitoringOwnerDisplayCopy";
 import type {
   AgentMonitoringEligibilityRow,
@@ -42,7 +43,26 @@ type MonitoringMemoryProposalSummary = {
   createdAt: string;
 };
 
+type MonitoringScheduleStatus = {
+  scheduleActive: boolean;
+  operationalCron: string;
+  weeklyCron: string;
+  environment: string;
+  modeLabel: string;
+  continuousEnabled: boolean;
+  lastOperationalRunAt: string | null;
+  nextOperationalRunAt: string | null;
+  lastWeeklyReviewAt: string | null;
+  nextWeeklyReviewAt: string | null;
+  lastRunResult: string | null;
+  issueDraftsCreated: number;
+  improvementsProposed: number;
+  duplicatesSkipped: number;
+  githubWorkflowUrl: string;
+};
+
 type ExtendedMonitoringStatus = MonitoringOwnerStatusPayload & {
+  scheduleStatus?: MonitoringScheduleStatus;
   latestIssueDrafts?: MonitoringIssueDraftSummary[];
   issueDraftCounts?: Record<string, number>;
   latestMemoryProposals?: MonitoringMemoryProposalSummary[];
@@ -65,13 +85,55 @@ function StatusRow({ label, value, detail }: StatusRowProps) {
   );
 }
 
-function formatTimestamp(iso: string | undefined): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString();
-  } catch {
-    return iso;
+function ScheduleStatusBlock({ schedule }: { schedule: MonitoringScheduleStatus | undefined }) {
+  if (!schedule) {
+    return (
+      <StatusRow
+        label={MONITORING_OWNER_DISPLAY.scheduleTitle}
+        value="Schedule metadata loading…"
+      />
+    );
   }
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 space-y-2 md:col-span-2">
+      <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
+        {MONITORING_OWNER_DISPLAY.scheduleTitle}
+      </p>
+      <ul className="text-xs text-white/65 space-y-1">
+        <li>Schedule status: {MONITORING_OWNER_DISPLAY.scheduleActive}</li>
+        <li>{MONITORING_OWNER_DISPLAY.scheduleOperational}</li>
+        <li>{MONITORING_OWNER_DISPLAY.scheduleWeekly}</li>
+        <li>Environment: {schedule.environment}</li>
+        <li>Mode: {schedule.modeLabel}</li>
+        <li>Continuous: {MONITORING_OWNER_DISPLAY.continuousDisabled}</li>
+        <li>
+          {MONITORING_OWNER_DISPLAY.lastOperationalRun}:{" "}
+          {formatTimestamp(schedule.lastOperationalRunAt)}
+        </li>
+        <li>
+          {MONITORING_OWNER_DISPLAY.nextOperationalRun}:{" "}
+          {formatTimestamp(schedule.nextOperationalRunAt)}
+        </li>
+        <li>
+          {MONITORING_OWNER_DISPLAY.lastWeeklyReview}:{" "}
+          {formatTimestamp(schedule.lastWeeklyReviewAt)}
+        </li>
+        <li>
+          {MONITORING_OWNER_DISPLAY.nextWeeklyReview}:{" "}
+          {formatTimestamp(schedule.nextWeeklyReviewAt)}
+        </li>
+        <li>Last run result: {schedule.lastRunResult ?? "—"}</li>
+        <li>Issue drafts created (last indexed run): {schedule.issueDraftsCreated}</li>
+        <li>Improvements proposed (last indexed run): {schedule.improvementsProposed}</li>
+        <li>Duplicates skipped (last indexed run): {schedule.duplicatesSkipped}</li>
+      </ul>
+    </div>
+  );
+}
+
+function formatTimestampLocal(iso: string | undefined): string {
+  return formatTimestamp(iso);
 }
 
 function IndexedCloudRunBlock({ run }: { run: MonitoringRunIndexSummary | null }) {
@@ -90,7 +152,7 @@ function IndexedCloudRunBlock({ run }: { run: MonitoringRunIndexSummary | null }
       <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
         Latest cloud dry-run (Supabase index)
       </p>
-      <p className="text-sm font-medium text-white/90">{formatTimestamp(run.endedAt ?? run.createdAt)}</p>
+      <p className="text-sm font-medium text-white/90">{formatTimestampLocal(run.endedAt ?? run.createdAt)}</p>
       <ul className="text-xs text-white/60 space-y-1">
         <li>Source: {run.source}</li>
         <li>Target class: {run.targetClass}</li>
@@ -224,7 +286,7 @@ function LastRunBlock({ report }: { report: MonitoringReportSummary | null }) {
       <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
         {MONITORING_OWNER_DISPLAY.lastRunAt}
       </p>
-      <p className="text-sm font-medium text-white/90">{formatTimestamp(report.endedAt)}</p>
+      <p className="text-sm font-medium text-white/90">{formatTimestampLocal(report.endedAt)}</p>
       <ul className="text-xs text-white/60 space-y-1">
         <li>Dry-run: {report.dryRun ? "yes" : "no"}</li>
         <li>Agents considered: {report.agentsConsidered}</li>
@@ -275,7 +337,6 @@ export function AgentScheduledMonitoringCard() {
   const [status, setStatus] = useState<ExtendedMonitoringStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dryRunLoading, setDryRunLoading] = useState(false);
   const [dryRunMessage, setDryRunMessage] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [inlineReport, setInlineReport] = useState<MonitoringReportSummary | null>(null);
@@ -308,37 +369,16 @@ export function AgentScheduledMonitoringCard() {
     void loadStatus();
   }, [loadStatus]);
 
-  const runDryRun = async () => {
-    setDryRunLoading(true);
-    setDryRunMessage(null);
-    try {
-      const response = await fetch("/api/agentops/monitoring/dry-run", { method: "POST" });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        summary?: MonitoringReportSummary;
-        forcedDryRun?: boolean;
-        writesSafe?: boolean;
-        error?: string;
-      };
-      if (payload.summary) {
-        setInlineReport(payload.summary);
-        setReportOpen(true);
-      }
-      if (payload.writesSafe && payload.forcedDryRun) {
-        setDryRunMessage(MONITORING_OWNER_DISPLAY.dryRunComplete);
-      } else if (!response.ok) {
-        setDryRunMessage(payload.error ?? MONITORING_OWNER_DISPLAY.dryRunFailed);
-      } else {
-        setDryRunMessage(MONITORING_OWNER_DISPLAY.dryRunComplete);
-      }
-      await loadStatus();
-    } catch (runError) {
-      setDryRunMessage(
-        runError instanceof Error ? runError.message : MONITORING_OWNER_DISPLAY.dryRunFailed,
-      );
-    } finally {
-      setDryRunLoading(false);
-    }
+  const openGithubWorkflow = (mode: "operational" | "weekly_improvement") => {
+    const url =
+      status?.scheduleStatus?.githubWorkflowUrl ??
+      "https://github.com/piterdrori/AiXia/actions/workflows/agentops-monitoring-scheduled-dry-run.yml";
+    window.open(url, "_blank", "noopener,noreferrer");
+    setDryRunMessage(
+      mode === "weekly_improvement"
+        ? "Opened GitHub Actions — choose workflow_dispatch, set monitoring_mode to weekly_improvement, then Run workflow."
+        : "Opened GitHub Actions — choose workflow_dispatch, set monitoring_mode to operational, then Run workflow.",
+    );
   };
 
   const openLastReport = async () => {
@@ -374,6 +414,7 @@ export function AgentScheduledMonitoringCard() {
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
+            <ScheduleStatusBlock schedule={status.scheduleStatus} />
             <StatusRow label="Monitoring level" value={status.monitoringLevelLabel} />
             <StatusRow
               label="Current activation"
@@ -433,17 +474,36 @@ export function AgentScheduledMonitoringCard() {
             <AixiaButton
               type="button"
               variant="primary"
-              disabled={dryRunLoading}
-              onClick={() => void runDryRun()}
+              onClick={() => openGithubWorkflow("operational")}
             >
               <Play className="mr-1.5 h-4 w-4" />
-              {dryRunLoading
-                ? MONITORING_OWNER_DISPLAY.runningDryRun
-                : MONITORING_OWNER_DISPLAY.runDryRunNow}
+              {MONITORING_OWNER_DISPLAY.runDryRunNow}
+            </AixiaButton>
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              onClick={() => openGithubWorkflow("weekly_improvement")}
+            >
+              <CalendarClock className="mr-1.5 h-4 w-4" />
+              {MONITORING_OWNER_DISPLAY.runWeeklyReviewNow}
             </AixiaButton>
             <AixiaButton type="button" variant="secondary" onClick={() => void openLastReport()}>
               <FileText className="mr-1.5 h-4 w-4" />
               {MONITORING_OWNER_DISPLAY.openLastReport}
+            </AixiaButton>
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              onClick={() => navigate("/system/agent-ops/issues?panel=monitoring-drafts")}
+            >
+              {MONITORING_OWNER_DISPLAY.reviewIssueDrafts}
+            </AixiaButton>
+            <AixiaButton
+              type="button"
+              variant="secondary"
+              onClick={() => navigate("/system/agent-ops/memory?panel=monitoring-proposals")}
+            >
+              {MONITORING_OWNER_DISPLAY.reviewMemoryProposals}
             </AixiaButton>
             <AixiaButton
               type="button"

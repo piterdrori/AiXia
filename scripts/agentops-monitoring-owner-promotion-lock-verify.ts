@@ -44,6 +44,10 @@ function verifyRegistryLock(): void {
     "Owner-click memory application",
     "ownerClickApplyRequired",
     "No bulk approval",
+    "Phase 5G",
+    "Scheduled Monitoring",
+    "0 */6 * * *",
+    "0 2 * * 0",
     "ACDL_SYSTEM_LOCK_v2.1",
     "AGENTOPS_MONITORING_RUNTIME_CONTRACT",
   ];
@@ -101,6 +105,43 @@ function verifyRegistryReadme(): void {
   }
 }
 
+function verifyApprovedWorkflowSchedules(workflow: string): void {
+  const activeCrons: string[] = [];
+  const lines = workflow.split("\n");
+  for (const line of lines) {
+    if (line.trim().startsWith("#")) continue;
+    const cronMatch = line.match(/-\s*cron:\s*"([^"]+)"/);
+    if (cronMatch) activeCrons.push(cronMatch[1]);
+  }
+
+  if (!workflow.includes("concurrency:")) {
+    fail("Workflow must define concurrency group agentops-staging-monitoring");
+  }
+  if (!workflow.includes("group: agentops-staging-monitoring")) {
+    fail("Workflow concurrency group must be agentops-staging-monitoring");
+  }
+  if (!workflow.includes('cancel-in-progress: false')) {
+    fail("Workflow concurrency must set cancel-in-progress: false");
+  }
+
+  const required = ["0 */6 * * *", "0 2 * * 0"];
+  for (const cron of required) {
+    if (!activeCrons.includes(cron)) {
+      fail(`Workflow must include approved cron "${cron}"`);
+    }
+  }
+  if (activeCrons.length !== 2) {
+    fail(`Workflow must have exactly 2 active crons, found ${activeCrons.length}: ${activeCrons.join(", ")}`);
+  }
+
+  if (!workflow.includes("monitoring_mode:")) {
+    fail("Workflow workflow_dispatch must include monitoring_mode input");
+  }
+  if (!workflow.includes("AGENTOPS_MONITORING_MODE")) {
+    fail("Workflow must set AGENTOPS_MONITORING_MODE from resolved schedule step");
+  }
+}
+
 function verifyWorkflowSafety(): void {
   const workflow = mustExist(
     ".github/workflows/agentops-monitoring-scheduled-dry-run.yml",
@@ -108,13 +149,7 @@ function verifyWorkflowSafety(): void {
   );
   if (!workflow) return;
 
-  const lines = workflow.split("\n");
-  for (const line of lines) {
-    if (line.trim().startsWith("#")) continue;
-    if (/^\s*schedule:\s*$/.test(line) || /^\s*-\s*cron:/.test(line)) {
-      fail("Monitoring workflow must not have active schedule/cron");
-    }
-  }
+  verifyApprovedWorkflowSchedules(workflow);
 
   if (!workflow.includes('AGENTOPS_MONITORING_DRY_RUN: "true"')) {
     fail("Workflow must keep AGENTOPS_MONITORING_DRY_RUN=true");
@@ -432,7 +467,9 @@ function main(): void {
   console.log("  registry lock: present (5D + 5E + 5F)");
   console.log("  phase 5C/5D reports: present");
   console.log("  browser QA report: passed");
-  console.log("  cron: disabled");
+  console.log("  cron: approved staging dry-run schedules enabled");
+  console.log("  operational cron: 0 */6 * * *");
+  console.log("  weekly cron: 0 2 * * 0");
   console.log("  continuous: disabled");
   console.log("  dry-run: enforced");
   console.log("  owner promotion API: present");

@@ -1,35 +1,46 @@
-# Phase 5A — scheduled cloud dry-run monitoring (staging only).
-# Does NOT create issues, write memory, auto-fix, or deploy.
-# Required secrets: AGENTOPS_QA_BASE_URL, STAGING_SUPABASE_URL, STAGING_SUPABASE_ANON_KEY
-# Optional: STAGING_SUPABASE_SERVICE_ROLE_KEY (preferred for agent list if RLS blocks anon)
+# Phase 5G — scheduled cloud dry-run monitoring (staging only).
+# Operational: every 6 hours. Weekly improvement: Sunday 02:00 UTC.
+# Does NOT create live issues, apply memory, auto-fix, or deploy.
 
 name: AgentOps Monitoring Scheduled Dry Run
 
 on:
   workflow_dispatch:
     inputs:
+      monitoring_mode:
+        description: "operational | weekly_improvement"
+        required: true
+        default: operational
+        type: choice
+        options:
+          - operational
+          - weekly_improvement
       note:
         description: "Optional run note (audit only)"
         required: false
         default: "manual scheduled monitoring dry-run"
+  schedule:
+    - cron: "0 */6 * * *"
+    - cron: "0 2 * * 0"
 
-# Schedule disabled until owner explicitly approves cloud cron.
-# To enable later: uncomment schedule and verify secrets + dry-run artifacts first.
-# schedule:
-#   - cron: "0 */6 * * *"
+concurrency:
+  group: agentops-staging-monitoring
+  cancel-in-progress: false
 
 jobs:
   monitoring-scheduled-dry-run:
     name: Scheduled monitoring dry-run (staging)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       AGENTOPS_ENVIRONMENT: staging
       AGENTOPS_PRODUCTION_BLOCKED: "true"
       AGENTOPS_ALLOW_NON_STAGING: "false"
       AGENTOPS_STAGING_SUPABASE_PROJECT_REF: ydppcpbxrvvardeslzrk
       AGENTOPS_MONITORING_LEVEL: "1"
+      AGENTOPS_MONITORING_SCHEDULED: "true"
       AGENTOPS_MONITORING_SCHEDULED_ENABLED: "true"
+      AGENTOPS_MONITORING_CONTINUOUS: "false"
       AGENTOPS_MONITORING_CONTINUOUS_ENABLED: "false"
       AGENTOPS_MONITORING_DRY_RUN: "true"
       AGENTOPS_MONITORING_TARGET_BASE_URL: ${{ secrets.AGENTOPS_QA_BASE_URL }}
@@ -41,6 +52,44 @@ jobs:
     steps:
       - name: Checkout staging repo
         uses: actions/checkout@v4
+
+      - name: Resolve monitoring mode and schedule metadata
+        id: schedule
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ inputs.monitoring_mode }}"
+            TRIGGER="workflow_dispatch"
+            CRON=""
+            if [ "$MODE" = "weekly_improvement" ]; then
+              SCHEDULE_TYPE="weekly_improvement"
+            else
+              SCHEDULE_TYPE="manual"
+            fi
+          elif [ "${{ github.event.schedule }}" = "0 2 * * 0" ]; then
+            MODE="weekly_improvement"
+            TRIGGER="schedule"
+            CRON="0 2 * * 0"
+            SCHEDULE_TYPE="weekly_improvement"
+          else
+            MODE="operational"
+            TRIGGER="schedule"
+            CRON="0 */6 * * *"
+            SCHEDULE_TYPE="operational_6h"
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "trigger=$TRIGGER" >> "$GITHUB_OUTPUT"
+          echo "cron=$CRON" >> "$GITHUB_OUTPUT"
+          echo "schedule_type=$SCHEDULE_TYPE" >> "$GITHUB_OUTPUT"
+
+      - name: Apply resolved monitoring env
+        shell: bash
+        run: |
+          echo "AGENTOPS_MONITORING_MODE=${{ steps.schedule.outputs.mode }}" >> "$GITHUB_ENV"
+          echo "AGENTOPS_MONITORING_TRIGGER_TYPE=${{ steps.schedule.outputs.trigger }}" >> "$GITHUB_ENV"
+          echo "AGENTOPS_MONITORING_SCHEDULE_TYPE=${{ steps.schedule.outputs.schedule_type }}" >> "$GITHUB_ENV"
+          echo "AGENTOPS_MONITORING_CRON_EXPRESSION=${{ steps.schedule.outputs.cron }}" >> "$GITHUB_ENV"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

@@ -68,9 +68,13 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const monitoringMode = report.scheduleMeta?.monitoringMode ?? report.config.monitoringMode ?? "operational";
+  const mode =
+    monitoringMode === "weekly_improvement" ? "weekly_improvement" : "operational_dry_run";
+
   const record = buildMonitoringRunIndexRecord(report, {
     source: "github_actions",
-    mode: "scheduled_dry_run",
+    mode,
     githubRunId: process.env.GITHUB_RUN_ID?.trim() ?? null,
     githubRunUrl: buildGithubRunUrl(),
     artifactName: process.env.GITHUB_RUN_ID

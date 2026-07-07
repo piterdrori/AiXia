@@ -60,6 +60,7 @@ function baseConfig(overrides: Partial<AgentOpsMonitoringRuntimeConfig> = {}): A
     level: 0,
     scheduledEnabled: false,
     continuousEnabled: false,
+    monitoringMode: "operational",
     targetBaseUrl: "http://127.0.0.1:5173",
     defaultIntervalMinutes: 60,
     continuousCooldownSeconds: 15,

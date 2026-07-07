@@ -11,6 +11,11 @@ import {
   type MonitoringIssueDraftCandidate,
   type MonitoringIssueDraftDecision,
 } from "./agentOpsMonitoringIssueDraftPolicy";
+import {
+  buildMonitoringImprovementDraftCandidate,
+  canCreateMonitoringImprovementDraft,
+} from "./agentOpsMonitoringImprovementDraftPolicy";
+import { classifyMonitoringFindingKind } from "./agentOpsMonitoringFindingClassifier";
 import { AGENTOPS_MONITORING_STAGING_PROJECT_REF } from "./agentOpsMonitoringRunIndex";
 import type { MonitoringScheduledRunReport } from "./agentOpsMonitoringScheduledReport";
 import type { StagingScanFinding } from "./stagingScanTypes";
@@ -97,10 +102,14 @@ export function extractIssueDraftCandidatesFromReport(
   report: MonitoringScheduledRunReport,
 ): MonitoringIssueDraftCandidate[] {
   const candidates: MonitoringIssueDraftCandidate[] = [];
+  const mode = report.scheduleMeta?.monitoringMode ?? "operational";
 
   for (const agent of report.agentsRun) {
     const findings = agent.findings ?? [];
     for (const finding of findings) {
+      if (mode === "weekly_improvement") continue;
+      if (classifyMonitoringFindingKind(finding) !== "error") continue;
+
       const policyError = canCreateMonitoringIssueDraft({
         report,
         finding,
@@ -118,6 +127,43 @@ export function extractIssueDraftCandidatesFromReport(
   }
 
   return candidates;
+}
+
+export function extractImprovementDraftCandidatesFromReport(
+  report: MonitoringScheduledRunReport,
+): MonitoringIssueDraftCandidate[] {
+  const candidates: MonitoringIssueDraftCandidate[] = [];
+
+  for (const agent of report.agentsRun) {
+    const findings = agent.findings ?? [];
+    for (const finding of findings) {
+      const policyError = canCreateMonitoringImprovementDraft({
+        report,
+        finding,
+        agentSlug: agent.agentSlug,
+      });
+      if (policyError) continue;
+
+      candidates.push(
+        buildMonitoringImprovementDraftCandidate(finding, {
+          report,
+          agentSlug: agent.agentSlug,
+        }),
+      );
+    }
+  }
+
+  return candidates;
+}
+
+export function extractDraftCandidatesForReport(
+  report: MonitoringScheduledRunReport,
+): MonitoringIssueDraftCandidate[] {
+  const mode = report.scheduleMeta?.monitoringMode ?? "operational";
+  if (mode === "weekly_improvement") {
+    return extractImprovementDraftCandidatesFromReport(report);
+  }
+  return extractIssueDraftCandidatesFromReport(report);
 }
 
 export async function insertMonitoringIssueDrafts(
@@ -153,8 +199,9 @@ export async function insertMonitoringIssueDrafts(
   for (const candidate of candidates) {
     const { data: existing, error: lookupError } = await client
       .from(ISSUE_DRAFTS_TABLE)
-      .select("id")
+      .select("id, status, evidence")
       .eq("duplicate_key", candidate.duplicateKey)
+      .in("status", ["draft", "owner_approved", "deferred"])
       .maybeSingle();
 
     if (lookupError) {
@@ -164,6 +211,16 @@ export async function insertMonitoringIssueDrafts(
 
     if (existing?.id) {
       result.skippedDuplicate += 1;
+      await client
+        .from(ISSUE_DRAFTS_TABLE)
+        .update({
+          evidence: {
+            ...((existing.evidence ?? {}) as Record<string, unknown>),
+            lastSeenAt: new Date().toISOString(),
+            lastSeenRunId: report.runId,
+          },
+        })
+        .eq("id", existing.id);
       continue;
     }
 
@@ -310,15 +367,32 @@ export async function patchMonitoringRunDraftSummary(
   if (!runRow?.id) return;
 
   const summary = (runRow.summary ?? {}) as Record<string, unknown>;
+  const pipelineCounts = {
+    ...((summary.pipelineCounts ?? {}) as Record<string, unknown>),
+    findingsDetected: draftStats.findingsDetected ?? summary.findingsDetected ?? 0,
+    newDraftsCreated: draftStats.newDraftsCreated ?? draftStats.issueDraftsCreated ?? 0,
+    duplicatesSkipped:
+      draftStats.duplicatesSkipped ?? draftStats.issueDraftsSkippedDuplicate ?? 0,
+    improvementsProposed: draftStats.improvementProposalsCreated ?? 0,
+    issueDraftsCreated: draftStats.issueDraftsCreated ?? 0,
+    issueDraftsSkippedDuplicate: draftStats.issueDraftsSkippedDuplicate ?? 0,
+    improvementProposalsCreated: draftStats.improvementProposalsCreated ?? 0,
+    improvementProposalsSkippedDuplicate: draftStats.improvementProposalsSkippedDuplicate ?? 0,
+    issueDraftsSkippedPolicy: draftStats.issueDraftsSkippedPolicy ?? 0,
+    issueDraftsErrors: draftStats.issueDraftsErrors ?? 0,
+  };
+
   await client
     .from("agentops_monitoring_runs")
     .update({
       summary: {
         ...summary,
-        issueDraftsCreated: draftStats.issueDraftsCreated ?? 0,
-        issueDraftsSkippedDuplicate: draftStats.issueDraftsSkippedDuplicate ?? 0,
-        issueDraftsSkippedPolicy: draftStats.issueDraftsSkippedPolicy ?? 0,
-        issueDraftsErrors: draftStats.issueDraftsErrors ?? 0,
+        pipelineCounts,
+        issueDraftsCreated: pipelineCounts.issueDraftsCreated,
+        issueDraftsSkippedDuplicate: pipelineCounts.issueDraftsSkippedDuplicate,
+        issueDraftsSkippedPolicy: pipelineCounts.issueDraftsSkippedPolicy,
+        issueDraftsErrors: pipelineCounts.issueDraftsErrors,
+        improvementProposalsCreated: pipelineCounts.improvementProposalsCreated,
       },
     })
     .eq("id", runRow.id);

@@ -42,6 +42,7 @@ type MonitoringRunRow = {
   github_run_id: string | null;
   github_run_url: string | null;
   artifact_name: string | null;
+  summary?: Record<string, unknown> | null;
   created_at: string;
 };
 
@@ -143,6 +144,84 @@ function toRunIndexSummary(row: MonitoringRunRow) {
     githubRunUrl: row.github_run_url,
     artifactName: row.artifact_name,
     createdAt: row.created_at,
+    summary: row.summary ?? null,
+    scheduleType:
+      typeof row.summary?.scheduleType === "string" ? row.summary.scheduleType : null,
+  };
+}
+
+const APPROVED_OPERATIONAL_CRON = "0 */6 * * *";
+const APPROVED_WEEKLY_CRON = "0 2 * * 0";
+const GITHUB_REPO_ACTIONS_URL =
+  "https://github.com/piterdrori/AiXia/actions/workflows/agentops-monitoring-scheduled-dry-run.yml";
+
+function computeNextCronUtc(cronExpression: string, from = new Date()): string | null {
+  const parts = cronExpression.trim().split(/\s+/);
+  if (parts.length !== 5) return null;
+  const [minuteField, hourField, , , dowField] = parts;
+  const cursor = new Date(from);
+  cursor.setUTCSeconds(0, 0);
+  cursor.setUTCMinutes(cursor.getUTCMinutes() + 1);
+  for (let i = 0; i < 60 * 24 * 14; i += 1) {
+    const minute = cursor.getUTCMinutes();
+    const hour = cursor.getUTCHours();
+    const dow = cursor.getUTCDay();
+    const minuteOk =
+      minuteField === "*" ||
+      (minuteField.startsWith("*/") && minute % Number.parseInt(minuteField.slice(2), 10) === 0) ||
+      Number.parseInt(minuteField, 10) === minute;
+    const hourOk =
+      hourField === "*" ||
+      (hourField.startsWith("*/") && hour % Number.parseInt(hourField.slice(2), 10) === 0) ||
+      Number.parseInt(hourField, 10) === hour;
+    const dowOk = dowField === "*" || Number.parseInt(dowField, 10) === dow;
+    if (minuteOk && hourOk && dowOk) return cursor.toISOString();
+    cursor.setUTCMinutes(minute + 1, 0, 0);
+  }
+  return null;
+}
+
+function buildScheduleStatus(rows: MonitoringRunRow[]) {
+  const summaries = rows.map((row) => ({
+    mode: row.mode,
+    scheduleType:
+      typeof row.summary?.scheduleType === "string" ? row.summary.scheduleType : undefined,
+    endedAt: row.ended_at,
+    status: row.status,
+    summary: row.summary ?? undefined,
+  }));
+  const operationalRuns = summaries.filter(
+    (row) => row.scheduleType === "operational_6h" || row.mode === "operational_dry_run",
+  );
+  const weeklyRuns = summaries.filter(
+    (row) => row.scheduleType === "weekly_improvement" || row.mode === "weekly_improvement",
+  );
+  const lastOperational = operationalRuns[0] ?? summaries[0] ?? null;
+  const lastWeekly = weeklyRuns[0] ?? null;
+  const lastAny = summaries[0] ?? null;
+  const pipeline = (lastAny?.summary?.pipelineCounts ?? lastAny?.summary ?? {}) as Record<
+    string,
+    unknown
+  >;
+  const now = new Date();
+  return {
+    scheduleActive: true,
+    operationalCron: APPROVED_OPERATIONAL_CRON,
+    weeklyCron: APPROVED_WEEKLY_CRON,
+    environment: "staging" as const,
+    modeLabel: "Dry-run / proposals only",
+    continuousEnabled: false as const,
+    lastOperationalRunAt: lastOperational?.endedAt ?? null,
+    nextOperationalRunAt: computeNextCronUtc(APPROVED_OPERATIONAL_CRON, now),
+    lastWeeklyReviewAt: lastWeekly?.endedAt ?? null,
+    nextWeeklyReviewAt: computeNextCronUtc(APPROVED_WEEKLY_CRON, now),
+    lastRunResult: lastAny?.status ?? null,
+    issueDraftsCreated: Number(pipeline.issueDraftsCreated ?? pipeline.newDraftsCreated ?? 0),
+    improvementsProposed: Number(
+      pipeline.improvementProposalsCreated ?? pipeline.improvementsProposed ?? 0,
+    ),
+    duplicatesSkipped: Number(pipeline.duplicatesSkipped ?? pipeline.issueDraftsSkippedDuplicate ?? 0),
+    githubWorkflowUrl: GITHUB_REPO_ACTIONS_URL,
   };
 }
 
@@ -356,12 +435,14 @@ function buildOwnerStatusPayload(
 
   return {
     monitoringLevelLabel: "Level 1 (scheduled dry-run)",
-    activationLabel: "Scheduled (GHA manual dispatch)",
-    activationDetail: "Cloud cron disabled. GitHub Actions dry-run indexes summaries to Supabase.",
+    activationLabel: "Scheduled cloud monitoring active",
+    activationDetail:
+      "Approved staging dry-run schedules: operational every 6h + weekly improvement Sunday 02:00 UTC.",
     writeModeLabel: "Dry-run only",
-    writeModeDetail: "No issue or memory writes without owner approval.",
+    writeModeDetail: "Issue drafts and improvement proposals only — owner promotion/apply required.",
     targetLabel: "Staging only",
-    continuousLabel: "Disabled (prepared)",
+    continuousLabel: "Disabled",
+    scheduleStatus: buildScheduleStatus(rows),
     cloudActive: false,
     continuousActive: false,
     scheduledEnvEnabled: true,

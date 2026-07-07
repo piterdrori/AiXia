@@ -10,6 +10,12 @@ import type { AgentOpsMonitoringRuntimeConfig } from "./agentOpsMonitoringRuntim
 import type { AgentOpsRuntimeTickResult } from "./agentOpsRuntimeEngine";
 import type { OwnerWriteGateStatus } from "./agentOpsMonitoringOwnerWriteGate";
 import { sanitizeFindingEvidence } from "./agentOpsMonitoringIssueDraftPolicy";
+import {
+  buildEmptyPipelineCounts,
+  loadMonitoringScheduleMetaFromEnv,
+  type MonitoringPipelineCounts,
+  type MonitoringScheduleMeta,
+} from "./agentOpsMonitoringScheduleMeta";
 import { resolveMonitoringProductionGuardReport } from "./stagingScanUrlGuard";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
@@ -28,7 +34,11 @@ export type MonitoringScheduledRunReport = {
     maxAgentsPerTick: number;
     maxRoutesPerAgent: number;
     defaultIntervalMinutes: number;
+    monitoringMode?: string;
   };
+  scheduleMeta: MonitoringScheduleMeta;
+  pipelineCounts: MonitoringPipelineCounts;
+  artifactReference: string | null;
   targetBaseUrl: string;
   agentsConsidered: number;
   agentsSkipped: Array<{ agentId: string; agentSlug: string; reason: string; detail: string }>;
@@ -78,6 +88,8 @@ export function buildMonitoringScheduledRunReport(input: {
   tick: AgentOpsRuntimeTickResult;
   targetBaseUrl: string;
   extraErrors?: string[];
+  scheduleMeta?: MonitoringScheduleMeta;
+  artifactReference?: string | null;
 }): MonitoringScheduledRunReport {
   const productionGuard = resolveMonitoringProductionGuardReport(input.targetBaseUrl);
   const agentsRun = input.tick.cycles.map((cycle) => ({
@@ -110,6 +122,8 @@ export function buildMonitoringScheduledRunReport(input: {
     ? agentsRun.filter((agent) => agent.findingsCount > 0).length
     : actualMemoryWrites;
 
+  const scheduleMeta = input.scheduleMeta ?? loadMonitoringScheduleMetaFromEnv();
+
   return {
     runId: input.runId,
     startedAt: input.startedAt,
@@ -123,7 +137,11 @@ export function buildMonitoringScheduledRunReport(input: {
       maxAgentsPerTick: input.monitoringConfig.maxAgentsPerTick,
       maxRoutesPerAgent: input.monitoringConfig.maxRoutesPerAgent,
       defaultIntervalMinutes: input.monitoringConfig.defaultIntervalMinutes,
+      monitoringMode: input.monitoringConfig.monitoringMode,
     },
+    scheduleMeta,
+    pipelineCounts: buildEmptyPipelineCounts(findingsCount),
+    artifactReference: input.artifactReference ?? null,
     targetBaseUrl: input.targetBaseUrl,
     agentsConsidered: input.tick.agents.length,
     agentsSkipped: input.tick.skipped,

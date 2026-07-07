@@ -5,6 +5,10 @@
 
 import type { MonitoringLevel } from "./agentOpsMonitoringPolicy";
 import { resolveOwnerWriteGate } from "./agentOpsMonitoringOwnerWriteGate";
+import {
+  normalizeMonitoringMode,
+  type MonitoringMode,
+} from "./agentOpsMonitoringScheduleMeta";
 import { assertStagingScanUrl } from "./stagingScanUrlGuard";
 
 export const MONITORING_CONFIG_DEFAULTS = {
@@ -23,6 +27,8 @@ export type AgentOpsMonitoringRuntimeConfig = {
   level: MonitoringLevel;
   scheduledEnabled: boolean;
   continuousEnabled: boolean;
+  /** Phase 5G — operational vs weekly improvement scan profile. */
+  monitoringMode: MonitoringMode;
   targetBaseUrl: string;
   defaultIntervalMinutes: number;
   continuousCooldownSeconds: number;
@@ -43,6 +49,11 @@ function readEnvFlag(name: string, defaultValue = false): boolean {
   const raw = process.env[name]?.trim().toLowerCase();
   if (raw === undefined || raw === "") return defaultValue;
   return raw === "true" || raw === "1" || raw === "yes";
+}
+
+function readScheduledEnabledFlag(): boolean {
+  if (readEnvFlag("AGENTOPS_MONITORING_SCHEDULED_ENABLED", false)) return true;
+  return readEnvFlag("AGENTOPS_MONITORING_SCHEDULED", false);
 }
 
 function readPositiveInt(name: string, fallback: number): number {
@@ -91,8 +102,9 @@ export function loadAgentOpsMonitoringRuntimeConfig(): AgentOpsMonitoringRuntime
   const { level, reasons: levelReasons } = parseLevel();
   fallbackReasons.push(...levelReasons);
 
-  let scheduledEnabled = readEnvFlag("AGENTOPS_MONITORING_SCHEDULED_ENABLED", false);
+  let scheduledEnabled = readScheduledEnabledFlag();
   let continuousEnabled = readEnvFlag("AGENTOPS_MONITORING_CONTINUOUS_ENABLED", false);
+  const monitoringMode = normalizeMonitoringMode(process.env.AGENTOPS_MONITORING_MODE);
 
   if (scheduledEnabled && level < 1) {
     fallbackReasons.push("Scheduled monitoring requires AGENTOPS_MONITORING_LEVEL>=1 — scheduled disabled.");
@@ -107,10 +119,16 @@ export function loadAgentOpsMonitoringRuntimeConfig(): AgentOpsMonitoringRuntime
   const dryRunRequested = readEnvFlag("AGENTOPS_MONITORING_DRY_RUN", MONITORING_CONFIG_DEFAULTS.dryRun);
   const ownerGate = resolveOwnerWriteGate(dryRunRequested);
 
+  const modeLimits =
+    monitoringMode === "weekly_improvement"
+      ? { maxAgentsPerTick: 6, maxRoutesPerAgent: 12 }
+      : { maxAgentsPerTick: 3, maxRoutesPerAgent: 6 };
+
   const config: AgentOpsMonitoringRuntimeConfig = {
     level,
     scheduledEnabled,
     continuousEnabled,
+    monitoringMode,
     targetBaseUrl,
     defaultIntervalMinutes: readPositiveInt(
       "AGENTOPS_MONITORING_DEFAULT_INTERVAL_MINUTES",
@@ -122,11 +140,11 @@ export function loadAgentOpsMonitoringRuntimeConfig(): AgentOpsMonitoringRuntime
     ),
     maxAgentsPerTick: readPositiveInt(
       "AGENTOPS_MONITORING_MAX_AGENTS_PER_TICK",
-      MONITORING_CONFIG_DEFAULTS.maxAgentsPerTick,
+      modeLimits.maxAgentsPerTick,
     ),
     maxRoutesPerAgent: readPositiveInt(
       "AGENTOPS_MONITORING_MAX_ROUTES_PER_AGENT",
-      MONITORING_CONFIG_DEFAULTS.maxRoutesPerAgent,
+      modeLimits.maxRoutesPerAgent,
     ),
     dryRunRequested,
     dryRun: dryRunRequested,

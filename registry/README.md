@@ -23,7 +23,7 @@ When the task touches AgentOps, ACDL, Browser QA stack, or USL display:
 | 3 | `registry/AGENTOPS_RUNTIME_ARCHITECTURE_FREEZE.md` | **Runtime diagnostics freeze** — read-only observability contract; A/B/C routes |
 | 4 | `registry/AGENTOPS_RUNTIME_SEMANTIC_BOUNDARY.md` | **Runtime semantic boundary** — observation-only display rules; no UI inference |
 | 5 | `registry/AGENTOPS_MONITORING_RUNTIME_CONTRACT.md` | **Monitoring runtime contract** — levels 0–3, staging-only, evidence gates |
-| 6 | `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` | **Monitoring owner promotion + memory proposal lock** — draft → promote → live issue (5D); proposal-only memory queue (5E) |
+| 6 | `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` | **Monitoring owner promotion + memory proposal lock** — draft → promote → live issue (5D); proposal-only memory queue (5E); scheduled cron (5G) |
 | 7 | `registry/AGENTOPS_GLOBAL_UX_FREEZE.md` | **Global product UX freeze** — Agents Hub, Agent Detail, Issues contracts; forbidden drift |
 | 8 | `registry/ACDL_SYSTEM_LOCK_v2.md` | Prior lock — semantic firewall, report structure (verify scripts reference v2 constants) |
 | 9 | `registry/ACDL_CORE_LOCK_v1.md` | Single reasoning authority — ACDL CORE sole interpreter |
@@ -36,7 +36,7 @@ When the task touches AgentOps, ACDL, Browser QA stack, or USL display:
 
 **Global product UX freeze:** `registry/AGENTOPS_GLOBAL_UX_FREEZE.md` · verify: `scripts/agentops-global-ux-freeze-verify.ts` · `npm run agentops:global-ux-freeze-verify` (CI build gate, after runtime checks)
 
-**Monitoring owner promotion + memory proposal lock (Phase 5D + 5E):** `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` · verify: `scripts/agentops-monitoring-owner-promotion-lock-verify.ts` · `npm run agentops:monitoring-owner-promotion-lock-verify`
+**Monitoring owner promotion + memory proposal lock (Phase 5D + 5E + 5G):** `registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md` · verify: `scripts/agentops-monitoring-owner-promotion-lock-verify.ts` · `npm run agentops:monitoring-owner-promotion-lock-verify`
 
 ### General AiXia (design and app law)
 

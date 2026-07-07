@@ -7,6 +7,7 @@ import { createHash } from "node:crypto";
 
 import { AGENTOPS_MONITORING_STAGING_PROJECT_REF } from "./agentOpsMonitoringRunIndex";
 import { extractSupabaseProjectRefFromUrl } from "../execution/agentOpsStagingGuard";
+import { classifyMonitoringFindingKind } from "./agentOpsMonitoringFindingClassifier";
 import type { MonitoringScheduledRunReport } from "./agentOpsMonitoringScheduledReport";
 import type { StagingScanFinding, StagingScanSeverity } from "./stagingScanTypes";
 
@@ -23,6 +24,8 @@ export type MonitoringIssueDraftCandidate = {
   suggestedFixPrompt: string | null;
   confidence: number;
   duplicateKey: string;
+  /** Phase 5G — error vs improvement proposal (reuses issue draft queue). */
+  draftKind?: "error" | "improvement";
 };
 
 export type MonitoringIssueDraftPolicyContext = {
@@ -114,6 +117,16 @@ export function canCreateMonitoringIssueDraft(context: MonitoringIssueDraftPolic
   }
 
   if (!finding.issue?.trim()) return "Finding issue text is empty.";
+
+  const mode = context.report.scheduleMeta?.monitoringMode ?? "operational";
+  const kind = classifyMonitoringFindingKind(finding);
+  if (mode === "operational" && kind === "improvement") {
+    return "Operational runs create error drafts only; improvement findings deferred to weekly review.";
+  }
+  if (mode === "weekly_improvement" && kind === "error") {
+    return "Weekly improvement runs create improvement proposals only; operational errors use 6h scans.";
+  }
+
   return null;
 }
 
@@ -165,6 +178,16 @@ export function buildMonitoringIssueDraftCandidate(
     duplicateKey: "",
   };
   candidate.duplicateKey = buildDuplicateKey(candidate);
+  candidate.draftKind = "error";
+  candidate.evidence = {
+    ...candidate.evidence,
+    draftKind: "error",
+    reproductionSummary: `Detected during operational monitoring on ${route}.`,
+    likelyCause: "See Browser QA evidence and HTTP/DOM signals.",
+    suggestedFix: `Investigate and fix ${finding.issue} on ${route}.`,
+    reportingAgents: [agentSlug],
+    sourceMonitoringRun: runContext.report.runId,
+  };
   return candidate;
 }
 

@@ -23,6 +23,7 @@ import {
   runScheduledMonitoringTick,
   type AgentOpsRuntimeTickResult,
 } from "./agentOpsRuntimeEngine";
+import { loadMonitoringScheduleMetaFromEnv } from "./agentOpsMonitoringScheduleMeta";
 import { requestAgentRuntimeStop } from "./agentOpsRuntimeWorker";
 import { createAgentOpsRuntimeSupabaseClient } from "./agentOpsRuntimeSupabase";
 
@@ -135,6 +136,7 @@ export async function runScheduledMonitoringActivation(
       },
       targetBaseUrl: monitoringConfig.targetBaseUrl,
       extraErrors: [target.error],
+      scheduleMeta: loadMonitoringScheduleMetaFromEnv(),
     });
     const reportPath = await writeMonitoringScheduledRunReport(report);
     return { reportPath, exitCode: 1, report };
@@ -168,6 +170,7 @@ export async function runScheduledMonitoringActivation(
       },
       targetBaseUrl: target.normalizedUrl,
       extraErrors: [bootstrap.error],
+      scheduleMeta: loadMonitoringScheduleMetaFromEnv(),
     });
     const reportPath = await writeMonitoringScheduledRunReport(report);
     return { reportPath, exitCode: 1, report };
@@ -225,6 +228,7 @@ export async function runScheduledMonitoringActivation(
       ownerGate,
       tick,
       targetBaseUrl: target.normalizedUrl,
+      scheduleMeta: loadMonitoringScheduleMetaFromEnv(),
     });
     const reportPath = await writeMonitoringScheduledRunReport(report);
     console.info(`[agentops-monitoring] loop completed ticks=${maxTicks} report=${reportPath}`);
@@ -241,6 +245,7 @@ export async function runScheduledMonitoringActivation(
     ownerGate,
     tick,
     targetBaseUrl: target.normalizedUrl,
+    scheduleMeta: loadMonitoringScheduleMetaFromEnv(),
   });
   const reportPath = await writeMonitoringScheduledRunReport(report);
 

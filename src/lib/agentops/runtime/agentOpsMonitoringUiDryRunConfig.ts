@@ -14,6 +14,7 @@ export function buildOwnerUiDryRunMonitoringConfig(
     level: 1,
     scheduledEnabled: true,
     continuousEnabled: false,
+    monitoringMode: "operational",
     targetBaseUrl,
     defaultIntervalMinutes: MONITORING_CONFIG_DEFAULTS.defaultIntervalMinutes,
     continuousCooldownSeconds: MONITORING_CONFIG_DEFAULTS.continuousCooldownSeconds,

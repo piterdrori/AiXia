@@ -10,7 +10,7 @@ import {
   assertMonitoringRunIndexSupabaseAllowed,
 } from "../src/lib/agentops/runtime/agentOpsMonitoringRunIndex";
 import {
-  extractIssueDraftCandidatesFromReport,
+  extractDraftCandidatesForReport,
   insertMonitoringIssueDrafts,
   patchMonitoringRunDraftSummary,
 } from "../src/lib/agentops/runtime/agentOpsMonitoringIssueDrafts";
@@ -70,19 +70,28 @@ async function main(): Promise<void> {
     .eq("run_id", report.runId)
     .maybeSingle();
 
-  const candidates = extractIssueDraftCandidatesFromReport(report);
+  const candidates = extractDraftCandidatesForReport(report);
+  const isWeekly = report.scheduleMeta?.monitoringMode === "weekly_improvement";
   const skippedPolicy =
     report.agentsRun.reduce((sum, agent) => sum + (agent.findings?.length ?? 0), 0) - candidates.length;
 
   const inserted = await insertMonitoringIssueDrafts(client, report, candidates, {
     monitoringRunId: runRow?.id ?? null,
     githubRunId: process.env.GITHUB_RUN_ID?.trim() ?? null,
-    source: "monitoring_dry_run",
+    source: isWeekly ? "monitoring_weekly_improvement" : "monitoring_dry_run",
   });
 
+  const errorDraftsCreated = isWeekly ? 0 : inserted.created;
+  const improvementProposalsCreated = isWeekly ? inserted.created : 0;
+
   await patchMonitoringRunDraftSummary(client, report.runId, {
-    issueDraftsCreated: inserted.created,
-    issueDraftsSkippedDuplicate: inserted.skippedDuplicate,
+    findingsDetected: report.findingsCount,
+    newDraftsCreated: inserted.created,
+    duplicatesSkipped: inserted.skippedDuplicate,
+    issueDraftsCreated: errorDraftsCreated,
+    improvementProposalsCreated,
+    improvementProposalsSkippedDuplicate: isWeekly ? inserted.skippedDuplicate : 0,
+    issueDraftsSkippedDuplicate: isWeekly ? 0 : inserted.skippedDuplicate,
     issueDraftsSkippedPolicy: skippedPolicy + inserted.skippedPolicy,
     issueDraftsErrors: inserted.errors.length,
   });

@@ -55,6 +55,7 @@ function verifyProductionBlockedReportSemantics(): void {
       ...MONITORING_CONFIG_DEFAULTS,
       level: 1,
       scheduledEnabled: true,
+      monitoringMode: "operational",
       dryRunRequested: true,
       dryRun: true,
       effectiveDryRun: true,
@@ -116,16 +117,26 @@ function main(): void {
       workflow.match(/^[^#]*schedule:/m);
     const hasUncommentedSchedule = (() => {
       const lines = workflow.split("\n");
+      const crons: string[] = [];
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (line.trim().startsWith("#")) continue;
-        if (/^\s*schedule:\s*$/.test(line)) return true;
-        if (/^\s*-\s*cron:/.test(line) && !lines[i].trim().startsWith("#")) return true;
+        const cronMatch = line.match(/-\s*cron:\s*"([^"]+)"/);
+        if (cronMatch) crons.push(cronMatch[1]);
       }
-      return false;
+      return crons;
     })();
-    if (hasUncommentedSchedule) {
-      fail("Workflow schedule must be commented out for Phase 5A");
+    if (!hasUncommentedSchedule.includes("0 */6 * * *")) {
+      fail('Workflow must include operational cron "0 */6 * * *"');
+    }
+    if (!hasUncommentedSchedule.includes("0 2 * * 0")) {
+      fail('Workflow must include weekly improvement cron "0 2 * * 0"');
+    }
+    if (hasUncommentedSchedule.length !== 2) {
+      fail(`Workflow must have exactly 2 active crons, found ${hasUncommentedSchedule.length}`);
+    }
+    if (!workflow.includes("concurrency:")) {
+      fail("Workflow must define concurrency protection");
     }
 
     if (!workflow.includes('AGENTOPS_MONITORING_DRY_RUN: "true"')) {
@@ -197,6 +208,9 @@ function main(): void {
   const runner = readFileSync(RUNNER_SCRIPT, "utf8");
   if (!runner.includes('"gha-dry-run"')) {
     fail("Runner script must define gha-dry-run preset");
+  }
+  if (!runner.includes('"gha-weekly-improvement"')) {
+    fail("Runner script must define gha-weekly-improvement preset");
   }
   if (!runner.includes("AGENTOPS_OWNER_APPROVED_MONITORING_WRITE")) {
     fail("gha-dry-run preset must reject owner write approval env");

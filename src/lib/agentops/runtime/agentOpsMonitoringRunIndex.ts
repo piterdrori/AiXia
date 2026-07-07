@@ -115,6 +115,17 @@ function inferRunStatus(report: MonitoringScheduledRunReport): "completed" | "pa
 
 function buildSummaryPayload(report: MonitoringScheduledRunReport): Record<string, unknown> {
   return {
+    scheduleType: report.scheduleMeta?.scheduleType ?? null,
+    triggerType: report.scheduleMeta?.triggerType ?? null,
+    monitoringMode: report.scheduleMeta?.monitoringMode ?? report.config.monitoringMode ?? null,
+    startedAt: report.startedAt,
+    completedAt: report.endedAt,
+    targetUrl: report.targetBaseUrl,
+    targetClass: report.targetClass,
+    routesChecked: report.routesScanned,
+    findingsCount: report.findingsCount,
+    pipelineCounts: report.pipelineCounts,
+    artifactReference: report.artifactReference,
     config: report.config,
     agentsSkipped: report.agentsSkipped,
     agentsRun: report.agentsRun.map((agent) => ({
@@ -142,10 +153,14 @@ export function buildMonitoringRunIndexRecord(
   context: MonitoringRunIndexBuildContext = {},
 ): AgentOpsMonitoringRunIndexInsert {
   const status = context.status ?? inferRunStatus(report);
+  const monitoringMode = report.scheduleMeta?.monitoringMode ?? report.config.monitoringMode ?? "operational";
+  const mode =
+    context.mode ??
+    (monitoringMode === "weekly_improvement" ? "weekly_improvement" : "operational_dry_run");
   return {
     run_id: report.runId,
     source: context.source ?? "github_actions",
-    mode: context.mode ?? "scheduled_dry_run",
+    mode,
     level: report.config.level,
     dry_run: report.dryRun,
     target_base_url: report.targetBaseUrl,

@@ -364,13 +364,61 @@ GHA may insert **proposals only** — never call apply endpoint or RPC.
 
 ---
 
-## 16. Future phase boundaries
+## 16. Phase 5G — Scheduled Monitoring (staging dry-run cron)
+
+**Status:** Active governance — approved staging-only scheduled dry-run monitoring  
+**Effective:** 2026-07-07  
+**Supersedes:** Phase 5A–5F assumption that cloud cron must remain disabled
+
+### Approved schedules
+
+| Mode | Cron (UTC) | `AGENTOPS_MONITORING_MODE` | Output |
+|------|------------|------------------------------|--------|
+| Operational website check | `0 */6 * * *` | `operational` | Evidence-backed **error** issue drafts + fix suggestions |
+| Weekly improvement review | `0 2 * * 0` | `weekly_improvement` | **Improvement proposals** only (issue draft queue, `draftKind=improvement`) |
+
+### Mandatory safety (unchanged from 5D–5F)
+
+- **Staging only** — target `https://ai-xia-staging.vercel.app` via `secrets.AGENTOPS_QA_BASE_URL`
+- **Dry-run / proposals only** — `AGENTOPS_MONITORING_DRY_RUN=true`
+- **Continuous disabled** — `AGENTOPS_MONITORING_CONTINUOUS_ENABLED=false`
+- **No auto-promotion** — GHA must not call `drafts/promote`
+- **No auto memory apply** — GHA must not call `memory-proposals/apply` or `agentops_apply_monitoring_memory_proposal`
+- **No auto-fix / deploy / PR**
+- **Owner gates remain mandatory** after detection (approve → promote → apply)
+- **Dedupe / noise control** — duplicate keys + last-seen metadata; no unchanged finding spam every 6h
+- **Concurrency** — `group: agentops-staging-monitoring`, `cancel-in-progress: false`
+
+### ERROR vs IMPROVEMENT
+
+- **ERROR (operational):** broken pages, links, HTTP/API failures, rendering failures, regressions → issue drafts (`draftKind=error`)
+- **IMPROVEMENT (weekly):** UX, accessibility, navigation, copy, consistency, workflow, performance opportunities → improvement proposals (`draftKind=improvement` in evidence)
+
+Subjective preference alone is **not** a confirmed error.
+
+### Schedule modification
+
+Any change to cron frequency, target URL, dry-run flag, continuous enablement, or automation write paths requires **explicit owner approval** and registry update.
+
+### Phase 5G artifacts
+
+| Artifact | Path |
+|----------|------|
+| Schedule metadata | `src/lib/agentops/runtime/agentOpsMonitoringScheduleMeta.ts` |
+| Finding classifier | `src/lib/agentops/runtime/agentOpsMonitoringFindingClassifier.ts` |
+| Improvement draft policy | `src/lib/agentops/runtime/agentOpsMonitoringImprovementDraftPolicy.ts` |
+| GHA workflow | `.github/workflows/agentops-monitoring-scheduled-dry-run.yml` |
+| Phase 5G report | `qa-agent/reports/agentops-monitoring-phase5g-scheduled-monitoring.md` |
+
+---
+
+## 17. Future phase boundaries
 
 No further monitoring memory automation phases are enabled beyond owner-click apply without new governance.
 
 ---
 
-## 17. Verification commands
+## 18. Verification commands
 
 ```bash
 npm run agentops:monitoring-owner-promotion-lock-verify
@@ -384,7 +432,7 @@ npx playwright test -c qa-agent/browser-qa/playwright.config.mjs \
 
 ---
 
-## 18. Reports (evidence)
+## 19. Reports (evidence)
 
 | Report | Path |
 |--------|------|
@@ -395,7 +443,7 @@ npx playwright test -c qa-agent/browser-qa/playwright.config.mjs \
 | Phase 5E final lock | `qa-agent/reports/agentops-monitoring-phase5e-final-lock.md` |
 | Phase 5F memory apply | `qa-agent/reports/agentops-monitoring-phase5f-owner-click-memory-application.md` |
 | Browser QA JSON | `qa-agent/reports/browser-qa/monitoring-phase5d-promote-smoke-report.json` |
-| Browser QA 5F JSON | `qa-agent/reports/browser-qa/monitoring-phase5f-apply-smoke-report.json` |
+| Phase 5G scheduled monitoring | `qa-agent/reports/agentops-monitoring-phase5g-scheduled-monitoring.md` |
 
 ---
 
@@ -403,4 +451,5 @@ npx playwright test -c qa-agent/browser-qa/playwright.config.mjs \
 
 Phase 5D owner promotion lock: 2026-07-06  
 Phase 5E memory proposal queue lock: 2026-07-07  
-Phase 5F owner-click memory application lock: 2026-07-07
+Phase 5F owner-click memory application lock: 2026-07-07  
+Phase 5G scheduled staging dry-run monitoring lock: 2026-07-07

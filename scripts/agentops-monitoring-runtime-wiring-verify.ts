@@ -33,11 +33,20 @@ import {
 import { buildAgentOpsIssueFromDraft } from "../src/lib/agentops/runtime/agentOpsMonitoringIssuePromotion";
 import type { MonitoringIssueDraftRow } from "../src/lib/agentops/runtime/agentOpsMonitoringIssueDrafts";
 import {
+  buildMemoryProposalDuplicateKey,
   canCreateMonitoringMemoryProposal,
   buildMonitoringMemoryProposalCandidate,
-  buildMemoryProposalDuplicateKey,
 } from "../src/lib/agentops/runtime/agentOpsMonitoringMemoryProposalPolicy";
 import { extractMemoryProposalCandidatesFromReport } from "../src/lib/agentops/runtime/agentOpsMonitoringMemoryProposals";
+import {
+  buildActiveMemoryRecordFromProposal,
+  validateMemoryApplicationPreconditions,
+} from "../src/lib/agentops/runtime/agentOpsMonitoringMemoryApplication";
+import {
+  resolveMemoryApplicationTarget,
+  canApplyMonitoringMemoryProposal,
+} from "../src/lib/agentops/runtime/agentOpsMonitoringMemoryApplicationPolicy";
+import type { MonitoringMemoryProposalRow } from "../src/lib/agentops/runtime/agentOpsMonitoringMemoryProposals";
 import { resolveOwnerWriteGate } from "../src/lib/agentops/runtime/agentOpsMonitoringOwnerWriteGate";
 
 const failures: string[] = [];
@@ -524,6 +533,73 @@ function verifyMemoryProposalPolicy(): void {
   }
 }
 
+function verifyMemoryApplicationPolicy(): void {
+  const proposal: MonitoringMemoryProposalRow = {
+    id: "prop-apply-test",
+    monitoring_run_id: null,
+    run_id: "run-apply-test",
+    github_run_id: null,
+    source: "monitoring",
+    status: "owner_approved",
+    agent_slug: null,
+    memory_scope: "global",
+    memory_type: "monitoring_observation",
+    title: "Test memory proposal",
+    proposal: "Observed repeated pattern during dry-run.",
+    rationale: "Conservative memory proposal from scheduled monitoring dry-run.",
+    evidence: { category: "monitoring_finding", routes: ["/finance", "/dashboard"] },
+    confidence: 0.82,
+    duplicate_key: "dup-apply-test",
+    duplicate_of: null,
+    owner_decision_by: "owner",
+    owner_decision_at: new Date().toISOString(),
+    applied_memory_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const ownerContext = {
+    ownerId: "owner",
+    explicitOwnerClick: true,
+    pipelineContext: "owner_ui" as const,
+    supabaseProjectRef: "ydppcpbxrvvardeslzrk",
+  };
+
+  const autoError = canApplyMonitoringMemoryProposal(proposal, {
+    ...ownerContext,
+    pipelineContext: "automatic",
+  });
+  if (!autoError) fail("Memory application must block automatic pipeline context");
+
+  const noClickError = canApplyMonitoringMemoryProposal(proposal, {
+    ...ownerContext,
+    explicitOwnerClick: false,
+  });
+  if (!noClickError) fail("Memory application must require explicit owner click");
+
+  const draftError = canApplyMonitoringMemoryProposal(
+    { ...proposal, status: "proposal" },
+    ownerContext,
+  );
+  if (!draftError) fail("Memory application must block proposal status");
+
+  const target = resolveMemoryApplicationTarget({ proposal, agentId: null });
+  if (!target || target.targetStore !== "agentops_memory" || target.memoryScope !== "global") {
+    fail("Global proposal must resolve to agentops_memory global scope");
+  }
+
+  const record = buildActiveMemoryRecordFromProposal(proposal, ownerContext, target!);
+  if (record.source !== "monitoring_memory_proposal") {
+    fail("Active memory record must tag monitoring_memory_proposal source");
+  }
+  if (record.source_proposal_id !== proposal.id) {
+    fail("Active memory record must include source_proposal_id");
+  }
+
+  const preflight = validateMemoryApplicationPreconditions(proposal, ownerContext, null);
+  if (preflight) fail(`Owner-approved global proposal should pass apply preconditions: ${preflight}`);
+}
+
 function main(): void {
   verifySafeDefaults();
   verifyLevel0BlocksAutomatic();
@@ -538,6 +614,7 @@ function main(): void {
   verifyIssueDraftPolicy();
   verifyIssuePromotionPolicy();
   verifyMemoryProposalPolicy();
+  verifyMemoryApplicationPolicy();
 
   if (failures.length > 0) {
     console.error("AGENTOPS MONITORING RUNTIME WIRING VERIFY — FAILED");

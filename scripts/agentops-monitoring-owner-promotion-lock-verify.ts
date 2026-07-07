@@ -41,7 +41,8 @@ function verifyRegistryLock(): void {
     "Monitoring Memory Proposal Queue — Phase 5E",
     "owner_approved` ≠ active memory",
     "Phase 5F",
-    "activeMemoryWritten=false",
+    "Owner-click memory application",
+    "ownerClickApplyRequired",
     "No bulk approval",
     "ACDL_SYSTEM_LOCK_v2.1",
     "AGENTOPS_MONITORING_RUNTIME_CONTRACT",
@@ -212,6 +213,107 @@ function verifyVercelFunctionCount(): void {
   }
 }
 
+function verifyMemoryApplicationPhase5fSafety(): void {
+  mustExist(
+    "supabase/migrations/20260707120000_agentops_monitoring_memory_apply_rpc.sql",
+    "memory apply RPC migration",
+  );
+  mustExist(
+    "src/lib/agentops/runtime/agentOpsMonitoringMemoryApplicationPolicy.ts",
+    "memory application policy",
+  );
+  mustExist(
+    "src/lib/agentops/runtime/agentOpsMonitoringMemoryApplication.ts",
+    "memory application repository",
+  );
+  mustExist("api/agentops/_lib/monitoringMemoryApplication.ts", "Vercel-safe memory apply handler");
+
+  const policy = mustExist(
+    "src/lib/agentops/runtime/agentOpsMonitoringMemoryApplicationPolicy.ts",
+    "memory application policy module",
+  );
+  if (policy) {
+    if (!policy.includes("explicitOwnerClick")) {
+      fail("Memory application policy must require explicitOwnerClick");
+    }
+    if (!policy.includes("owner_approved")) {
+      fail("Memory application policy must require owner_approved status");
+    }
+    if (!policy.includes("agentops_memory")) {
+      fail("Memory application policy must target agentops_memory");
+    }
+  }
+
+  const application = mustExist(
+    "src/lib/agentops/runtime/agentOpsMonitoringMemoryApplication.ts",
+    "memory application repository module",
+  );
+  if (application) {
+    if (!application.includes("agentops_apply_monitoring_memory_proposal")) {
+      fail("Memory application must use atomic apply RPC");
+    }
+    if (!application.includes("alreadyApplied")) {
+      fail("Memory application must support idempotent alreadyApplied responses");
+    }
+  }
+
+  const workflow = mustExist(
+    ".github/workflows/agentops-monitoring-scheduled-dry-run.yml",
+    "monitoring GHA workflow",
+  );
+  if (workflow) {
+    if (/memory-proposals\/apply|applyMonitoringMemoryProposal/i.test(workflow)) {
+      fail("GHA workflow must not call memory apply endpoint");
+    }
+    if (/agentops_apply_monitoring_memory_proposal/i.test(workflow)) {
+      fail("GHA workflow must not call memory apply RPC");
+    }
+  }
+
+  const ghaInsert = mustExist(
+    "scripts/agentops-monitoring-gha-memory-proposals-insert.ts",
+    "GHA memory proposals insert",
+  );
+  if (ghaInsert && /memory-proposals\/apply|agentops_apply_monitoring_memory_proposal/i.test(ghaInsert)) {
+    fail("GHA memory proposals insert must not apply memory");
+  }
+
+  const routes = mustExist("api/agentops/_lib/monitoringRoutes.ts", "monitoring routes");
+  if (routes) {
+    if (!routes.includes("handleMonitoringMemoryProposalApplyRequest")) {
+      fail("monitoringRoutes must handle owner-click memory proposal apply");
+    }
+    if (!routes.includes("/api/agentops/monitoring/memory-proposals/apply")) {
+      fail("monitoringRoutes must route POST memory-proposals/apply");
+    }
+    if (!routes.includes("ownerClickApplyRequired: true")) {
+      fail("Status API must expose ownerClickApplyRequired safety flag");
+    }
+    if (!routes.includes("autoApplyMemory: false")) {
+      fail("Status API must expose autoApplyMemory: false");
+    }
+    if (routes.includes("activeMemoryWritten: false") && !routes.includes("handleMonitoringMemoryProposalDecisionRequest")) {
+      fail("Decision route should still assert activeMemoryWritten: false on approve");
+    }
+  }
+
+  const uiReview = mustExist(
+    "src/app/system/agent-ops/memory/MonitoringMemoryProposalsReview.tsx",
+    "memory proposal review UI",
+  );
+  if (uiReview) {
+    if (!uiReview.includes("Apply to Memory")) {
+      fail("Memory proposal UI must offer separate Apply to Memory action");
+    }
+    if (/Auto-apply|Bulk apply|apply all|Apply all/i.test(uiReview)) {
+      fail("Memory proposal UI must not offer auto-apply or bulk apply");
+    }
+    if (!uiReview.includes("Approved — not active memory yet")) {
+      fail("Memory proposal UI must show owner_approved not-yet-applied state");
+    }
+  }
+}
+
 function verifyMemoryProposalPhase5eSafety(): void {
   mustExist(
     "supabase/migrations/20260706120000_agentops_monitoring_memory_proposals.sql",
@@ -278,11 +380,8 @@ function verifyMemoryProposalPhase5eSafety(): void {
     if (!routes.includes('["owner_approved", "rejected", "deferred"].includes(decision)')) {
       fail("Memory proposal decision must allow only owner_approved, rejected, deferred");
     }
-    if (/agentops_memory.*insert/i.test(routes) && routes.includes("MemoryProposal")) {
-      fail("Memory proposal routes must not insert into agentops_memory");
-    }
-    if (/memory-proposals\/apply|applyMemoryProposal|handleMonitoringMemoryProposalApply/i.test(routes)) {
-      fail("No auto-apply memory proposal route may exist in Phase 5E");
+    if (/agentops_memory.*insert/i.test(routes) && routes.includes("MemoryProposalDecision")) {
+      fail("Memory proposal decision route must not insert into agentops_memory");
     }
   }
 
@@ -300,8 +399,8 @@ function verifyMemoryProposalPhase5eSafety(): void {
   }
 
   if (uiReview) {
-    if (/Apply to memory|Auto-apply|Bulk approve|Promote all/i.test(uiReview)) {
-      fail("Memory proposal UI must not offer apply, auto-apply, or bulk approve");
+    if (/Auto-apply|Bulk approve|Promote all|apply all/i.test(uiReview)) {
+      fail("Memory proposal UI must not offer auto-apply or bulk approve");
     }
     if (!uiReview.includes("owner_approved")) {
       fail("Memory proposal UI must support owner_approved decision");
@@ -318,6 +417,7 @@ function main(): void {
   verifyNoUnsafeAutoPromoteInMonitoringPaths();
   verifyPolicyModules();
   verifyMemoryProposalPhase5eSafety();
+  verifyMemoryApplicationPhase5fSafety();
   verifyVercelFunctionCount();
 
   if (failures.length > 0) {
@@ -329,7 +429,7 @@ function main(): void {
   }
 
   console.log("AGENTOPS MONITORING OWNER PROMOTION LOCK VERIFY — PASSED");
-  console.log("  registry lock: present (5D + 5E)");
+  console.log("  registry lock: present (5D + 5E + 5F)");
   console.log("  phase 5C/5D reports: present");
   console.log("  browser QA report: passed");
   console.log("  cron: disabled");
@@ -337,7 +437,8 @@ function main(): void {
   console.log("  dry-run: enforced");
   console.log("  owner promotion API: present");
   console.log("  memory proposal policy: present");
-  console.log("  memory proposal auto-apply: blocked");
+  console.log("  memory owner-click apply: present");
+  console.log("  memory auto-apply from GHA: blocked");
   console.log("  vercel function count: safe");
 }
 

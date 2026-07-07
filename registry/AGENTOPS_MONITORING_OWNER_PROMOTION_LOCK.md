@@ -34,7 +34,7 @@ No step in this chain may bypass explicit owner action for promotion. GHA and ru
 | 5C | Owner-gated issue **drafts** from dry-run findings | Active |
 | 5D | Owner-click **promotion** to live `agentops_issues` | Active |
 | 5E | Memory **proposal queue** from monitoring (proposal-only) | Active |
-| 5F | Owner-click **apply** approved proposal → `agentops_memory` | **Not enabled** |
+| 5F | Owner-click **apply** approved proposal → `agentops_memory` | Active |
 
 **Verified on staging (2026-07-06 — 5D):**
 
@@ -235,7 +235,7 @@ Single-run, single-agent-only findings → **zero proposals** (conservative; acc
 | `owner_approved` | Owner approved intent only | **No** |
 | `rejected` | Owner rejected | **No** |
 | `deferred` | Owner deferred | **No** |
-| `applied` | Reserved for Phase 5F apply | **No** in Phase 5E |
+| `applied` | Reserved for Phase 5F apply | **Yes** after owner-click apply only |
 
 **Phase 5E supports only:** Approve · Reject · Defer
 
@@ -280,15 +280,62 @@ GHA workflow_dispatch (dry-run)
 
 ---
 
-## 14. Phase 5F boundaries (not in scope of this lock)
+## 14. Phase 5F — Owner-click memory application
 
-Phase 5F may address **owner-click apply** of `owner_approved` memory proposals to `agentops_memory`:
+**Migration:** `supabase/migrations/20260707120000_agentops_monitoring_memory_apply_rpc.sql`  
+**RPC:** `agentops_apply_monitoring_memory_proposal` (atomic, staging only)  
+**Target store:** `agentops_memory` only (Hermes global memory metadata remains separate)
 
-- Requires separate explicit owner click (not automatic on approve)
-- Requires separate governance revision and verification script
-- Does **not** relax Phase 5D promotion lock or Phase 5E proposal-only rules until approved
+### 14.1 Two-step owner flow (mandatory)
 
-**Do not enable Phase 5F without explicit owner approval and lock document update.**
+1. **Approve proposal** — `POST .../memory-proposals/decision` → `status=owner_approved` (no active memory)
+2. **Apply to Memory** — separate owner click → `POST .../memory-proposals/apply` → one `agentops_memory` row
+
+Approval alone must never write active memory.
+
+### 14.2 Application requirements
+
+All must pass (`agentOpsMonitoringMemoryApplicationPolicy.ts`):
+
+| Requirement | Detail |
+|-------------|--------|
+| Supabase project | Staging ref `ydppcpbxrvvardeslzrk` only |
+| Proposal status | Exactly `owner_approved` |
+| Owner identity | `ownerId` + `explicitOwnerClick: true` |
+| Pipeline context | `automatic` / `gha` / `scheduler` **forbidden** |
+| Evidence | Non-empty evidence, title, proposal, rationale |
+| Target scope | Maps to `agentops_memory.scope` (`global` or `agent`) |
+| Module/route proposals | Stored as `global` with proposal scope metadata in `content` jsonb |
+
+### 14.3 Dedupe and atomicity
+
+- `applied_memory_id` on proposal (primary idempotency)
+- Unique index on `agentops_memory.content->>'source_proposal_id'`
+- Duplicate key reuse for approved memory with same `duplicate_key`
+- RPC uses `FOR UPDATE` + single transaction — no partial apply states
+
+Repeat Apply returns same `memoryId` with `alreadyApplied: true`.
+
+### 14.4 Phase 5F forbidden actions
+
+| Action | Status |
+|--------|--------|
+| Auto-apply on approve | **Forbidden** |
+| GHA / scheduled apply | **Forbidden** |
+| Bulk apply | **Forbidden** |
+| Hermes/global silent mutation | **Forbidden** |
+| Production Supabase apply | **Forbidden** |
+
+GHA may insert **proposals only** — never call apply endpoint or RPC.
+
+### 14.5 Status API safety fields (Phase 5F)
+
+- `autoApplyMemory: false`
+- `ownerClickApplyRequired: true`
+- `scheduledMemoryApplication: false`
+- `automaticActiveMemoryWrites: false`
+- `ownerAppliedMemoryWrites: true/false` (from indexed `agentops_memory` rows)
+- `memoryProposalOnlyForAutomation: true`
 
 ---
 
@@ -302,6 +349,10 @@ Phase 5F may address **owner-click apply** of `owner_approved` memory proposals 
 | Promotion repository | `src/lib/agentops/runtime/agentOpsMonitoringIssuePromotion.ts` |
 | Memory proposal policy | `src/lib/agentops/runtime/agentOpsMonitoringMemoryProposalPolicy.ts` |
 | Memory proposal persistence | `src/lib/agentops/runtime/agentOpsMonitoringMemoryProposals.ts` |
+| Memory application policy | `src/lib/agentops/runtime/agentOpsMonitoringMemoryApplicationPolicy.ts` |
+| Memory application repository | `src/lib/agentops/runtime/agentOpsMonitoringMemoryApplication.ts` |
+| Memory apply RPC handler | `api/agentops/_lib/monitoringMemoryApplication.ts` |
+| Apply RPC migration | `supabase/migrations/20260707120000_agentops_monitoring_memory_apply_rpc.sql` |
 | Owner API | `api/agentops/_lib/monitoringRoutes.ts` |
 | Issue draft UI | `src/app/system/agent-ops/issues/MonitoringIssueDraftsReview.tsx` |
 | Memory proposal UI | `src/app/system/agent-ops/memory/MonitoringMemoryProposalsReview.tsx` |
@@ -309,10 +360,17 @@ Phase 5F may address **owner-click apply** of `owner_approved` memory proposals 
 | GHA workflow | `.github/workflows/agentops-monitoring-scheduled-dry-run.yml` |
 | GHA memory proposals insert | `scripts/agentops-monitoring-gha-memory-proposals-insert.ts` |
 | Browser QA (5D) | `qa-agent/browser-qa/tests/monitoring-phase5d-promote-smoke.spec.mjs` |
+| Browser QA (5F) | `qa-agent/browser-qa/tests/monitoring-phase5f-apply-smoke.spec.mjs` |
 
 ---
 
-## 16. Verification commands
+## 16. Future phase boundaries
+
+No further monitoring memory automation phases are enabled beyond owner-click apply without new governance.
+
+---
+
+## 17. Verification commands
 
 ```bash
 npm run agentops:monitoring-owner-promotion-lock-verify
@@ -326,7 +384,7 @@ npx playwright test -c qa-agent/browser-qa/playwright.config.mjs \
 
 ---
 
-## 17. Reports (evidence)
+## 18. Reports (evidence)
 
 | Report | Path |
 |--------|------|
@@ -335,11 +393,14 @@ npx playwright test -c qa-agent/browser-qa/playwright.config.mjs \
 | Phase 5D final lock | `qa-agent/reports/agentops-monitoring-phase5d-final-lock.md` |
 | Phase 5E memory proposal queue | `qa-agent/reports/agentops-monitoring-phase5e-memory-proposal-queue.md` |
 | Phase 5E final lock | `qa-agent/reports/agentops-monitoring-phase5e-final-lock.md` |
+| Phase 5F memory apply | `qa-agent/reports/agentops-monitoring-phase5f-owner-click-memory-application.md` |
 | Browser QA JSON | `qa-agent/reports/browser-qa/monitoring-phase5d-promote-smoke-report.json` |
+| Browser QA 5F JSON | `qa-agent/reports/browser-qa/monitoring-phase5f-apply-smoke-report.json` |
 
 ---
 
 ## Last updated
 
 Phase 5D owner promotion lock: 2026-07-06  
-Phase 5E memory proposal queue lock: 2026-07-07
+Phase 5E memory proposal queue lock: 2026-07-07  
+Phase 5F owner-click memory application lock: 2026-07-07

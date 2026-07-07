@@ -8,6 +8,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
+import { applyMonitoringMemoryProposalViaApi } from "./monitoringMemoryApplication.js";
 import { jsonResponse } from "./ollamaProxy.js";
 
 const MONITORING_TABLE = "agentops_monitoring_runs";
@@ -217,6 +218,16 @@ async function countMemoryProposalsByStatus(client: SupabaseClient) {
   return { ok: true as const, counts };
 }
 
+async function countOwnerAppliedMonitoringMemory(client: SupabaseClient) {
+  const { count, error } = await client
+    .from("agentops_memory")
+    .select("*", { count: "exact", head: true })
+    .eq("environment", "staging")
+    .eq("content->>source", "monitoring_memory_proposal");
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, count: count ?? 0 };
+}
+
 function runtimeIssueDisplayCode(issueId: string): string {
   return `BQA-${issueId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
@@ -333,12 +344,15 @@ function buildOwnerStatusPayload(
   draftCounts: Record<string, number> | null,
   draftsError: string | null,
   proposalRows: MemoryProposalRow[],
+  appliedProposalRows: MemoryProposalRow[],
   proposalCounts: Record<string, number> | null,
   proposalsError: string | null,
+  ownerAppliedMemoryCount: number,
 ): Record<string, unknown> {
   const latestMonitoringRuns = rows.map(toRunIndexSummary);
   const latestIssueDrafts = draftRows.map(toIssueDraftSummary);
   const latestMemoryProposals = proposalRows.map(toMemoryProposalSummary);
+  const latestAppliedMemoryProposals = appliedProposalRows.map(toMemoryProposalSummary);
 
   return {
     monitoringLevelLabel: "Level 1 (scheduled dry-run)",
@@ -368,6 +382,7 @@ function buildOwnerStatusPayload(
       promoted: 0,
     },
     latestMemoryProposals,
+    latestAppliedMemoryProposals,
     memoryProposalCounts: proposalCounts ?? {
       proposal: 0,
       owner_approved: 0,
@@ -381,11 +396,16 @@ function buildOwnerStatusPayload(
       autoFixDeployBlocked: true,
       autoFixBlocked: true,
       memoryProposalOnly: true,
+      memoryProposalOnlyForAutomation: true,
+      autoApplyMemory: false,
+      ownerClickApplyRequired: true,
+      scheduledMemoryApplication: false,
+      automaticActiveMemoryWrites: false,
+      ownerAppliedMemoryWrites: ownerAppliedMemoryCount > 0,
       evidenceRequiredForIssues: true,
       level4Forbidden: true,
       liveIssuesCreated: false,
       ownerApprovalRequired: true,
-      activeMemoryWrites: false,
     },
     configError: indexError ?? draftsError ?? proposalsError,
     agentsLoaded: false,
@@ -404,8 +424,10 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
   let draftRows: IssueDraftRow[] = [];
   let draftCounts: Record<string, number> | null = null;
   let proposalRows: MemoryProposalRow[] = [];
+  let appliedProposalRows: MemoryProposalRow[] = [];
   let proposalCounts: Record<string, number> | null = null;
   let proposalsError: string | null = null;
+  let ownerAppliedMemoryCount = 0;
 
   if (!client) {
     indexError = "Staging Supabase is not configured for run index reads.";
@@ -440,11 +462,25 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
       proposalsError = proposalsListed.error;
     }
 
+    const appliedListed = await listMemoryProposals(client, 5, "applied");
+    if (appliedListed.ok) {
+      appliedProposalRows = appliedListed.data;
+    } else if (!proposalsError) {
+      proposalsError = appliedListed.error;
+    }
+
     const proposalStatusCounts = await countMemoryProposalsByStatus(client);
     if (proposalStatusCounts.ok) {
       proposalCounts = proposalStatusCounts.counts;
     } else if (!proposalsError) {
       proposalsError = proposalStatusCounts.error;
+    }
+
+    const ownerApplied = await countOwnerAppliedMonitoringMemory(client);
+    if (ownerApplied.ok) {
+      ownerAppliedMemoryCount = ownerApplied.count;
+    } else if (!proposalsError) {
+      proposalsError = ownerApplied.error;
     }
   }
 
@@ -458,8 +494,10 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
       draftCounts,
       draftsError,
       proposalRows,
+      appliedProposalRows,
       proposalCounts,
       proposalsError,
+      ownerAppliedMemoryCount,
     ),
   });
 }
@@ -889,6 +927,33 @@ export async function handleMonitoringMemoryProposalDecisionRequest(request: Req
   });
 }
 
+export async function handleMonitoringMemoryProposalApplyRequest(request: Request): Promise<Response> {
+  const blocked = guardAgentOpsExecutionResponse(process.env);
+  if (blocked) return blocked;
+  if (request.method !== "POST") return methodNotAllowed();
+
+  const client = createStagingSupabaseClient();
+  if (!client) {
+    return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
+  }
+
+  let body: { proposalId?: string; ownerId?: string };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return jsonResponse({ ok: false, error: "Invalid JSON body." }, 400);
+  }
+
+  const proposalId = body.proposalId?.trim();
+  const ownerId = body.ownerId?.trim() ?? "owner";
+
+  if (!proposalId) {
+    return jsonResponse({ ok: false, error: "proposalId is required." }, 400);
+  }
+
+  return applyMonitoringMemoryProposalViaApi(client, proposalId, ownerId);
+}
+
 export async function handleMonitoringLatestReportRequest(request: Request): Promise<Response> {
   const blocked = guardAgentOpsExecutionResponse(process.env);
   if (blocked) return blocked;
@@ -943,6 +1008,9 @@ export async function routeMonitoringRequest(request: Request): Promise<Response
   }
   if (pathname === "/api/agentops/monitoring/memory-proposals/decision") {
     return handleMonitoringMemoryProposalDecisionRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/memory-proposals/apply") {
+    return handleMonitoringMemoryProposalApplyRequest(request);
   }
 
   return jsonResponse({ ok: false, error: "Not found" }, 404);

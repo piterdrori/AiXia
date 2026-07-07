@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Brain, RefreshCw } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { AixiaBadge, AixiaButton, AixiaInfoBlock, AixiaSection } from "@/components/aixia";
 
@@ -16,6 +17,7 @@ export type MonitoringMemoryProposalSummary = {
   rationale: string;
   evidence: Record<string, unknown>;
   confidence: number | null;
+  appliedMemoryId?: string | null;
   createdAt: string;
 };
 
@@ -27,6 +29,10 @@ function statusTone(status: string): "emerald" | "amber" | "rose" | "cyan" | "ne
   if (status === "rejected") return "rose";
   if (status === "deferred") return "neutral";
   return "amber";
+}
+
+function resolveTargetStore(_scope: string): string {
+  return "agentops_memory";
 }
 
 function evidenceSummary(evidence: Record<string, unknown>): string {
@@ -50,6 +56,7 @@ export function MonitoringMemoryProposalsReview() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionId, setActionId] = useState<string | null>(null);
+  const [confirmApplyId, setConfirmApplyId] = useState<string | null>(null);
 
   const loadProposals = useCallback(async () => {
     setLoading(true);
@@ -97,19 +104,45 @@ export function MonitoringMemoryProposalsReview() {
     }
   };
 
+  const applyToMemory = async (proposalId: string) => {
+    setActionId(proposalId);
+    setConfirmApplyId(null);
+    try {
+      const response = await fetch("/api/agentops/monitoring/memory-proposals/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ proposalId, ownerId: "owner" }),
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        memoryId?: string;
+        alreadyApplied?: boolean;
+      };
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.error ?? "Apply to memory failed.");
+      }
+      await loadProposals();
+    } catch (applyError) {
+      setError(applyError instanceof Error ? applyError.message : String(applyError));
+    } finally {
+      setActionId(null);
+    }
+  };
+
   const openProposals = proposals.filter((row) => row.status === "proposal");
 
   return (
     <AixiaSection
       surface="command"
       title="Monitoring memory proposals"
-      description="Owner-gated memory proposals from scheduled monitoring dry-runs. Approve records owner intent only — no active memory is written in Phase 5E."
+      description="Owner-gated memory proposals from scheduled monitoring dry-runs. Approve records intent only; Apply to Memory is a separate owner click (Phase 5F)."
       icon={Brain}
       badge={
         openProposals.length > 0 ? (
           <AixiaBadge tone="amber">{openProposals.length} open</AixiaBadge>
         ) : (
-          <AixiaBadge tone="neutral">Proposal-only</AixiaBadge>
+          <AixiaBadge tone="neutral">Owner-click apply</AixiaBadge>
         )
       }
     >
@@ -159,6 +192,26 @@ export function MonitoringMemoryProposalsReview() {
                 {row.confidence != null ? <li>Confidence: {row.confidence.toFixed(2)}</li> : null}
               </ul>
 
+              {row.status === "owner_approved" ? (
+                <AixiaInfoBlock title="Approved — not active memory yet" tone="emerald">
+                  Owner approval recorded. Active memory is not created until you click Apply to
+                  Memory below.
+                </AixiaInfoBlock>
+              ) : null}
+
+              {row.status === "applied" && row.appliedMemoryId ? (
+                <AixiaInfoBlock title="Applied to active memory" tone="cyan">
+                  Memory id: {row.appliedMemoryId}. View in{" "}
+                  <Link
+                    to="/system/agent-ops/memory"
+                    className="underline text-cyan-300/90 hover:text-cyan-200"
+                  >
+                    Memory observatory
+                  </Link>
+                  .
+                </AixiaInfoBlock>
+              ) : null}
+
               {row.status === "proposal" ? (
                 <div className="flex flex-wrap gap-2">
                   <AixiaButton
@@ -188,6 +241,55 @@ export function MonitoringMemoryProposalsReview() {
                   >
                     Defer
                   </AixiaButton>
+                </div>
+              ) : null}
+
+              {row.status === "owner_approved" ? (
+                <div className="space-y-2">
+                  {confirmApplyId === row.id ? (
+                    <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                      <p className="text-xs text-white/80 font-medium">Confirm apply to memory</p>
+                      <ul className="text-xs text-white/60 space-y-1">
+                        <li>Title: {row.title}</li>
+                        <li>Scope: {row.memoryScope}</li>
+                        <li>Target store: {resolveTargetStore(row.memoryScope)}</li>
+                      </ul>
+                      <p className="text-xs text-amber-200/80">
+                        Creates one active memory record on staging. This cannot be undone from this
+                        panel.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <AixiaButton
+                          type="button"
+                          variant="primary"
+                          className="text-xs px-3 py-1.5"
+                          disabled={actionId === row.id}
+                          onClick={() => void applyToMemory(row.id)}
+                        >
+                          Confirm Apply to Memory
+                        </AixiaButton>
+                        <AixiaButton
+                          type="button"
+                          variant="secondary"
+                          className="text-xs px-3 py-1.5"
+                          disabled={actionId === row.id}
+                          onClick={() => setConfirmApplyId(null)}
+                        >
+                          Cancel
+                        </AixiaButton>
+                      </div>
+                    </div>
+                  ) : (
+                    <AixiaButton
+                      type="button"
+                      variant="primary"
+                      className="text-xs px-3 py-1.5"
+                      disabled={actionId === row.id}
+                      onClick={() => setConfirmApplyId(row.id)}
+                    >
+                      Apply to Memory
+                    </AixiaButton>
+                  )}
                 </div>
               ) : null}
             </div>

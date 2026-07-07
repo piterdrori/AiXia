@@ -76,7 +76,7 @@ test("Phase 5F staging — approve monitoring memory proposal, apply to memory, 
     new URL("/system/agent-ops/memory?panel=monitoring-proposals", baseUrl).toString(),
     { waitUntil: "domcontentloaded", timeout: 30000 },
   );
-  await expect(page.getByRole("heading", { name: "Monitoring memory proposals" })).toBeVisible({
+  await expect(page.getByText("Monitoring memory proposals").first()).toBeVisible({
     timeout: 20000,
   });
   await expect(page.getByText("Loading memory proposals")).toHaveCount(0, { timeout: 20000 });

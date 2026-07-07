@@ -25,7 +25,7 @@ export type MonitoringIssueDraftCandidate = {
   confidence: number;
   duplicateKey: string;
   /** Phase 5G — error vs improvement proposal (reuses issue draft queue). */
-  draftKind?: "error" | "improvement";
+  draftKind?: "error" | "improvement" | "new_feature";
 };
 
 export type MonitoringIssueDraftPolicyContext = {

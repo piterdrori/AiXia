@@ -61,6 +61,7 @@ import {
 } from "@/lib/agentops";
 import { useAgentOpsLlmProbe } from "@/hooks/useAgentOpsLlmProbe";
 import { useAgentOpsLlmModelSelection } from "@/hooks/useAgentOpsLlmModelSelection";
+import { AgentDailyReviewStatusSection } from "@/app/system/agent-ops/agents/AgentDailyReviewStatusSection";
 
 function managedAgentStatusTone(
   status: AgentOpsManagedAgent["status"],
@@ -670,6 +671,8 @@ export default function AgentOpsAgentWorkspacePage() {
                 This workspace opened in quick mode: {workspaceModeLabel}.
               </AixiaInfoBlock>
             ) : null}
+
+            <AgentDailyReviewStatusSection agentSlug={agentId} />
 
             <AixiaSection
               surface="command"

@@ -111,10 +111,6 @@ function main(): void {
       fail("Workflow must include workflow_dispatch trigger");
     }
 
-    const scheduleActive =
-      /^\s*schedule:\s*$/m.test(workflow) &&
-      !workflow.includes("# schedule:") &&
-      workflow.match(/^[^#]*schedule:/m);
     const hasUncommentedSchedule = (() => {
       const lines = workflow.split("\n");
       const crons: string[] = [];

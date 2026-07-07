@@ -14,6 +14,8 @@ import { jsonResponse } from "./ollamaProxy.js";
 const MONITORING_TABLE = "agentops_monitoring_runs";
 const ISSUE_DRAFTS_TABLE = "agentops_monitoring_issue_drafts";
 const MEMORY_PROPOSALS_TABLE = "agentops_monitoring_memory_proposals";
+const DAILY_EXECUTIONS_TABLE = "agentops_monitoring_daily_agent_executions";
+const AGENTS_TABLE = "agentops_agents";
 const STAGING_PROJECT_REF = "ydppcpbxrvvardeslzrk";
 
 type MonitoringRunRow = {
@@ -152,8 +154,227 @@ function toRunIndexSummary(row: MonitoringRunRow) {
 
 const APPROVED_OPERATIONAL_CRON = "0 */6 * * *";
 const APPROVED_WEEKLY_CRON = "0 2 * * 0";
+const APPROVED_DAILY_12_AGENT_CRON = "0 1 * * *";
+const EXPECTED_DAILY_AGENT_COUNT = 12;
 const GITHUB_REPO_ACTIONS_URL =
   "https://github.com/piterdrori/AiXia/actions/workflows/agentops-monitoring-scheduled-dry-run.yml";
+const GITHUB_DAILY_12_ACTIONS_URL =
+  "https://github.com/piterdrori/AiXia/actions/workflows/agentops-daily-12-agent-review.yml";
+
+const CANONICAL_DAILY_AGENT_SLUGS = [
+  "system-agent",
+  "memory-agent",
+  "issue-agent",
+  "evolution-agent",
+  "fix-agent",
+  "qa-agent",
+  "design-agent",
+  "runtime-agent",
+  "logs-agent",
+  "config-agent",
+  "chat-agent",
+  "analytics-agent",
+] as const;
+
+const CANONICAL_DAILY_JOB_TITLES: Record<string, string> = {
+  "system-agent": "System Health & Infrastructure Agent",
+  "memory-agent": "Memory & Knowledge Agent",
+  "issue-agent": "Issue Lifecycle Agent",
+  "evolution-agent": "Pattern & Evolution Agent",
+  "fix-agent": "Repair Planning Agent",
+  "qa-agent": "Quality Assurance Agent",
+  "design-agent": "UI / UX Design Agent",
+  "runtime-agent": "Runtime & Scheduling Agent",
+  "logs-agent": "Logs & Observability Agent",
+  "config-agent": "Configuration & Safety Agent",
+  "chat-agent": "Chat & Conversation Agent",
+  "analytics-agent": "Analytics & KPI Agent",
+};
+
+function utcDateOnly(iso = new Date().toISOString()): string {
+  return iso.slice(0, 10);
+}
+
+function parseCanonicalSlugFromTools(tools: string[] | null | undefined): string | null {
+  for (const tool of tools ?? []) {
+    if (typeof tool === "string" && tool.startsWith("canonical:")) {
+      return tool.slice("canonical:".length);
+    }
+  }
+  return null;
+}
+
+function parseUsernameFromTools(tools: string[] | null | undefined): string | null {
+  for (const tool of tools ?? []) {
+    if (typeof tool === "string" && tool.startsWith("username:")) {
+      return tool.slice("username:".length);
+    }
+  }
+  return null;
+}
+
+type DailyExecutionRow = {
+  id: string;
+  run_id: string;
+  execution_date: string;
+  agent_id: string;
+  agent_slug: string;
+  username: string;
+  job_title: string | null;
+  perspective: string | null;
+  status: string;
+  routes_reviewed: string[];
+  errors_found: number;
+  improvements_found: number;
+  features_found: number;
+  drafts_created: number;
+  duplicates_skipped: number;
+  no_findings: boolean;
+  failure_reason: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+type AgentRow = {
+  id: string;
+  name: string;
+  tools: string[] | null;
+  status: string;
+};
+
+async function listDailyExecutionsForDate(client: SupabaseClient, executionDate: string) {
+  const { data, error } = await client
+    .from(DAILY_EXECUTIONS_TABLE)
+    .select(
+      "id, run_id, execution_date, agent_id, agent_slug, username, job_title, perspective, status, routes_reviewed, errors_found, improvements_found, features_found, drafts_created, duplicates_skipped, no_findings, failure_reason, started_at, completed_at",
+    )
+    .eq("execution_date", executionDate)
+    .order("agent_slug", { ascending: true });
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, data: (data ?? []) as DailyExecutionRow[] };
+}
+
+async function listStagingAgents(client: SupabaseClient) {
+  const { data, error } = await client
+    .from(AGENTS_TABLE)
+    .select("id, name, tools, status")
+    .eq("environment", "staging")
+    .order("name", { ascending: true });
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, data: (data ?? []) as AgentRow[] };
+}
+
+function buildDaily12ReviewStatus(
+  rows: MonitoringRunRow[],
+  executionDate: string,
+  executions: DailyExecutionRow[],
+  agents: AgentRow[],
+  dailyDraftCounts: { errors: number; improvements: number; features: number; duplicates: number },
+) {
+  const executionBySlug = new Map(executions.map((row) => [row.agent_slug, row]));
+  const agentBySlug = new Map<string, AgentRow>();
+  for (const agent of agents) {
+    const slug = parseCanonicalSlugFromTools(agent.tools);
+    if (slug) agentBySlug.set(slug, agent);
+  }
+
+  const roster = CANONICAL_DAILY_AGENT_SLUGS.map((slug) => {
+    const execution = executionBySlug.get(slug);
+    const agent = agentBySlug.get(slug);
+    const username =
+      parseUsernameFromTools(agent?.tools) ?? execution?.username ?? `@aixia.${slug}`;
+    return {
+      agentSlug: slug,
+      displayName: agent?.name ?? slug,
+      username,
+      jobTitle: CANONICAL_DAILY_JOB_TITLES[slug] ?? execution?.job_title ?? slug,
+      agentStatus: agent?.status ?? "missing",
+      lastDailyRunAt: execution?.completed_at ?? execution?.started_at ?? null,
+      todayStatus: execution?.status ?? "missing",
+      todayResult:
+        execution?.status === "completed"
+          ? execution.no_findings
+            ? "no_findings"
+            : "findings"
+          : execution?.status ?? "not_run",
+      errorsFound: execution?.errors_found ?? 0,
+      improvementsFound: execution?.improvements_found ?? 0,
+      featuresFound: execution?.features_found ?? 0,
+      noFindings: execution?.no_findings ?? false,
+      routesReviewed: execution?.routes_reviewed ?? [],
+      failureReason: execution?.failure_reason ?? null,
+    };
+  });
+
+  const dailyRuns = rows.filter(
+    (row) =>
+      row.mode === "daily_12_agent_review" ||
+      row.summary?.scheduleType === "daily_12_agent_review" ||
+      row.summary?.monitoringMode === "daily_12_agent_review",
+  );
+  const lastDailyRun = dailyRuns[0] ?? null;
+  const attemptedToday = executions.length;
+  const completedToday = executions.filter((row) => row.status === "completed").length;
+  const failedToday = executions.filter((row) => row.status === "failed").length;
+  const blockedToday = executions.filter((row) => row.status === "blocked").length;
+  const missingToday = CANONICAL_DAILY_AGENT_SLUGS.filter((slug) => !executionBySlug.has(slug));
+  const usernamesConfigured = roster.filter((row) => row.username.startsWith("@aixia.")).length;
+
+  const healthWarnings: string[] = [];
+  if (agents.length < EXPECTED_DAILY_AGENT_COUNT) {
+    healthWarnings.push(
+      `Registered agents ${agents.length}/${EXPECTED_DAILY_AGENT_COUNT} — registry drift detected.`,
+    );
+  }
+  if (usernamesConfigured < EXPECTED_DAILY_AGENT_COUNT) {
+    healthWarnings.push(
+      `Usernames configured ${usernamesConfigured}/${EXPECTED_DAILY_AGENT_COUNT} — run canonical initializer.`,
+    );
+  }
+  if (attemptedToday < EXPECTED_DAILY_AGENT_COUNT) {
+    healthWarnings.push(
+      `Daily coverage incomplete: attempted ${attemptedToday}/${EXPECTED_DAILY_AGENT_COUNT} for ${executionDate}.`,
+    );
+  }
+  if (missingToday.length > 0) {
+    healthWarnings.push(`Missing agents today: ${missingToday.join(", ")}`);
+  }
+  if (failedToday > 0) {
+    healthWarnings.push(`${failedToday} agent run(s) failed today.`);
+  }
+
+  return {
+    schedule: `Daily at 01:00 UTC (${APPROVED_DAILY_12_AGENT_CRON})`,
+    environment: "staging" as const,
+    modeLabel: "Evidence and proposals only",
+    registeredAgents: agents.length,
+    expectedAgents: EXPECTED_DAILY_AGENT_COUNT,
+    usernamesConfigured,
+    executionDate,
+    agentsExpectedToday: EXPECTED_DAILY_AGENT_COUNT,
+    agentsAttemptedToday: attemptedToday,
+    agentsCompletedToday: completedToday,
+    agentsFailedToday: failedToday,
+    agentsBlockedToday: blockedToday,
+    agentsMissingToday: missingToday,
+    lastCompletedDailyReviewAt: lastDailyRun?.ended_at ?? lastDailyRun?.started_at ?? null,
+    nextExpectedDailyReviewAt: computeNextCronUtc(APPROVED_DAILY_12_AGENT_CRON, new Date()),
+    errorsFoundToday: executions.reduce((sum, row) => sum + row.errors_found, 0),
+    improvementsSuggestedToday: executions.reduce((sum, row) => sum + row.improvements_found, 0),
+    newFeaturesSuggestedToday: executions.reduce((sum, row) => sum + row.features_found, 0),
+    duplicatesSkippedToday: dailyDraftCounts.duplicates,
+    noFindingsAgentsToday: executions.filter((row) => row.no_findings).length,
+    draftsCreatedToday: dailyDraftCounts.errors + dailyDraftCounts.improvements + dailyDraftCounts.features,
+    allAgentsAccountedFor:
+      missingToday.length === 0 &&
+      attemptedToday === EXPECTED_DAILY_AGENT_COUNT &&
+      usernamesConfigured === EXPECTED_DAILY_AGENT_COUNT,
+    healthWarnings,
+    roster,
+    githubWorkflowUrl: GITHUB_DAILY_12_ACTIONS_URL,
+    latestDailyRunId: lastDailyRun?.run_id ?? null,
+  };
+}
 
 function computeNextCronUtc(cronExpression: string, from = new Date()): string | null {
   const parts = cronExpression.trim().split(/\s+/);
@@ -427,6 +648,8 @@ function buildOwnerStatusPayload(
   proposalCounts: Record<string, number> | null,
   proposalsError: string | null,
   ownerAppliedMemoryCount: number,
+  daily12ReviewStatus: Record<string, unknown> | null = null,
+  dailyStatusError: string | null = null,
 ): Record<string, unknown> {
   const latestMonitoringRuns = rows.map(toRunIndexSummary);
   const latestIssueDrafts = draftRows.map(toIssueDraftSummary);
@@ -437,12 +660,14 @@ function buildOwnerStatusPayload(
     monitoringLevelLabel: "Level 1 (scheduled dry-run)",
     activationLabel: "Scheduled cloud monitoring active",
     activationDetail:
-      "Approved staging dry-run schedules: operational every 6h + weekly improvement Sunday 02:00 UTC.",
+      "Approved staging dry-run schedules: operational every 6h + weekly improvement Sunday 02:00 UTC + daily 12-agent review 01:00 UTC.",
     writeModeLabel: "Dry-run only",
     writeModeDetail: "Issue drafts and improvement proposals only — owner promotion/apply required.",
     targetLabel: "Staging only",
     continuousLabel: "Disabled",
     scheduleStatus: buildScheduleStatus(rows),
+    daily12ReviewStatus,
+    dailyStatusError,
     cloudActive: false,
     continuousActive: false,
     scheduledEnvEnabled: true,
@@ -488,7 +713,7 @@ function buildOwnerStatusPayload(
       liveIssuesCreated: false,
       ownerApprovalRequired: true,
     },
-    configError: indexError ?? draftsError ?? proposalsError,
+    configError: indexError ?? draftsError ?? proposalsError ?? dailyStatusError,
     agentsLoaded: false,
   };
 }
@@ -509,11 +734,14 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
   let proposalCounts: Record<string, number> | null = null;
   let proposalsError: string | null = null;
   let ownerAppliedMemoryCount = 0;
+  let daily12ReviewStatus: Record<string, unknown> | null = null;
+  let dailyStatusError: string | null = null;
 
   if (!client) {
     indexError = "Staging Supabase is not configured for run index reads.";
     draftsError = indexError;
     proposalsError = indexError;
+    dailyStatusError = indexError;
   } else {
     const listed = await listIndexedRuns(client, 10);
     if (listed.ok) {
@@ -563,6 +791,38 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
     } else if (!proposalsError) {
       proposalsError = ownerApplied.error;
     }
+
+    const today = utcDateOnly();
+    const [executionsListed, agentsListed] = await Promise.all([
+      listDailyExecutionsForDate(client, today),
+      listStagingAgents(client),
+    ]);
+
+    let dailyDraftCounts = { errors: 0, improvements: 0, features: 0, duplicates: 0 };
+    if (draftRows.length > 0) {
+      for (const draft of draftRows) {
+        if (draft.source !== "daily_12_agent_review") continue;
+        const kind =
+          typeof draft.evidence?.draftKind === "string" ? draft.evidence.draftKind : "error";
+        if (kind === "improvement") dailyDraftCounts.improvements += 1;
+        else if (kind === "new_feature") dailyDraftCounts.features += 1;
+        else dailyDraftCounts.errors += 1;
+      }
+    }
+
+    if (!executionsListed.ok) {
+      dailyStatusError = executionsListed.error;
+    } else if (!agentsListed.ok) {
+      dailyStatusError = agentsListed.error;
+    } else {
+      daily12ReviewStatus = buildDaily12ReviewStatus(
+        rows,
+        today,
+        executionsListed.data,
+        agentsListed.data,
+        dailyDraftCounts,
+      );
+    }
   }
 
   return jsonResponse({
@@ -579,6 +839,8 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
       proposalCounts,
       proposalsError,
       ownerAppliedMemoryCount,
+      daily12ReviewStatus,
+      dailyStatusError,
     ),
   });
 }

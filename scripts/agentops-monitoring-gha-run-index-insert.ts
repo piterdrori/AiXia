@@ -70,7 +70,11 @@ async function main(): Promise<void> {
 
   const monitoringMode = report.scheduleMeta?.monitoringMode ?? report.config.monitoringMode ?? "operational";
   const mode =
-    monitoringMode === "weekly_improvement" ? "weekly_improvement" : "operational_dry_run";
+    monitoringMode === "weekly_improvement"
+      ? "weekly_improvement"
+      : monitoringMode === "daily_12_agent_review"
+        ? "daily_12_agent_review"
+        : "operational_dry_run";
 
   const record = buildMonitoringRunIndexRecord(report, {
     source: "github_actions",

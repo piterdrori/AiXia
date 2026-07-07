@@ -412,6 +412,47 @@ Any change to cron frequency, target URL, dry-run flag, continuous enablement, o
 
 ---
 
+## 16B. Phase 5H — Daily 12-Agent Review (locked)
+
+**Effective:** 2026-07-07  
+**Workflow:** `.github/workflows/agentops-daily-12-agent-review.yml`  
+**Cron:** `0 1 * * *` (daily 01:00 UTC)  
+**Mode:** `daily_12_agent_review` · staging-only · dry-run · proposals only
+
+### Locked invariants
+
+| Invariant | Requirement |
+|-----------|-------------|
+| Canonical agent count | canonical agent count = 12 |
+| Usernames | Stable `@aixia.<agent-slug>` on every agent |
+| Daily accountability | One execution record per agent per UTC day |
+| Professional perspective | Each agent reviews from assigned job description |
+| Error findings | Reproducible evidence required |
+| Fix behavior | Suggestions only — no auto-fix |
+| No-error path | Agents evaluate improvements and bounded feature opportunities |
+| Forced findings | no forced or fabricated findings — honest `NO_FINDING` allowed |
+| Cross-agent dedupe | One canonical draft; merged reporting agents |
+| Owner promotion | Required for live issues |
+| Owner memory approval | Required before apply |
+| Production | Blocked |
+| Continuous monitoring | Disabled |
+| Vercel functions | Must remain ≤ 12 |
+
+### Phase 5H artifacts
+
+| Artifact | Path |
+|----------|------|
+| Daily review registry | `src/lib/agentops/runtime/canonicalAgentDailyReview.ts` |
+| Daily worker | `src/lib/agentops/runtime/agentOpsDaily12AgentReview.ts` |
+| Per-agent executions | `agentops_monitoring_daily_agent_executions` |
+| GHA workflow | `.github/workflows/agentops-daily-12-agent-review.yml` |
+| Agents hub UI | `src/app/system/agent-ops/agents/AgentDaily12ReviewCard.tsx` |
+| Verify script | `npm run agentops:monitoring-daily-12-agents-verify` |
+
+Schedule or roster changes require **explicit owner approval** and registry update.
+
+---
+
 ## 17. Future phase boundaries
 
 No further monitoring memory automation phases are enabled beyond owner-click apply without new governance.
@@ -421,6 +462,7 @@ No further monitoring memory automation phases are enabled beyond owner-click ap
 ## 18. Verification commands
 
 ```bash
+npm run agentops:monitoring-daily-12-agents-verify
 npm run agentops:monitoring-owner-promotion-lock-verify
 npm run agentops:monitoring-gha-dry-run-verify
 npm run agentops:monitoring-policy-verify
@@ -452,4 +494,5 @@ npx playwright test -c qa-agent/browser-qa/playwright.config.mjs \
 Phase 5D owner promotion lock: 2026-07-06  
 Phase 5E memory proposal queue lock: 2026-07-07  
 Phase 5F owner-click memory application lock: 2026-07-07  
-Phase 5G scheduled staging dry-run monitoring lock: 2026-07-07
+Phase 5G scheduled staging dry-run monitoring lock: 2026-07-07  
+Phase 5H daily 12-agent staging review lock: 2026-07-07

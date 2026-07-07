@@ -13,6 +13,10 @@ import {
   type CanonicalAgent,
 } from "@/lib/agentops/canonicalAgents";
 import {
+  canonicalAgentUsernameToolTag,
+  getCanonicalDailyReviewProfile,
+} from "./runtime/canonicalAgentDailyReview";
+import {
   AGENTOPS_RUNTIME_ENVIRONMENT,
   AGENTOPS_RUNTIME_TABLES,
   type AgentOpsRuntimeAgentLogRow,
@@ -121,13 +125,17 @@ async function fetchDbAgents(client: SupabaseClient): Promise<{
 }
 
 function canonicalInsertPayload(canonical: CanonicalAgent) {
+  const profile = getCanonicalDailyReviewProfile(canonical.id);
+  const usernameTag = profile ? canonicalAgentUsernameToolTag(profile.username) : null;
+  const baseTools = canonical.tools ?? [canonicalAgentToolTag(canonical.id)];
+  const tools = [...new Set([canonicalAgentToolTag(canonical.id), ...(usernameTag ? [usernameTag] : []), ...baseTools])];
   return {
     name: canonical.name,
     role: canonical.role,
     status: "active" as const,
     mode: "scheduled" as const,
     scope: canonical.scope ?? [canonical.role],
-    tools: canonical.tools ?? [canonicalAgentToolTag(canonical.id)],
+    tools,
     environment: AGENTOPS_RUNTIME_ENVIRONMENT,
   };
 }
@@ -186,20 +194,30 @@ async function repairCanonicalAgentDrift(
     if (!canonical) continue;
 
     const expectedCanonicalTool = canonicalAgentToolTag(canonical.id);
+    const profile = getCanonicalDailyReviewProfile(canonical.id);
+    const expectedUsernameTag = profile ? canonicalAgentUsernameToolTag(profile.username) : null;
     const currentTools = row.tools ?? [];
     const hasCanonicalTool = currentTools.includes(expectedCanonicalTool);
+    const hasUsernameTag = expectedUsernameTag ? currentTools.includes(expectedUsernameTag) : true;
     const needsNameFix = row.name.trim() !== canonical.name;
-    const needsToolsFix = !hasCanonicalTool;
+    const needsToolsFix = !hasCanonicalTool || !hasUsernameTag;
 
     if (!needsNameFix && !needsToolsFix) continue;
 
     const preservedTools = currentTools.filter(
       (tool) =>
         !tool.startsWith("canonical:") &&
+        !tool.startsWith("username:") &&
         tool !== "playwright" &&
         tool.trim().length > 0,
     );
-    const nextTools = [...new Set([expectedCanonicalTool, ...preservedTools])];
+    const nextTools = [
+      ...new Set([
+        expectedCanonicalTool,
+        ...(expectedUsernameTag ? [expectedUsernameTag] : []),
+        ...preservedTools,
+      ]),
+    ];
 
     const updatePayload: {
       name?: string;

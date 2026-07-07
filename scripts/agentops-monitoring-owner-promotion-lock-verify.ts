@@ -48,6 +48,11 @@ function verifyRegistryLock(): void {
     "Scheduled Monitoring",
     "0 */6 * * *",
     "0 2 * * 0",
+    "Phase 5H",
+    "Daily 12-Agent Review",
+    "0 1 * * *",
+    "canonical agent count = 12",
+    "no forced or fabricated findings",
     "ACDL_SYSTEM_LOCK_v2.1",
     "AGENTOPS_MONITORING_RUNTIME_CONTRACT",
   ];

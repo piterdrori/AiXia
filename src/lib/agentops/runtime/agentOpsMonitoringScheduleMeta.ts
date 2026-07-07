@@ -6,9 +6,15 @@ export const APPROVED_OPERATIONAL_CRON = "0 */6 * * *";
 export const APPROVED_WEEKLY_IMPROVEMENT_CRON = "0 2 * * 0";
 export const APPROVED_STAGING_MONITORING_URL = "https://ai-xia-staging.vercel.app";
 
-export type MonitoringScheduleType = "operational_6h" | "weekly_improvement" | "manual";
+export type MonitoringScheduleType =
+  | "operational_6h"
+  | "weekly_improvement"
+  | "daily_12_agent_review"
+  | "manual";
 export type MonitoringTriggerType = "schedule" | "workflow_dispatch";
-export type MonitoringMode = "operational" | "weekly_improvement";
+export type MonitoringMode = "operational" | "weekly_improvement" | "daily_12_agent_review";
+
+export const APPROVED_DAILY_12_AGENT_CRON = "0 1 * * *";
 
 export type MonitoringScheduleMeta = {
   scheduleType: MonitoringScheduleType;
@@ -32,6 +38,9 @@ export type MonitoringPipelineCounts = {
 
 export function normalizeMonitoringMode(raw: string | undefined | null): MonitoringMode {
   const value = raw?.trim().toLowerCase();
+  if (value === "daily_12_agent_review" || value === "daily" || value === "daily_12") {
+    return "daily_12_agent_review";
+  }
   if (value === "weekly_improvement" || value === "weekly" || value === "improvement") {
     return "weekly_improvement";
   }
@@ -48,6 +57,9 @@ export function resolveScheduleType(
   }
   if (cronExpression === APPROVED_WEEKLY_IMPROVEMENT_CRON) {
     return "weekly_improvement";
+  }
+  if (cronExpression === APPROVED_DAILY_12_AGENT_CRON) {
+    return "daily_12_agent_review";
   }
   if (cronExpression === APPROVED_OPERATIONAL_CRON) {
     return "operational_6h";

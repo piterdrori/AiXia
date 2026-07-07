@@ -156,7 +156,11 @@ export function buildMonitoringRunIndexRecord(
   const monitoringMode = report.scheduleMeta?.monitoringMode ?? report.config.monitoringMode ?? "operational";
   const mode =
     context.mode ??
-    (monitoringMode === "weekly_improvement" ? "weekly_improvement" : "operational_dry_run");
+    (monitoringMode === "weekly_improvement"
+      ? "weekly_improvement"
+      : monitoringMode === "daily_12_agent_review"
+        ? "daily_12_agent_review"
+        : "operational_dry_run");
   return {
     run_id: report.runId,
     source: context.source ?? "github_actions",

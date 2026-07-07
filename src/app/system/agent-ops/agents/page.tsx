@@ -29,6 +29,7 @@ import {
 } from "@/lib/agentops";
 import { AgentOpsFocusOperatorSurface } from "@/app/system/agent-ops/operators/AgentOpsFocusOperatorSurface";
 import { AgentScheduledMonitoringCard } from "@/app/system/agent-ops/agents/AgentScheduledMonitoringCard";
+import { AgentDaily12ReviewCard } from "@/app/system/agent-ops/agents/AgentDaily12ReviewCard";
 
 type AgentFilter = "all" | "needs_attention" | "active" | "quiet" | "blocked" | "needs_memory";
 
@@ -397,6 +398,8 @@ export default function AgentOpsAgentsPage() {
         </AixiaSection>
 
         <AgentScheduledMonitoringCard />
+
+        <AgentDaily12ReviewCard />
 
         <AixiaAsyncState
           loading={loading}

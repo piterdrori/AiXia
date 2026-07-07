@@ -1,0 +1,99 @@
+# Phase 5H — daily 12-agent staging website review (dry-run / proposals only).
+# Runs all 12 canonical agents once per UTC day at 01:00.
+# Does NOT create live issues, apply memory, auto-fix, or deploy.
+
+name: AgentOps Daily 12-Agent Review
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent_scope:
+        description: "all or one agent slug"
+        required: false
+        default: "all"
+      force_retry:
+        description: "Retry completed agents"
+        required: false
+        default: "false"
+  schedule:
+    - cron: "0 1 * * *"
+
+concurrency:
+  group: agentops-staging-daily-12-agent-review
+  cancel-in-progress: false
+
+jobs:
+  daily-12-agent-review:
+    name: Daily 12-agent review (staging)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      AGENTOPS_ENVIRONMENT: staging
+      AGENTOPS_PRODUCTION_BLOCKED: "true"
+      AGENTOPS_ALLOW_NON_STAGING: "false"
+      AGENTOPS_STAGING_SUPABASE_PROJECT_REF: ydppcpbxrvvardeslzrk
+      AGENTOPS_MONITORING_MODE: daily_12_agent_review
+      AGENTOPS_MONITORING_SCHEDULED: "true"
+      AGENTOPS_MONITORING_SCHEDULED_ENABLED: "true"
+      AGENTOPS_MONITORING_CONTINUOUS: "false"
+      AGENTOPS_MONITORING_CONTINUOUS_ENABLED: "false"
+      AGENTOPS_MONITORING_DRY_RUN: "true"
+      AGENTOPS_MONITORING_LEVEL: "1"
+      AGENTOPS_MONITORING_TARGET_BASE_URL: ${{ secrets.AGENTOPS_QA_BASE_URL }}
+      AGENTOPS_QA_BASE_URL: ${{ secrets.AGENTOPS_QA_BASE_URL }}
+      AGENTOPS_MONITORING_TRIGGER_TYPE: ${{ github.event_name == 'schedule' && 'schedule' || 'workflow_dispatch' }}
+      AGENTOPS_MONITORING_CRON_EXPRESSION: "0 1 * * *"
+      AGENTOPS_DAILY_AGENT_SCOPE: ${{ inputs.agent_scope || 'all' }}
+      AGENTOPS_DAILY_FORCE_RETRY: ${{ inputs.force_retry || 'false' }}
+      VITE_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+      AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING: "true"
+    steps:
+      - name: Checkout staging repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium --with-deps
+
+      - name: Verify staging secrets and target URL
+        run: node scripts/agentops-monitoring-gha-preflight.mjs
+
+      - name: Run daily 12-agent review
+        run: npm run agentops:monitoring:daily-12-agent:gha
+
+      - name: Write daily review GHA summary
+        if: always()
+        run: node scripts/agentops-monitoring-daily-12-gha-summary.mjs
+
+      - name: Insert monitoring run index (staging Supabase)
+        if: always()
+        run: npx tsx scripts/agentops-monitoring-gha-run-index-insert.ts
+
+      - name: Insert monitoring issue drafts (staging Supabase)
+        if: always()
+        run: npx tsx scripts/agentops-monitoring-gha-issue-drafts-insert.ts
+
+      - name: Upload daily 12-agent review artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentops-daily-12-agent-review-${{ github.run_id }}
+          retention-days: 14
+          path: |
+            qa-agent/reports/runtime/agentops-daily-12-agent-review-*.json
+            qa-agent/reports/runtime/monitoring-scheduled-dry-run-*.json
+            qa-agent/reports/runtime/phase5h-daily-12-agent-review-summary.md
+            qa-agent/reports/browser-qa/**
+            qa-agent/artifacts/**
+            test-results/**
+          if-no-files-found: warn

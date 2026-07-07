@@ -95,7 +95,9 @@ test("Phase 5F staging — approve monitoring memory proposal, apply to memory, 
   const applyButton = page.getByRole("button", { name: "Apply to Memory" }).first();
   if (await applyButton.isVisible().catch(() => false)) {
     await applyButton.click();
-    await expect(page.getByText("Confirm apply to memory")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("button", { name: "Confirm Apply to Memory" })).toBeVisible({
+      timeout: 10000,
+    });
     report.applyConfirmed = true;
     await page.getByRole("button", { name: "Confirm Apply to Memory" }).click();
     await expect(page.getByText("Applied to active memory")).toBeVisible({ timeout: 30000 });

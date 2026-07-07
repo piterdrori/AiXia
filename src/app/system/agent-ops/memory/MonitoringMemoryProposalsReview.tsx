@@ -201,12 +201,12 @@ export function MonitoringMemoryProposalsReview() {
 
               {row.status === "applied" && row.appliedMemoryId ? (
                 <AixiaInfoBlock title="Applied to active memory" tone="cyan">
-                  Memory id: {row.appliedMemoryId}. View in{" "}
+                  Memory id: {row.appliedMemoryId}.{" "}
                   <Link
-                    to="/system/agent-ops/memory"
+                    to={`/system/agent-ops/runtime/memory?memoryId=${row.appliedMemoryId}`}
                     className="underline text-cyan-300/90 hover:text-cyan-200"
                   >
-                    Memory observatory
+                    View active memory
                   </Link>
                   .
                 </AixiaInfoBlock>

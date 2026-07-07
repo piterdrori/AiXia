@@ -111,3 +111,75 @@ export function formatJsonPreview(value: unknown, maxLength = 240): string {
   if (text.length <= maxLength) return text;
   return `${text.slice(0, maxLength)}…`;
 }
+
+export const MONITORING_MEMORY_CONTENT_SOURCE = "monitoring_memory_proposal";
+
+export type MonitoringMemoryContentFields = {
+  contentSource: string | null;
+  title: string | null;
+  text: string | null;
+  sourceProposalId: string | null;
+  sourceRunId: string | null;
+  duplicateKey: string | null;
+  agentSlug: string | null;
+  appliedAt: string | null;
+};
+
+export function readMonitoringMemoryContentFields(
+  row: AgentOpsRuntimeMemoryRow,
+): MonitoringMemoryContentFields {
+  const content = parseMemoryContent(row);
+  if (!content) {
+    return {
+      contentSource: null,
+      title: null,
+      text: null,
+      sourceProposalId: null,
+      sourceRunId: null,
+      duplicateKey: null,
+      agentSlug: null,
+      appliedAt: null,
+    };
+  }
+
+  return {
+    contentSource: typeof content.source === "string" ? content.source : null,
+    title: typeof content.title === "string" ? content.title : null,
+    text: typeof content.text === "string" ? content.text : null,
+    sourceProposalId:
+      typeof content.source_proposal_id === "string" ? content.source_proposal_id : null,
+    sourceRunId: typeof content.source_run_id === "string" ? content.source_run_id : null,
+    duplicateKey: typeof content.duplicate_key === "string" ? content.duplicate_key : null,
+    agentSlug: typeof content.agent_slug === "string" ? content.agent_slug : null,
+    appliedAt: typeof content.applied_at === "string" ? content.applied_at : null,
+  };
+}
+
+export function isMonitoringMemoryProposalRow(row: AgentOpsRuntimeMemoryRow): boolean {
+  return readMonitoringMemoryContentFields(row).contentSource === MONITORING_MEMORY_CONTENT_SOURCE;
+}
+
+export function memoryRowMatchesSearch(row: AgentOpsRuntimeMemoryRow, query: string): boolean {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return true;
+
+  if (row.id.toLowerCase().includes(normalized)) return true;
+  if (row.agent_id?.toLowerCase().includes(normalized)) return true;
+
+  const fields = readMonitoringMemoryContentFields(row);
+  const haystack = [
+    fields.title,
+    fields.text,
+    fields.sourceProposalId,
+    fields.sourceRunId,
+    fields.duplicateKey,
+    fields.agentSlug,
+    row.source,
+    row.scope,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(normalized);
+}

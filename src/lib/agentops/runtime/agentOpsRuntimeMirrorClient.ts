@@ -194,6 +194,142 @@ export async function fetchRuntimeMemory(
 
 
 
+export async function fetchRuntimeMemoryById(
+
+  memoryId: string,
+
+): Promise<AgentOpsRuntimeMirrorResult<AgentOpsRuntimeMemoryRow | null>> {
+
+  const trimmed = memoryId.trim();
+
+  if (!trimmed) return { data: null, error: "Memory id is required." };
+
+  const { data, error } = await supabase
+
+    .from(AGENTOPS_RUNTIME_TABLES.memory)
+
+    .select("*")
+
+    .eq("id", trimmed)
+
+    .eq("environment", AGENTOPS_RUNTIME_ENVIRONMENT)
+
+    .maybeSingle();
+
+
+
+  if (error) return { data: null, error: toError(error) };
+
+  return { data: (data as AgentOpsRuntimeMemoryRow | null) ?? null, error: null };
+
+}
+
+
+
+export async function fetchRuntimeMonitoringMemory(
+
+  limit = 200,
+
+): Promise<AgentOpsRuntimeMirrorResult<AgentOpsRuntimeMemoryRow[]>> {
+
+  const { data, error } = await supabase
+
+    .from(AGENTOPS_RUNTIME_TABLES.memory)
+
+    .select("*")
+
+    .eq("environment", AGENTOPS_RUNTIME_ENVIRONMENT)
+
+    .eq("content->>source", "monitoring_memory_proposal")
+
+    .order("created_at", { ascending: false })
+
+    .limit(limit);
+
+
+
+  if (error) return { data: [], error: toError(error) };
+
+  return { data: (data ?? []) as AgentOpsRuntimeMemoryRow[], error: null };
+
+}
+
+
+
+export async function lookupRuntimeMemoryDirect(
+
+  query: string,
+
+): Promise<AgentOpsRuntimeMirrorResult<AgentOpsRuntimeMemoryRow | null>> {
+
+  const trimmed = query.trim();
+
+  if (!trimmed) return { data: null, error: null };
+
+  const uuidPattern =
+
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if (uuidPattern.test(trimmed)) {
+
+    return fetchRuntimeMemoryById(trimmed);
+
+  }
+
+  const { data: byProposal, error: byProposalError } = await supabase
+
+    .from(AGENTOPS_RUNTIME_TABLES.memory)
+
+    .select("*")
+
+    .eq("environment", AGENTOPS_RUNTIME_ENVIRONMENT)
+
+    .eq("content->>source_proposal_id", trimmed)
+
+    .maybeSingle();
+
+
+
+  if (!byProposalError && byProposal) {
+
+    return { data: byProposal as AgentOpsRuntimeMemoryRow, error: null };
+
+  }
+
+
+
+  const { data: byDuplicate, error: byDuplicateError } = await supabase
+
+    .from(AGENTOPS_RUNTIME_TABLES.memory)
+
+    .select("*")
+
+    .eq("environment", AGENTOPS_RUNTIME_ENVIRONMENT)
+
+    .eq("content->>duplicate_key", trimmed)
+
+    .maybeSingle();
+
+
+
+  if (!byDuplicateError && byDuplicate) {
+
+    return { data: byDuplicate as AgentOpsRuntimeMemoryRow, error: null };
+
+  }
+
+
+
+  if (byProposalError) return { data: null, error: toError(byProposalError) };
+
+  if (byDuplicateError) return { data: null, error: toError(byDuplicateError) };
+
+  return { data: null, error: null };
+
+}
+
+
+
 export async function fetchRuntimeSystemMemory(
 
   limit = 50,

@@ -507,10 +507,18 @@ export async function runDaily12AgentReview(options: {
     },
   );
   if (!persistenceBatch.ok) {
-    for (const error of persistenceBatch.errors) {
-      registryErrors.push(error);
+    const failedRetryPreserved =
+      persistenceBatch.metrics.executionRowsSkipped === pendingExecutions.length &&
+      persistenceBatch.metrics.executionRowsFailed === 0 &&
+      failedAgents > 0 &&
+      completedAgents === 0;
+
+    if (!failedRetryPreserved) {
+      for (const error of persistenceBatch.errors) {
+        registryErrors.push(error);
+      }
+      registryErrors.push("Daily execution persistence incomplete — DB rows not authoritative.");
     }
-    registryErrors.push("Daily execution persistence incomplete — DB rows not authoritative.");
   }
 
   let runIndexPersisted = false;

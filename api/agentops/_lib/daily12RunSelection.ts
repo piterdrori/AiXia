@@ -14,6 +14,11 @@ export type Daily12ExecutionRow = {
   evidence_summary: Record<string, unknown> | null;
   completed_at: string | null;
   started_at: string | null;
+  username?: string;
+  job_title?: string | null;
+  no_findings?: boolean;
+  routes_reviewed?: string[];
+  failure_reason?: string | null;
 };
 
 export type Daily12MonitoringRunRow = {

@@ -5,13 +5,34 @@
  */
 
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..");
 const workerCli = join(repoRoot, "src/lib/agentops/runtime/agentOpsDaily12AgentReview.cli.ts");
+
+function loadEnvFile(relativePath) {
+  const fullPath = join(repoRoot, relativePath);
+  if (!existsSync(fullPath)) return {};
+  const loaded = {};
+  for (const line of readFileSync(fullPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq <= 0) continue;
+    const key = trimmed.slice(0, eq);
+    const value = trimmed.slice(eq + 1);
+    loaded[key] = value;
+  }
+  return loaded;
+}
+
+const localEnv = {
+  ...loadEnvFile(".env"),
+  ...loadEnvFile(".env.local"),
+};
 
 const presetName = process.argv[2] ?? "gha";
 const agentScope = process.env.AGENTOPS_DAILY_AGENT_SCOPE?.trim() ?? "all";
@@ -21,6 +42,7 @@ const PRESETS = {
   gha: {
     env: {
       AGENTOPS_ENVIRONMENT: "staging",
+      AGENTOPS_STAGING_SUPABASE_PROJECT_REF: "ydppcpbxrvvardeslzrk",
       AGENTOPS_MONITORING_MODE: "daily_12_agent_review",
       AGENTOPS_MONITORING_SCHEDULED: "true",
       AGENTOPS_MONITORING_SCHEDULED_ENABLED: "true",
@@ -37,6 +59,7 @@ const PRESETS = {
   local: {
     env: {
       AGENTOPS_ENVIRONMENT: "staging",
+      AGENTOPS_STAGING_SUPABASE_PROJECT_REF: "ydppcpbxrvvardeslzrk",
       AGENTOPS_MONITORING_MODE: "daily_12_agent_review",
       AGENTOPS_MONITORING_DRY_RUN: "true",
       AGENTOPS_MONITORING_TARGET_BASE_URL: "http://127.0.0.1:5173",
@@ -58,7 +81,7 @@ if (!existsSync(workerCli)) {
   process.exit(1);
 }
 
-const mergedEnv = { ...process.env, ...preset.env };
+const mergedEnv = { ...process.env, ...localEnv, ...preset.env };
 
 if (presetName === "gha") {
   const target =

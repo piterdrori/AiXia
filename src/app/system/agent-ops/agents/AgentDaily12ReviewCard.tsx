@@ -117,6 +117,7 @@ export function AgentDaily12ReviewCard() {
   return (
     <AixiaSection
       title="Daily 12-Agent Review"
+      titleHeadingLevel="h2"
       description="Each canonical agent reviews staging once per UTC day from its professional perspective. Evidence and proposals only — owner gates preserved."
       icon={Users}
     >

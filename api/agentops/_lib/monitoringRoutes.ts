@@ -7,6 +7,12 @@
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import {
+  buildExecutionMapForSelectedRun,
+  selectLatestCompletedDaily12Run,
+  type Daily12DraftRunHint,
+  utcDateFromIso,
+} from "./daily12RunSelection.js";
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 import { applyMonitoringMemoryProposalViaApi } from "./monitoringMemoryApplication.js";
 import { jsonResponse } from "./ollamaProxy.js";
@@ -250,9 +256,41 @@ async function listDailyExecutionsForDate(client: SupabaseClient, executionDate:
       "id, run_id, execution_date, agent_id, agent_slug, username, job_title, perspective, status, routes_reviewed, errors_found, improvements_found, features_found, drafts_created, duplicates_skipped, no_findings, evidence_summary, failure_reason, started_at, completed_at",
     )
     .eq("execution_date", executionDate)
+    .order("completed_at", { ascending: false, nullsFirst: false })
     .order("agent_slug", { ascending: true });
   if (error) return { ok: false as const, error: error.message };
   return { ok: true as const, data: (data ?? []) as DailyExecutionRow[] };
+}
+
+async function listDailyExecutionsForRunId(client: SupabaseClient, runId: string) {
+  const { data, error } = await client
+    .from(DAILY_EXECUTIONS_TABLE)
+    .select(
+      "id, run_id, execution_date, agent_id, agent_slug, username, job_title, perspective, status, routes_reviewed, errors_found, improvements_found, features_found, drafts_created, duplicates_skipped, no_findings, evidence_summary, failure_reason, started_at, completed_at",
+    )
+    .eq("run_id", runId)
+    .order("agent_slug", { ascending: true });
+  if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const, data: (data ?? []) as DailyExecutionRow[] };
+}
+
+function buildDaily12DraftRunHints(
+  draftRows: IssueDraftRow[],
+  executionDate: string,
+): Daily12DraftRunHint[] {
+  const hints = new Map<string, string>();
+  for (const draft of draftRows) {
+    if (draft.source !== "daily_12_agent_review") continue;
+    if (utcDateFromIso(draft.created_at) !== executionDate) continue;
+    const existing = hints.get(draft.run_id);
+    if (!existing || draft.created_at > existing) {
+      hints.set(draft.run_id, draft.created_at);
+    }
+  }
+  return [...hints.entries()].map(([run_id, latest_created_at]) => ({
+    run_id,
+    latest_created_at,
+  }));
 }
 
 async function listStagingAgents(client: SupabaseClient) {
@@ -271,8 +309,20 @@ function buildDaily12ReviewStatus(
   executions: DailyExecutionRow[],
   agents: AgentRow[],
   dailyDraftCounts: { errors: number; improvements: number; features: number; duplicates: number },
+  draftRunHints: Daily12DraftRunHint[] = [],
+  draftRows: IssueDraftRow[] = [],
 ) {
-  const executionBySlug = new Map(executions.map((row) => [row.agent_slug, row]));
+  const selectedRun = selectLatestCompletedDaily12Run({
+    executionDate,
+    executions,
+    monitoringRuns: rows,
+    draftRunHints,
+    expectedAgentCount: EXPECTED_DAILY_AGENT_COUNT,
+  });
+  const executionBySlug = buildExecutionMapForSelectedRun(
+    executions,
+    selectedRun?.runId ?? null,
+  );
   const agentBySlug = new Map<string, AgentRow>();
   for (const agent of agents) {
     const slug = parseCanonicalSlugFromTools(agent.tools);
@@ -308,17 +358,11 @@ function buildDaily12ReviewStatus(
     };
   });
 
-  const dailyRuns = rows.filter(
-    (row) =>
-      row.mode === "daily_12_agent_review" ||
-      row.summary?.scheduleType === "daily_12_agent_review" ||
-      row.summary?.monitoringMode === "daily_12_agent_review",
-  );
-  const lastDailyRun = dailyRuns[0] ?? null;
-  const attemptedToday = executions.length;
-  const completedToday = executions.filter((row) => row.status === "completed").length;
-  const failedToday = executions.filter((row) => row.status === "failed").length;
-  const blockedToday = executions.filter((row) => row.status === "blocked").length;
+  const attemptedToday = executionBySlug.size;
+  const completedToday = [...executionBySlug.values()].filter((row) => row.status === "completed")
+    .length;
+  const failedToday = [...executionBySlug.values()].filter((row) => row.status === "failed").length;
+  const blockedToday = [...executionBySlug.values()].filter((row) => row.status === "blocked").length;
   const missingToday = CANONICAL_DAILY_AGENT_SLUGS.filter((slug) => !executionBySlug.has(slug));
   const usernamesConfigured = roster.filter((row) => row.username.startsWith("@aixia.")).length;
 
@@ -345,25 +389,33 @@ function buildDaily12ReviewStatus(
     healthWarnings.push(`${failedToday} agent run(s) failed today.`);
   }
 
-  const latestExecutionRunId = executions[0]?.run_id ?? null;
-  const lastExecutionCompletedAt = executions.reduce<string | null>((latest, row) => {
-    if (!row.completed_at) return latest;
-    if (!latest) return row.completed_at;
-    return row.completed_at > latest ? row.completed_at : latest;
-  }, null);
-  const runQueueMeta =
-    (executions[0]?.evidence_summary?.runQueueMeta as Record<string, unknown> | undefined) ?? null;
+  const rosterExecutions = selectedRun?.executionsForRun.length
+    ? selectedRun.executionsForRun
+    : [...executionBySlug.values()];
+  const lastExecutionCompletedAt =
+    selectedRun?.completedAt ??
+    rosterExecutions.reduce<string | null>((latest, row) => {
+      if (!row.completed_at) return latest;
+      if (!latest) return row.completed_at;
+      return row.completed_at > latest ? row.completed_at : latest;
+    }, null);
+  const runQueueMeta = selectedRun?.runQueueMeta ?? null;
   const candidatesDetectedToday =
     typeof runQueueMeta?.candidatesDetected === "number"
       ? runQueueMeta.candidatesDetected
-      : executions.reduce(
+      : rosterExecutions.reduce(
           (sum, row) => sum + row.errors_found + row.improvements_found + row.features_found,
           0,
         );
   const draftsQueuedToday =
     typeof runQueueMeta?.candidatesQueued === "number"
       ? runQueueMeta.candidatesQueued
-      : dailyDraftCounts.errors + dailyDraftCounts.improvements + dailyDraftCounts.features;
+      : selectedRun?.runId
+        ? draftRows.filter(
+            (draft) =>
+              draft.source === "daily_12_agent_review" && draft.run_id === selectedRun.runId,
+          ).length
+        : dailyDraftCounts.errors + dailyDraftCounts.improvements + dailyDraftCounts.features;
   const candidatesNotQueuedToday =
     typeof runQueueMeta?.candidatesNotQueued === "number" ? runQueueMeta.candidatesNotQueued : 0;
   const duplicatesConsolidatedToday =
@@ -383,18 +435,17 @@ function buildDaily12ReviewStatus(
     agentsFailedToday: failedToday,
     agentsBlockedToday: blockedToday,
     agentsMissingToday: missingToday,
-    lastCompletedDailyReviewAt:
-      lastExecutionCompletedAt ?? lastDailyRun?.ended_at ?? lastDailyRun?.started_at ?? null,
+    lastCompletedDailyReviewAt: lastExecutionCompletedAt,
     nextExpectedDailyReviewAt: computeNextCronUtc(APPROVED_DAILY_12_AGENT_CRON, new Date()),
-    errorsFoundToday: executions.reduce((sum, row) => sum + row.errors_found, 0),
-    improvementsSuggestedToday: executions.reduce((sum, row) => sum + row.improvements_found, 0),
-    newFeaturesSuggestedToday: executions.reduce((sum, row) => sum + row.features_found, 0),
+    errorsFoundToday: rosterExecutions.reduce((sum, row) => sum + row.errors_found, 0),
+    improvementsSuggestedToday: rosterExecutions.reduce((sum, row) => sum + row.improvements_found, 0),
+    newFeaturesSuggestedToday: rosterExecutions.reduce((sum, row) => sum + row.features_found, 0),
     candidatesDetectedToday,
     draftsQueuedToday,
     candidatesNotQueuedToday,
     duplicatesConsolidatedToday,
     duplicatesSkippedToday: dailyDraftCounts.duplicates,
-    noFindingsAgentsToday: executions.filter((row) => row.no_findings).length,
+    noFindingsAgentsToday: rosterExecutions.filter((row) => row.no_findings).length,
     draftsCreatedToday: draftsQueuedToday,
     allAgentsAccountedFor:
       missingToday.length === 0 &&
@@ -403,7 +454,7 @@ function buildDaily12ReviewStatus(
     healthWarnings,
     roster,
     githubWorkflowUrl: GITHUB_DAILY_12_ACTIONS_URL,
-    latestDailyRunId: latestExecutionRunId ?? lastDailyRun?.run_id ?? null,
+    latestDailyRunId: selectedRun?.runId ?? null,
   };
 }
 
@@ -774,14 +825,14 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
     proposalsError = indexError;
     dailyStatusError = indexError;
   } else {
-    const listed = await listIndexedRuns(client, 10);
+    const listed = await listIndexedRuns(client, 25);
     if (listed.ok) {
       rows = listed.data;
     } else {
       indexError = listed.error;
     }
 
-    const draftsListed = await listIssueDrafts(client, 10);
+    const draftsListed = await listIssueDrafts(client, 50);
     if (draftsListed.ok) {
       draftRows = draftsListed.data;
     } else {
@@ -846,12 +897,35 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
     } else if (!agentsListed.ok) {
       dailyStatusError = agentsListed.error;
     } else {
+      let executionRows = executionsListed.data;
+      const draftRunHints = buildDaily12DraftRunHints(draftRows, today);
+      const preliminarySelected = selectLatestCompletedDaily12Run({
+        executionDate: today,
+        executions: executionRows,
+        monitoringRuns: rows,
+        draftRunHints,
+        expectedAgentCount: EXPECTED_DAILY_AGENT_COUNT,
+      });
+
+      if (
+        preliminarySelected?.runId &&
+        !preliminarySelected.runQueueMeta &&
+        preliminarySelected.executionsForRun.length === 0
+      ) {
+        const byRunId = await listDailyExecutionsForRunId(client, preliminarySelected.runId);
+        if (byRunId.ok && byRunId.data.length > 0) {
+          executionRows = [...executionRows, ...byRunId.data];
+        }
+      }
+
       daily12ReviewStatus = buildDaily12ReviewStatus(
         rows,
         today,
-        executionsListed.data,
+        executionRows,
         agentsListed.data,
         dailyDraftCounts,
+        draftRunHints,
+        draftRows,
       );
     }
   }

@@ -19,6 +19,8 @@ type AixiaSectionProps = {
   itemCount?: number;
   forceSmartScroll?: boolean;
   surface?: AixiaCommandSurface;
+  /** When set, renders the title with a semantic heading element for accessibility. */
+  titleHeadingLevel?: "h2" | "h3";
 };
 
 export function AixiaSection({
@@ -37,7 +39,9 @@ export function AixiaSection({
   itemCount,
   forceSmartScroll = false,
   surface = "default",
+  titleHeadingLevel,
 }: AixiaSectionProps) {
+  const TitleTag = titleHeadingLevel ?? null;
   const shouldUseSmartScroll =
     smartScroll &&
     (forceSmartScroll ||
@@ -110,7 +114,11 @@ export function AixiaSection({
 
             <div className="aixia-section-title-content">
               <div className="aixia-section-title-row">
-                <div className="aixia-label">{title}</div>
+                {TitleTag ? (
+                  <TitleTag className="aixia-label">{title}</TitleTag>
+                ) : (
+                  <div className="aixia-label">{title}</div>
+                )}
                 {badge ? <div className="aixia-section-badge">{badge}</div> : null}
               </div>
 

@@ -170,6 +170,22 @@ function verifyUiSurfaces(): void {
   }
 }
 
+function verifyRunSelection(): void {
+  mustExist("api/agentops/_lib/daily12RunSelection.ts");
+  mustExist("scripts/agentops-daily-12-run-selection-verify.ts");
+  const routes = mustExist("api/agentops/_lib/monitoringRoutes.ts");
+  if (routes && !routes.includes("selectLatestCompletedDaily12Run")) {
+    fail("Monitoring status must use selectLatestCompletedDaily12Run");
+  }
+  if (routes && !routes.includes("buildExecutionMapForSelectedRun")) {
+    fail("Monitoring status must build roster from selected run aggregate");
+  }
+  const card = mustExist("src/app/system/agent-ops/agents/AgentDaily12ReviewCard.tsx");
+  if (card && !card.includes("titleHeadingLevel")) {
+    fail("Daily 12 card must expose semantic heading via titleHeadingLevel");
+  }
+}
+
 function verifyRegistryLock(): void {
   const lock = mustExist("registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md");
   if (!lock) return;
@@ -192,6 +208,7 @@ function main(): void {
   verifyMigration();
   verifyPackageScript();
   verifyUiSurfaces();
+  verifyRunSelection();
   verifyRegistryLock();
 
   if (failures.length > 0) {

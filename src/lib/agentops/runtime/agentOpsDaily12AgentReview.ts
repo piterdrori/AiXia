@@ -22,6 +22,7 @@ import {
 import { loadAgentOpsMonitoringRuntimeConfig } from "./agentOpsMonitoringRuntimeConfig";
 import {
   insertDailyAgentExecution,
+  updateDailyAgentExecutionQueueStats,
   utcExecutionDate,
   type DailyAgentExecutionInsert,
 } from "./agentOpsDailyAgentExecutions";
@@ -31,6 +32,12 @@ import {
   dailyFindingToIssueDraftCandidate,
   type DailyReviewFinding,
 } from "./agentOpsDailyReviewFindingPolicy";
+import {
+  applyDailyDraftQueueCaps,
+  buildDailyQueueInputs,
+  type CandidateNotQueued,
+  type DailyQueueRunSummary,
+} from "./agentOpsDailyReviewQueuePolicy";
 import {
   canonicalAgentUsernameToolTag,
   parseUsernameFromTools,
@@ -301,7 +308,7 @@ export async function runDaily12AgentReview(options: {
 
   const missingAgents: string[] = [];
   const perAgentResults: Array<Record<string, unknown>> = [];
-  const allDraftCandidates: ReturnType<typeof dailyFindingToIssueDraftCandidate>[] = [];
+  const perAgentFindings: Array<{ agentSlug: string; findings: DailyReviewFinding[] }> = [];
   let attemptedAgents = 0;
   let completedAgents = 0;
   let failedAgents = 0;
@@ -347,7 +354,7 @@ export async function runDaily12AgentReview(options: {
     if (single.execution.status === "failed") failedAgents += 1;
     if (single.execution.status === "blocked") blockedAgents += 1;
 
-    allDraftCandidates.push(...single.draftCandidates);
+    perAgentFindings.push({ agentSlug: profile.agentSlug, findings: single.findings });
     perAgentResults.push({
       agentSlug: profile.agentSlug,
       username: profile.username,
@@ -410,9 +417,15 @@ export async function runDaily12AgentReview(options: {
     },
   });
 
-  const draftCandidates = allDraftCandidates.filter(
-    (candidate): candidate is NonNullable<typeof candidate> => candidate !== null,
-  );
+  const queueInputs = buildDailyQueueInputs(perAgentFindings);
+  const queueResult = applyDailyDraftQueueCaps(queueInputs);
+  const draftCandidates = queueResult.queued;
+
+  const perAgentQueued = new Map<string, number>();
+  for (const candidate of draftCandidates) {
+    perAgentQueued.set(candidate.agentSlug, (perAgentQueued.get(candidate.agentSlug) ?? 0) + 1);
+  }
+
   const draftInsert = await insertMonitoringIssueDrafts(
     bootstrap.client,
     report,
@@ -422,6 +435,32 @@ export async function runDaily12AgentReview(options: {
       source: "daily_12_agent_review",
     },
   );
+
+  const perAgentStats = new Map<string, { draftsCreated: number; duplicatesSkipped: number }>();
+  for (const profile of profiles) {
+    perAgentStats.set(profile.agentSlug, {
+      draftsCreated: perAgentQueued.get(profile.agentSlug) ?? 0,
+      duplicatesSkipped: 0,
+    });
+  }
+
+  const runQueueMeta = {
+    ...queueResult.summary,
+    candidateNotQueued: queueResult.notQueued,
+    dbDuplicatesSkipped: draftInsert.skippedDuplicate,
+    duplicatesConsolidated:
+      queueResult.summary.duplicatesConsolidated + draftInsert.skippedDuplicate,
+  };
+
+  const queueStatsUpdate = await updateDailyAgentExecutionQueueStats(
+    bootstrap.client,
+    runId,
+    perAgentStats,
+    runQueueMeta,
+  );
+  if (!queueStatsUpdate.ok) {
+    registryErrors.push(`Queue stats update failed: ${queueStatsUpdate.error}`);
+  }
 
   const coverage: Daily12AgentCoverage = {
     expectedAgents: 12,
@@ -438,7 +477,15 @@ export async function runDaily12AgentReview(options: {
       registryErrors.length === 0,
   };
 
-  const dailyReportPath = await writeDailyArtifacts(report, perAgentResults, registryErrors, coverage, draftInsert);
+  const dailyReportPath = await writeDailyArtifacts(
+    report,
+    perAgentResults,
+    registryErrors,
+    coverage,
+    draftInsert,
+    queueResult.summary,
+    queueResult.notQueued,
+  );
 
   const exitCode =
     registryErrors.length > 0 || missingAgents.length > 0
@@ -470,6 +517,8 @@ async function writeDailyArtifacts(
   registryErrors: string[],
   coverage?: Daily12AgentCoverage,
   draftInsert?: { created: number; skippedDuplicate: number; errors: string[] },
+  queueSummary?: DailyQueueRunSummary,
+  candidateNotQueued?: CandidateNotQueued[],
 ): Promise<string> {
   await mkdir(MONITORING_REPORT_DIR, { recursive: true });
   const date = utcExecutionDate(report.startedAt);
@@ -498,6 +547,12 @@ async function writeDailyArtifacts(
     noFindingsAgents: perAgentResults.filter((row) => row.noFindings === true).length,
     draftsCreated: draftInsert?.created ?? 0,
     duplicatesSkipped: draftInsert?.skippedDuplicate ?? 0,
+    queueSummary: queueSummary ?? null,
+    candidateNotQueued: candidateNotQueued ?? [],
+    candidatesDetected: queueSummary?.candidatesDetected ?? 0,
+    candidatesQueued: queueSummary?.candidatesQueued ?? draftInsert?.created ?? 0,
+    candidatesNotQueued: queueSummary?.candidatesNotQueued ?? 0,
+    duplicatesConsolidated: queueSummary?.duplicatesConsolidated ?? 0,
     perAgentResults,
     registryErrors,
     safety: {

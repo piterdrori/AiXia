@@ -148,6 +148,43 @@ export async function getLatestDailyExecutionForAgent(
   return { ok: true, row: (data as DailyAgentExecutionRow | null) ?? null };
 }
 
+export async function updateDailyAgentExecutionQueueStats(
+  client: SupabaseClient,
+  runId: string,
+  perAgentStats: Map<string, { draftsCreated: number; duplicatesSkipped: number }>,
+  runQueueMeta: Record<string, unknown>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data, error } = await client
+    .from(DAILY_AGENT_EXECUTIONS_TABLE)
+    .select("id, agent_slug, evidence_summary")
+    .eq("run_id", runId);
+
+  if (error) return { ok: false, error: error.message };
+
+  for (const row of data ?? []) {
+    const agentSlug = String(row.agent_slug);
+    const stats = perAgentStats.get(agentSlug) ?? { draftsCreated: 0, duplicatesSkipped: 0 };
+    const evidenceSummary = {
+      ...((row.evidence_summary as Record<string, unknown> | null) ?? {}),
+      runQueueMeta,
+    };
+
+    const { error: updateError } = await client
+      .from(DAILY_AGENT_EXECUTIONS_TABLE)
+      .update({
+        drafts_created: stats.draftsCreated,
+        duplicates_skipped: stats.duplicatesSkipped,
+        evidence_summary: evidenceSummary,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+
+    if (updateError) return { ok: false, error: updateError.message };
+  }
+
+  return { ok: true };
+}
+
 export function toDailyAgentExecutionSummary(row: DailyAgentExecutionRow) {
   return {
     id: row.id,

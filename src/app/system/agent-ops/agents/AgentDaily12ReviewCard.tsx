@@ -27,6 +27,7 @@ type DailyRosterRow = {
   errorsFound: number;
   improvementsFound: number;
   featuresFound: number;
+  draftsQueued?: number;
   noFindings: boolean;
 };
 
@@ -46,9 +47,14 @@ type Daily12ReviewStatus = {
   agentsMissingToday: string[];
   lastCompletedDailyReviewAt: string | null;
   nextExpectedDailyReviewAt: string | null;
+  latestDailyRunId: string | null;
   errorsFoundToday: number;
   improvementsSuggestedToday: number;
   newFeaturesSuggestedToday: number;
+  candidatesDetectedToday: number;
+  draftsQueuedToday: number;
+  candidatesNotQueuedToday: number;
+  duplicatesConsolidatedToday: number;
   duplicatesSkippedToday: number;
   noFindingsAgentsToday: number;
   allAgentsAccountedFor: boolean;
@@ -151,15 +157,27 @@ export function AgentDaily12ReviewCard() {
             </div>
             <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
+                Owner queue (today)
+              </p>
+              <p className="mt-1 text-sm text-white/90">
+                Detected {status.candidatesDetectedToday} · Queued {status.draftsQueuedToday} · Not
+                queued {status.candidatesNotQueuedToday}
+              </p>
+              <p className="mt-1 text-xs text-white/55">
+                Consolidated {status.duplicatesConsolidatedToday} · DB duplicates skipped{" "}
+                {status.duplicatesSkippedToday} · Run {status.latestDailyRunId ?? "—"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-white/45">
                 Today&apos;s findings
               </p>
               <p className="mt-1 text-sm text-white/90">
-                Errors {status.errorsFoundToday} · Improvements {status.improvementsSuggestedToday} ·
-                Features {status.newFeaturesSuggestedToday}
+                Errors {status.errorsFoundToday} · Improvements detected{" "}
+                {status.improvementsSuggestedToday} · Features {status.newFeaturesSuggestedToday}
               </p>
               <p className="mt-1 text-xs text-white/55">
-                No-findings agents: {status.noFindingsAgentsToday} · Duplicates skipped:{" "}
-                {status.duplicatesSkippedToday}
+                No-findings agents: {status.noFindingsAgentsToday}
               </p>
             </div>
             <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3">
@@ -192,6 +210,7 @@ export function AgentDaily12ReviewCard() {
               { id: "today", tier: "status" },
               { id: "errors", tier: "count" },
               { id: "improvements", tier: "count" },
+              { id: "queued", tier: "count" },
               { id: "features", tier: "count" },
               { id: "action", tier: "action" },
             ]}
@@ -205,6 +224,7 @@ export function AgentDaily12ReviewCard() {
                 <AixiaTableHeaderCell tier="status">Today</AixiaTableHeaderCell>
                 <AixiaTableHeaderCell tier="count">Errors</AixiaTableHeaderCell>
                 <AixiaTableHeaderCell tier="count">Improvements</AixiaTableHeaderCell>
+                <AixiaTableHeaderCell tier="count">Queued</AixiaTableHeaderCell>
                 <AixiaTableHeaderCell tier="count">Features</AixiaTableHeaderCell>
                 <AixiaTableHeaderCell tier="action">Open</AixiaTableHeaderCell>
               </tr>
@@ -233,6 +253,7 @@ export function AgentDaily12ReviewCard() {
                   </AixiaTableBadgeCell>
                   <AixiaTableTextCell tier="count" primary={String(row.errorsFound)} />
                   <AixiaTableTextCell tier="count" primary={String(row.improvementsFound)} />
+                  <AixiaTableTextCell tier="count" primary={String(row.draftsQueued ?? 0)} />
                   <AixiaTableTextCell tier="count" primary={String(row.featuresFound)} />
                   <AixiaTableActionsCell>
                     <AixiaButton

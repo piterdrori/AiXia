@@ -1,0 +1,17 @@
+# Exclude untracked/WIP API routes from CLI uploads (git deploy uses tracked files only).
+api/agentops/hermes-context-ingestion.ts
+api/agentops/doubaoAsrConfig.ts
+api/agentops/doubaoAsrHandler.ts
+api/agentops/doubaoSttConfig.ts
+api/agentops/doubaoSttHandler.ts
+api/agentops/doubaoSttSession.ts
+api/agentops/doubaoTtsConfig.ts
+api/agentops/doubaoTtsHandler.ts
+api/agentops/supertonicTtsConfig.ts
+api/agentops/supertonicTtsHandler.ts
+api/agentops/execute-fixed-run.ts
+api/agentops/live-status.ts
+api/agentops/chat-voice/
+api/agentops/workflows/
+api/agentops/reasoning/
+api/agentops/runtime/

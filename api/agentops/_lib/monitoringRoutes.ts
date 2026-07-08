@@ -230,6 +230,7 @@ type DailyExecutionRow = {
   drafts_created: number;
   duplicates_skipped: number;
   no_findings: boolean;
+  evidence_summary: Record<string, unknown> | null;
   failure_reason: string | null;
   started_at: string | null;
   completed_at: string | null;
@@ -246,7 +247,7 @@ async function listDailyExecutionsForDate(client: SupabaseClient, executionDate:
   const { data, error } = await client
     .from(DAILY_EXECUTIONS_TABLE)
     .select(
-      "id, run_id, execution_date, agent_id, agent_slug, username, job_title, perspective, status, routes_reviewed, errors_found, improvements_found, features_found, drafts_created, duplicates_skipped, no_findings, failure_reason, started_at, completed_at",
+      "id, run_id, execution_date, agent_id, agent_slug, username, job_title, perspective, status, routes_reviewed, errors_found, improvements_found, features_found, drafts_created, duplicates_skipped, no_findings, evidence_summary, failure_reason, started_at, completed_at",
     )
     .eq("execution_date", executionDate)
     .order("agent_slug", { ascending: true });
@@ -300,6 +301,7 @@ function buildDaily12ReviewStatus(
       errorsFound: execution?.errors_found ?? 0,
       improvementsFound: execution?.improvements_found ?? 0,
       featuresFound: execution?.features_found ?? 0,
+      draftsQueued: execution?.drafts_created ?? 0,
       noFindings: execution?.no_findings ?? false,
       routesReviewed: execution?.routes_reviewed ?? [],
       failureReason: execution?.failure_reason ?? null,
@@ -343,6 +345,30 @@ function buildDaily12ReviewStatus(
     healthWarnings.push(`${failedToday} agent run(s) failed today.`);
   }
 
+  const latestExecutionRunId = executions[0]?.run_id ?? null;
+  const lastExecutionCompletedAt = executions.reduce<string | null>((latest, row) => {
+    if (!row.completed_at) return latest;
+    if (!latest) return row.completed_at;
+    return row.completed_at > latest ? row.completed_at : latest;
+  }, null);
+  const runQueueMeta =
+    (executions[0]?.evidence_summary?.runQueueMeta as Record<string, unknown> | undefined) ?? null;
+  const candidatesDetectedToday =
+    typeof runQueueMeta?.candidatesDetected === "number"
+      ? runQueueMeta.candidatesDetected
+      : executions.reduce(
+          (sum, row) => sum + row.errors_found + row.improvements_found + row.features_found,
+          0,
+        );
+  const draftsQueuedToday =
+    typeof runQueueMeta?.candidatesQueued === "number"
+      ? runQueueMeta.candidatesQueued
+      : dailyDraftCounts.errors + dailyDraftCounts.improvements + dailyDraftCounts.features;
+  const candidatesNotQueuedToday =
+    typeof runQueueMeta?.candidatesNotQueued === "number" ? runQueueMeta.candidatesNotQueued : 0;
+  const duplicatesConsolidatedToday =
+    typeof runQueueMeta?.duplicatesConsolidated === "number" ? runQueueMeta.duplicatesConsolidated : 0;
+
   return {
     schedule: `Daily at 01:00 UTC (${APPROVED_DAILY_12_AGENT_CRON})`,
     environment: "staging" as const,
@@ -357,14 +383,19 @@ function buildDaily12ReviewStatus(
     agentsFailedToday: failedToday,
     agentsBlockedToday: blockedToday,
     agentsMissingToday: missingToday,
-    lastCompletedDailyReviewAt: lastDailyRun?.ended_at ?? lastDailyRun?.started_at ?? null,
+    lastCompletedDailyReviewAt:
+      lastExecutionCompletedAt ?? lastDailyRun?.ended_at ?? lastDailyRun?.started_at ?? null,
     nextExpectedDailyReviewAt: computeNextCronUtc(APPROVED_DAILY_12_AGENT_CRON, new Date()),
     errorsFoundToday: executions.reduce((sum, row) => sum + row.errors_found, 0),
     improvementsSuggestedToday: executions.reduce((sum, row) => sum + row.improvements_found, 0),
     newFeaturesSuggestedToday: executions.reduce((sum, row) => sum + row.features_found, 0),
+    candidatesDetectedToday,
+    draftsQueuedToday,
+    candidatesNotQueuedToday,
+    duplicatesConsolidatedToday,
     duplicatesSkippedToday: dailyDraftCounts.duplicates,
     noFindingsAgentsToday: executions.filter((row) => row.no_findings).length,
-    draftsCreatedToday: dailyDraftCounts.errors + dailyDraftCounts.improvements + dailyDraftCounts.features,
+    draftsCreatedToday: draftsQueuedToday,
     allAgentsAccountedFor:
       missingToday.length === 0 &&
       attemptedToday === EXPECTED_DAILY_AGENT_COUNT &&
@@ -372,7 +403,7 @@ function buildDaily12ReviewStatus(
     healthWarnings,
     roster,
     githubWorkflowUrl: GITHUB_DAILY_12_ACTIONS_URL,
-    latestDailyRunId: lastDailyRun?.run_id ?? null,
+    latestDailyRunId: latestExecutionRunId ?? lastDailyRun?.run_id ?? null,
   };
 }
 

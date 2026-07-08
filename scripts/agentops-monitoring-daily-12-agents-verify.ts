@@ -106,8 +106,20 @@ function verifyWorkerAndPolicy(): void {
   mustExist("src/lib/agentops/runtime/agentOpsDaily12AgentReview.ts");
   mustExist("src/lib/agentops/runtime/agentOpsDaily12AgentReview.cli.ts");
   mustExist("src/lib/agentops/runtime/agentOpsDailyReviewFindingPolicy.ts");
+  mustExist("src/lib/agentops/runtime/agentOpsDailyReviewQueuePolicy.ts");
   mustExist("src/lib/agentops/runtime/agentOpsDailyAgentExecutions.ts");
   mustExist("scripts/agentops-monitoring-daily-12-agent-run.mjs");
+
+  const queuePolicy = mustExist("src/lib/agentops/runtime/agentOpsDailyReviewQueuePolicy.ts");
+  if (queuePolicy && !queuePolicy.includes("DAILY_IMPROVEMENT_MAX_PER_AGENT")) {
+    fail("Daily queue policy must cap improvements per agent");
+  }
+  if (queuePolicy && !queuePolicy.includes("DAILY_IMPROVEMENT_MAX_PER_RUN")) {
+    fail("Daily queue policy must cap improvements per run");
+  }
+  if (queuePolicy && !queuePolicy.includes("CandidateNotQueued")) {
+    fail("Daily queue policy must define candidateNotQueued records");
+  }
 
   const policy = mustExist("src/lib/agentops/runtime/agentOpsDailyReviewFindingPolicy.ts");
   if (policy && !policy.includes("NO_FINDING")) fail("Daily finding policy must support NO_FINDING");
@@ -118,6 +130,9 @@ function verifyWorkerAndPolicy(): void {
   const worker = mustExist("src/lib/agentops/runtime/agentOpsDaily12AgentReview.ts");
   if (worker && !worker.includes("allAgentsAccountedFor")) {
     fail("Daily worker must produce coverage assertion");
+  }
+  if (worker && !worker.includes("applyDailyDraftQueueCaps")) {
+    fail("Daily worker must apply queue quality caps before draft insert");
   }
   if (worker && worker.includes("auto-fix")) {
     fail("Daily worker must not reference auto-fix execution");

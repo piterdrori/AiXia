@@ -21,11 +21,16 @@ import {
 } from "./agentOpsMonitoringScheduledReport";
 import { loadAgentOpsMonitoringRuntimeConfig } from "./agentOpsMonitoringRuntimeConfig";
 import {
-  insertDailyAgentExecution,
-  updateDailyAgentExecutionQueueStats,
+  DAILY_QUEUE_POLICY_VERSION,
+  persistDailyExecutionBatch,
   utcExecutionDate,
   type DailyAgentExecutionInsert,
+  type DailyExecutionPersistenceMetrics,
 } from "./agentOpsDailyAgentExecutions";
+import {
+  buildMonitoringRunIndexRecord,
+  upsertMonitoringRunIndexRecord,
+} from "./agentOpsMonitoringRunIndex";
 import {
   buildNoFindingDailyResult,
   classifyScanFindingForDaily,
@@ -71,9 +76,44 @@ export type Daily12AgentReviewResult = {
   coverage: Daily12AgentCoverage;
   perAgentResults: Array<Record<string, unknown>>;
   draftInsertSummary: { created: number; skippedDuplicate: number; errors: string[] };
+  persistenceMetrics: DailyExecutionPersistenceMetrics & { runIndexPersisted: boolean };
   exitCode: number;
   registryErrors: string[];
 };
+
+export function buildCanonicalRunQueueMeta(input: {
+  queueSummary: DailyQueueRunSummary;
+  notQueued: CandidateNotQueued[];
+  dbDuplicatesSkipped: number;
+  perAgentResults: Array<Record<string, unknown>>;
+}): Record<string, unknown> {
+  return {
+    queuePolicyVersion: DAILY_QUEUE_POLICY_VERSION,
+    candidatesDetected: input.queueSummary.candidatesDetected,
+    candidatesQueued: input.queueSummary.candidatesQueued,
+    draftsQueued: input.queueSummary.candidatesQueued,
+    candidatesNotQueued: input.queueSummary.candidatesNotQueued,
+    crossAgentConsolidations: input.queueSummary.consolidationGroups,
+    consolidatedGroups: input.queueSummary.consolidationGroups,
+    duplicatesConsolidated: input.queueSummary.duplicatesConsolidated + input.dbDuplicatesSkipped,
+    dbDuplicatesSkipped: input.dbDuplicatesSkipped,
+    errorsDetected: input.perAgentResults.reduce(
+      (sum, row) => sum + Number(row.errorsFound ?? 0),
+      0,
+    ),
+    improvementsDetected: input.perAgentResults.reduce(
+      (sum, row) => sum + Number(row.improvementsFound ?? 0),
+      0,
+    ),
+    newFeaturesDetected: input.perAgentResults.reduce(
+      (sum, row) => sum + Number(row.featuresFound ?? 0),
+      0,
+    ),
+    duplicatesSkipped: input.dbDuplicatesSkipped,
+    queuedByKind: input.queueSummary.queuedByKind,
+    candidateNotQueued: input.notQueued,
+  };
+}
 
 function agentRowForProfile(
   dbAgent: AgentOpsRuntimeAgentRow,
@@ -279,6 +319,16 @@ export async function runDaily12AgentReview(options: {
       },
       perAgentResults: [],
       draftInsertSummary: { created: 0, skippedDuplicate: 0, errors: registryErrors },
+      persistenceMetrics: {
+        executionRowsInserted: 0,
+        executionRowsUpdated: 0,
+        executionRowsUnchanged: 0,
+        executionRowsFailed: 0,
+        executionRowsSkipped: 0,
+        runQueueMetaPersisted: false,
+        persistenceComplete: false,
+        runIndexPersisted: false,
+      },
       exitCode: 1,
       registryErrors,
     };
@@ -309,6 +359,7 @@ export async function runDaily12AgentReview(options: {
   const missingAgents: string[] = [];
   const perAgentResults: Array<Record<string, unknown>> = [];
   const perAgentFindings: Array<{ agentSlug: string; findings: DailyReviewFinding[] }> = [];
+  const pendingExecutions: DailyAgentExecutionInsert[] = [];
   let attemptedAgents = 0;
   let completedAgents = 0;
   let failedAgents = 0;
@@ -343,12 +394,7 @@ export async function runDaily12AgentReview(options: {
       forceRetry: options.forceRetry,
     });
 
-    const inserted = await insertDailyAgentExecution(bootstrap.client, single.execution, {
-      forceRetry: options.forceRetry,
-    });
-    if (!inserted.ok && !inserted.duplicate) {
-      registryErrors.push(`${profile.agentSlug}: execution insert failed — ${inserted.error}`);
-    }
+    pendingExecutions.push(single.execution);
 
     if (single.execution.status === "completed") completedAgents += 1;
     if (single.execution.status === "failed") failedAgents += 1;
@@ -444,23 +490,82 @@ export async function runDaily12AgentReview(options: {
     });
   }
 
-  const runQueueMeta = {
-    ...queueResult.summary,
-    candidateNotQueued: queueResult.notQueued,
+  const runQueueMeta = buildCanonicalRunQueueMeta({
+    queueSummary: queueResult.summary,
+    notQueued: queueResult.notQueued,
     dbDuplicatesSkipped: draftInsert.skippedDuplicate,
-    duplicatesConsolidated:
-      queueResult.summary.duplicatesConsolidated + draftInsert.skippedDuplicate,
+    perAgentResults,
+  });
+
+  const persistenceBatch = await persistDailyExecutionBatch(
+    bootstrap.client,
+    pendingExecutions,
+    {
+      forceRetry: options.forceRetry,
+      runQueueMeta,
+      perAgentStats,
+    },
+  );
+  if (!persistenceBatch.ok) {
+    for (const error of persistenceBatch.errors) {
+      registryErrors.push(error);
+    }
+    registryErrors.push("Daily execution persistence incomplete — DB rows not authoritative.");
+  }
+
+  let runIndexPersisted = false;
+  const runIndexRecord = buildMonitoringRunIndexRecord(report, {
+    source: "github_actions",
+    mode: "daily_12_agent_review",
+    status:
+      persistenceBatch.ok && completedAgents >= profiles.length && failedAgents === 0
+        ? "completed"
+        : completedAgents > 0
+          ? "partial"
+          : "failed",
+    githubRunId: process.env.GITHUB_RUN_ID ?? null,
+    githubRunUrl: process.env.GITHUB_RUN_URL ?? null,
+    artifactName: `agentops-daily-12-agent-review-${executionDate}.json`,
+  });
+  runIndexRecord.summary = {
+    ...runIndexRecord.summary,
+    executionDate,
+    scheduleType: "daily_12_agent_review",
+    triggerType:
+      process.env.AGENTOPS_MONITORING_TRIGGER_TYPE === "schedule" ? "schedule" : "workflow_dispatch",
+    monitoringMode: "daily_12_agent_review",
+    expectedAgents: 12,
+    attemptedAgents,
+    completedAgents,
+    failedAgents,
+    blockedAgents,
+    missingAgents,
+    forceRetry: options.forceRetry === true,
+    partialRetry: profiles.length < 12,
+    queueSummary: runQueueMeta,
+    persistenceMetrics: {
+      ...persistenceBatch.metrics,
+      runIndexPersisted: false,
+    },
+    automaticWrites: false,
+    productionBlocked: true,
   };
 
-  const queueStatsUpdate = await updateDailyAgentExecutionQueueStats(
+  const runIndexInsert = await upsertMonitoringRunIndexRecord(
     bootstrap.client,
-    runId,
-    perAgentStats,
-    runQueueMeta,
+    runIndexRecord,
   );
-  if (!queueStatsUpdate.ok) {
-    registryErrors.push(`Queue stats update failed: ${queueStatsUpdate.error}`);
+  if (!runIndexInsert.ok) {
+    registryErrors.push(`Run index persistence failed: ${runIndexInsert.error}`);
+  } else {
+    runIndexPersisted = true;
   }
+
+  const persistenceMetrics = {
+    ...persistenceBatch.metrics,
+    runIndexPersisted,
+    persistenceComplete: persistenceBatch.metrics.persistenceComplete && runIndexPersisted,
+  };
 
   const coverage: Daily12AgentCoverage = {
     expectedAgents: 12,
@@ -474,7 +579,8 @@ export async function runDaily12AgentReview(options: {
       missingAgents.length === 0 &&
       attemptedAgents === profiles.length &&
       attemptedAgents === 12 &&
-      registryErrors.length === 0,
+      registryErrors.length === 0 &&
+      persistenceMetrics.persistenceComplete,
   };
 
   const dailyReportPath = await writeDailyArtifacts(
@@ -485,10 +591,13 @@ export async function runDaily12AgentReview(options: {
     draftInsert,
     queueResult.summary,
     queueResult.notQueued,
+    persistenceMetrics,
   );
 
   const exitCode =
-    registryErrors.length > 0 || missingAgents.length > 0
+    registryErrors.length > 0 ||
+    missingAgents.length > 0 ||
+    !persistenceMetrics.persistenceComplete
       ? 1
       : failedAgents > 0
         ? 2
@@ -506,6 +615,7 @@ export async function runDaily12AgentReview(options: {
       skippedDuplicate: draftInsert.skippedDuplicate,
       errors: draftInsert.errors,
     },
+    persistenceMetrics,
     exitCode,
     registryErrors,
   };
@@ -519,6 +629,7 @@ async function writeDailyArtifacts(
   draftInsert?: { created: number; skippedDuplicate: number; errors: string[] },
   queueSummary?: DailyQueueRunSummary,
   candidateNotQueued?: CandidateNotQueued[],
+  persistenceMetrics?: DailyExecutionPersistenceMetrics & { runIndexPersisted?: boolean },
 ): Promise<string> {
   await mkdir(MONITORING_REPORT_DIR, { recursive: true });
   const date = utcExecutionDate(report.startedAt);
@@ -555,6 +666,7 @@ async function writeDailyArtifacts(
     duplicatesConsolidated: queueSummary?.duplicatesConsolidated ?? 0,
     perAgentResults,
     registryErrors,
+    persistenceMetrics: persistenceMetrics ?? null,
     safety: {
       stagingOnly: true,
       dryRun: true,

@@ -214,6 +214,65 @@ export async function insertMonitoringRunIndexRecord(
   return { ok: true, row: data as AgentOpsMonitoringRunIndexRow };
 }
 
+export async function upsertMonitoringRunIndexRecord(
+  client: SupabaseClient,
+  record: AgentOpsMonitoringRunIndexInsert,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<MonitoringRunIndexInsertResult> {
+  const allowed = assertMonitoringRunIndexSupabaseAllowed(env);
+  if (!allowed.ok) return { ok: false, error: allowed.error };
+
+  const validationError = validateMonitoringRunIndexInsert(record);
+  if (validationError) return { ok: false, error: validationError };
+
+  const { data: existing, error: lookupError } = await client
+    .from(TABLE)
+    .select("id")
+    .eq("run_id", record.run_id)
+    .maybeSingle();
+
+  if (lookupError) return { ok: false, error: lookupError.message };
+
+  if (existing?.id) {
+    const { data, error } = await client
+      .from(TABLE)
+      .update({
+        source: record.source,
+        mode: record.mode,
+        level: record.level,
+        dry_run: record.dry_run,
+        target_base_url: record.target_base_url,
+        target_class: record.target_class,
+        production_blocked: record.production_blocked,
+        production_guard_active: record.production_guard_active,
+        production_target_rejected: record.production_target_rejected,
+        continuous_enabled: record.continuous_enabled,
+        agents_considered: record.agents_considered,
+        agents_run: record.agents_run,
+        findings_count: record.findings_count,
+        actual_issues_created: record.actual_issues_created,
+        actual_memory_writes: record.actual_memory_writes,
+        errors_count: record.errors_count,
+        status: record.status,
+        started_at: record.started_at,
+        ended_at: record.ended_at,
+        duration_ms: record.duration_ms,
+        github_run_id: record.github_run_id,
+        github_run_url: record.github_run_url,
+        artifact_name: record.artifact_name,
+        summary: record.summary,
+      })
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, row: data as AgentOpsMonitoringRunIndexRow };
+  }
+
+  return insertMonitoringRunIndexRecord(client, record, env);
+}
+
 export async function listMonitoringRunIndexRecords(
   client: SupabaseClient,
   limit = 10,

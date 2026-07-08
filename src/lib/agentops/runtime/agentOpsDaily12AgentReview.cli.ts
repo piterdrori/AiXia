@@ -28,6 +28,7 @@ async function main(): Promise<void> {
         dailyReportPath: result.dailyReportPath,
         coverage: result.coverage,
         draftInsertSummary: result.draftInsertSummary,
+        persistenceMetrics: result.persistenceMetrics,
         registryErrors: result.registryErrors,
         exitCode: result.exitCode,
       },

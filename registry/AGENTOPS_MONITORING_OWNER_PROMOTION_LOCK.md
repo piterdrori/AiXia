@@ -451,6 +451,21 @@ Any change to cron frequency, target URL, dry-run flag, continuous enablement, o
 
 Schedule or roster changes require **explicit owner approval** and registry update.
 
+### Phase 5H-F — Daily retry persistence guarantees (locked)
+
+**Effective:** 2026-07-08
+
+| Guarantee | Requirement |
+|-----------|-------------|
+| Canonical daily rows | One row per `(execution_date, agent_id, review_mode)` — no duplicates |
+| Full successful retry | Same-day `force_retry` upserts all 12 rows to the latest run |
+| Failed retry safety | Failed retry must **not** erase a prior successful daily row |
+| Partial retry | Only retried agents update; remaining canonical rows preserved |
+| runQueueMeta | Must be DB-persisted in `evidence_summary.runQueueMeta` (not artifact-only) |
+| Run index | Daily runs must upsert `agentops_monitoring_runs` with queue summary |
+| Artifact-only runs | Cannot become authoritative — `persistenceComplete=true` required |
+| Scheduler | Remains blocked until retry persistence verified without manual backfill |
+
 ---
 
 ## 17. Future phase boundaries

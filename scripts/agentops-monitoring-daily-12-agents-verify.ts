@@ -186,6 +186,27 @@ function verifyRunSelection(): void {
   }
 }
 
+function verifyRetryUpsert(): void {
+  mustExist("scripts/agentops-daily-12-retry-upsert-verify.ts");
+  const executions = mustExist("src/lib/agentops/runtime/agentOpsDailyAgentExecutions.ts");
+  if (executions && !executions.includes("persistDailyExecutionBatch")) {
+    fail("Daily executions must expose persistDailyExecutionBatch for retry upsert");
+  }
+  if (executions && !executions.includes("resolveDailyExecutionUpsertAction")) {
+    fail("Daily executions must expose resolveDailyExecutionUpsertAction retry authority rule");
+  }
+  const worker = mustExist("src/lib/agentops/runtime/agentOpsDaily12AgentReview.ts");
+  if (worker && !worker.includes("buildCanonicalRunQueueMeta")) {
+    fail("Daily worker must build canonical runQueueMeta before DB persistence");
+  }
+  if (worker && !worker.includes("upsertMonitoringRunIndexRecord")) {
+    fail("Daily worker must persist run index via upsertMonitoringRunIndexRecord");
+  }
+  if (worker && worker.includes("insertDailyAgentExecution(bootstrap.client")) {
+    fail("Daily worker must not insert per-agent rows before queue finalization");
+  }
+}
+
 function verifyRegistryLock(): void {
   const lock = mustExist("registry/AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md");
   if (!lock) return;
@@ -209,6 +230,7 @@ function main(): void {
   verifyPackageScript();
   verifyUiSurfaces();
   verifyRunSelection();
+  verifyRetryUpsert();
   verifyRegistryLock();
 
   if (failures.length > 0) {

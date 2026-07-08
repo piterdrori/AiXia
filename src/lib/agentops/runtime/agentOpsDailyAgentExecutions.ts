@@ -1,5 +1,6 @@
 /**
  * Phase 5H — daily per-agent execution persistence (staging Supabase).
+ * Phase 5H-F — canonical upsert for same-day retries.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -9,6 +10,7 @@ import { extractSupabaseProjectRefFromUrl } from "../execution/agentOpsStagingGu
 
 export const DAILY_AGENT_EXECUTIONS_TABLE = "agentops_monitoring_daily_agent_executions";
 export const DAILY_REVIEW_MODE = "daily_12_agent_review" as const;
+export const DAILY_QUEUE_POLICY_VERSION = "daily-12-agent-review-v1" as const;
 
 export type DailyAgentExecutionStatus = "completed" | "failed" | "blocked" | "skipped_ineligible";
 
@@ -44,6 +46,34 @@ export type DailyAgentExecutionRow = DailyAgentExecutionInsert & {
   updated_at: string;
 };
 
+export type DailyExecutionUpsertAction =
+  | { action: "insert" }
+  | { action: "update"; reason: string }
+  | { action: "unchanged"; reason: string }
+  | { action: "skip"; reason: string };
+
+export type DailyExecutionPersistenceMetrics = {
+  executionRowsInserted: number;
+  executionRowsUpdated: number;
+  executionRowsUnchanged: number;
+  executionRowsFailed: number;
+  executionRowsSkipped: number;
+  runQueueMetaPersisted: boolean;
+  persistenceComplete: boolean;
+};
+
+export function createEmptyDailyExecutionPersistenceMetrics(): DailyExecutionPersistenceMetrics {
+  return {
+    executionRowsInserted: 0,
+    executionRowsUpdated: 0,
+    executionRowsUnchanged: 0,
+    executionRowsFailed: 0,
+    executionRowsSkipped: 0,
+    runQueueMetaPersisted: false,
+    persistenceComplete: false,
+  };
+}
+
 export function assertDailyExecutionsSupabaseAllowed(
   env: NodeJS.ProcessEnv = process.env,
 ): { ok: true } | { ok: false; error: string } {
@@ -60,56 +90,234 @@ export function utcExecutionDate(iso = new Date().toISOString()): string {
   return iso.slice(0, 10);
 }
 
+function isCompletedStatus(status: string): boolean {
+  return status === "completed";
+}
+
+/**
+ * Retry authority rule (Phase 5H-F):
+ * - one canonical row per (execution_date, agent_id, review_mode)
+ * - completed force-retry may replace a prior completed row
+ * - failed retry must not erase a prior successful row
+ * - same run id replay is idempotent via update
+ */
+export function resolveDailyExecutionUpsertAction(
+  existing: { status: string; run_id: string } | null,
+  incoming: { status: string; run_id: string },
+  options: { forceRetry?: boolean } = {},
+): DailyExecutionUpsertAction {
+  if (!existing) return { action: "insert" };
+
+  const incomingCompleted = isCompletedStatus(incoming.status);
+  const existingCompleted = isCompletedStatus(existing.status);
+  const sameRun = existing.run_id === incoming.run_id;
+
+  if (sameRun) {
+    return { action: "update", reason: "same-run-id-replay" };
+  }
+
+  if (!incomingCompleted && existingCompleted) {
+    return { action: "skip", reason: "preserve-completed-on-failed-retry" };
+  }
+
+  if (incomingCompleted && !existingCompleted) {
+    return { action: "update", reason: "completed-replaces-non-completed" };
+  }
+
+  if (incomingCompleted && existingCompleted && options.forceRetry) {
+    return { action: "update", reason: "force-retry-completed-replace" };
+  }
+
+  if (incomingCompleted && existingCompleted) {
+    return { action: "skip", reason: "already-completed-no-force-retry" };
+  }
+
+  return { action: "update", reason: "non-completed-replace" };
+}
+
+function buildFinalExecutionRecord(
+  record: DailyAgentExecutionInsert,
+  runQueueMeta: Record<string, unknown>,
+  perAgentStats: { draftsCreated: number; duplicatesSkipped: number },
+): DailyAgentExecutionInsert {
+  return {
+    ...record,
+    review_mode: record.review_mode ?? DAILY_REVIEW_MODE,
+    drafts_created: perAgentStats.draftsCreated,
+    duplicates_skipped: perAgentStats.duplicatesSkipped,
+    evidence_summary: {
+      ...record.evidence_summary,
+      runQueueMeta,
+    },
+  };
+}
+
+async function lookupExistingDailyExecution(
+  client: SupabaseClient,
+  record: DailyAgentExecutionInsert,
+): Promise<{ id: string; status: string; run_id: string } | null> {
+  const { data, error } = await client
+    .from(DAILY_AGENT_EXECUTIONS_TABLE)
+    .select("id, status, run_id")
+    .eq("execution_date", record.execution_date)
+    .eq("agent_id", record.agent_id)
+    .eq("review_mode", record.review_mode ?? DAILY_REVIEW_MODE)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data as { id: string; status: string; run_id: string } | null;
+}
+
+/**
+ * @deprecated Prefer persistDailyExecutionBatch for daily worker writes.
+ */
 export async function insertDailyAgentExecution(
   client: SupabaseClient,
   record: DailyAgentExecutionInsert,
   options: { forceRetry?: boolean } = {},
 ): Promise<{ ok: true; row: DailyAgentExecutionRow } | { ok: false; error: string; duplicate?: boolean }> {
-  if (!options.forceRetry) {
-    const { data: existing } = await client
-      .from(DAILY_AGENT_EXECUTIONS_TABLE)
-      .select("id, status")
-      .eq("execution_date", record.execution_date)
-      .eq("agent_id", record.agent_id)
-      .eq("review_mode", record.review_mode ?? DAILY_REVIEW_MODE)
-      .maybeSingle();
+  const batch = await persistDailyExecutionBatch(client, [record], {
+    forceRetry: options.forceRetry,
+    runQueueMeta: (record.evidence_summary?.runQueueMeta as Record<string, unknown> | undefined) ?? {},
+    perAgentStats: new Map([
+      [
+        record.agent_slug,
+        {
+          draftsCreated: record.drafts_created,
+          duplicatesSkipped: record.duplicates_skipped,
+        },
+      ],
+    ]),
+  });
 
-    if (existing?.id && existing.status === "completed") {
-      return { ok: false, error: "Daily execution already completed for agent/date.", duplicate: true };
-    }
-    if (existing?.id) {
-      const { data, error } = await client
+  if (!batch.ok) {
+    return {
+      ok: false,
+      error: batch.errors.join("; ") || "Daily execution persistence failed.",
+      duplicate: batch.metrics.executionRowsSkipped > 0,
+    };
+  }
+
+  const listed = await client
+    .from(DAILY_AGENT_EXECUTIONS_TABLE)
+    .select("*")
+    .eq("execution_date", record.execution_date)
+    .eq("agent_id", record.agent_id)
+    .eq("review_mode", record.review_mode ?? DAILY_REVIEW_MODE)
+    .maybeSingle();
+
+  if (listed.error || !listed.data) {
+    return { ok: false, error: listed.error?.message ?? "Persisted row not found." };
+  }
+
+  return { ok: true, row: listed.data as DailyAgentExecutionRow };
+}
+
+export async function persistDailyExecutionBatch(
+  client: SupabaseClient,
+  records: DailyAgentExecutionInsert[],
+  options: {
+    forceRetry?: boolean;
+    runQueueMeta: Record<string, unknown>;
+    perAgentStats: Map<string, { draftsCreated: number; duplicatesSkipped: number }>;
+  },
+): Promise<{
+  ok: boolean;
+  metrics: DailyExecutionPersistenceMetrics;
+  errors: string[];
+}> {
+  const metrics = createEmptyDailyExecutionPersistenceMetrics();
+  const errors: string[] = [];
+
+  for (const record of records) {
+    const agentStats = options.perAgentStats.get(record.agent_slug) ?? {
+      draftsCreated: 0,
+      duplicatesSkipped: 0,
+    };
+    const finalRecord = buildFinalExecutionRecord(record, options.runQueueMeta, agentStats);
+
+    try {
+      const existing = await lookupExistingDailyExecution(client, finalRecord);
+      const decision = resolveDailyExecutionUpsertAction(existing, finalRecord, {
+        forceRetry: options.forceRetry,
+      });
+
+      if (decision.action === "skip") {
+        metrics.executionRowsSkipped += 1;
+        continue;
+      }
+
+      if (decision.action === "insert") {
+        const { error } = await client
+          .from(DAILY_AGENT_EXECUTIONS_TABLE)
+          .insert({
+            ...finalRecord,
+            review_mode: finalRecord.review_mode ?? DAILY_REVIEW_MODE,
+          });
+        if (error) {
+          metrics.executionRowsFailed += 1;
+          errors.push(`${record.agent_slug}: insert failed — ${error.message}`);
+          continue;
+        }
+        metrics.executionRowsInserted += 1;
+        continue;
+      }
+
+      if (!existing?.id) {
+        metrics.executionRowsFailed += 1;
+        errors.push(`${record.agent_slug}: update requested but no existing row.`);
+        continue;
+      }
+
+      const { error } = await client
         .from(DAILY_AGENT_EXECUTIONS_TABLE)
         .update({
-          ...record,
-          review_mode: record.review_mode ?? DAILY_REVIEW_MODE,
+          ...finalRecord,
+          review_mode: finalRecord.review_mode ?? DAILY_REVIEW_MODE,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", existing.id)
-        .select("*")
-        .single();
-      if (error) return { ok: false, error: error.message };
-      return { ok: true, row: data as DailyAgentExecutionRow };
+        .eq("id", existing.id);
+
+      if (error) {
+        metrics.executionRowsFailed += 1;
+        errors.push(`${record.agent_slug}: update failed — ${error.message}`);
+        continue;
+      }
+
+      if (decision.action === "unchanged") {
+        metrics.executionRowsUnchanged += 1;
+      } else {
+        metrics.executionRowsUpdated += 1;
+      }
+    } catch (error) {
+      metrics.executionRowsFailed += 1;
+      errors.push(
+        `${record.agent_slug}: persistence error — ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 
-  const { data, error } = await client
-    .from(DAILY_AGENT_EXECUTIONS_TABLE)
-    .insert({
-      ...record,
-      review_mode: record.review_mode ?? DAILY_REVIEW_MODE,
-    })
-    .select("*")
-    .single();
+  metrics.runQueueMetaPersisted =
+    records.length > 0 &&
+    metrics.executionRowsFailed === 0 &&
+    metrics.executionRowsInserted + metrics.executionRowsUpdated + metrics.executionRowsUnchanged > 0 &&
+    typeof options.runQueueMeta.candidatesDetected === "number";
 
-  if (error) {
-    if (error.message.toLowerCase().includes("duplicate")) {
-      return { ok: false, error: error.message, duplicate: true };
-    }
-    return { ok: false, error: error.message };
-  }
+  metrics.persistenceComplete =
+    metrics.executionRowsFailed === 0 &&
+    metrics.runQueueMetaPersisted &&
+    (metrics.executionRowsInserted > 0 ||
+      metrics.executionRowsUpdated > 0 ||
+      metrics.executionRowsUnchanged > 0 ||
+      metrics.executionRowsSkipped > 0);
 
-  return { ok: true, row: data as DailyAgentExecutionRow };
+  return {
+    ok: metrics.executionRowsFailed === 0 && metrics.runQueueMetaPersisted,
+    metrics,
+    errors,
+  };
 }
 
 export async function listDailyAgentExecutions(
@@ -148,6 +356,7 @@ export async function getLatestDailyExecutionForAgent(
   return { ok: true, row: (data as DailyAgentExecutionRow | null) ?? null };
 }
 
+/** @deprecated Use persistDailyExecutionBatch — updates by run_id miss rows on retry. */
 export async function updateDailyAgentExecutionQueueStats(
   client: SupabaseClient,
   runId: string,

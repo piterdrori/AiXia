@@ -16,7 +16,7 @@ import {
 } from "./daily12RunSelection.js";
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 import { applyMonitoringMemoryProposalViaApi } from "./monitoringMemoryApplication.js";
-import { createMonitoringReadClient } from "./monitoringReadClient.js";
+import { createMonitoringReadClient, extractSupabaseProjectRef, resolveMonitoringSupabaseUrl } from "./monitoringReadClient.js";
 import { jsonResponse } from "./ollamaProxy.js";
 
 const MONITORING_TABLE = "agentops_monitoring_runs";
@@ -113,12 +113,13 @@ function createStagingSupabaseClient(): SupabaseClient | null {
 }
 
 function guardMonitoringStatusReadResponse(): Response | null {
-  if (process.env.VERCEL_ENV === "production") {
+  const projectRef = extractSupabaseProjectRef(resolveMonitoringSupabaseUrl(process.env));
+  if (projectRef && projectRef !== STAGING_PROJECT_REF) {
     return jsonResponse(
       {
         ok: false,
-        error: "Monitoring status reads are blocked on production deployments.",
-        readPathState: { configured: false, emptyReason: "production_blocked" },
+        error: `Monitoring status reads require staging Supabase ref ${STAGING_PROJECT_REF}.`,
+        readPathState: { configured: false, emptyReason: "wrong_project_ref" },
       },
       403,
     );

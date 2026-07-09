@@ -210,21 +210,44 @@ export default function DashboardPage() {
   };
 
   const loadDashboard = async () => {
+    const DASHBOARD_LOAD_TIMEOUT_MS = 20_000;
     try {
-      await dashboardRequest.run(async () => {
-        const data = await loadFullDashboardData();
-        if (!data) {
-          throw new Error("Not authenticated");
-        }
-        applyDashboardData(data);
-        return true;
-      });
+      await Promise.race([
+        dashboardRequest.run(async () => {
+          const data = await loadFullDashboardData();
+          if (!data) {
+            throw new Error("Not authenticated");
+          }
+          applyDashboardData(data);
+          return true;
+        }),
+        new Promise<never>((_, reject) => {
+          window.setTimeout(
+            () => reject(new Error("Dashboard load timed out")),
+            DASHBOARD_LOAD_TIMEOUT_MS,
+          );
+        }),
+      ]);
     } catch (error) {
       console.error("Dashboard load error:", error);
-      const fallback = await loadFullDashboardData();
+      const fallback = await Promise.race([
+        loadFullDashboardData(),
+        new Promise<null>((resolve) => {
+          window.setTimeout(() => resolve(null), DASHBOARD_LOAD_TIMEOUT_MS);
+        }),
+      ]);
       if (fallback) {
         applyDashboardData(fallback);
+      } else if (!dashboardRequest.error) {
+        dashboardRequest.setState((prev) => ({
+          ...prev,
+          status: "error",
+          error:
+            error instanceof Error ? error.message : "Dashboard load failed or timed out.",
+        }));
       }
+    } finally {
+      setHasLoadedOnce(true);
     }
   };
 

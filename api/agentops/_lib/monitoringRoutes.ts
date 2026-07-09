@@ -11,10 +11,12 @@ import {
   buildExecutionMapForSelectedRun,
   selectLatestCompletedDaily12Run,
   type Daily12DraftRunHint,
+  type Daily12RunQueueMeta,
   utcDateFromIso,
 } from "./daily12RunSelection.js";
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 import { applyMonitoringMemoryProposalViaApi } from "./monitoringMemoryApplication.js";
+import { createMonitoringReadClient } from "./monitoringReadClient.js";
 import { jsonResponse } from "./ollamaProxy.js";
 
 const MONITORING_TABLE = "agentops_monitoring_runs";
@@ -105,24 +107,41 @@ function methodNotAllowed(): Response {
   return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
 }
 
-function extractProjectRef(url: string | undefined): string | null {
-  if (!url) return null;
-  const match = url.match(/https?:\/\/([^.]+)\.supabase\.co/i);
-  return match?.[1] ?? null;
+function createStagingSupabaseClient(): SupabaseClient | null {
+  const readClient = createMonitoringReadClient(process.env);
+  return readClient.ok ? readClient.client : null;
 }
 
-function createStagingSupabaseClient(): SupabaseClient | null {
-  const url = process.env.VITE_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.VITE_SUPABASE_ANON_KEY ??
-    process.env.SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  if (extractProjectRef(url) !== STAGING_PROJECT_REF) return null;
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+function guardMonitoringStatusReadResponse(): Response | null {
+  if (process.env.VERCEL_ENV === "production") {
+    return jsonResponse(
+      {
+        ok: false,
+        error: "Monitoring status reads are blocked on production deployments.",
+        readPathState: { configured: false, emptyReason: "production_blocked" },
+      },
+      403,
+    );
+  }
+  return null;
 }
+
+type MonitoringReadPathState = {
+  configured: boolean;
+  authMode: "service_role" | null;
+  projectRef: string | null;
+  runIndexRowCount: number;
+  executionRowCount: number;
+  agentsRowCount: number;
+  emptyReason: "no_runs" | "no_executions_today" | "no_agents" | null;
+  queryErrors: {
+    runIndex?: string;
+    executions?: string;
+    agents?: string;
+    drafts?: string;
+    proposals?: string;
+  };
+};
 
 function toRunIndexSummary(row: MonitoringRunRow) {
   return {
@@ -399,6 +418,21 @@ function buildDaily12ReviewStatus(
       if (!latest) return row.completed_at;
       return row.completed_at > latest ? row.completed_at : latest;
     }, null);
+  const selectedRunRow = selectedRun?.runId
+    ? rows.find((row) => row.run_id === selectedRun.runId)
+    : undefined;
+  const persistenceMetrics =
+    selectedRunRow?.summary?.persistenceMetrics &&
+    typeof selectedRunRow.summary.persistenceMetrics === "object"
+      ? (selectedRunRow.summary.persistenceMetrics as Record<string, unknown>)
+      : null;
+  const persistenceComplete =
+    typeof persistenceMetrics?.persistenceComplete === "boolean"
+      ? persistenceMetrics.persistenceComplete
+      : missingToday.length === 0 &&
+        attemptedToday === EXPECTED_DAILY_AGENT_COUNT &&
+        completedToday === EXPECTED_DAILY_AGENT_COUNT;
+
   const runQueueMeta = selectedRun?.runQueueMeta ?? null;
   const candidatesDetectedToday =
     typeof runQueueMeta?.candidatesDetected === "number"
@@ -455,7 +489,21 @@ function buildDaily12ReviewStatus(
     roster,
     githubWorkflowUrl: GITHUB_DAILY_12_ACTIONS_URL,
     latestDailyRunId: selectedRun?.runId ?? null,
+    latestRunStatus: selectedRunRow?.status ?? null,
+    persistenceComplete,
+    runQueueMetaPersisted:
+      typeof persistenceMetrics?.runQueueMetaPersisted === "boolean"
+        ? persistenceMetrics.runQueueMetaPersisted
+        : hasQueueMeta(runQueueMeta),
+    runIndexPersisted:
+      typeof persistenceMetrics?.runIndexPersisted === "boolean"
+        ? persistenceMetrics.runIndexPersisted
+        : Boolean(selectedRunRow),
   };
+}
+
+function hasQueueMeta(meta: Daily12RunQueueMeta | null): boolean {
+  return meta !== null && typeof meta.candidatesDetected === "number";
 }
 
 function computeNextCronUtc(cronExpression: string, from = new Date()): string | null {
@@ -732,6 +780,8 @@ function buildOwnerStatusPayload(
   ownerAppliedMemoryCount: number,
   daily12ReviewStatus: Record<string, unknown> | null = null,
   dailyStatusError: string | null = null,
+  agentsLoaded = false,
+  readPathState: MonitoringReadPathState | null = null,
 ): Record<string, unknown> {
   const latestMonitoringRuns = rows.map(toRunIndexSummary);
   const latestIssueDrafts = draftRows.map(toIssueDraftSummary);
@@ -796,16 +846,17 @@ function buildOwnerStatusPayload(
       ownerApprovalRequired: true,
     },
     configError: indexError ?? draftsError ?? proposalsError ?? dailyStatusError,
-    agentsLoaded: false,
+    agentsLoaded,
+    readPathState,
   };
 }
 
 export async function handleMonitoringStatusRequest(request: Request): Promise<Response> {
-  const blocked = guardAgentOpsExecutionResponse(process.env);
+  const blocked = guardMonitoringStatusReadResponse();
   if (blocked) return blocked;
   if (request.method !== "GET") return methodNotAllowed();
 
-  const client = createStagingSupabaseClient();
+  const readClient = createMonitoringReadClient(process.env);
   let indexError: string | null = null;
   let draftsError: string | null = null;
   let rows: MonitoringRunRow[] = [];
@@ -818,121 +869,208 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
   let ownerAppliedMemoryCount = 0;
   let daily12ReviewStatus: Record<string, unknown> | null = null;
   let dailyStatusError: string | null = null;
+  let agentsLoaded = false;
+  let executionRowCount = 0;
+  let agentsRowCount = 0;
 
-  if (!client) {
-    indexError = "Staging Supabase is not configured for run index reads.";
-    draftsError = indexError;
-    proposalsError = indexError;
-    dailyStatusError = indexError;
+  const readPathState: MonitoringReadPathState = {
+    configured: readClient.ok,
+    authMode: readClient.ok ? readClient.authMode : null,
+    projectRef: readClient.ok ? readClient.projectRef : readClient.projectRef,
+    runIndexRowCount: 0,
+    executionRowCount: 0,
+    agentsRowCount: 0,
+    emptyReason: null,
+    queryErrors: {},
+  };
+
+  if (!readClient.ok) {
+    indexError = readClient.error;
+    draftsError = readClient.error;
+    proposalsError = readClient.error;
+    dailyStatusError = readClient.error;
+    readPathState.queryErrors.runIndex = readClient.error;
+
+    return jsonResponse(
+      {
+        ok: false,
+        environment: "staging",
+        error: readClient.error,
+        readPathReason: readClient.reason,
+        readPathState,
+        status: buildOwnerStatusPayload(
+          rows,
+          indexError,
+          draftRows,
+          draftCounts,
+          draftsError,
+          proposalRows,
+          appliedProposalRows,
+          proposalCounts,
+          proposalsError,
+          ownerAppliedMemoryCount,
+          daily12ReviewStatus,
+          dailyStatusError,
+          agentsLoaded,
+          readPathState,
+        ),
+      },
+      503,
+    );
+  }
+
+  const client = readClient.client;
+
+  const listed = await listIndexedRuns(client, 25);
+  if (listed.ok) {
+    rows = listed.data;
+    readPathState.runIndexRowCount = rows.length;
   } else {
-    const listed = await listIndexedRuns(client, 25);
-    if (listed.ok) {
-      rows = listed.data;
-    } else {
-      indexError = listed.error;
-    }
+    indexError = listed.error;
+    readPathState.queryErrors.runIndex = listed.error;
+  }
 
-    const draftsListed = await listIssueDrafts(client, 50);
-    if (draftsListed.ok) {
-      draftRows = draftsListed.data;
-    } else {
-      draftsError = draftsListed.error;
-    }
+  const draftsListed = await listIssueDrafts(client, 50);
+  if (draftsListed.ok) {
+    draftRows = draftsListed.data;
+  } else {
+    draftsError = draftsListed.error;
+    readPathState.queryErrors.drafts = draftsListed.error;
+  }
 
-    const counts = await countIssueDraftsByStatus(client);
-    if (counts.ok) {
-      draftCounts = counts.counts;
-    } else if (!draftsError) {
-      draftsError = counts.error;
-    }
+  const counts = await countIssueDraftsByStatus(client);
+  if (counts.ok) {
+    draftCounts = counts.counts;
+  } else if (!draftsError) {
+    draftsError = counts.error;
+    readPathState.queryErrors.drafts = counts.error;
+  }
 
-    const proposalsListed = await listMemoryProposals(client, 10);
-    if (proposalsListed.ok) {
-      proposalRows = proposalsListed.data;
-    } else {
-      proposalsError = proposalsListed.error;
-    }
+  const proposalsListed = await listMemoryProposals(client, 10);
+  if (proposalsListed.ok) {
+    proposalRows = proposalsListed.data;
+  } else {
+    proposalsError = proposalsListed.error;
+    readPathState.queryErrors.proposals = proposalsListed.error;
+  }
 
-    const appliedListed = await listMemoryProposals(client, 5, "applied");
-    if (appliedListed.ok) {
-      appliedProposalRows = appliedListed.data;
-    } else if (!proposalsError) {
-      proposalsError = appliedListed.error;
-    }
+  const appliedListed = await listMemoryProposals(client, 5, "applied");
+  if (appliedListed.ok) {
+    appliedProposalRows = appliedListed.data;
+  } else if (!proposalsError) {
+    proposalsError = appliedListed.error;
+    readPathState.queryErrors.proposals = appliedListed.error;
+  }
 
-    const proposalStatusCounts = await countMemoryProposalsByStatus(client);
-    if (proposalStatusCounts.ok) {
-      proposalCounts = proposalStatusCounts.counts;
-    } else if (!proposalsError) {
-      proposalsError = proposalStatusCounts.error;
-    }
+  const proposalStatusCounts = await countMemoryProposalsByStatus(client);
+  if (proposalStatusCounts.ok) {
+    proposalCounts = proposalStatusCounts.counts;
+  } else if (!proposalsError) {
+    proposalsError = proposalStatusCounts.error;
+    readPathState.queryErrors.proposals = proposalStatusCounts.error;
+  }
 
-    const ownerApplied = await countOwnerAppliedMonitoringMemory(client);
-    if (ownerApplied.ok) {
-      ownerAppliedMemoryCount = ownerApplied.count;
-    } else if (!proposalsError) {
-      proposalsError = ownerApplied.error;
-    }
+  const ownerApplied = await countOwnerAppliedMonitoringMemory(client);
+  if (ownerApplied.ok) {
+    ownerAppliedMemoryCount = ownerApplied.count;
+  } else if (!proposalsError) {
+    proposalsError = ownerApplied.error;
+    readPathState.queryErrors.proposals = ownerApplied.error;
+  }
 
-    const today = utcDateOnly();
-    const [executionsListed, agentsListed] = await Promise.all([
-      listDailyExecutionsForDate(client, today),
-      listStagingAgents(client),
-    ]);
+  const today = utcDateOnly();
+  const [executionsListed, agentsListed] = await Promise.all([
+    listDailyExecutionsForDate(client, today),
+    listStagingAgents(client),
+  ]);
 
-    let dailyDraftCounts = { errors: 0, improvements: 0, features: 0, duplicates: 0 };
-    if (draftRows.length > 0) {
-      for (const draft of draftRows) {
-        if (draft.source !== "daily_12_agent_review") continue;
-        const kind =
-          typeof draft.evidence?.draftKind === "string" ? draft.evidence.draftKind : "error";
-        if (kind === "improvement") dailyDraftCounts.improvements += 1;
-        else if (kind === "new_feature") dailyDraftCounts.features += 1;
-        else dailyDraftCounts.errors += 1;
-      }
-    }
-
-    if (!executionsListed.ok) {
-      dailyStatusError = executionsListed.error;
-    } else if (!agentsListed.ok) {
-      dailyStatusError = agentsListed.error;
-    } else {
-      let executionRows = executionsListed.data;
-      const draftRunHints = buildDaily12DraftRunHints(draftRows, today);
-      const preliminarySelected = selectLatestCompletedDaily12Run({
-        executionDate: today,
-        executions: executionRows,
-        monitoringRuns: rows,
-        draftRunHints,
-        expectedAgentCount: EXPECTED_DAILY_AGENT_COUNT,
-      });
-
-      if (
-        preliminarySelected?.runId &&
-        !preliminarySelected.runQueueMeta &&
-        preliminarySelected.executionsForRun.length === 0
-      ) {
-        const byRunId = await listDailyExecutionsForRunId(client, preliminarySelected.runId);
-        if (byRunId.ok && byRunId.data.length > 0) {
-          executionRows = [...executionRows, ...byRunId.data];
-        }
-      }
-
-      daily12ReviewStatus = buildDaily12ReviewStatus(
-        rows,
-        today,
-        executionRows,
-        agentsListed.data,
-        dailyDraftCounts,
-        draftRunHints,
-        draftRows,
-      );
+  let dailyDraftCounts = { errors: 0, improvements: 0, features: 0, duplicates: 0 };
+  if (draftRows.length > 0) {
+    for (const draft of draftRows) {
+      if (draft.source !== "daily_12_agent_review") continue;
+      const kind =
+        typeof draft.evidence?.draftKind === "string" ? draft.evidence.draftKind : "error";
+      if (kind === "improvement") dailyDraftCounts.improvements += 1;
+      else if (kind === "new_feature") dailyDraftCounts.features += 1;
+      else dailyDraftCounts.errors += 1;
     }
   }
 
+  if (!executionsListed.ok) {
+    dailyStatusError = executionsListed.error;
+    readPathState.queryErrors.executions = executionsListed.error;
+  } else {
+    executionRowCount = executionsListed.data.length;
+    readPathState.executionRowCount = executionRowCount;
+  }
+
+  if (!agentsListed.ok) {
+    dailyStatusError = dailyStatusError ?? agentsListed.error;
+    readPathState.queryErrors.agents = agentsListed.error;
+  } else {
+    agentsRowCount = agentsListed.data.length;
+    readPathState.agentsRowCount = agentsRowCount;
+    agentsLoaded = true;
+  }
+
+  if (executionsListed.ok && agentsListed.ok) {
+    let executionRows = executionsListed.data;
+    const draftRunHints = buildDaily12DraftRunHints(draftRows, today);
+    const preliminarySelected = selectLatestCompletedDaily12Run({
+      executionDate: today,
+      executions: executionRows,
+      monitoringRuns: rows,
+      draftRunHints,
+      expectedAgentCount: EXPECTED_DAILY_AGENT_COUNT,
+    });
+
+    if (
+      preliminarySelected?.runId &&
+      !preliminarySelected.runQueueMeta &&
+      preliminarySelected.executionsForRun.length === 0
+    ) {
+      const byRunId = await listDailyExecutionsForRunId(client, preliminarySelected.runId);
+      if (byRunId.ok && byRunId.data.length > 0) {
+        executionRows = [...executionRows, ...byRunId.data];
+        readPathState.executionRowCount = executionRows.length;
+      } else if (byRunId.ok === false) {
+        dailyStatusError = dailyStatusError ?? byRunId.error;
+        readPathState.queryErrors.executions = byRunId.error;
+      }
+    }
+
+    daily12ReviewStatus = buildDaily12ReviewStatus(
+      rows,
+      today,
+      executionRows,
+      agentsListed.data,
+      dailyDraftCounts,
+      draftRunHints,
+      draftRows,
+    );
+  }
+
+  if (!indexError && rows.length === 0) {
+    readPathState.emptyReason = "no_runs";
+  }
+  if (!dailyStatusError && executionRowCount === 0) {
+    readPathState.emptyReason = readPathState.emptyReason ?? "no_executions_today";
+  }
+  if (!readPathState.queryErrors.agents && agentsRowCount === 0) {
+    readPathState.emptyReason = readPathState.emptyReason ?? "no_agents";
+  }
+
+  const hasQueryFailure = Boolean(
+    indexError || draftsError || proposalsError || dailyStatusError,
+  );
+
   return jsonResponse({
-    ok: true,
+    ok: !hasQueryFailure,
     environment: "staging",
+    error: hasQueryFailure
+      ? (indexError ?? draftsError ?? proposalsError ?? dailyStatusError)
+      : null,
+    readPathState,
     status: buildOwnerStatusPayload(
       rows,
       indexError,
@@ -946,8 +1084,10 @@ export async function handleMonitoringStatusRequest(request: Request): Promise<R
       ownerAppliedMemoryCount,
       daily12ReviewStatus,
       dailyStatusError,
+      agentsLoaded,
+      readPathState,
     ),
-  });
+  }, hasQueryFailure ? 503 : 200);
 }
 
 export async function handleMonitoringDryRunRequest(request: Request): Promise<Response> {

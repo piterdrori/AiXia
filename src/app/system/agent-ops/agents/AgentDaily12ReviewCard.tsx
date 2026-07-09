@@ -14,6 +14,9 @@ import {
   AixiaTableActionsCell,
 } from "@/components/aixia";
 import { formatTimestamp } from "@/lib/agentops/agents/monitoringOwnerDisplayCopy";
+import { FetchTimeoutError, fetchWithTimeout } from "@/lib/fetchWithTimeout";
+
+const MONITORING_STATUS_TIMEOUT_MS = 18_000;
 
 type DailyRosterRow = {
   agentSlug: string;
@@ -48,6 +51,8 @@ type Daily12ReviewStatus = {
   lastCompletedDailyReviewAt: string | null;
   nextExpectedDailyReviewAt: string | null;
   latestDailyRunId: string | null;
+  latestRunStatus: string | null;
+  persistenceComplete?: boolean;
   errorsFoundToday: number;
   improvementsSuggestedToday: number;
   newFeaturesSuggestedToday: number;
@@ -82,21 +87,36 @@ export function AgentDaily12ReviewCard() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/agentops/monitoring/status");
+      const response = await fetchWithTimeout("/api/agentops/monitoring/status", {
+        timeoutMs: MONITORING_STATUS_TIMEOUT_MS,
+      });
       const payload = (await response.json()) as {
         ok?: boolean;
         error?: string;
-        status?: { daily12ReviewStatus?: Daily12ReviewStatus; dailyStatusError?: string | null };
+        status?: {
+          daily12ReviewStatus?: Daily12ReviewStatus;
+          dailyStatusError?: string | null;
+          configError?: string | null;
+        };
       };
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.error ?? "Could not load daily review status.");
+      if (!response.ok || payload.ok === false) {
+        throw new Error(
+          payload.error ??
+            payload.status?.dailyStatusError ??
+            payload.status?.configError ??
+            "Could not load daily review status.",
+        );
       }
       if (payload.status?.dailyStatusError) {
         setError(payload.status.dailyStatusError);
       }
       setStatus(payload.status?.daily12ReviewStatus ?? null);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      if (loadError instanceof FetchTimeoutError) {
+        setError("Unable to load monitoring status — request timed out.");
+      } else {
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
       setStatus(null);
     } finally {
       setLoading(false);
@@ -124,9 +144,20 @@ export function AgentDaily12ReviewCard() {
       {loading ? (
         <p className="text-sm text-white/55">Loading daily 12-agent review status…</p>
       ) : error && !status ? (
-        <AixiaInfoBlock title="Daily review status unavailable" tone="gold">
-          {error}
-        </AixiaInfoBlock>
+        <div className="space-y-3">
+          <AixiaInfoBlock title="Unable to load monitoring status" tone="gold">
+            {error}
+          </AixiaInfoBlock>
+          <div className="flex flex-wrap gap-2">
+            <AixiaButton type="button" variant="primary" onClick={() => void loadStatus()}>
+              <RefreshCw className="mr-1.5 h-4 w-4" />
+              Retry
+            </AixiaButton>
+            <AixiaButton type="button" variant="secondary" onClick={() => window.location.reload()}>
+              Refresh page
+            </AixiaButton>
+          </div>
+        </div>
       ) : status ? (
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
@@ -134,6 +165,12 @@ export function AgentDaily12ReviewCard() {
             <AixiaBadge tone="cyan">{status.modeLabel}</AixiaBadge>
             <AixiaBadge tone={status.allAgentsAccountedFor ? "emerald" : "amber"}>
               {status.agentsCompletedToday}/{status.expectedAgents} completed today
+            </AixiaBadge>
+            <AixiaBadge tone={(status.persistenceComplete ?? false) ? "emerald" : "amber"}>
+              persistence {(status.persistenceComplete ?? false) ? "complete" : "incomplete"}
+            </AixiaBadge>
+            <AixiaBadge tone="neutral">
+              run {status.latestDailyRunId ? status.latestDailyRunId.slice(0, 8) : "—"}
             </AixiaBadge>
           </div>
 

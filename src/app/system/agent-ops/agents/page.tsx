@@ -96,33 +96,34 @@ export default function AgentOpsAgentsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const [ownerResult, managedResult, statusResult] = await Promise.all([
-      getAgentOpsOwnerStatus(),
-      getAgentOpsManagedAgents(),
-      getAgentOpsAgentStatusDashboard(),
-    ]);
+    try {
+      const [ownerResult, managedResult, statusResult] = await Promise.all([
+        getAgentOpsOwnerStatus(),
+        getAgentOpsManagedAgents(),
+        getAgentOpsAgentStatusDashboard(),
+      ]);
 
-    if (ownerResult.error || !ownerResult.data?.isOwner) {
-      setIsOwner(false);
-      setError(ownerResult.error ?? "AgentOps Owner access required.");
+      if (ownerResult.error || !ownerResult.data?.isOwner) {
+        setIsOwner(false);
+        setError(ownerResult.error ?? "AgentOps Owner access required.");
+        return;
+      }
+
+      setIsOwner(true);
+
+      if (managedResult.error) {
+        setError(managedResult.error);
+        setManagedAgents([]);
+        setStatusDashboardItems([]);
+        return;
+      }
+
+      setManagedAgents(managedResult.data ?? []);
+      setStatusDashboardItems(statusResult.data?.items ?? []);
+      if (statusResult.error) setError(statusResult.error);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setIsOwner(true);
-
-    if (managedResult.error) {
-      setError(managedResult.error);
-      setManagedAgents([]);
-      setStatusDashboardItems([]);
-      setLoading(false);
-      return;
-    }
-
-    setManagedAgents(managedResult.data ?? []);
-    setStatusDashboardItems(statusResult.data?.items ?? []);
-    if (statusResult.error) setError(statusResult.error);
-    setLoading(false);
   }, []);
 
   useEffect(() => {

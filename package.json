@@ -26,6 +26,7 @@
     "agentops:monitoring:daily-12-agent:gha": "node scripts/agentops-monitoring-daily-12-agent-run.mjs gha",
     "agentops:monitoring:daily-12-agent:local": "node scripts/agentops-monitoring-daily-12-agent-run.mjs local",
     "agentops:monitoring-owner-promotion-lock-verify": "tsx scripts/agentops-monitoring-owner-promotion-lock-verify.ts",
+    "agentops:monitoring-status-read-verify": "tsx scripts/agentops-monitoring-status-read-verify.ts",
     "agentops:vercel-function-count-verify": "tsx scripts/agentops-vercel-function-count-verify.ts",
     "agentops:monitoring:scheduled:loop:dry-run": "node scripts/agentops-monitoring-scheduled-run.mjs dry-run-loop",
     "agentops:monitoring:scheduled:once": "node scripts/agentops-monitoring-scheduled-run.mjs once",

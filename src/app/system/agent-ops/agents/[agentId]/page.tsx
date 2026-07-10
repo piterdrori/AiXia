@@ -110,11 +110,19 @@ function todayStateLabel(state: AgentCardState): string {
 
 function managedStatusLabel(status: AgentOpsManagedAgent["status"] | null): string {
   if (!status) return "Active";
-  if (status === "active") return "Active";
-  if (status === "quiet") return "Paused";
-  if (status === "disabled" || status === "blocked") return "Paused";
-  if (status === "needs_memory") return "Needs attention";
-  return status.replaceAll("_", " ");
+  switch (status) {
+    case "active":
+      return "Active";
+    case "quiet":
+      return "Paused";
+    case "disabled":
+    case "blocked":
+      return "Paused";
+    case "needs_memory":
+      return "Needs attention";
+    default:
+      return String(status);
+  }
 }
 
 function findingTypeForIssue(finding: AgentOpsFinding): FindingType {

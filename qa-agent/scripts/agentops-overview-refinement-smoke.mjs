@@ -31,6 +31,11 @@ async function screenshot(page, name) {
 async function auditOverview(page) {
   await page.goto(`${base}/system/agent-ops`, { waitUntil: "domcontentloaded", timeout: 45000 });
   await page.getByRole("heading", { name: "AgentOps", level: 1 }).waitFor({ timeout: 90000 });
+  await page
+    .getByText(/System status|Status unavailable|Some AgentOps data is temporarily unavailable|Environment:/i)
+    .first()
+    .waitFor({ timeout: 90000 });
+  await page.waitForTimeout(1500);
 
   const body = await page.locator("body").innerText();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 2);

@@ -701,16 +701,6 @@ function LegacyExpensePaymentRedirect() {
   );
 }
 
-function _AgentOpsMemoryLegacyRedirect() {
-  const location = useLocation();
-  return (
-    <Navigate
-      to={`/system/agent-ops/runtime/memory${location.search}`}
-      replace
-    />
-  );
-}
-
 function AppRoutes() {
   return (
     <Routes>

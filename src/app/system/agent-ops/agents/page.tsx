@@ -14,6 +14,7 @@ import {
   type AgentCardState,
 } from "@/components/agentops/owner";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { AgentDaily12ReviewCard } from "@/app/system/agent-ops/agents/AgentDaily12ReviewCard";
 import { CANONICAL_AGENTS } from "@/lib/agentops/canonicalAgents";
 
 function mapTodayStatus(row: {
@@ -139,7 +140,8 @@ export default function AgentOpsAgentsPage() {
         </section>
 
         <AgentOpsAdvancedDisclosure title="Daily review schedule">
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <AgentDaily12ReviewCard />
+          <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-white/45">Daily review</dt>
               <dd className="text-white/85">01:00 UTC</dd>

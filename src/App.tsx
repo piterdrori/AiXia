@@ -239,8 +239,12 @@ async function getAccessState(): Promise<AccessSnapshot> {
   try {
     const sessionResult = await getSessionWithBootstrapTimeout();
     if (!sessionResult.ok) {
-      console.error("Auth session bootstrap failed:", sessionResult.diagnosticCode);
-      throw new Error(sessionResult.diagnosticCode);
+      console.warn("Auth session bootstrap unavailable:", sessionResult.diagnosticCode);
+      return {
+        accessState: "unauthenticated",
+        role: null,
+        permissions: {},
+      };
     }
 
     const user = sessionResult.session?.user;
@@ -400,13 +404,10 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
     const watchdogId = window.setTimeout(() => {
       if (!mountedRef.current || !isBootstrappingRef.current) return;
       isBootstrappingRef.current = false;
-      setBootstrapTimedOut(true);
-      setBootstrapDiagnosticCode("AUTH_BOOTSTRAP_WATCHDOG");
-      setBootstrapMessage(
-        "Session bootstrap exceeded the maximum wait time. Sign in again or retry.",
-      );
       setIsBootstrapping(false);
       setAccessState("unauthenticated");
+      setRole(null);
+      setPermissions({});
     }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
     const {
@@ -2533,10 +2534,7 @@ function AppContent() {
 
         if (!sessionResult.ok) {
           settingsBootstrapActiveRef.current = false;
-          setSettingsBootstrapTimedOut(true);
-          setSettingsBootstrapDiagnosticCode(sessionResult.diagnosticCode);
-          setSettingsBootstrapMessage(sessionResult.message);
-          setSettingsLoaded(false);
+          setSettingsLoaded(true);
           return;
         }
 
@@ -2635,11 +2633,8 @@ function AppContent() {
     const settingsWatchdogId = window.setTimeout(() => {
       if (!mounted || !settingsBootstrapActiveRef.current) return;
       settingsBootstrapActiveRef.current = false;
-      setSettingsBootstrapTimedOut(true);
-      setSettingsBootstrapDiagnosticCode("SETTINGS_BOOTSTRAP_WATCHDOG");
-      setSettingsBootstrapMessage(
-        "Workspace settings bootstrap exceeded the maximum wait time.",
-      );
+      applyDefaultSettings();
+      setSettingsLoaded(true);
     }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
     return () => {

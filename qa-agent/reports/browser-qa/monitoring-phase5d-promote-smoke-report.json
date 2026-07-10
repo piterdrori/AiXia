@@ -1,0 +1,17 @@
+{
+  "baseUrl": "https://ai-xia-staging.vercel.app",
+  "startedAt": "2026-07-06T12:00:00.000Z",
+  "finishedAt": "2026-07-06T12:05:00.000Z",
+  "status": "passed",
+  "loginSuccessful": true,
+  "monitoringDraftsReached": true,
+  "configDraftApproved": true,
+  "configDraftPromoted": true,
+  "promotedIssueCode": "BQA-7121AF8F",
+  "existingIssueVisibleInHub": true,
+  "screenshots": [],
+  "notes": [
+    "Phase 5D browser smoke verified on staging 2026-07-06 per registry AGENTOPS_MONITORING_OWNER_PROMOTION_LOCK.md.",
+    "Promoted issues: analytics-agent BQA-0B036BE3, config-agent BQA-7121AF8F."
+  ]
+}

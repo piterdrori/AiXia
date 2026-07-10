@@ -1,1016 +1,505 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import {
-  Activity,
-  ArrowLeft,
-  Brain,
-  MessageSquare,
-  RefreshCw,
-  ShieldCheck,
-  Sparkles,
-  Users,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 
+import { AixiaBadge, AixiaButton } from "@/components/aixia";
 import {
-  AixiaAsyncState,
-  AixiaBadge,
-  AixiaButton,
-  AixiaCommandHubMetaStrip,
-  AixiaCommandMetrics,
-  AixiaCommandPageLayout,
-  AixiaEmptyState,
-  AixiaHero,
-  AixiaInfoBlock,
-  AixiaInputField,
-  AixiaMemoryApprovalPrompt,
-  AixiaMessengerShell,
-  AixiaSection,
-  AixiaTextareaField,
-  type AixiaMemoryApprovalStatus,
-  type AixiaMessengerMessage,
-} from "@/components/aixia";
-import { useAgentOpsMessengerAttachments } from "@/hooks/useAgentOpsMessengerAttachments";
+  AgentOpsAdvancedDisclosure,
+  AgentOpsEmptyState,
+  AgentOpsFindingCard,
+  AgentOpsOwnerPageShell,
+  AgentOpsPageHeader,
+  AgentOpsStatusSummary,
+  getAgentOwnerMeta,
+  useAgentOpsMonitoringStatus,
+  useAgentOpsOwnerGate,
+  type AgentCardState,
+  type FindingType,
+} from "@/components/agentops/owner";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import {
-  addAgentOpsAgentMemory,
-  commitAgentOpsMemoryFromChatApproval,
   getAgentOpsActiveTop10,
-  getAgentOpsAgentInteractions,
-  getAgentOpsAgentMemory,
-  getAgentOpsAgentStatusSummary,
   getAgentOpsAgentTimeline,
   getAgentOpsManagedAgents,
-  getAgentOpsOwnerStatus,
-  getAgentOpsAgentChatMessages,
-  parseAgentCreativeProposal,
-  recordAgentOpsAgentChatMessage,
-  recordAgentOpsAgentInteraction,
-  recordAgentOpsAgentTimelineReview,
-  recordAgentOpsCreativeProposal,
-  runAgentOpsLocalLlmChat,
   updateAgentOpsAgentStatus,
-  type AgentOpsAgentChatMessage,
-  type AgentOpsAgentInteractionItem,
-  type AgentOpsAgentInteractionMessageType,
-  type AgentOpsAgentMemoryInputType,
   type AgentOpsAgentTimelineItem,
-  type AgentOpsAgentStatusSummary,
   type AgentOpsFinding,
   type AgentOpsManagedAgent,
-  type AgentOpsManagedAgentMemoryItem,
 } from "@/lib/agentops";
-import { useAgentOpsLlmProbe } from "@/hooks/useAgentOpsLlmProbe";
-import { useAgentOpsLlmModelSelection } from "@/hooks/useAgentOpsLlmModelSelection";
-import { AgentDailyReviewStatusSection } from "@/app/system/agent-ops/agents/AgentDailyReviewStatusSection";
+import { AGENT_IDENTITY_DEFINITIONS } from "@/lib/agentops/agents/agentIdentityDefinitions";
+import { getAgentResponsibilitySummary } from "@/lib/agentops/agents/productAgentDisplay";
+import { CANONICAL_AGENTS, type CanonicalAgent } from "@/lib/agentops/canonicalAgents";
 
-function managedAgentStatusTone(
-  status: AgentOpsManagedAgent["status"],
-): "emerald" | "amber" | "rose" | "cyan" | "neutral" {
-  if (status === "active") return "emerald";
-  if (status === "quiet") return "cyan";
-  if (status === "needs_memory") return "amber";
-  if (status === "blocked" || status === "disabled") return "rose";
-  return "neutral";
+function OwnerSection({
+  title,
+  id,
+  children,
+}: {
+  title: string;
+  id: string;
+  children: ReactNode;
+}) {
+  return (
+    <section
+      aria-labelledby={id}
+      className="rounded-xl border border-white/10 bg-white/[0.03] p-5"
+    >
+      <h2 id={id} className="text-lg font-semibold text-white">
+        {title}
+      </h2>
+      <div className="mt-4 space-y-3">{children}</div>
+    </section>
+  );
+}
+
+function resolveCanonicalAgent(agentIdParam: string): CanonicalAgent | null {
+  const key = agentIdParam.trim().toLowerCase();
+  return (
+    CANONICAL_AGENTS.find(
+      (agent) =>
+        agent.id === key ||
+        agent.name.toLowerCase().replace(/\s+/g, "-") === key ||
+        agent.name.toLowerCase() === key,
+    ) ?? null
+  );
 }
 
 function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "—";
+  if (!value) return "Not run yet";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "Not run yet";
   return date.toLocaleString();
 }
 
-const MEMORY_TYPES: AgentOpsAgentMemoryInputType[] = [
-  "focus",
-  "instruction",
-  "correction",
-  "feature_idea",
-  "preference",
-  "blocked_behavior",
-];
+function mapTodayState(row: {
+  todayStatus: string;
+  todayResult: string;
+  agentStatus: string;
+}): AgentCardState {
+  const status = row.todayStatus.toLowerCase();
+  if (status.includes("running") || status.includes("in_progress")) return "running";
+  if (
+    status.includes("complete") ||
+    row.todayResult === "no_findings" ||
+    row.todayResult === "findings"
+  ) {
+    return "completed";
+  }
+  if (
+    row.agentStatus.toLowerCase().includes("paused") ||
+    row.agentStatus.toLowerCase().includes("disabled")
+  ) {
+    return "paused";
+  }
+  if (status.includes("fail") || status.includes("blocked") || status.includes("missing")) {
+    return "needs_attention";
+  }
+  if (status.includes("not_run") || row.todayResult === "not_run" || row.todayResult === "missing") {
+    return "not_run";
+  }
+  return "needs_attention";
+}
 
-const INTERACTION_TYPES: AgentOpsAgentInteractionMessageType[] = [
-  "piter_note",
-  "focus_directive",
-  "correction",
-  "feature_idea",
-  "status_question",
-];
+function todayStateLabel(state: AgentCardState): string {
+  if (state === "completed") return "Completed today";
+  if (state === "running") return "Running";
+  if (state === "paused") return "Paused";
+  if (state === "not_run") return "Not run yet";
+  return "Needs attention";
+}
 
-export default function AgentOpsAgentWorkspacePage() {
+function managedStatusLabel(status: AgentOpsManagedAgent["status"] | null): string {
+  if (!status) return "Active";
+  if (status === "active") return "Active";
+  if (status === "quiet") return "Paused";
+  if (status === "disabled" || status === "blocked") return "Paused";
+  if (status === "needs_memory") return "Needs attention";
+  return status.replaceAll("_", " ");
+}
+
+function findingTypeForIssue(finding: AgentOpsFinding): FindingType {
+  const category = finding.category.toLowerCase();
+  if (category.includes("improvement")) return "improvement";
+  if (category.includes("feature")) return "feature";
+  return "error";
+}
+
+function ageLabel(value: string): string {
+  const ms = Date.now() - new Date(value).getTime();
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  if (days <= 0) return "Today";
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
+export default function AgentOpsAgentDetailPage() {
   const { agentId = "" } = useParams<{ agentId: string }>();
-
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const canonical = useMemo(() => resolveCanonicalAgent(agentId), [agentId]);
 
-  const initialMode = searchParams.get("mode")?.toLowerCase();
-  const initialPanel = searchParams.get("panel")?.toLowerCase();
+  const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
+    useAgentOpsOwnerGate();
+  const { daily12, loading: monitoringLoading, error: monitoringError, refresh: refreshMonitoring } =
+    useAgentOpsMonitoringStatus(isOwner);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-  const [isOwner, setIsOwner] = useState(false);
-  const [agent, setAgent] = useState<AgentOpsManagedAgent | null>(null);
-  usePageTitle(agent?.displayName ? `${agent.displayName} · AgentOps` : `Agent · ${agentId || "AgentOps"}`);
-  const [statusSummary, setStatusSummary] = useState<AgentOpsAgentStatusSummary | null>(null);
-  const [memoryItems, setMemoryItems] = useState<AgentOpsManagedAgentMemoryItem[]>([]);
-  const [interactionItems, setInteractionItems] = useState<AgentOpsAgentInteractionItem[]>([]);
-  const [timelineItems, setTimelineItems] = useState<AgentOpsAgentTimelineItem[]>([]);
-  const [issuesFound, setIssuesFound] = useState<AgentOpsFinding[]>([]);
+  const [managedAgent, setManagedAgent] = useState<AgentOpsManagedAgent | null>(null);
+  const [findings, setFindings] = useState<AgentOpsFinding[]>([]);
+  const [timeline, setTimeline] = useState<AgentOpsAgentTimelineItem[]>([]);
+  const [statusUpdating, setStatusUpdating] = useState(false);
 
-  const [memoryType, setMemoryType] = useState<AgentOpsAgentMemoryInputType>(
-    initialMode && MEMORY_TYPES.includes(initialMode as AgentOpsAgentMemoryInputType)
-      ? (initialMode as AgentOpsAgentMemoryInputType)
-      : "focus",
+  const resolvedSlug = canonical?.id ?? agentId.trim().toLowerCase();
+  const ownerMeta = getAgentOwnerMeta(resolvedSlug);
+  const identity = AGENT_IDENTITY_DEFINITIONS[resolvedSlug];
+  const rosterRow = daily12?.roster.find((row) => row.agentSlug === resolvedSlug) ?? null;
+  const todayState = rosterRow ? mapTodayState(rosterRow) : ("not_run" as AgentCardState);
+
+  usePageTitle(
+    canonical?.name ? `${canonical.name} · AgentOps` : `Agent · ${agentId || "AgentOps"}`,
   );
-  const [memoryText, setMemoryText] = useState("");
-  const [memorySubmitting, setMemorySubmitting] = useState(false);
 
-  const [interactionType, setInteractionType] = useState<AgentOpsAgentInteractionMessageType>(
-    initialMode === "interaction_note" ? "piter_note" : "focus_directive",
-  );
-  const [interactionText, setInteractionText] = useState("");
-  const [interactionSubmitting, setInteractionSubmitting] = useState(false);
-  const [timelineReviewSubmitting, setTimelineReviewSubmitting] = useState(false);
-  const [chatMessages, setChatMessages] = useState<AgentOpsAgentChatMessage[]>([]);
-  const [chatComposerValue, setChatComposerValue] = useState("");
-  const [chatSubmitting, setChatSubmitting] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
-  const [memoryApprovalByMessageId, setMemoryApprovalByMessageId] = useState<
-    Record<string, AixiaMemoryApprovalStatus>
-  >({});
-
-  const localLlmStatus = useAgentOpsLlmProbe();
-  const {
-    models: llmModelOptions,
-    selectedModel: selectedLlmModel,
-    selectedLabel: selectedLlmLabel,
-    setSelectedModel: setSelectedLlmModel,
-    refreshCatalog: refreshLlmCatalog,
-    loading: llmModelLoading,
-    refreshing: llmModelRefreshing,
-    installedCount: llmInstalledCount,
-  } = useAgentOpsLlmModelSelection(`agent:${agentId}`);
-  const {
-    pendingAttachments,
-    readyAttachments,
-    attachmentDescriptions,
-    addAttachments,
-    removeAttachment,
-    clearAttachments,
-  } = useAgentOpsMessengerAttachments("individual_agent", agentId);
-
-  const loadWorkspace = useCallback(async (options?: { silent?: boolean }) => {
-    const silent = options?.silent === true;
-    if (!silent) {
-      setLoading(true);
+  const loadDetail = useCallback(async () => {
+    if (!canonical) {
+      setLoading(false);
+      return;
     }
+    if (!isOwner) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     setError(null);
 
-    const [ownerResult, managedAgentsResult, statusSummaryResult, memoryResult, interactionsResult, timelineResult, activeIssuesResult, chatResult] =
-      await Promise.all([
-        getAgentOpsOwnerStatus(),
-        getAgentOpsManagedAgents(),
-        getAgentOpsAgentStatusSummary(agentId),
-        getAgentOpsAgentMemory(agentId),
-        getAgentOpsAgentInteractions(agentId),
-        getAgentOpsAgentTimeline(agentId),
-        getAgentOpsActiveTop10(),
-        getAgentOpsAgentChatMessages(agentId),
-      ]);
+    const slug = canonical.id;
+    const [managedResult, findingsResult, timelineResult] = await Promise.all([
+      getAgentOpsManagedAgents(),
+      getAgentOpsActiveTop10(),
+      getAgentOpsAgentTimeline(slug),
+    ]);
 
-    if (ownerResult.error || !ownerResult.data?.isOwner) {
-      setIsOwner(false);
-      setError(ownerResult.error ?? "AgentOps Owner access required.");
+    if (managedResult.error) {
+      setError(managedResult.error);
       setLoading(false);
       return;
     }
 
-    setIsOwner(true);
+    const matched =
+      (managedResult.data ?? []).find(
+        (candidate) =>
+          candidate.agentId.toLowerCase() === slug ||
+          candidate.displayName.toLowerCase().replace(/\s+/g, "-") === slug,
+      ) ?? null;
 
-    if (managedAgentsResult.error) {
-      setError(managedAgentsResult.error);
-      setLoading(false);
-      return;
-    }
-
-    const matched = (managedAgentsResult.data ?? []).find(
-      (candidate) =>
-        candidate.agentId.toLowerCase() === agentId.toLowerCase() ||
-        candidate.displayName.toLowerCase().replace(/\s+/g, "-") === agentId.toLowerCase(),
+    setManagedAgent(matched);
+    setFindings(
+      (findingsResult.data ?? [])
+        .filter((issue) => issue.agent_id === slug || issue.agent_id === matched?.agentId)
+        .slice(0, 5),
     );
+    setTimeline((timelineResult.data?.items ?? []).slice(0, 5));
 
-    if (!matched) {
-      setAgent(null);
-      setError(`Agent not found for id: ${agentId}`);
-      setLoading(false);
-      return;
-    }
-
-    setAgent(matched);
-    setStatusSummary(statusSummaryResult.data ?? null);
-    setMemoryItems(memoryResult.data ?? []);
-    setInteractionItems(interactionsResult.data ?? []);
-    setTimelineItems(timelineResult.data?.items ?? []);
-    setIssuesFound((activeIssuesResult.data ?? []).filter((issue) => issue.agent_id === matched.agentId));
-    setChatMessages(chatResult.data ?? []);
-
-    const firstError =
-      statusSummaryResult.error ??
-      memoryResult.error ??
-      interactionsResult.error ??
-      timelineResult.error ??
-      activeIssuesResult.error ??
-      chatResult.error;
+    const firstError = findingsResult.error ?? timelineResult.error;
     if (firstError) setError(firstError);
     setLoading(false);
-  }, [agentId]);
+  }, [canonical, isOwner]);
 
   useEffect(() => {
-    if (!agentId) return;
-    void loadWorkspace();
-  }, [agentId, loadWorkspace]);
+    if (!gateLoading) void loadDetail();
+  }, [gateLoading, loadDetail]);
 
-  const workspaceModeLabel = useMemo(() => {
-    if (initialPanel === "memory" && initialMode === "view") return "View memory";
-    if (initialPanel === "memory" && initialMode) return `Add ${initialMode.replaceAll("_", " ")}`;
-    if (initialPanel === "chat") return "Add interaction note";
-    return null;
-  }, [initialMode, initialPanel]);
+  const refreshAll = () => void Promise.all([refreshGate(), refreshMonitoring(), loadDetail()]);
 
-  const updateStatus = useCallback(
-    async (nextStatus: AgentOpsManagedAgent["status"]) => {
-      if (!agent) return;
-      setActionFeedback(null);
-      const result = await updateAgentOpsAgentStatus({
-        agentId: agent.agentId,
-        status: nextStatus,
-        note: `Status updated in Agent Workspace (${agent.agentId}).`,
-      });
-      if (result.error) {
-        setActionFeedback(result.error);
-        return;
-      }
-      setActionFeedback(`Status updated to ${nextStatus.replaceAll("_", " ")}.`);
-      await loadWorkspace();
-    },
-    [agent, loadWorkspace],
-  );
-
-  const submitMemory = useCallback(async () => {
-    if (!agent || !memoryText.trim()) return;
-    setMemorySubmitting(true);
+  const setAgentStatus = async (next: AgentOpsManagedAgent["status"]) => {
+    if (!canonical) return;
+    setStatusUpdating(true);
     setActionFeedback(null);
-    const result = await addAgentOpsAgentMemory({
-      agentId: agent.agentId,
-      memoryType,
-      content: memoryText.trim(),
-      source: "piter",
-      priority: "medium",
-      note: `Added from Agent Workspace (${agent.agentId}).`,
+    const result = await updateAgentOpsAgentStatus({
+      agentId: managedAgent?.agentId ?? canonical.id,
+      status: next,
+      note: `Status updated from agent detail (${canonical.id}).`,
     });
-    setMemorySubmitting(false);
+    setStatusUpdating(false);
     if (result.error) {
       setActionFeedback(result.error);
       return;
     }
-    setMemoryText("");
-    setActionFeedback(`Memory saved (${memoryType.replaceAll("_", " ")}).`);
-    await loadWorkspace();
-  }, [agent, loadWorkspace, memoryText, memoryType]);
+    setActionFeedback(next === "active" ? "Agent activated." : "Agent paused.");
+    await loadDetail();
+  };
 
-  const submitInteraction = useCallback(async () => {
-    if (!agent || !interactionText.trim()) return;
-    setInteractionSubmitting(true);
-    setActionFeedback(null);
-    const result = await recordAgentOpsAgentInteraction({
-      agentId: agent.agentId,
-      messageType: interactionType,
-      content: interactionText.trim(),
-      source: "piter",
-      priority: "medium",
-      status: "logged",
-      note: `Logged from Agent Workspace (${agent.agentId}).`,
-    });
-    setInteractionSubmitting(false);
-    if (result.error) {
-      setActionFeedback(result.error);
-      return;
-    }
-    setInteractionText("");
-    setActionFeedback("Interaction note saved.");
-    await loadWorkspace();
-  }, [agent, interactionText, interactionType, loadWorkspace]);
+  const isPaused =
+    managedAgent?.status === "quiet" ||
+    managedAgent?.status === "disabled" ||
+    managedAgent?.status === "blocked";
 
-  const handleAgentChatSend = useCallback(async () => {
-    if (!agent || !chatComposerValue.trim() || chatSubmitting) return;
+  const reviewAreas = useMemo(() => {
+    const modules = managedAgent?.allowedModules?.length
+      ? managedAgent.allowedModules
+      : getAgentResponsibilitySummary(resolvedSlug).split(" · ");
+    return modules.filter(Boolean).slice(0, 6);
+  }, [managedAgent?.allowedModules, resolvedSlug]);
 
-    const message = chatComposerValue.trim();
-    setChatSubmitting(true);
-    setActionFeedback(null);
-    setChatError(null);
+  const notFound = !gateLoading && !loading && !canonical;
 
-    const piterResult = await recordAgentOpsAgentChatMessage({
-      agentId: agent.agentId,
-      sender: "piter",
-      content: message,
-      source: "owner",
-      metadata: { attachments: readyAttachments },
-    });
-    if (piterResult.error) {
-      setChatSubmitting(false);
-      setChatError(piterResult.error);
-      return;
-    }
-
-    const llmResult = await runAgentOpsLocalLlmChat({
-      chatScope: "individual_agent",
-      message,
-      model: selectedLlmModel,
-      attachmentDescriptions,
-      selectedAgentId: agent.agentId,
-      agentContext: {
-        agentId: agent.agentId,
-        displayName: agent.displayName,
-        appRole: agent.appRole,
-        qaSpecialty: agent.qaSpecialty,
-        currentFocus: agent.currentFocus,
-        memorySnippets: memoryItems.filter((item) => item.active).map((item) => item.memoryText),
-      },
-    });
-
-    const parsed = parseAgentCreativeProposal(llmResult.response ?? "");
-    if (parsed.proposal) {
-      await recordAgentOpsCreativeProposal({
-        agentId: agent.agentId,
-        proposalType: parsed.proposal.proposalType,
-        title: parsed.proposal.title,
-        summary: parsed.proposal.summary,
-        suggestedRoute: parsed.proposal.suggestedRoute,
-        confidence: parsed.proposal.confidence,
-        chatScope: "individual_agent",
-        roomId: agent.agentId,
-      });
-    }
-
-    const agentReply = parsed.cleanedResponse || llmResult.response || "No response generated.";
-    await recordAgentOpsAgentChatMessage({
-      agentId: agent.agentId,
-      sender: "agent",
-      content: agentReply,
-      source: llmResult.localLlmCalled ? "local_llm_runtime" : "mock_response_layer",
-      metadata: {
-        requestId: llmResult.requestId,
-        memoryIntentDetected: llmResult.memoryIntentDetected,
-        creativeProposal: parsed.proposal,
-      },
-    });
-
-    setChatComposerValue("");
-    clearAttachments();
-    setChatSubmitting(false);
-    if (!llmResult.localLlmCalled) {
-      setChatError(
-        llmResult.blockers[0] ??
-          llmResult.limitations ??
-          "Local LLM unavailable. Start Ollama with: ollama serve",
-      );
-    }
-    setActionFeedback(
-      llmResult.localLlmCalled ?
-        "Agent chat response recorded via local LLM."
-      : "Agent chat fallback response recorded (local LLM unavailable).",
-    );
-    await loadWorkspace({ silent: true });
-  }, [
-    agent,
-    attachmentDescriptions,
-    chatComposerValue,
-    chatSubmitting,
-    clearAttachments,
-    loadWorkspace,
-    memoryItems,
-    readyAttachments,
-    selectedLlmModel,
-  ]);
-
-  const handleMemoryApproval = useCallback(
-    async (messageId: string, content: string, approved: boolean) => {
-      if (!agent) return;
-      setMemoryApprovalByMessageId((current) => ({
-        ...current,
-        [messageId]: approved ? "saved" : "rejected",
-      }));
-      const result = await commitAgentOpsMemoryFromChatApproval({
-        agentId: agent.agentId,
-        content,
-        chatScope: "individual_agent",
-        roomId: agent.agentId,
-        approved,
-      });
-      if (result.error) {
-        setMemoryApprovalByMessageId((current) => ({
-          ...current,
-          [messageId]: "error",
-        }));
-        setChatError(result.error);
-      }
-    },
-    [agent],
-  );
-
-  const agentMessengerMessages = useMemo((): AixiaMessengerMessage[] => {
-    if (!agent) return [];
-    return chatMessages.map((entry) => {
-      const memoryIntentDetected = entry.metadata.memoryIntentDetected === true;
-      const approvalStatus =
-        memoryApprovalByMessageId[entry.id] ?? (memoryIntentDetected ? "pending" : undefined);
-
-      if (entry.sender === "piter") {
-        return {
-          id: entry.id,
-          senderType: "user",
-          senderName: "Piter",
-          content: entry.content,
-        };
-      }
-
-      return {
-        id: entry.id,
-        senderType: "agent",
-        senderName: agent.displayName,
-        senderRole: `${agent.appRole} · ${agent.qaSpecialty}`,
-        badges: (
-          <AixiaBadge tone={entry.source === "local_llm_runtime" ? "emerald" : "neutral"}>
-            {entry.source === "local_llm_runtime" ? "LLM" : "Fallback"}
-          </AixiaBadge>
-        ),
-        content: entry.content,
-        footer:
-          memoryIntentDetected ?
-            <AixiaMemoryApprovalPrompt
-              suggestedMemoryText={entry.content.slice(0, 180)}
-              status={approvalStatus ?? "pending"}
-              density="inline"
-              scope="agent"
-              agentName={agent.displayName}
-              contextLabel="Agent Workspace chat"
-              onApprove={() => void handleMemoryApproval(entry.id, entry.content, true)}
-              onReject={() => void handleMemoryApproval(entry.id, entry.content, false)}
-            />
-          : null,
-      };
-    });
-  }, [agent, chatMessages, handleMemoryApproval, memoryApprovalByMessageId]);
-
-  const submitTimelineReview = useCallback(
-    async (
-      decision: "reviewed" | "needs_follow_up" | "archive_note" | "keep_active",
-      timelineItemId: string,
-    ) => {
-      if (!agent) return;
-      setTimelineReviewSubmitting(true);
-      setActionFeedback(null);
-      const result = await recordAgentOpsAgentTimelineReview({
-        agentId: agent.agentId,
-        timelineItemId,
-        decision,
-        note: `Timeline review from Agent Workspace: ${decision.replaceAll("_", " ")}.`,
-      });
-      setTimelineReviewSubmitting(false);
-      if (result.error) {
-        setActionFeedback(result.error);
-        return;
-      }
-      setActionFeedback(`Timeline decision recorded: ${decision.replaceAll("_", " ")}.`);
-      await loadWorkspace();
-    },
-    [agent, loadWorkspace],
-  );
-
-  const agentStatusLabel = agent
-    ? (statusSummary?.currentStatus ?? agent.status).replaceAll("_", " ")
-    : "Unknown";
-
-  const workspaceMetaStripItems = useMemo(
-    () => [
-      {
-        key: "staging",
-        label: "Environment",
-        value: "Staging only",
-        detail: "Manual-first AgentOps staging surface.",
-        tone: "amber" as const,
-      },
-      {
-        key: "runtime",
-        label: "Runtime mode",
-        value: localLlmStatus.runtimeActive ? "Local LLM active" : "Fallback mode",
-        detail:
-          localLlmStatus.runtimeActive ?
-            `${localLlmStatus.model} · ${localLlmStatus.baseUrl}`
-          : "Configure Ollama via VITE_AGENTOPS_LLM_* env vars.",
-        tone: localLlmStatus.runtimeActive ? ("emerald" as const) : ("cyan" as const),
-      },
-      {
-        key: "status",
-        label: "Agent status",
-        value: loading ? "Checking…" : agentStatusLabel,
-        detail: "Current managed agent state.",
-        tone: managedAgentStatusTone(statusSummary?.currentStatus ?? agent?.status ?? "active"),
-      },
-      {
-        key: "scope",
-        label: "Workspace scope",
-        value: "Memory, notes, timeline",
-        detail: "Single-agent owner workspace shell.",
-        tone: "neutral" as const,
-      },
-    ],
-    [agent?.status, agentStatusLabel, loading, localLlmStatus, statusSummary?.currentStatus],
-  );
-
-  const workspaceCommandMetrics = useMemo(
-    () => [
-      {
-        key: "memory-count",
-        title: "Memory count",
-        value: loading
-          ? "Checking…"
-          : String(statusSummary?.memoryCount ?? agent?.memoryCount ?? 0),
-        subtitle: "Reported memory total",
-        icon: Brain,
-        tone: "cyan" as const,
-      },
-      {
-        key: "memory-records",
-        title: "Memory records",
-        value: loading ? "Checking…" : String(memoryItems.length),
-        subtitle: "Loaded memory entries",
-        icon: Brain,
-        tone: "indigo" as const,
-      },
-      {
-        key: "issues-linked",
-        title: "Active issues",
-        value: loading ? "Checking…" : String(issuesFound.length),
-        subtitle: "Linked active top-10 issues",
-        icon: Users,
-        tone: "rose" as const,
-      },
-      {
-        key: "timeline-events",
-        title: "Timeline events",
-        value: loading ? "Checking…" : String(timelineItems.length),
-        subtitle: "Recent workspace events",
-        icon: Activity,
-        tone: "violet" as const,
-      },
-      {
-        key: "interaction-notes",
-        title: "Interaction notes",
-        value: loading ? "Checking…" : String(interactionItems.length),
-        subtitle: "Logged owner interactions",
-        icon: MessageSquare,
-        tone: "emerald" as const,
-      },
-      {
-        key: "latest-findings",
-        title: "Latest findings",
-        value: loading ? "Checking…" : String(agent?.latestFindingsCount ?? 0),
-        subtitle: `Run: ${agent?.lastRunStatus ?? "—"}`,
-        icon: Sparkles,
-        tone: "amber" as const,
-      },
-    ],
-    [
-      agent?.lastRunStatus,
-      agent?.latestFindingsCount,
-      agent?.memoryCount,
-      interactionItems.length,
-      issuesFound.length,
-      loading,
-      memoryItems.length,
-      statusSummary?.memoryCount,
-      timelineItems.length,
-    ],
-  );
-
-  const workspaceHero = (
-    <AixiaHero
-      surface="command"
-      className="shrink-0 space-y-4"
-      gradientTitle="AgentOps"
-      title={agent ? agent.displayName : "Agent Workspace"}
-      subtitle={agent ? `${agent.appRole} · ${agent.qaSpecialty}` : "Loading agent details"}
-      parentLabel="AgentOps Agents"
-      parentPath="/system/agent-ops/agents"
-      actions={
-        <>
+  if (notFound) {
+    return (
+      <AgentOpsOwnerPageShell loading={false}>
+        <div className="space-y-6">
+          <AgentOpsEmptyState
+            title="Agent not found"
+            description={`No agent matches “${agentId}”. Choose one of the 12 registered agents.`}
+          />
           <AixiaButton variant="secondary" onClick={() => navigate("/system/agent-ops/agents")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Agents
           </AixiaButton>
-          <AixiaButton variant="secondary" disabled={loading} onClick={() => void loadWorkspace()}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </AixiaButton>
-        </>
-      }
-    >
-      <AixiaCommandMetrics items={workspaceCommandMetrics} />
-    </AixiaHero>
-  );
-
-  if (!loading && (!isOwner || error?.toLowerCase().includes("owner access required"))) {
-    return (
-      <AixiaCommandPageLayout hero={workspaceHero}>
-        <AixiaSection
-          surface="command"
-          title="Agent Workspace"
-          description="Owner access required"
-          icon={ShieldCheck}
-        >
-          <AixiaInfoBlock tone="rose" icon={ShieldCheck} title="Access restricted">
-            {error ?? "Only AgentOps owner users can view this page."}
-          </AixiaInfoBlock>
-        </AixiaSection>
-      </AixiaCommandPageLayout>
+        </div>
+      </AgentOpsOwnerPageShell>
     );
   }
 
   return (
-    <AixiaCommandPageLayout
-      hero={workspaceHero}
-      scrollLead={<AixiaCommandHubMetaStrip variant="command" items={workspaceMetaStripItems} />}
+    <AgentOpsOwnerPageShell
+      loading={gateLoading || loading || monitoringLoading}
+      error={gateError ?? error ?? monitoringError}
+      onRetry={refreshAll}
     >
-      <div data-testid="agentops-agent-workspace">
-        <AixiaAsyncState
-          loading={loading}
-          fallback={
-            <AixiaSection
-              surface="command"
-              title="Agent workspace"
-              description="Loading agent status, memory, and timeline."
-              icon={Users}
-            >
-              <AixiaEmptyState
-                icon={Users}
-                title="Loading Agent Workspace"
-                description="Agent profile, memory, interactions, and timeline are being prepared."
-              />
-            </AixiaSection>
+      <div className="space-y-8">
+        <div className="flex flex-wrap items-center gap-3">
+          <AixiaButton variant="secondary" onClick={() => navigate("/system/agent-ops/agents")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Agents
+          </AixiaButton>
+          <AixiaButton variant="secondary" onClick={refreshAll}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </AixiaButton>
+        </div>
+
+        <AgentOpsPageHeader
+          title={rosterRow?.displayName ?? canonical?.name ?? "Agent"}
+          subtitle={ownerMeta.jobTitle}
+          actions={
+            <>
+              <AixiaButton onClick={() => navigate("/system/agent-ops/monitoring")}>
+                Run now
+              </AixiaButton>
+              {isPaused ? (
+                <AixiaButton
+                  variant="secondary"
+                  disabled={statusUpdating}
+                  onClick={() => void setAgentStatus("active")}
+                >
+                  Activate
+                </AixiaButton>
+              ) : (
+                <AixiaButton
+                  variant="secondary"
+                  disabled={statusUpdating}
+                  onClick={() => void setAgentStatus("quiet")}
+                >
+                  Pause
+                </AixiaButton>
+              )}
+            </>
           }
-        >
-          <>
-            {error && !error.toLowerCase().includes("owner access required") ? (
-              <AixiaInfoBlock tone="rose" icon={ShieldCheck} title="Workspace notice">
-                {error}
-              </AixiaInfoBlock>
-            ) : null}
+        />
 
-            {workspaceModeLabel ? (
-              <AixiaInfoBlock tone="cyan" icon={Sparkles} title="Quick action mode">
-                This workspace opened in quick mode: {workspaceModeLabel}.
-              </AixiaInfoBlock>
-            ) : null}
+        <div className="flex flex-wrap items-center gap-2 text-sm text-white/65">
+          <span>{rosterRow?.username ?? ownerMeta.username}</span>
+          <span aria-hidden="true">·</span>
+          <AixiaBadge tone={todayState === "completed" ? "emerald" : todayState === "needs_attention" ? "amber" : "neutral"}>
+            {todayStateLabel(todayState)}
+          </AixiaBadge>
+          <span aria-hidden="true">·</span>
+          <span>Last run: {formatDateTime(rosterRow?.lastDailyRunAt ?? null)}</span>
+        </div>
 
-            <AgentDailyReviewStatusSection agentSlug={agentId} />
+        {actionFeedback ? (
+          <p className="text-sm text-white/70" role="status">
+            {actionFeedback}
+          </p>
+        ) : null}
 
-            <AixiaSection
-              surface="command"
-              title="Status controls"
-              description="Update managed agent status. Runtime workspace features remain planned."
-              icon={Activity}
-            >
-              {agent ? (
-                <AixiaInfoBlock tone="cyan" icon={Activity} title="Current focus">
-                  {statusSummary?.currentFocus ?? agent.currentFocus ?? "No focus directive recorded yet."}
-                </AixiaInfoBlock>
-              ) : null}
-              <div className="mt-4 flex flex-wrap gap-2">
-                <AixiaButton variant="secondary" className="text-xs px-3 py-1.5" onClick={() => void updateStatus("active")}>
-                  Mark Active
-                </AixiaButton>
-                <AixiaButton variant="secondary" className="text-xs px-3 py-1.5" onClick={() => void updateStatus("quiet")}>
-                  Mark Quiet
-                </AixiaButton>
-                <AixiaButton variant="secondary" className="text-xs px-3 py-1.5" onClick={() => void updateStatus("blocked")}>
-                  Mark Blocked
-                </AixiaButton>
-                <AixiaButton
-                  variant="secondary"
-                  className="text-xs px-3 py-1.5"
-                  onClick={() => void updateStatus("needs_memory")}
-                >
-                  Mark Needs Memory
-                </AixiaButton>
-              </div>
-            </AixiaSection>
+        <AgentOpsStatusSummary
+          items={[
+            { label: "Errors today", value: rosterRow?.errorsFound ?? 0, tone: rosterRow?.errorsFound ? "danger" : "default" },
+            {
+              label: "Improvements",
+              value: rosterRow?.improvementsFound ?? 0,
+              tone: rosterRow?.improvementsFound ? "warning" : "default",
+            },
+            {
+              label: "Feature ideas",
+              value: rosterRow?.featuresFound ?? 0,
+              tone: rosterRow?.featuresFound ? "warning" : "default",
+            },
+            {
+              label: "Agent status",
+              value: managedStatusLabel(managedAgent?.status ?? null),
+              tone: isPaused ? "warning" : "success",
+            },
+          ]}
+        />
 
-            {agent ? (
-            <AixiaSection
-              surface="command"
-              title="Agent Chat"
-              description="Live local LLM chat for this agent. Memory updates still require explicit Yes/No approval."
-              icon={MessageSquare}
-              bodyClassName="aixia-section-body--messenger"
-            >
-              <div data-testid="agentops-agent-chat-thread">
-                <AixiaMessengerShell
-                  roomTitle={agent.displayName}
-                  chatScope="individual_agent"
-                  testId="agentops-agent-messenger"
-                  messages={agentMessengerMessages}
-                  composerValue={chatComposerValue}
-                  onComposerChange={setChatComposerValue}
-                  onSend={() => void handleAgentChatSend()}
-                  sending={chatSubmitting}
-                  statusText={
-                    localLlmStatus.runtimeActive ?
-                      `Local LLM active · ${selectedLlmLabel}`
-                    : "Local LLM unavailable — fallback replies will be recorded."
+        <OwnerSection title="Role" id="agent-role">
+          <p className="text-sm leading-relaxed text-white/75">
+            {identity?.mission ?? ownerMeta.responsibility}
+          </p>
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-white/45">Review perspective</dt>
+              <dd className="text-white/85">
+                {identity?.responsibilities[0] ?? ownerMeta.responsibility}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Main areas reviewed</dt>
+              <dd className="text-white/85">{reviewAreas.join(" · ") || "Staging website modules"}</dd>
+            </div>
+          </dl>
+        </OwnerSection>
+
+        <OwnerSection title="Today" id="agent-today">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="text-white/45">Review status</dt>
+              <dd className="text-white/85">{todayStateLabel(todayState)}</dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Latest run</dt>
+              <dd className="text-white/85">{formatDateTime(rosterRow?.lastDailyRunAt ?? null)}</dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Findings state</dt>
+              <dd className="text-white/85">
+                {rosterRow?.noFindings
+                  ? "No findings today"
+                  : (rosterRow?.errorsFound ?? 0) +
+                      (rosterRow?.improvementsFound ?? 0) +
+                      (rosterRow?.featuresFound ?? 0) >
+                    0
+                    ? "Findings recorded"
+                    : "Waiting for today's review"}
+              </dd>
+            </div>
+          </dl>
+        </OwnerSection>
+
+        <OwnerSection title="Latest findings" id="agent-findings">
+          {findings.length === 0 ? (
+            <AgentOpsEmptyState
+              title="No recent findings"
+              description="This agent has not surfaced any active findings recently."
+            />
+          ) : (
+            <div className="space-y-3">
+              {findings.map((finding) => (
+                <AgentOpsFindingCard
+                  key={finding.id}
+                  type={findingTypeForIssue(finding)}
+                  title={finding.title}
+                  route={finding.route ?? finding.module}
+                  agentLabel={rosterRow?.displayName ?? canonical?.name}
+                  priority={finding.severity}
+                  evidenceSummary={finding.evidence_summary ?? finding.problem}
+                  ageLabel={ageLabel(finding.created_at)}
+                  onOpen={() =>
+                    navigate(`/system/agent-ops/issues/${encodeURIComponent(finding.issue_code)}`)
                   }
-                  errorText={chatError}
-                  emptyTitle="Agent chat ready"
-                  emptyDescription={`Start a conversation with ${agent.displayName}. Memory updates require explicit Yes approval.`}
-                  pendingAttachments={pendingAttachments}
-                  onAddAttachments={(files) => void addAttachments(files)}
-                  onRemoveAttachment={removeAttachment}
-                  showTypingIndicator={chatSubmitting}
-                  typingLabel={`${agent.displayName} is thinking…`}
-                  llmModelOptions={llmModelOptions}
-                  selectedLlmModel={selectedLlmModel}
-                  onLlmModelChange={setSelectedLlmModel}
-                  onLlmModelRefresh={() => void refreshLlmCatalog()}
-                  llmModelLoading={llmModelLoading}
-                  llmModelRefreshing={llmModelRefreshing}
-                  llmInstalledCount={llmInstalledCount}
                 />
-              </div>
+              ))}
+            </div>
+          )}
+        </OwnerSection>
 
-              <div className="mt-6 border-t border-white/10 pt-4">
-                <p className="mb-3 text-xs uppercase tracking-wide text-slate-400">Owner interaction notes</p>
-                <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Interaction type</span>
-                  <select
-                    className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
-                    value={interactionType}
-                    onChange={(event) =>
-                      setInteractionType(event.target.value as AgentOpsAgentInteractionMessageType)
-                    }
-                  >
-                    {INTERACTION_TYPES.map((type) => (
-                      <option key={`interaction-type-${type}`} value={type}>
-                        {type.replaceAll("_", " ")}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block space-y-2 sm:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Interaction note</span>
-                  <AixiaTextareaField
-                    value={interactionText}
-                    onChange={(event) => setInteractionText(event.target.value)}
-                    placeholder="Record a note, directive, correction, or follow-up. Memory confirmation appears only for clear remember/apply intent."
-                    rows={4}
-                  />
-                </label>
-                </div>
-              <div className="mt-3">
-                <AixiaButton
-                  variant="primary"
-                  disabled={interactionSubmitting || interactionText.trim().length === 0}
-                  onClick={() => void submitInteraction()}
-                >
-                  Add Interaction Note
-                </AixiaButton>
-              </div>
-              {interactionItems.length > 0 ? (
-                <div className="mt-4 space-y-2">
-                  {interactionItems.slice(0, 8).map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-300"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <AixiaBadge tone="neutral">{entry.messageType.replaceAll("_", " ")}</AixiaBadge>
-                        <span className="text-xs text-slate-500">{formatDateTime(entry.createdAt)}</span>
-                      </div>
-                      <p className="mt-1">{entry.content}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              </div>
-            </AixiaSection>
-            ) : null}
+        <OwnerSection title="Recent activity" id="agent-activity">
+          {timeline.length === 0 ? (
+            <p className="text-sm text-white/60">No recent activity recorded for this agent.</p>
+          ) : (
+            <ul className="divide-y divide-white/10">
+              {timeline.map((item) => (
+                <li key={item.id} className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm">
+                  <div>
+                    <p className="font-medium text-white/90">{item.title}</p>
+                    <p className="text-white/55">{item.summary || item.eventType.replaceAll("_", " ")}</p>
+                  </div>
+                  <time className="text-white/45">{formatDateTime(item.createdAt)}</time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </OwnerSection>
 
-            <AixiaSection
-              surface="command"
-              title="Memory"
-              description="Owner-managed memory records for this agent."
-              icon={Brain}
-            >
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="block space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Memory type</span>
-                  <select
-                    className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-2 text-sm text-white"
-                    value={memoryType}
-                    onChange={(event) => setMemoryType(event.target.value as AgentOpsAgentMemoryInputType)}
-                  >
-                    {MEMORY_TYPES.map((type) => (
-                      <option key={`memory-type-${type}`} value={type}>
-                        {type.replaceAll("_", " ")}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="block space-y-2 sm:col-span-2">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Memory content</span>
-                  <AixiaTextareaField
-                    value={memoryText}
-                    onChange={(event) => setMemoryText(event.target.value)}
-                    placeholder="Add memory/focus content for this agent."
-                    rows={4}
-                  />
-                </label>
-              </div>
-              <div className="mt-3">
-                <AixiaButton
-                  variant="primary"
-                  disabled={memorySubmitting || memoryText.trim().length === 0}
-                  onClick={() => void submitMemory()}
-                >
-                  Add Memory / Focus
-                </AixiaButton>
-              </div>
+        <OwnerSection title="Controls" id="agent-controls">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-white/45">Operating mode</dt>
+              <dd className="text-white/85">{isPaused ? "Paused" : "Active"}</dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Owner approval</dt>
+              <dd className="text-white/85">Required for promotions and memory</dd>
+            </div>
+          </dl>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <AixiaButton onClick={() => navigate("/system/agent-ops/monitoring")}>Run now</AixiaButton>
+            {isPaused ? (
+              <AixiaButton variant="secondary" disabled={statusUpdating} onClick={() => void setAgentStatus("active")}>
+                Activate
+              </AixiaButton>
+            ) : (
+              <AixiaButton variant="secondary" disabled={statusUpdating} onClick={() => void setAgentStatus("quiet")}>
+                Pause
+              </AixiaButton>
+            )}
+          </div>
+        </OwnerSection>
 
-              {memoryItems.length === 0 ? (
-                <AixiaEmptyState
-                  icon={Brain}
-                  title="No memory entries yet"
-                  description="Add focus/correction/idea notes from this workspace."
-                />
-              ) : (
-                <div className="mt-4 space-y-2">
-                  {memoryItems.slice(0, 12).map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-300"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <AixiaBadge tone="cyan">{entry.memoryType.replaceAll("_", " ")}</AixiaBadge>
-                        <span className="text-xs text-slate-500">{formatDateTime(entry.createdAt)}</span>
-                      </div>
-                      <p className="mt-1">{entry.memoryText}</p>
-                    </div>
-                  ))}
-                </div>
+        <AgentOpsAdvancedDisclosure title="Advanced details">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-white/45">Agent slug</dt>
+              <dd className="font-mono text-xs text-white/70">{resolvedSlug}</dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Managed agent id</dt>
+              <dd className="font-mono text-xs text-white/70">{managedAgent?.agentId ?? "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Synthetic email</dt>
+              <dd className="font-mono text-xs text-white/70">{managedAgent?.syntheticEmail ?? "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Memory mode</dt>
+              <dd className="text-white/70">{managedAgent?.memoryMode ?? "—"}</dd>
+            </div>
+          </dl>
+          {managedAgent ? (
+            <pre className="mt-4 max-h-64 overflow-auto rounded-lg bg-black/40 p-3 text-xs text-white/60">
+              {JSON.stringify(
+                {
+                  allowedModules: managedAgent.allowedModules,
+                  blockedModules: managedAgent.blockedModules,
+                  qaSpecialty: managedAgent.qaSpecialty,
+                  lastRunStatus: managedAgent.lastRunStatus,
+                  memoryCount: managedAgent.memoryCount,
+                },
+                null,
+                2,
               )}
-            </AixiaSection>
-
-            <AixiaSection
-              surface="command"
-              title="Focus"
-              description="Current focus and quick update controls."
-              icon={Sparkles}
-            >
-              <AixiaInfoBlock tone="cyan" icon={Brain} title="Current focus">
-                {statusSummary?.currentFocus ?? agent?.currentFocus ?? "No focus directive recorded yet."}
-              </AixiaInfoBlock>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <AixiaInputField
-                  value={memoryType === "focus" ? memoryText : ""}
-                  onChange={(event) => {
-                    setMemoryType("focus");
-                    setMemoryText(event.target.value);
-                  }}
-                  placeholder="Set a concise focus directive..."
-                />
-                <AixiaButton
-                  variant="secondary"
-                  disabled={memorySubmitting || memoryText.trim().length === 0 || memoryType !== "focus"}
-                  onClick={() => void submitMemory()}
-                >
-                  Save Focus Directive
-                </AixiaButton>
-              </div>
-            </AixiaSection>
-
-            <AixiaSection
-              surface="command"
-              title="Timeline"
-              description="Recent agent events with G14 timeline review actions (Agent Interaction Window parity)."
-              icon={Activity}
-            >
-              {timelineItems.length === 0 ? (
-                <AixiaEmptyState
-                  icon={Activity}
-                  title="No timeline events yet"
-                  description="Timeline will populate as owner actions and agent updates are logged."
-                />
-              ) : (
-                <div className="space-y-2">
-                  {timelineItems.slice(0, 12).map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-slate-300"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <AixiaBadge tone="neutral">{entry.eventType.replaceAll("_", " ")}</AixiaBadge>
-                        <span className="text-xs text-slate-500">{formatDateTime(entry.createdAt)}</span>
-                      </div>
-                      <p className="mt-1 font-medium text-white">{entry.title}</p>
-                      <p className="mt-1">{entry.summary}</p>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {(
-                          [
-                            ["reviewed", "Reviewed"],
-                            ["needs_follow_up", "Needs Follow-up"],
-                            ["archive_note", "Archive Note"],
-                            ["keep_active", "Keep Active"],
-                          ] as const
-                        ).map(([decision, label]) => (
-                          <AixiaButton
-                            key={`${entry.id}-${decision}`}
-                            variant="secondary"
-                            className="text-xs px-2 py-1"
-                            disabled={timelineReviewSubmitting}
-                            onClick={() => void submitTimelineReview(decision, entry.id)}
-                          >
-                            {label}
-                          </AixiaButton>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </AixiaSection>
-
-            <AixiaSection
-              surface="command"
-              title="Issues Found"
-              description="Current active issues linked to this agent."
-              icon={Users}
-            >
-              {issuesFound.length === 0 ? (
-                <AixiaEmptyState
-                  icon={Users}
-                  title="No active issues linked"
-                  description="This agent currently has no active top-10 issues assigned."
-                />
-              ) : (
-                <div className="space-y-2">
-                  {issuesFound.slice(0, 8).map((issue) => (
-                    <div
-                      key={issue.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-3"
-                    >
-                      <div>
-                        <p className="font-medium text-white">{issue.issue_code}</p>
-                        <p className="text-sm text-slate-300">{issue.title}</p>
-                        <p className="text-xs text-slate-500">
-                          {issue.severity} · {issue.status}
-                        </p>
-                      </div>
-                      <AixiaButton
-                        variant="secondary"
-                        className="text-xs px-3 py-1.5"
-                        onClick={() =>
-                          navigate(`/system/agent-ops/issues/${encodeURIComponent(issue.issue_code)}`)
-                        }
-                      >
-                        Open Issue Workspace
-                      </AixiaButton>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </AixiaSection>
-
-            <AixiaSection
-              surface="command"
-              title="Workspace guardrails"
-              description="Batch scope limits for this agent workspace shell."
-              icon={ShieldCheck}
-            >
-              <AixiaInfoBlock tone="violet" icon={ShieldCheck} title="Batch 8 scope guardrail">
-                This route is a UI shell for Agent Workspace preparation. No local LLM runtime, no Hermes activation, no
-                CodeGraph runtime activation, no scheduler activation, and no automatic Cursor execution are enabled.
-              </AixiaInfoBlock>
-            </AixiaSection>
-
-            {actionFeedback ? (
-              <AixiaInfoBlock tone="cyan" icon={ShieldCheck} title="Update">
-                {actionFeedback}
-              </AixiaInfoBlock>
-            ) : null}
-          </>
-        </AixiaAsyncState>
+            </pre>
+          ) : null}
+          {timeline.length > 0 ? (
+            <pre className="mt-4 max-h-48 overflow-auto rounded-lg bg-black/40 p-3 text-xs text-white/60">
+              {JSON.stringify(timeline.map((item) => item.metadata), null, 2)}
+            </pre>
+          ) : null}
+        </AgentOpsAdvancedDisclosure>
       </div>
-    </AixiaCommandPageLayout>
+    </AgentOpsOwnerPageShell>
   );
 }

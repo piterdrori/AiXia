@@ -51,7 +51,11 @@ function evidenceSummary(evidence: Record<string, unknown>): string {
   return parts.length > 0 ? parts.join(" · ") : "Evidence attached in proposal record.";
 }
 
-export function MonitoringMemoryProposalsReview() {
+export function MonitoringMemoryProposalsReview({
+  statusFilter = "all",
+}: {
+  statusFilter?: "pending" | "approved" | "applied" | "all";
+}) {
   const [proposals, setProposals] = useState<MonitoringMemoryProposalSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -132,11 +136,19 @@ export function MonitoringMemoryProposalsReview() {
 
   const openProposals = proposals.filter((row) => row.status === "proposal");
 
+  const visibleProposals = proposals.filter((row) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "pending") return row.status === "proposal" || row.status === "deferred";
+    if (statusFilter === "approved") return row.status === "owner_approved";
+    if (statusFilter === "applied") return row.status === "applied";
+    return true;
+  });
+
   return (
     <AixiaSection
       surface="command"
-      title="Monitoring memory proposals"
-      description="Owner-gated memory proposals from scheduled monitoring dry-runs. Approve records intent only; Apply to Memory is a separate owner click (Phase 5F)."
+      title="Memory proposals"
+      description="Review what AgentOps wants to remember. Approval records intent; Apply to Memory is a separate owner action."
       icon={Brain}
       badge={
         openProposals.length > 0 ? (
@@ -152,10 +164,9 @@ export function MonitoringMemoryProposalsReview() {
         <AixiaInfoBlock title="Memory proposals unavailable" tone="gold">
           {error}
         </AixiaInfoBlock>
-      ) : proposals.length === 0 ? (
-        <AixiaInfoBlock title="No monitoring memory proposals yet" tone="cyan">
-          GitHub Actions dry-runs create proposals only when repeated or high-signal patterns are
-          detected. Zero proposals is acceptable when policy finds no eligible signals.
+      ) : visibleProposals.length === 0 ? (
+        <AixiaInfoBlock title="No memory proposals in this view" tone="cyan">
+          Switch tabs or refresh when new proposals arrive from scheduled reviews.
         </AixiaInfoBlock>
       ) : (
         <div className="space-y-4">
@@ -166,7 +177,7 @@ export function MonitoringMemoryProposalsReview() {
             </AixiaButton>
           </div>
 
-          {proposals.map((row) => (
+          {visibleProposals.map((row) => (
             <div
               key={row.id}
               className="rounded-lg border border-white/10 bg-white/[0.02] p-4 space-y-3"

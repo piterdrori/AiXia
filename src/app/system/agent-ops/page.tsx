@@ -1,843 +1,334 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Activity,
-  AlertTriangle,
-  BookOpen,
-  ClipboardList,
-  Clock,
-  FileInput,
-  Gauge,
-  History,
-  Layers,
-  ListPlus,
-  MessageSquare,
-  RefreshCw,
-  Route,
-  ShieldCheck,
-  Sparkles,
-  Users,
-} from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import {
-  AixiaAsyncState,
-  AixiaBadge,
   AixiaButton,
-  AixiaCommandHubMetaStrip,
-  AixiaCommandMetrics,
-  type AixiaCommandMetricItem,
-  AixiaCommandPageLayout,
-  AixiaEmptyState,
-  AixiaHero,
-  AixiaInfoBlock,
-  AixiaModal,
-  AixiaNavigationCard,
-  AixiaNavigationGrid,
-  AixiaSection,
 } from "@/components/aixia";
-import { usePageTitle } from "@/hooks/usePageTitle";
 import {
-  getAgentOpsAgentStatusDashboard,
-  getAgentOpsBacklogSummary,
-  getAgentOpsDashboardSummary,
-  getAgentOpsOwnerStatus,
-  getAgentOpsPendingVerifications,
-  getAgentOpsQueueHealth,
-  getAgentOpsSchedulerPreparationStatus,
-  getAgentOpsVerificationRequests,
-  getAgentOpsHermesReadinessGate,
-  refillAgentOpsActiveTop10FromBacklog,
-  type AgentOpsAgentStatusDashboardSummary,
-  type AgentOpsDashboardSummary,
-  type AgentOpsHermesStatus,
-  type AgentOpsPendingVerificationItem,
-  type AgentOpsQueueHealth,
-  type AgentOpsQueueHealthRecommendedAction,
-  type AgentOpsSchedulerPreparationStatus,
-  type AgentOpsVerificationRequestItem,
-} from "@/lib/agentops";
-import { useAgentOpsLlmProbe } from "@/hooks/useAgentOpsLlmProbe";
+  AgentOpsActionCard,
+  AgentOpsAttentionList,
+  AgentOpsOwnerPageShell,
+  AgentOpsPageHeader,
+  AgentOpsStatusSummary,
+  useAgentOpsMonitoringStatus,
+  useAgentOpsOwnerGate,
+  type AttentionItem,
+} from "@/components/agentops/owner";
+import { usePageTitle } from "@/hooks/usePageTitle";
+import { getAgentOpsDashboardSummary } from "@/lib/agentops";
+import { FetchTimeoutError, fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
-function formatQueueHealthAction(
-  action: AgentOpsQueueHealthRecommendedAction,
-): string {
-  switch (action) {
-    case "no_action":
-      return "No action";
-    case "refill_from_backlog":
-      return "Refill from backlog";
-    case "generate_more_candidates":
-      return "Generate more candidates";
-    case "refill_and_generate_more_candidates":
-      return "Refill and generate more candidates";
-    case "run_scan_import_plan":
-      return "Run scan / import plan";
-    default:
-      return action;
+type DraftCounts = {
+  pendingDrafts: number;
+  pendingMemory: number;
+};
+
+function systemStatusLabel(input: {
+  failed: number;
+  missing: number;
+  pendingDrafts: number;
+  pendingMemory: number;
+  verificationPending: number;
+}): { label: string; tone: "success" | "warning" | "danger" } {
+  if (input.failed > 0 || input.missing > 0) {
+    return { label: "Needs attention", tone: "warning" };
   }
+  if (input.pendingDrafts > 0 || input.pendingMemory > 0 || input.verificationPending > 0) {
+    return { label: "Needs attention", tone: "warning" };
+  }
+  return { label: "Healthy", tone: "success" };
 }
 
 export default function AgentOpsPage() {
   usePageTitle("AgentOps");
   const navigate = useNavigate();
+  const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
+    useAgentOpsOwnerGate();
+  const { daily12, loading: monitoringLoading, error: monitoringError, refresh: refreshMonitoring } =
+    useAgentOpsMonitoringStatus(isOwner);
 
-  const [gateLoading, setGateLoading] = useState(true);
-  const [isOwner, setIsOwner] = useState(false);
-  const [gateError, setGateError] = useState<string | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [draftCounts, setDraftCounts] = useState<DraftCounts>({ pendingDrafts: 0, pendingMemory: 0 });
+  const [verificationPending, setVerificationPending] = useState(0);
+  const [activeIssues, setActiveIssues] = useState(0);
 
-  const [dataLoading, setDataLoading] = useState(false);
-  const [dataError, setDataError] = useState<string | null>(null);
-  const [dashboard, setDashboard] = useState<AgentOpsDashboardSummary | null>(null);
-  const [backlogCount, setBacklogCount] = useState(0);
-  const [pendingVerifications, setPendingVerifications] = useState<
-    AgentOpsPendingVerificationItem[]
-  >([]);
-  const [verificationRequests, setVerificationRequests] = useState<
-    AgentOpsVerificationRequestItem[]
-  >([]);
+  const loadDashboard = useCallback(async () => {
+    setDashboardLoading(true);
+    setDashboardError(null);
+    try {
+      const [summaryResult, draftsResponse, memoryResponse] = await Promise.all([
+        getAgentOpsDashboardSummary(),
+        fetchWithTimeout("/api/agentops/monitoring/drafts?status=pending", { timeoutMs: 15_000 }),
+        fetchWithTimeout("/api/agentops/monitoring/memory-proposals?status=pending", {
+          timeoutMs: 15_000,
+        }),
+      ]);
 
-  const [queueHealth, setQueueHealth] = useState<AgentOpsQueueHealth | null>(null);
-  const [queueHealthLoading, setQueueHealthLoading] = useState(false);
+      if (summaryResult.error) {
+        setDashboardError(summaryResult.error);
+      } else {
+        setVerificationPending(summaryResult.data?.verificationPendingCount ?? 0);
+        setActiveIssues(summaryResult.data?.activeOpenCount ?? 0);
+      }
 
-  const [schedulerPrep, setSchedulerPrep] = useState<AgentOpsSchedulerPreparationStatus | null>(
-    null,
-  );
-  const [schedulerPrepLoading, setSchedulerPrepLoading] = useState(false);
+      let pendingDrafts = daily12?.draftsQueuedToday ?? 0;
+      let pendingMemory = 0;
 
-  const [statusDashboardSummary, setStatusDashboardSummary] =
-    useState<AgentOpsAgentStatusDashboardSummary | null>(null);
-  const [statusDashboardLoading, setStatusDashboardLoading] = useState(false);
+      if (draftsResponse.ok) {
+        const draftsPayload = (await draftsResponse.json()) as { drafts?: unknown[] };
+        pendingDrafts = draftsPayload.drafts?.length ?? pendingDrafts;
+      }
+      if (memoryResponse.ok) {
+        const memoryPayload = (await memoryResponse.json()) as { proposals?: unknown[] };
+        pendingMemory = memoryPayload.proposals?.length ?? 0;
+      }
 
-  const [actionFeedback, setActionFeedback] = useState<{
-    tone: "success" | "error" | "warning";
-    message: string;
-  } | null>(null);
-
-  const [refillModalOpen, setRefillModalOpen] = useState(false);
-  const [refillSubmitting, setRefillSubmitting] = useState(false);
-
-  const legacyToolsRef = useRef<HTMLDetailsElement>(null);
-  const localLlmStatus = useAgentOpsLlmProbe();
-  const hermesReadinessGate = useMemo(() => getAgentOpsHermesReadinessGate(), []);
-
-  const openSlots = dashboard?.openSlots ?? 0;
-  const canShowRefillButton = openSlots > 0 && backlogCount > 0;
-  const showLowBacklogHint = openSlots > 0 && backlogCount > 0 && backlogCount < openSlots;
-  const maxPromoteCount = Math.min(openSlots, backlogCount);
-
-  const loadDashboardData = useCallback(async () => {
-    setDataLoading(true);
-    setDataError(null);
-    setQueueHealthLoading(true);
-    setSchedulerPrepLoading(true);
-    setStatusDashboardLoading(true);
-
-    const [
-      summaryResult,
-      backlogResult,
-      pendingVerificationsResult,
-      verificationRequestsResult,
-      queueHealthResult,
-      schedulerPrepResult,
-      statusDashboardResult,
-    ] = await Promise.all([
-      getAgentOpsDashboardSummary(),
-      getAgentOpsBacklogSummary(),
-      getAgentOpsPendingVerifications(),
-      getAgentOpsVerificationRequests(),
-      getAgentOpsQueueHealth(),
-      getAgentOpsSchedulerPreparationStatus(),
-      getAgentOpsAgentStatusDashboard(),
-    ]);
-
-    const firstError =
-      summaryResult.error ??
-      backlogResult.error ??
-      pendingVerificationsResult.error ??
-      verificationRequestsResult.error;
-
-    if (firstError) {
-      setDataError(firstError);
-      setDashboard(null);
-      setBacklogCount(0);
-      setPendingVerifications([]);
-      setVerificationRequests([]);
-      setQueueHealth(null);
-      setSchedulerPrep(null);
-      setStatusDashboardSummary(null);
-      setQueueHealthLoading(false);
-      setSchedulerPrepLoading(false);
-      setStatusDashboardLoading(false);
-      setDataLoading(false);
-      return;
+      setDraftCounts({ pendingDrafts, pendingMemory });
+    } catch (error) {
+      setDashboardError(
+        error instanceof FetchTimeoutError
+          ? "Overview data timed out."
+          : error instanceof Error
+            ? error.message
+            : "Could not load overview data.",
+      );
+    } finally {
+      setDashboardLoading(false);
     }
-
-    setDashboard(summaryResult.data);
-    setBacklogCount(backlogResult.data?.count ?? 0);
-    setPendingVerifications(pendingVerificationsResult.data ?? []);
-    setVerificationRequests(verificationRequestsResult.data ?? []);
-    setQueueHealth(queueHealthResult.data ?? null);
-    setSchedulerPrep(schedulerPrepResult.data ?? null);
-    setStatusDashboardSummary(statusDashboardResult.data?.summary ?? null);
-    setQueueHealthLoading(false);
-    setSchedulerPrepLoading(false);
-    setStatusDashboardLoading(false);
-    setDataLoading(false);
-  }, []);
-
-  const confirmRefillQueue = useCallback(async () => {
-    setRefillSubmitting(true);
-    setActionFeedback(null);
-
-    const result = await refillAgentOpsActiveTop10FromBacklog();
-
-    setRefillSubmitting(false);
-
-    if (result.error) {
-      setActionFeedback({ tone: "error", message: result.error });
-      return;
-    }
-
-    setActionFeedback({
-      tone: "success",
-      message: result.data?.message ?? "Queue refill completed.",
-    });
-    setRefillModalOpen(false);
-    await loadDashboardData();
-  }, [loadDashboardData]);
+  }, [daily12?.draftsQueuedToday]);
 
   useEffect(() => {
-    let mounted = true;
+    if (isOwner) void loadDashboard();
+  }, [isOwner, loadDashboard, daily12?.draftsQueuedToday]);
 
-    async function checkOwner() {
-      setGateLoading(true);
-      setGateError(null);
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshGate(), refreshMonitoring(), loadDashboard()]);
+  }, [loadDashboard, refreshGate, refreshMonitoring]);
 
-      const ownerResult = await getAgentOpsOwnerStatus();
-      if (!mounted) return;
+  const statusTone = useMemo(() => {
+    return systemStatusLabel({
+      failed: daily12?.agentsFailedToday ?? 0,
+      missing: daily12?.agentsMissingToday.length ?? 0,
+      pendingDrafts: draftCounts.pendingDrafts,
+      pendingMemory: draftCounts.pendingMemory,
+      verificationPending,
+    });
+  }, [daily12, draftCounts, verificationPending]);
 
-      if (ownerResult.error) {
-        setGateError(ownerResult.error);
+  const attentionItems = useMemo((): AttentionItem[] => {
+    const items: AttentionItem[] = [];
+    if (draftCounts.pendingDrafts > 0) {
+      items.push({
+        id: "drafts",
+        title: `${draftCounts.pendingDrafts} finding${draftCounts.pendingDrafts === 1 ? "" : "s"} waiting for review`,
+        detail: "Review new errors and suggestions before they become active issues.",
+        actionLabel: "Review findings",
+        onAction: () => navigate("/system/agent-ops/issues"),
+      });
+    }
+    if (draftCounts.pendingMemory > 0) {
+      items.push({
+        id: "memory",
+        title: `${draftCounts.pendingMemory} memory proposal${draftCounts.pendingMemory === 1 ? "" : "s"} waiting for approval`,
+        detail: "Approve what AgentOps should remember for future reviews.",
+        actionLabel: "Review memory",
+        onAction: () => navigate("/system/agent-ops/memory"),
+      });
+    }
+    if ((daily12?.agentsFailedToday ?? 0) > 0) {
+      items.push({
+        id: "failed-agents",
+        title: `${daily12?.agentsFailedToday} agent run${daily12?.agentsFailedToday === 1 ? "" : "s"} failed today`,
+        detail: "Open Agents to retry failed runs or inspect results.",
+        tone: "danger",
+        actionLabel: "View agents",
+        onAction: () => navigate("/system/agent-ops/agents"),
+      });
+    }
+    if ((daily12?.agentsMissingToday.length ?? 0) > 0) {
+      items.push({
+        id: "missing-agents",
+        title: `${daily12?.agentsMissingToday.length} agent${daily12?.agentsMissingToday.length === 1 ? "" : "s"} missing from today's review`,
+        detail: daily12?.agentsMissingToday.join(", ") ?? "",
+        tone: "warning",
+        actionLabel: "View agents",
+        onAction: () => navigate("/system/agent-ops/agents"),
+      });
+    }
+    if (verificationPending > 0) {
+      items.push({
+        id: "verification",
+        title: `${verificationPending} item${verificationPending === 1 ? "" : "s"} waiting for verification`,
+        detail: "Confirm fixes before closing active issues.",
+        actionLabel: "Open findings",
+        onAction: () => navigate("/system/agent-ops/issues?tab=active"),
+      });
+    }
+    return items;
+  }, [daily12, draftCounts, navigate, verificationPending]);
+
+  const recentActivity = useMemo(() => {
+    const items: string[] = [];
+    if (daily12) {
+      items.push(
+        `Daily review — ${daily12.agentsCompletedToday}/${daily12.expectedAgents} agents completed`,
+      );
+      if (daily12.draftsQueuedToday > 0) {
+        items.push(`${daily12.draftsQueuedToday} finding draft${daily12.draftsQueuedToday === 1 ? "" : "s"} created`);
       }
-
-      const owner = Boolean(ownerResult.data?.isOwner);
-      setIsOwner(owner);
-      setGateLoading(false);
-
-      if (owner) {
-        void loadDashboardData();
+      if (daily12.duplicatesConsolidatedToday > 0) {
+        items.push(`${daily12.duplicatesConsolidatedToday} duplicate findings consolidated`);
+      }
+      if (daily12.errorsFoundToday > 0) {
+        items.push(`${daily12.errorsFoundToday} new error${daily12.errorsFoundToday === 1 ? "" : "s"} detected`);
       }
     }
+    return items.slice(0, 5);
+  }, [daily12]);
 
-    void checkOwner();
-
-    return () => {
-      mounted = false;
-    };
-  }, [loadDashboardData]);
-
-  const todayPriority = useMemo(() => {
-    if (pendingVerifications.length > 0 || verificationRequests.length > 0) {
-      return {
-        title: "Review Verification",
-        description:
-          "Verification is pending. Review queued verification items first before adding new work.",
-        tone: "amber" as const,
-      };
-    }
-    if (openSlots > 0 && backlogCount > 0) {
-      return {
-        title: "Refill Queue",
-        description:
-          "Active queue has open slots and backlog is available. Refill to return toward Active Top 10.",
-        tone: "cyan" as const,
-      };
-    }
-    if (backlogCount === 0 || showLowBacklogHint) {
-      return {
-        title: "Generate More Issues",
-        description:
-          "Backlog is low or empty. Open Advanced and use import/scan tools to create candidates.",
-        tone: "violet" as const,
-      };
-    }
-    return {
-      title: "No action needed",
-      description: "Queue health looks stable. Keep monitoring and continue regular review.",
-      tone: "emerald" as const,
-    };
-  }, [
-    backlogCount,
-    openSlots,
-    pendingVerifications.length,
-    showLowBacklogHint,
-    verificationRequests.length,
-  ]);
-
-  const handleTodayPriorityAction = useCallback(() => {
-    if (todayPriority.title === "Review Verification") {
-      navigate("/system/agent-ops/issues");
-      return;
-    }
-    if (todayPriority.title === "Refill Queue") {
-      if (canShowRefillButton) {
-        setActionFeedback(null);
-        setRefillModalOpen(true);
-        return;
-      }
-      navigate("/system/agent-ops/issues");
-      return;
-    }
-    if (todayPriority.title === "Generate More Issues") {
-      navigate("/system/agent-ops/advanced");
-      return;
-    }
-    navigate("/system/agent-ops/issues");
-  }, [canShowRefillButton, navigate, todayPriority.title]);
-
-  const todayPriorityActionLabel = useMemo(() => {
-    if (todayPriority.title === "Review Verification") return "Open issue queue";
-    if (todayPriority.title === "Refill Queue") {
-      return canShowRefillButton ? "Refill queue" : "Open issue queue";
-    }
-    if (todayPriority.title === "Generate More Issues") return "Open Advanced import tools";
-    return "Open issue queue";
-  }, [canShowRefillButton, todayPriority.title]);
-
-  const commandMetrics = useMemo((): AixiaCommandMetricItem[] => {
-    const queueHealthLabel = queueHealthLoading
-      ? "Loading…"
-      : queueHealth
-        ? formatQueueHealthAction(queueHealth.recommendedAction)
-        : "—";
-    const agentsAttentionValue = statusDashboardLoading
-      ? "…"
-      : String(statusDashboardSummary?.agentsNeedingAttention ?? "—");
-    const agentsAttentionSubtitle = statusDashboardSummary
-      ? `of ${statusDashboardSummary.totalAgents} agents`
-      : "Open Agents for details";
-    const automationLabel = schedulerPrepLoading
-      ? "Loading…"
-      : schedulerPrep?.active
-        ? "Prep active"
-        : "Not active";
-
-    if (!dashboard) {
-      return [
-        {
-          key: "active-top10",
-          label: "Active Top 10",
-          value: "—",
-          subtitle: "Loading…",
-          icon: Layers,
-          tone: "cyan",
-        },
-        {
-          key: "backlog",
-          label: "Backlog",
-          value: "—",
-          subtitle: "Loading…",
-          icon: ClipboardList,
-          tone: "indigo",
-        },
-        {
-          key: "verification",
-          label: "Pending Verification",
-          value: "—",
-          subtitle: "Loading…",
-          icon: Activity,
-          tone: "amber",
-        },
-        {
-          key: "queue-health",
-          label: "Queue Health",
-          value: queueHealthLabel,
-          subtitle: "Manual review",
-          icon: Gauge,
-          tone: "emerald",
-        },
-        {
-          key: "agents-attention",
-          label: "Agents Needing Attention",
-          value: agentsAttentionValue,
-          subtitle: agentsAttentionSubtitle,
-          icon: Users,
-          tone: "violet",
-        },
-        {
-          key: "automation",
-          label: "Automation",
-          value: automationLabel,
-          subtitle: "Manual / preparation only",
-          icon: Clock,
-          tone: "neutral",
-        },
-      ];
-    }
-
-    return [
-      {
-        key: "active-top10",
-        label: "Active Top 10",
-        value: String(dashboard.activeOpenCount),
-        subtitle: `${dashboard.openSlots} open slot${dashboard.openSlots === 1 ? "" : "s"}`,
-        icon: Layers,
-        tone: "cyan",
-      },
-      {
-        key: "backlog",
-        label: "Backlog",
-        value: String(dashboard.backlogCount),
-        subtitle: "Queued findings",
-        icon: ClipboardList,
-        tone: "indigo",
-      },
-      {
-        key: "verification",
-        label: "Pending Verification",
-        value: String(dashboard.verificationPendingCount),
-        subtitle: "Pending or running",
-        icon: Activity,
-        tone: "amber",
-      },
-      {
-        key: "queue-health",
-        label: "Queue Health",
-        value: queueHealthLabel,
-        subtitle: queueHealth
-          ? `${queueHealth.activeOpenCount} active · ${queueHealth.backlogCount} backlog`
-          : "Manual review",
-        icon: Gauge,
-        tone: "emerald",
-      },
-      {
-        key: "agents-attention",
-        label: "Agents Needing Attention",
-        value: agentsAttentionValue,
-        subtitle: agentsAttentionSubtitle,
-        icon: Users,
-        tone: "violet",
-      },
-      {
-        key: "automation",
-        label: "Automation",
-        value: automationLabel,
-        subtitle: "Scheduler inactive · request-only UI",
-        icon: Clock,
-        tone: "neutral",
-      },
-    ];
-  }, [
-    dashboard,
-    queueHealth,
-    queueHealthLoading,
-    schedulerPrep,
-    schedulerPrepLoading,
-    statusDashboardLoading,
-    statusDashboardSummary,
-  ]);
-
-  const hubMetaStripItems = useMemo(
-    () => [
-      {
-        key: "staging",
-        label: "Environment",
-        value: "Staging only",
-        detail: "Manual-first AgentOps staging command center.",
-        tone: "amber" as const,
-      },
-      {
-        key: "mode",
-        label: "Control mode",
-        value: "Manual-first",
-        detail: "Dedicated routes for daily work; minimal legacy fallback below.",
-        tone: "cyan" as const,
-      },
-      {
-        key: "scope",
-        label: "Hub scope",
-        value: "Command center",
-        detail: "Orientation, metrics, and route navigation — not full registries.",
-        tone: "neutral" as const,
-      },
-    ],
-    [],
-  );
-
-  const hermes: AgentOpsHermesStatus | null = dashboard?.hermesStatus ?? null;
-
-  const hubHero = (
-    <AixiaHero
-      surface="command"
-      className="shrink-0 space-y-4"
-      gradientTitle="AgentOps"
-      title="Control Center"
-      subtitle="Daily command center — staging only, manual-first. Open dedicated routes for work surfaces."
-      actions={
-        <div className="flex flex-wrap items-center gap-2">
-          <AixiaButton
-            variant="primary"
-            onClick={() => navigate("/system/agent-ops/issues")}
-            disabled={dataLoading}
-          >
-            <FileInput className="mr-2 h-4 w-4" />
-            Open issue queue
-          </AixiaButton>
-          {canShowRefillButton ? (
-            <AixiaButton
-              variant="secondary"
-              onClick={() => {
-                setActionFeedback(null);
-                setRefillModalOpen(true);
-              }}
-              disabled={dataLoading || refillSubmitting}
-            >
-              <ListPlus className="mr-2 h-4 w-4" />
-              Refill Queue
-            </AixiaButton>
-          ) : null}
-          <AixiaButton
-            variant="secondary"
-            onClick={() => void loadDashboardData()}
-            disabled={dataLoading || refillSubmitting}
-          >
-            <RefreshCw className={`mr-2 h-4 w-4 ${dataLoading ? "animate-spin" : ""}`} />
-            Refresh
-          </AixiaButton>
-        </div>
-      }
-    >
-      <AixiaCommandMetrics items={commandMetrics} />
-    </AixiaHero>
-  );
-
-  if (gateLoading) {
-    return (
-      <AixiaCommandPageLayout hero={hubHero}>
-        <AixiaSection
-          surface="command"
-          title="Control Center"
-          description="Checking AgentOps access."
-          icon={ShieldCheck}
-        >
-          <AixiaEmptyState
-            icon={ShieldCheck}
-            title="Checking AgentOps access"
-            description="Owner allowlist and route permissions are being verified."
-          />
-        </AixiaSection>
-      </AixiaCommandPageLayout>
-    );
-  }
-
-  if (!isOwner) {
-    return (
-      <AixiaCommandPageLayout hero={hubHero}>
-        <AixiaSection
-          surface="command"
-          title="Control Center"
-          description="Owner access required"
-          icon={ShieldCheck}
-        >
-          <AixiaEmptyState
-            icon={ShieldCheck}
-            title="AgentOps is Owner-only"
-            description={
-              gateError
-                ? `You do not have access to AgentOps. ${gateError}`
-                : "Your account is not on the AgentOps Owner allowlist. Access is controlled by agentops_owners and database RLS — not by admin role or finance permissions."
-            }
-          />
-        </AixiaSection>
-      </AixiaCommandPageLayout>
-    );
-  }
+  const loading = gateLoading || (isOwner && (monitoringLoading || dashboardLoading));
+  const error = gateError ?? monitoringError ?? dashboardError;
 
   return (
-    <AixiaCommandPageLayout
-      hero={hubHero}
-      scrollLead={<AixiaCommandHubMetaStrip variant="command" items={hubMetaStripItems} />}
-    >
-      <div className="flex flex-col gap-6">
-        {actionFeedback ? (
-          <AixiaInfoBlock
-            tone={
-              actionFeedback.tone === "success"
-                ? "emerald"
-                : actionFeedback.tone === "warning"
-                  ? "gold"
-                  : "rose"
-            }
-            icon={
-              actionFeedback.tone === "error"
-                ? AlertTriangle
-                : actionFeedback.tone === "warning"
-                  ? ClipboardList
-                  : ShieldCheck
-            }
-            title={
-              actionFeedback.tone === "error"
-                ? "Action failed"
-                : actionFeedback.tone === "warning"
-                  ? "Attention needed"
-                  : "Action saved"
-            }
-          >
-            {actionFeedback.message}
-          </AixiaInfoBlock>
-        ) : null}
-
-        {dataError ? (
-          <AixiaInfoBlock tone="rose" icon={AlertTriangle} title="Could not load AgentOps data">
-            {dataError}
-          </AixiaInfoBlock>
-        ) : null}
-
-        <AixiaSection
-          surface="command"
-          title="Today's Priority"
-          description="Single recommended next step based on queue state."
-          icon={Sparkles}
-        >
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-slate-400">Recommended now</p>
-                <p className="mt-1 text-lg font-semibold text-white">{todayPriority.title}</p>
-                <p className="mt-1 text-sm text-slate-300">{todayPriority.description}</p>
-              </div>
-              <AixiaBadge tone={todayPriority.tone}>{todayPriority.title}</AixiaBadge>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <AixiaButton
-                variant="primary"
-                className="text-xs px-3 py-1.5"
-                onClick={handleTodayPriorityAction}
-              >
-                {todayPriorityActionLabel}
-              </AixiaButton>
-              {todayPriority.title !== "No action needed" ? (
-                <AixiaButton
-                  variant="secondary"
-                  className="text-xs px-3 py-1.5"
-                  onClick={() => navigate("/system/agent-ops/issues")}
-                >
-                  Open issue queue
-                </AixiaButton>
-              ) : null}
-            </div>
-          </div>
-        </AixiaSection>
-
-        <AixiaSection
-          surface="command"
-          title="System readiness"
-          description="Runtime integrations for AgentOps chat and advisory layers."
-          icon={ShieldCheck}
-        >
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <p className="text-xs text-slate-500">Hermes</p>
-              <p className="mt-1 text-sm font-medium text-white">
-                {hermesReadinessGate.runtimeActive && hermesReadinessGate.healthCheckPassing ?
-                  "Active"
-                : "Inactive / fallback"}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                {hermesReadinessGate.runtimeActive ?
-                  "Server proxy /api/agentops/hermes · Issue chat Hermes-first"
-                : hermesReadinessGate.blockers[0] ?? `${hermes?.label ?? "Learning"} · mock fallback only`}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <p className="text-xs text-slate-500">CodeGraph</p>
-              <p className="mt-1 text-sm font-medium text-white">Mock · inactive</p>
-              <p className="mt-1 text-xs text-slate-400">Static hints in Issue Workspace</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <p className="text-xs text-slate-500">Local LLM</p>
-              <p className="mt-1 text-sm font-medium text-white">
-                {localLlmStatus.runtimeActive ? "Active" : "Inactive"}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                {localLlmStatus.runtimeActive ?
-                  `${localLlmStatus.model} · Issue, Council, Agent chats`
-                : "Set VITE_AGENTOPS_LLM_* and run Ollama locally"}
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <p className="text-xs text-slate-500">Scheduler</p>
-              <p className="mt-1 text-sm font-medium text-white">
-                {schedulerPrep?.active ? "Prep flagged" : "Not active"}
-              </p>
-              <p className="mt-1 text-xs text-slate-400">No cron from UI</p>
-            </div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <p className="text-xs text-slate-500">Cursor execution</p>
-              <p className="mt-1 text-sm font-medium text-white">Manual-first</p>
-              <p className="mt-1 text-xs text-slate-400">No auto Cursor from AgentOps</p>
-            </div>
-          </div>
-        </AixiaSection>
-
-        <AixiaSection
-          surface="command"
-          title="Navigate"
-          description="Daily and technical surfaces use dedicated routes."
-          icon={Route}
-        >
-          <AixiaNavigationGrid>
-            <AixiaNavigationCard
-              title="Issues"
-              description="Daily issue queue and filters"
-              icon={FileInput}
-              tone="cyan"
-              onClick={() => navigate("/system/agent-ops/issues")}
-            />
-            <AixiaNavigationCard
-              title="Agents"
-              description="12-agent registry and focus tools"
-              icon={Users}
-              tone="violet"
-              onClick={() => navigate("/system/agent-ops/agents")}
-            />
-            <AixiaNavigationCard
-              title="Council"
-              description="Group chat shell (staging)"
-              icon={MessageSquare}
-              tone="cyan"
-              onClick={() => navigate("/system/agent-ops/council")}
-            />
-            <AixiaNavigationCard
-              title="Automation"
-              description="Queue health, manual runs, scheduler prep"
-              icon={Clock}
-              tone="amber"
-              onClick={() => navigate("/system/agent-ops/automation")}
-            />
-            <AixiaNavigationCard
-              title="Knowledge"
-              description="Memory, lessons, and learning surfaces"
-              icon={BookOpen}
-              tone="emerald"
-              onClick={() => navigate("/system/agent-ops/knowledge")}
-            />
-            <AixiaNavigationCard
-              title="Advanced"
-              description="Import, fix plans, verification, operator tools"
-              icon={ClipboardList}
-              tone="neutral"
-              onClick={() => navigate("/system/agent-ops/advanced")}
-            />
-            <AixiaNavigationCard
-              title="History"
-              description="Runs, decisions, verification, reports"
-              icon={History}
-              tone="cyan"
-              onClick={() => navigate("/system/agent-ops/history")}
-            />
-          </AixiaNavigationGrid>
-        </AixiaSection>
-
-        <AixiaAsyncState
-          loading={dataLoading && !dashboard}
-          fallback={
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-8 text-center text-sm text-muted-foreground">
-              Loading AgentOps dashboard…
-            </div>
+    <AgentOpsOwnerPageShell loading={loading} error={error} onRetry={() => void refreshAll()}>
+      <AgentOpsPageHeader
+          title="AgentOps"
+          subtitle="Your 12 AI agents review the staging website, find issues, and suggest improvements."
+          actions={
+            <AixiaButton variant="secondary" onClick={() => void refreshAll()} disabled={loading}>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Refresh
+            </AixiaButton>
           }
-        >
-          <details
-            ref={legacyToolsRef}
-            id="agentops-legacy-tools"
-            className="rounded-2xl border border-white/10 bg-white/[0.02] p-4"
-          >
-            <summary className="cursor-pointer text-sm font-semibold text-slate-300 hover:text-white">
-              Legacy tools fallback (minimal)
-            </summary>
-            <p className="mt-2 text-xs text-slate-500">
-              Use dedicated routes first. Inner legacy tab panel was removed in Phase 0B.
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <AixiaButton variant="secondary" className="text-xs" onClick={() => navigate("/system/agent-ops/issues")}>
-                Open Issues
-              </AixiaButton>
-              <AixiaButton variant="secondary" className="text-xs" onClick={() => navigate("/system/agent-ops/automation")}>
-                Open Automation
-              </AixiaButton>
-              <AixiaButton variant="secondary" className="text-xs" onClick={() => navigate("/system/agent-ops/advanced")}>
-                Open Advanced
-              </AixiaButton>
-              <AixiaButton variant="secondary" className="text-xs" onClick={() => navigate("/system/agent-ops/history")}>
-                Open History
-              </AixiaButton>
-            </div>
-            <AixiaInfoBlock tone="cyan" icon={ShieldCheck} title="Legacy inner panel removed (Phase 0B)">
-              Operator workflows live on dedicated routes: Issues, Advanced, Automation, Agents,
-              Knowledge, and Agent Workspace. Hub primary (Refill Queue, Today's Priority, Navigate)
-              remains above.
-            </AixiaInfoBlock>
-          </details>
-        </AixiaAsyncState>
-      </div>
+        />
 
-      {refillModalOpen && dashboard ? (
-        <AixiaModal
-          open
-          title="Refill Active Top 10 from backlog"
-          description="Manual promotion only — no new findings are created."
-          onClose={() => {
-            if (refillSubmitting) return;
-            setRefillModalOpen(false);
-          }}
-          maxWidthClassName="max-w-lg"
-          footer={
-            <div className="flex flex-wrap justify-end gap-2">
-              <AixiaButton
-                variant="secondary"
-                onClick={() => setRefillModalOpen(false)}
-                disabled={refillSubmitting}
-              >
-                Cancel
-              </AixiaButton>
-              <AixiaButton
-                variant="primary"
-                onClick={() => void confirmRefillQueue()}
-                disabled={refillSubmitting || maxPromoteCount <= 0}
-              >
-                {refillSubmitting ? "Promoting…" : "Promote backlog findings"}
-              </AixiaButton>
-            </div>
-          }
-        >
-          <div className="space-y-3 text-sm">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                <div className="text-xs uppercase tracking-wide text-slate-400">Active open</div>
-                <div className="mt-1 font-semibold text-white">
-                  {dashboard.activeOpenCount} / 10
-                </div>
+          <div className="space-y-8">
+            <AgentOpsStatusSummary
+              items={[
+                {
+                  label: "System status",
+                  value: statusTone.label,
+                  tone:
+                    statusTone.tone === "success"
+                      ? "success"
+                      : statusTone.tone === "warning"
+                        ? "warning"
+                        : "default",
+                },
+                {
+                  label: "Agents active today",
+                  value: `${daily12?.agentsCompletedToday ?? 0}/${daily12?.expectedAgents ?? 12}`,
+                  hint: "Completed daily review",
+                },
+                {
+                  label: "Last daily review",
+                  value: daily12?.lastCompletedDailyReviewAt
+                    ? new Date(daily12.lastCompletedDailyReviewAt).toLocaleString()
+                    : "Not yet today",
+                },
+                {
+                  label: "Next scheduled review",
+                  value: daily12?.nextExpectedDailyReviewAt
+                    ? new Date(daily12.nextExpectedDailyReviewAt).toLocaleString()
+                    : "Daily at 01:00 UTC",
+                },
+                {
+                  label: "Environment",
+                  value: "Staging",
+                },
+                {
+                  label: "Safety",
+                  value: "Owner approval required",
+                  hint: "No automatic promotion or deployment",
+                },
+              ]}
+            />
+
+            <section aria-labelledby="agentops-action-cards">
+              <h2 id="agentops-action-cards" className="sr-only">
+                Main actions
+              </h2>
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <AgentOpsActionCard
+                  title="Agents"
+                  description="See whether each of your 12 AI employees completed today's review."
+                  metrics={[
+                    { label: "Registered", value: daily12?.registeredAgents ?? 12 },
+                    { label: "Completed today", value: daily12?.agentsCompletedToday ?? 0 },
+                    { label: "Failed", value: daily12?.agentsFailedToday ?? 0 },
+                    { label: "Missing", value: daily12?.agentsMissingToday.length ?? 0 },
+                  ]}
+                  actionLabel="View agents"
+                  onAction={() => navigate("/system/agent-ops/agents")}
+                />
+                <AgentOpsActionCard
+                  title="Findings"
+                  description="Review errors, improvements, and new feature suggestions."
+                  metrics={[
+                    { label: "Needs review", value: draftCounts.pendingDrafts },
+                    { label: "New errors today", value: daily12?.errorsFoundToday ?? 0 },
+                    { label: "Improvements", value: daily12?.improvementsSuggestedToday ?? 0 },
+                    { label: "Feature ideas", value: daily12?.newFeaturesSuggestedToday ?? 0 },
+                  ]}
+                  actionLabel="Review findings"
+                  onAction={() => navigate("/system/agent-ops/issues")}
+                />
+                <AgentOpsActionCard
+                  title="Monitoring"
+                  description="Automatic daily, operational, and weekly checks on staging."
+                  metrics={[
+                    { label: "Daily review", value: daily12?.latestRunStatus ?? "—" },
+                    { label: "Findings detected", value: daily12?.candidatesDetectedToday ?? 0 },
+                    { label: "Queued for review", value: daily12?.draftsQueuedToday ?? 0 },
+                    { label: "Consolidated", value: daily12?.duplicatesConsolidatedToday ?? 0 },
+                  ]}
+                  actionLabel="View monitoring"
+                  onAction={() => navigate("/system/agent-ops/monitoring")}
+                />
+                <AgentOpsActionCard
+                  title="Memory"
+                  description="Control what AgentOps learns and keeps for future reviews."
+                  metrics={[
+                    { label: "Needs review", value: draftCounts.pendingMemory },
+                    { label: "Active issues", value: activeIssues },
+                    { label: "Verification waiting", value: verificationPending },
+                    { label: "Environment", value: "Staging" },
+                  ]}
+                  actionLabel="Review memory"
+                  onAction={() => navigate("/system/agent-ops/memory")}
+                />
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                <div className="text-xs uppercase tracking-wide text-slate-400">Open slots</div>
-                <div className="mt-1 font-semibold text-white">{openSlots}</div>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                <div className="text-xs uppercase tracking-wide text-slate-400">Backlog</div>
-                <div className="mt-1 font-semibold text-white">{backlogCount}</div>
-              </div>
-              <div className="rounded-xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3">
-                <div className="text-xs uppercase tracking-wide text-cyan-200/80">Will promote (max)</div>
-                <div className="mt-1 font-semibold text-white">{maxPromoteCount}</div>
-              </div>
-            </div>
-            <p className="text-xs text-slate-400">
-              Candidates are chosen by severity (Critical first), then priority score, then recency.
-              Lowest available ranks 1–10 are assigned.
-            </p>
+            </section>
+
+            <section aria-labelledby="agentops-attention">
+              <h2 id="agentops-attention" className="mb-3 text-lg font-semibold text-white">
+                Needs your attention
+              </h2>
+              <AgentOpsAttentionList items={attentionItems} />
+            </section>
+
+            <section aria-labelledby="agentops-recent">
+              <h2 id="agentops-recent" className="mb-3 text-lg font-semibold text-white">
+                Recent activity
+              </h2>
+              {recentActivity.length > 0 ? (
+                <ul className="space-y-2">
+                  {recentActivity.map((item) => (
+                    <li
+                      key={item}
+                      className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/75"
+                    >
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-white/55">No recent activity recorded yet.</p>
+              )}
+            </section>
           </div>
-        </AixiaModal>
-      ) : null}
-    </AixiaCommandPageLayout>
+    </AgentOpsOwnerPageShell>
   );
 }

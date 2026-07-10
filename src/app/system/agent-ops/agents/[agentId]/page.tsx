@@ -99,7 +99,6 @@ const INTERACTION_TYPES: AgentOpsAgentInteractionMessageType[] = [
 
 export default function AgentOpsAgentWorkspacePage() {
   const { agentId = "" } = useParams<{ agentId: string }>();
-  usePageTitle(`Agent Workspace · ${agentId || "AgentOps"}`);
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -112,6 +111,7 @@ export default function AgentOpsAgentWorkspacePage() {
   const [actionFeedback, setActionFeedback] = useState<string | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [agent, setAgent] = useState<AgentOpsManagedAgent | null>(null);
+  usePageTitle(agent?.displayName ? `${agent.displayName} · AgentOps` : `Agent · ${agentId || "AgentOps"}`);
   const [statusSummary, setStatusSummary] = useState<AgentOpsAgentStatusSummary | null>(null);
   const [memoryItems, setMemoryItems] = useState<AgentOpsManagedAgentMemoryItem[]>([]);
   const [interactionItems, setInteractionItems] = useState<AgentOpsAgentInteractionItem[]>([]);
@@ -195,7 +195,9 @@ export default function AgentOpsAgentWorkspacePage() {
     }
 
     const matched = (managedAgentsResult.data ?? []).find(
-      (candidate) => candidate.agentId.toLowerCase() === agentId.toLowerCase(),
+      (candidate) =>
+        candidate.agentId.toLowerCase() === agentId.toLowerCase() ||
+        candidate.displayName.toLowerCase().replace(/\s+/g, "-") === agentId.toLowerCase(),
     );
 
     if (!matched) {

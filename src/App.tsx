@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { BootstrapGate } from "@/components/BootstrapFailureScreen";
 import { AiXiaAnalyticsTracker } from "@/components/analytics/AiXiaAnalyticsTracker";
 import { Toaster } from "@/components/ui/sonner";
@@ -160,6 +161,8 @@ import AICharacterPage from "@/app/ai-management/character/page";
 import AIStateOfMindPage from "@/app/ai-management/state-of-mind/page";
 import AIVoicePage from "@/app/ai-management/voice/page";
 import AIAnimationPage from "@/app/ai-management/animation/page";
+import AgentOpsMonitoringPage from "@/app/system/agent-ops/monitoring/page";
+import AgentOpsMemoryProductPage from "@/app/system/agent-ops/memory-product/page";
 import AgentOpsPage from "@/app/system/agent-ops/page";
 import AgentOpsProductIssuesHubPage from "@/app/system/agent-ops/issues/page";
 import AgentOpsIssueWorkspacePage from "@/app/system/agent-ops/issues/[issueCode]/page";
@@ -235,19 +238,23 @@ function FullScreenLoader() {
   );
 }
 
-async function getAccessState(): Promise<AccessSnapshot> {
+async function getAccessState(sessionHint?: Session | null): Promise<AccessSnapshot> {
   try {
-    const sessionResult = await getSessionWithBootstrapTimeout();
-    if (!sessionResult.ok) {
-      console.warn("Auth session bootstrap unavailable:", sessionResult.diagnosticCode);
-      return {
-        accessState: "unauthenticated",
-        role: null,
-        permissions: {},
-      };
-    }
+    let user = sessionHint?.user ?? null;
 
-    const user = sessionResult.session?.user;
+    if (!user) {
+      const sessionResult = await getSessionWithBootstrapTimeout();
+      if (!sessionResult.ok) {
+        console.warn("Auth session bootstrap unavailable:", sessionResult.diagnosticCode);
+        return {
+          accessState: "unauthenticated",
+          role: null,
+          permissions: {},
+        };
+      }
+
+      user = sessionResult.session?.user ?? null;
+    }
 
     if (!user) {
       return {
@@ -341,13 +348,13 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
     setBootstrapMessage(null);
   };
 
-  const refreshAccessState = async () => {
+  const refreshAccessState = async (sessionHint?: Session | null) => {
     const requestId = ++requestIdRef.current;
     isBootstrappingRef.current = true;
     setIsBootstrapping(true);
 
     try {
-      const snapshot = await getAccessState();
+      const snapshot = await getAccessState(sessionHint);
 
       if (!mountedRef.current || requestId !== requestIdRef.current) {
         return;
@@ -412,10 +419,10 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(() => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       window.setTimeout(() => {
         if (!mountedRef.current) return;
-        void refreshAccessState();
+        void refreshAccessState(session);
       }, 0);
     });
 
@@ -694,7 +701,7 @@ function LegacyExpensePaymentRedirect() {
   );
 }
 
-function AgentOpsMemoryLegacyRedirect() {
+function _AgentOpsMemoryLegacyRedirect() {
   const location = useLocation();
   return (
     <Navigate
@@ -1085,7 +1092,23 @@ function AppRoutes() {
       />
       <Route
         path="/system/agent-ops/memory"
-        element={<AgentOpsMemoryLegacyRedirect />}
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsMemoryProductPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/system/agent-ops/monitoring"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout>
+              <AgentOpsMonitoringPage />
+            </DashboardLayout>
+          </ProtectedRoute>
+        }
       />
       <Route
         path="/system/agent-ops/config"

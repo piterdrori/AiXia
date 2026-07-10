@@ -116,7 +116,7 @@ export default function AgentOpsIssueWorkspacePage() {
   const params = useParams<{ issueCode: string }>();
   const navigate = useNavigate();
   const issueCode = decodeIssueCode(params.issueCode);
-  usePageTitle(`Issue Workspace ${issueCode}`);
+  usePageTitle(`Finding ${issueCode}`);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);

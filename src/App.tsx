@@ -15,9 +15,16 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import { supabase } from "@/lib/supabase";
-import { Toaster } from "@/components/ui/sonner";
+import { BootstrapGate } from "@/components/BootstrapFailureScreen";
 import { AiXiaAnalyticsTracker } from "@/components/analytics/AiXiaAnalyticsTracker";
+import { Toaster } from "@/components/ui/sonner";
+import {
+  getSessionWithBootstrapTimeout,
+  resetAuthSessionStorage,
+} from "@/lib/authSessionBootstrap";
+import { AUTH_BOOTSTRAP_TIMEOUT_MS } from "@/lib/safeBrowserStorage";
+import { supabase } from "@/lib/supabase";
+import { withTimeout } from "@/lib/withTimeout";
 
 import { LanguageProvider, useLanguage } from "@/lib/i18n";
 import type { Language } from "@/lib/translations";
@@ -230,8 +237,13 @@ function FullScreenLoader() {
 
 async function getAccessState(): Promise<AccessSnapshot> {
   try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const user = sessionData.session?.user;
+    const sessionResult = await getSessionWithBootstrapTimeout();
+    if (!sessionResult.ok) {
+      console.error("Auth session bootstrap failed:", sessionResult.diagnosticCode);
+      throw new Error(sessionResult.diagnosticCode);
+    }
+
+    const user = sessionResult.session?.user;
 
     if (!user) {
       return {
@@ -241,11 +253,15 @@ async function getAccessState(): Promise<AccessSnapshot> {
       };
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("status, profile_completed, role, permissions")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const { data: profile, error: profileError } = await withTimeout(
+      supabase
+        .from("profiles")
+        .select("status, profile_completed, role, permissions")
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      AUTH_BOOTSTRAP_TIMEOUT_MS,
+      "Profile access bootstrap timed out",
+    );
 
     if (profileError || !profile) {
       console.error("Failed to load access profile:", profileError);
@@ -303,14 +319,28 @@ async function getAccessState(): Promise<AccessSnapshot> {
 
 function AuthAccessProvider({ children }: { children: ReactNode }) {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
+  const [bootstrapDiagnosticCode, setBootstrapDiagnosticCode] = useState<string | null>(
+    null,
+  );
+  const [bootstrapMessage, setBootstrapMessage] = useState<string | null>(null);
   const [accessState, setAccessState] = useState<AccessState>("unauthenticated");
   const [role, setRole] = useState<Role | null>(null);
   const [permissions, setPermissions] = useState<Partial<Record<Permission, boolean>>>({});
   const requestIdRef = useRef(0);
   const mountedRef = useRef(true);
+  const isBootstrappingRef = useRef(true);
+
+  const clearBootstrapFailure = () => {
+    setBootstrapTimedOut(false);
+    setBootstrapDiagnosticCode(null);
+    setBootstrapMessage(null);
+  };
 
   const refreshAccessState = async () => {
     const requestId = ++requestIdRef.current;
+    isBootstrappingRef.current = true;
+    setIsBootstrapping(true);
 
     try {
       const snapshot = await getAccessState();
@@ -319,6 +349,7 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      clearBootstrapFailure();
       setAccessState(snapshot.accessState);
       setRole(snapshot.role);
       setPermissions(snapshot.permissions);
@@ -329,19 +360,54 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const diagnosticCode =
+        error instanceof Error ? error.message : "AUTH_ACCESS_BOOTSTRAP_FAILED";
+      setBootstrapTimedOut(true);
+      setBootstrapDiagnosticCode(diagnosticCode);
+      setBootstrapMessage(
+        "The application could not finish loading your session. Sign in again or open staging in an external browser.",
+      );
       setAccessState("unauthenticated");
       setRole(null);
       setPermissions({});
     } finally {
       if (mountedRef.current && requestId === requestIdRef.current) {
+        isBootstrappingRef.current = false;
         setIsBootstrapping(false);
       }
     }
   };
 
+  const retryBootstrap = () => {
+    clearBootstrapFailure();
+    void refreshAccessState();
+  };
+
+  const signInAgain = async () => {
+    await resetAuthSessionStorage();
+    clearBootstrapFailure();
+    setAccessState("unauthenticated");
+    setRole(null);
+    setPermissions({});
+    setIsBootstrapping(false);
+    window.location.assign("/login");
+  };
+
   useEffect(() => {
     mountedRef.current = true;
     void refreshAccessState();
+
+    const watchdogId = window.setTimeout(() => {
+      if (!mountedRef.current || !isBootstrappingRef.current) return;
+      isBootstrappingRef.current = false;
+      setBootstrapTimedOut(true);
+      setBootstrapDiagnosticCode("AUTH_BOOTSTRAP_WATCHDOG");
+      setBootstrapMessage(
+        "Session bootstrap exceeded the maximum wait time. Sign in again or retry.",
+      );
+      setIsBootstrapping(false);
+      setAccessState("unauthenticated");
+    }, AUTH_BOOTSTRAP_TIMEOUT_MS);
 
     const {
       data: { subscription },
@@ -354,6 +420,7 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
 
     return () => {
       mountedRef.current = false;
+      window.clearTimeout(watchdogId);
       subscription.unsubscribe();
     };
   }, []);
@@ -371,7 +438,18 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthAccessContext.Provider value={value}>
-      {children}
+      <BootstrapGate
+        loading={isBootstrapping}
+        timedOut={bootstrapTimedOut}
+        diagnosticCode={bootstrapDiagnosticCode}
+        message={bootstrapMessage}
+        onRetry={retryBootstrap}
+        onSignInAgain={() => {
+          void signInAgain();
+        }}
+      >
+        {children}
+      </BootstrapGate>
     </AuthAccessContext.Provider>
   );
 }
@@ -2362,8 +2440,28 @@ function AppRoutes() {
 
 function AppContent() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsBootstrapTimedOut, setSettingsBootstrapTimedOut] = useState(false);
+  const [settingsBootstrapDiagnosticCode, setSettingsBootstrapDiagnosticCode] = useState<
+    string | null
+  >(null);
+  const [settingsBootstrapMessage, setSettingsBootstrapMessage] = useState<string | null>(null);
+  const settingsBootstrapActiveRef = useRef(true);
   const { setLanguage } = useLanguage();
   const mediaQueryListenerRef = useRef<((event: MediaQueryListEvent) => void) | null>(null);
+
+  const retrySettingsBootstrap = () => {
+    setSettingsBootstrapTimedOut(false);
+    setSettingsBootstrapDiagnosticCode(null);
+    setSettingsBootstrapMessage(null);
+    setSettingsLoaded(false);
+    settingsBootstrapActiveRef.current = true;
+    window.location.reload();
+  };
+
+  const signInAgainFromSettingsBootstrap = async () => {
+    await resetAuthSessionStorage();
+    window.location.assign("/login");
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -2427,26 +2525,40 @@ function AppContent() {
     };
 
     const loadAndSubscribe = async () => {
-            try {
+      try {
         applyDefaultSettings();
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        const user = sessionData.session?.user;
-
+        const sessionResult = await getSessionWithBootstrapTimeout();
         if (!mounted) return;
 
+        if (!sessionResult.ok) {
+          settingsBootstrapActiveRef.current = false;
+          setSettingsBootstrapTimedOut(true);
+          setSettingsBootstrapDiagnosticCode(sessionResult.diagnosticCode);
+          setSettingsBootstrapMessage(sessionResult.message);
+          setSettingsLoaded(false);
+          return;
+        }
+
+        const user = sessionResult.session?.user;
+
         if (!user) {
+          settingsBootstrapActiveRef.current = false;
           setSettingsLoaded(true);
           return;
         }
 
         const userId = user.id;
 
-        const { data: profileData, error } = await supabase
-          .from("profiles")
-          .select("theme, accent_color, font_size, compact_mode, language")
-          .eq("user_id", userId)
-          .single();
+        const { data: profileData, error } = await withTimeout(
+          supabase
+            .from("profiles")
+            .select("theme, accent_color, font_size, compact_mode, language")
+            .eq("user_id", userId)
+            .single(),
+          AUTH_BOOTSTRAP_TIMEOUT_MS,
+          "Appearance settings bootstrap timed out",
+        );
 
         if (!mounted) return;
 
@@ -2501,19 +2613,38 @@ function AppContent() {
           )
           .subscribe();
 
+        settingsBootstrapActiveRef.current = false;
         setSettingsLoaded(true);
       } catch (error) {
         console.error("Failed to apply user settings:", error);
         if (!mounted) return;
         applyDefaultSettings();
-        setSettingsLoaded(true);
+        settingsBootstrapActiveRef.current = false;
+        setSettingsBootstrapTimedOut(true);
+        setSettingsBootstrapDiagnosticCode(
+          error instanceof Error ? error.message : "SETTINGS_BOOTSTRAP_FAILED",
+        );
+        setSettingsBootstrapMessage(
+          "The application could not finish loading workspace settings.",
+        );
       }
     };
 
     void loadAndSubscribe();
 
+    const settingsWatchdogId = window.setTimeout(() => {
+      if (!mounted || !settingsBootstrapActiveRef.current) return;
+      settingsBootstrapActiveRef.current = false;
+      setSettingsBootstrapTimedOut(true);
+      setSettingsBootstrapDiagnosticCode("SETTINGS_BOOTSTRAP_WATCHDOG");
+      setSettingsBootstrapMessage(
+        "Workspace settings bootstrap exceeded the maximum wait time.",
+      );
+    }, AUTH_BOOTSTRAP_TIMEOUT_MS);
+
     return () => {
       mounted = false;
+      window.clearTimeout(settingsWatchdogId);
 
       if (profileChannel) {
         supabase.removeChannel(profileChannel);
@@ -2529,20 +2660,27 @@ function AppContent() {
     };
   }, [setLanguage]);
 
-  if (!settingsLoaded) {
-    return <FullScreenLoader />;
-  }
-
   return (
-    <Router>
-      <AuthAccessProvider>
-        <SessionTimeoutManager />
-        <AiXiaAnalyticsTracker>
-          <AppRoutes />
-        </AiXiaAnalyticsTracker>
-        <Toaster />
-      </AuthAccessProvider>
-    </Router>
+    <BootstrapGate
+      loading={!settingsLoaded && !settingsBootstrapTimedOut}
+      timedOut={settingsBootstrapTimedOut}
+      diagnosticCode={settingsBootstrapDiagnosticCode}
+      message={settingsBootstrapMessage}
+      onRetry={retrySettingsBootstrap}
+      onSignInAgain={() => {
+        void signInAgainFromSettingsBootstrap();
+      }}
+    >
+      <Router>
+        <AuthAccessProvider>
+          <SessionTimeoutManager />
+          <AiXiaAnalyticsTracker>
+            <AppRoutes />
+          </AiXiaAnalyticsTracker>
+          <Toaster />
+        </AuthAccessProvider>
+      </Router>
+    </BootstrapGate>
   );
 }
 

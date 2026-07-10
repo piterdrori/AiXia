@@ -1,4 +1,6 @@
-import { createClient, type SupportedStorage } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
+
+import { createSafeBrowserStorage } from "@/lib/safeBrowserStorage";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -7,22 +9,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error("Missing Supabase environment variables.");
 }
 
-const browserStorageAdapter: SupportedStorage = {
-  getItem: (key: string) => {
-    if (typeof window === "undefined") return null;
-    return window.localStorage.getItem(key);
-  },
-
-  setItem: (key: string, value: string) => {
-    if (typeof window === "undefined") return;
-    window.localStorage.setItem(key, value);
-  },
-
-  removeItem: (key: string) => {
-    if (typeof window === "undefined") return;
-    window.localStorage.removeItem(key);
-  },
-};
+const browserStorageAdapter = createSafeBrowserStorage();
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

@@ -715,6 +715,17 @@ export interface AgentOpsLocalLlmChatRequest {
     timeline?: string[];
     /** Hermes H2-F3B-2 — separate from agentMemory. */
     globalApprovedMemory?: string[];
+    /** Phase E finding chat — bounded extras (optional). */
+    whyItMatters?: string | null;
+    expectedBehavior?: string | null;
+    observedBehavior?: string | null;
+    statusLabel?: string | null;
+    typeLabel?: string | null;
+    originalPrompt?: string | null;
+    promptSafetyWarnings?: string[];
+    supportingAgents?: string[];
+    reportingAgentRole?: string | null;
+    includePromptRewriteContract?: boolean;
   };
   agentContext?: {
     agentId: string;

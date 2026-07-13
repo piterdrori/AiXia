@@ -307,6 +307,7 @@ export {
   getAgentOpsCouncilChatMessages,
   recordAgentOpsCouncilChatMessage,
   getAgentOpsAgentChatMessages,
+  getAgentOpsFindingChatMessages,
   recordAgentOpsAgentChatMessage,
   recordAgentOpsImportCandidateDecision,
   recordAgentOpsSchedulerDecision,

@@ -178,26 +178,43 @@ function stagingSafetyRules(): string {
 function buildIssueSystemPrompt(request: AgentOpsLocalLlmChatRequest): string {
   const ctx = request.issueContext;
   const lines = [
-    "You are the reporting QA agent for an AgentOps issue workspace chat.",
+    "You are the reporting QA agent for an AgentOps finding discussion chat.",
+    "Answer only from your own professional specialty and the finding context below.",
+    "Do not claim evidence you do not have. If evidence is thin, say so clearly.",
+    "You may discuss risk, false-positive likelihood, solutions, verification, and prompt improvements.",
+    "You must never change finding lifecycle state, execute prompts, open PRs, deploy, or edit production/main.",
     stagingSafetyRules(),
-    `Issue code: ${request.issueCode ?? "unknown"}`,
+    `Finding / issue code: ${request.issueCode ?? "unknown"}`,
   ];
   if (ctx?.title) lines.push(`Title: ${ctx.title}`);
+  if (ctx?.typeLabel) lines.push(`Type: ${ctx.typeLabel}`);
+  if (ctx?.statusLabel) lines.push(`Owner status: ${ctx.statusLabel}`);
   if (ctx?.severity || ctx?.category) {
     lines.push(`Severity/category: ${ctx?.severity ?? "—"} · ${ctx?.category ?? "—"}`);
   }
   if (ctx?.route) lines.push(`Route: ${ctx.route}`);
   if (ctx?.module) lines.push(`Module: ${ctx.module}`);
-  if (ctx?.summary) lines.push(`Summary: ${ctx.summary}`);
-  if (ctx?.evidence) lines.push(`Evidence: ${ctx.evidence}`);
-  if (ctx?.fixPlan) lines.push(`Fix plan: ${ctx.fixPlan}`);
+  if (ctx?.summary) lines.push(`Explanation: ${ctx.summary}`);
+  if (ctx?.whyItMatters) lines.push(`Why it matters: ${ctx.whyItMatters}`);
+  if (ctx?.evidence) lines.push(`Evidence summary: ${ctx.evidence}`);
+  if (ctx?.observedBehavior) lines.push(`Observed behavior: ${ctx.observedBehavior}`);
+  if (ctx?.expectedBehavior) lines.push(`Expected behavior: ${ctx.expectedBehavior}`);
+  if (ctx?.fixPlan) lines.push(`Suggested solution: ${ctx.fixPlan}`);
   if (ctx?.likelyRootCause) lines.push(`Likely root cause: ${ctx.likelyRootCause}`);
   if (ctx?.recommendedFixStrategy) {
     lines.push(`Recommended fix strategy: ${ctx.recommendedFixStrategy}`);
   }
   if (ctx?.executionState) lines.push(`Execution state: ${ctx.executionState}`);
-  if (ctx?.cursorPrompt) lines.push(`Approved Cursor prompt draft: ${ctx.cursorPrompt}`);
+  if (ctx?.cursorPrompt) lines.push(`Current suggested fix prompt: ${ctx.cursorPrompt}`);
+  if (ctx?.originalPrompt) lines.push(`Original prompt: ${ctx.originalPrompt}`);
+  if (ctx?.promptSafetyWarnings?.length) {
+    lines.push(`Prompt safety warnings: ${ctx.promptSafetyWarnings.join(", ")}`);
+  }
   if (ctx?.reportingAgent) lines.push(`Reporting agent: ${ctx.reportingAgent}`);
+  if (ctx?.reportingAgentRole) lines.push(`Reporting agent role: ${ctx.reportingAgentRole}`);
+  if (ctx?.supportingAgents?.length) {
+    lines.push(`Supporting agents: ${ctx.supportingAgents.join(", ")}`);
+  }
   appendAgentOpsGlobalApprovedMemoryPromptLines(lines, ctx?.globalApprovedMemory);
   if (ctx?.agentMemory?.length) {
     lines.push(`Agent memory:\n${ctx.agentMemory.map((item) => `- ${item}`).join("\n")}`);
@@ -206,6 +223,15 @@ function buildIssueSystemPrompt(request: AgentOpsLocalLlmChatRequest): string {
     lines.push(`Timeline:\n${ctx.timeline.map((item) => `- ${item}`).join("\n")}`);
   }
   lines.push(`Owner intent: ${request.intent ?? "clarification"}`);
+  if (ctx?.includePromptRewriteContract || request.intent === "prompt_improvement") {
+    lines.push(
+      [
+        "When rewriting the suggested fix prompt, include a fenced ```promptRewrite JSON block with keys:",
+        "explanation, rewritten_prompt, changes_made, safety_notes, validation_steps.",
+        "Normal answers stay plain text.",
+      ].join(" "),
+    );
+  }
   return lines.join("\n");
 }
 

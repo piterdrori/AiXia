@@ -4917,7 +4917,57 @@ export async function getAgentOpsAgentChatMessages(
 
     const messages = (data ?? [])
       .map((row) => normalizeAgentChatMessage(row))
-      .filter((item): item is AgentOpsAgentChatMessage => item !== null);
+      .filter((item): item is AgentOpsAgentChatMessage => item !== null)
+      // Keep Agent Detail chat distinct from Finding Chat rooms.
+      .filter((item) => {
+        const roomId =
+          typeof item.metadata.roomId === "string" ? item.metadata.roomId : `agent-chat:${normalizedAgentId}`;
+        return !roomId.startsWith("finding:");
+      });
+    return ok(messages);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Load finding-scoped chat messages for one reporting agent + room id set
+ * (primary room + draft/promoted aliases). Reuses agent_chat_message persistence.
+ */
+export async function getAgentOpsFindingChatMessages(input: {
+  agentId: string;
+  roomIds: string[];
+}): Promise<AgentOpsReadResult<AgentOpsAgentChatMessage[]>> {
+  try {
+    const normalizedAgentId = input.agentId?.trim();
+    const roomIds = [...new Set((input.roomIds ?? []).map((id) => id.trim()).filter(Boolean))];
+    if (!normalizedAgentId) return fail("agentId is required.");
+    if (roomIds.length === 0) return fail("roomIds are required.");
+
+    const ownerGate = await assertAgentOpsOwner();
+    if (ownerGate.error) return fail(ownerGate.error);
+
+    const { data, error } = await supabase
+      .from("agentops_owner_feedback")
+      .select("id, remark, metadata, created_at")
+      .contains("metadata", { action: "agent_chat_message", agentId: normalizedAgentId })
+      .order("created_at", { ascending: true })
+      .limit(500);
+    if (error) return fail(error);
+
+    const roomSet = new Set(roomIds);
+    const messages = (data ?? [])
+      .map((row) => normalizeAgentChatMessage(row))
+      .filter((item): item is AgentOpsAgentChatMessage => item !== null)
+      .filter((item) => {
+        const roomId = typeof item.metadata.roomId === "string" ? item.metadata.roomId : "";
+        if (roomSet.has(roomId)) return true;
+        const aliases = item.metadata.threadAliases;
+        if (Array.isArray(aliases)) {
+          return aliases.some((alias) => typeof alias === "string" && roomSet.has(alias));
+        }
+        return false;
+      });
     return ok(messages);
   } catch (error) {
     return fail(error);

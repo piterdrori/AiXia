@@ -46,8 +46,10 @@ const PROMPT_SAFETY_RULES: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\b(disable|bypass|skip).{0,40}owner (approval|gate)\b/i, label: "disabling owner approval" },
   { pattern: /\b(auto[- ]?(fix|apply|execute)|automatically fix)\b/i, label: "automatic fixes" },
   { pattern: /\b(auto[- ]?pr|create (a )?pr automatically|open (a )?pull request automatically)\b/i, label: "automatic PR creation" },
+  { pattern: /\b(auto[- ]?deploy|deploy automatically)\b/i, label: "automatic deployment" },
   { pattern: /\b(service[_ -]?role|secret key|api[_ -]?key|password)\b/i, label: "secret exposure" },
   { pattern: /\b(drop table|truncate |delete from |destructive (db|database))\b/i, label: "destructive database changes" },
+  { pattern: /\b(disable|skip|bypass).{0,40}(tests?|ci)\b/i, label: "disabling tests" },
   { pattern: /\b(bypass staging|skip staging|deploy without staging)\b/i, label: "bypassing staging" },
 ];
 

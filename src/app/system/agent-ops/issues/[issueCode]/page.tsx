@@ -6,10 +6,12 @@ import { AixiaBadge, AixiaButton, AixiaInfoBlock } from "@/components/aixia";
 import {
   AgentOpsAdvancedDisclosure,
   AgentOpsEmptyState,
+  AgentOpsFindingChatCard,
   AgentOpsOwnerPageShell,
   AgentOpsPageHeader,
   getAgentOwnerMeta,
   useAgentOpsOwnerGate,
+  type AgentOpsAgentChatIdentity,
 } from "@/components/agentops/owner";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { CANONICAL_AGENTS } from "@/lib/agentops/canonicalAgents";
@@ -173,13 +175,52 @@ export default function AgentOpsFindingDetailPage() {
   const agentHref = slug ? `/system/agent-ops/agents/${slug}` : null;
   const chatHref = slug
     ? `/system/agent-ops/agents/${slug}?finding=${encodeURIComponent(
-        detail?.issueCode ?? detail?.draftId ?? "",
+        detail?.issueCode ?? detail?.draftId ?? detail?.findingId ?? "",
       )}`
     : null;
+
+  const findingChatIdentity = useMemo((): AgentOpsAgentChatIdentity | null => {
+    if (!slug && !detail?.agentSlug) return null;
+    const agentId = slug ?? detail?.agentSlug ?? "";
+    if (!agentId) return null;
+    return {
+      agentId,
+      displayName: agentName,
+      username: agentMeta.username,
+      jobTitle: agentMeta.jobTitle,
+      responsibility: agentMeta.responsibility,
+      statusLabel: detail?.ownerStatusLabel ?? "Finding discussion",
+      qaSpecialty: agentMeta.jobTitle,
+      currentFocus: detail?.title ?? null,
+      contextNotes: [
+        detail?.issueCode ? `Finding ${detail.issueCode}` : null,
+        detail?.route ? `Route ${detail.route}` : null,
+      ].filter(Boolean) as string[],
+    };
+  }, [agentMeta, agentName, detail, slug]);
 
   const safetyHits = useMemo(
     () => inspectPromptSafety(editingPrompt ? promptDraft : detail?.promptText ?? ""),
     [editingPrompt, promptDraft, detail?.promptText],
+  );
+
+  const applyPromptRewriteToEditor = useCallback(
+    (prompt: string) => {
+      setPromptDraft(prompt);
+      setEditingPrompt(true);
+      setPromptSaveState("dirty");
+      setPromptError(null);
+      setFeedback("Prompt rewrite loaded into the editor — not saved yet.");
+      const next = new URLSearchParams(searchParams);
+      next.set("mode", "edit-prompt");
+      setSearchParams(next, { replace: true });
+      window.requestAnimationFrame(() => {
+        const editor = document.getElementById("suggested-fix-prompt");
+        editor?.focus();
+        editor?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    },
+    [searchParams, setSearchParams],
   );
 
   const runAction = async (
@@ -560,6 +601,28 @@ export default function AgentOpsFindingDetailPage() {
                 ) : null}
               </OwnerSection>
 
+              {findingChatIdentity ? (
+                <AgentOpsFindingChatCard
+                  identity={findingChatIdentity}
+                  detail={detail}
+                  agentHref={agentHref}
+                  continueInAgentChatHref={chatHref}
+                  onUsePromptRewrite={applyPromptRewriteToEditor}
+                  onOpenAgent={() => {
+                    if (agentHref) navigate(agentHref);
+                  }}
+                  onContinueInAgentChat={() => {
+                    if (chatHref) navigate(chatHref);
+                  }}
+                />
+              ) : (
+                <OwnerSection title="Finding chat" id="finding-chat-unavailable">
+                  <p className="text-sm text-white/60">
+                    Reporting agent identity is unavailable, so finding chat cannot start yet.
+                  </p>
+                </OwnerSection>
+              )}
+
               <OwnerSection title="Suggested solution" id="finding-solution">
                 {detail.suggestedSolution || detail.likelyRootCause ? (
                   <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -683,8 +746,39 @@ export default function AgentOpsFindingDetailPage() {
                   </pre>
                 ) : null}
                 <p className="text-xs text-white/40">
-                  Ask for a future rewrite in Phase E — this page does not auto-run Cursor prompts.
+                  Prompt rewrites from Finding Chat load into this editor only after you click Use
+                  this prompt. Nothing auto-saves or executes.
                 </p>
+              </OwnerSection>
+
+              <OwnerSection title="Owner decision" id="finding-decision">
+                <p className="text-sm text-white/70">
+                  Current status: <span className="text-white">{detail.ownerStatusLabel}</span>
+                </p>
+                <p className="text-sm text-white/60">Recommended next step: {detail.nextAction}</p>
+                <ul className="space-y-3">
+                  {primaryActions.map((action) => {
+                    const meta = detail.actionMeta.find((item) => item.id === action);
+                    return (
+                      <li key={action} className="rounded-lg border border-white/10 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-white">{meta?.label ?? action}</p>
+                          <AixiaButton
+                            variant="secondary"
+                            disabled={submitting}
+                            onClick={() => void handleOwnerAction(action)}
+                          >
+                            {meta?.label ?? action}
+                          </AixiaButton>
+                        </div>
+                        <p className="mt-2 text-xs text-white/50">{meta?.help}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {primaryActions.length === 0 ? (
+                  <p className="text-sm text-white/55">No lifecycle actions are available right now.</p>
+                ) : null}
               </OwnerSection>
 
               <OwnerSection title="History" id="finding-history">
@@ -748,7 +842,7 @@ export default function AgentOpsFindingDetailPage() {
                   ) : null}
                   {chatHref ? (
                     <AixiaButton variant="secondary" onClick={() => navigate(chatHref)}>
-                      Chat with agent
+                      Continue in Agent Chat
                     </AixiaButton>
                   ) : null}
                   {slug ? (
@@ -764,36 +858,6 @@ export default function AgentOpsFindingDetailPage() {
                     </AixiaButton>
                   ) : null}
                 </div>
-              </OwnerSection>
-
-              <OwnerSection title="Owner decision" id="finding-decision">
-                <p className="text-sm text-white/70">
-                  Current status: <span className="text-white">{detail.ownerStatusLabel}</span>
-                </p>
-                <p className="text-sm text-white/60">Recommended next step: {detail.nextAction}</p>
-                <ul className="space-y-3">
-                  {primaryActions.map((action) => {
-                    const meta = detail.actionMeta.find((item) => item.id === action);
-                    return (
-                      <li key={action} className="rounded-lg border border-white/10 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-white">{meta?.label ?? action}</p>
-                          <AixiaButton
-                            variant="secondary"
-                            disabled={submitting}
-                            onClick={() => void handleOwnerAction(action)}
-                          >
-                            {meta?.label ?? action}
-                          </AixiaButton>
-                        </div>
-                        <p className="mt-2 text-xs text-white/50">{meta?.help}</p>
-                      </li>
-                    );
-                  })}
-                </ul>
-                {primaryActions.length === 0 ? (
-                  <p className="text-sm text-white/55">No lifecycle actions are available right now.</p>
-                ) : null}
               </OwnerSection>
 
               <OwnerSection title="Links" id="finding-links">

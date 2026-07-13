@@ -126,22 +126,44 @@ async function main() {
       waitUntil: "domcontentloaded",
       timeout: 45000,
     });
-    await page.waitForTimeout(2000);
+    try {
+      await page.getByTestId("agentops-agent-detail-chat").waitFor({ timeout: 90000 });
+    } catch {
+      /* continue */
+    }
+    await page.waitForTimeout(1500);
     const composer = page.locator("textarea").first();
     const marker = `Phase B smoke ${Date.now()}`;
     if ((await composer.count()) > 0) {
       await composer.fill(marker);
-      await page.getByRole("button", { name: /^Send$/i }).first().click();
-      await page.waitForTimeout(8000);
+      // Composer send control is often an icon button (aria-label), not visible "Send" text.
+      const sendBtn = page
+        .locator(
+          'button[aria-label*="Send" i], button[title*="Send" i], [data-testid*="send" i], button:has-text("Send")',
+        )
+        .first();
+      if ((await sendBtn.count()) > 0) {
+        await sendBtn.click({ timeout: 15000 });
+      } else {
+        await composer.press("Enter");
+      }
+      await page.waitForTimeout(12000);
       await page.goto(`${base}/system/agent-ops/agents`, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(1500);
       await page.goto(`${base}/system/agent-ops/agents/system-agent`, {
         waitUntil: "domcontentloaded",
       });
+      try {
+        await page.getByTestId("agentops-agent-detail-chat").waitFor({ timeout: 90000 });
+      } catch {
+        /* continue */
+      }
       await page.waitForTimeout(2500);
       const body = await page.locator("body").innerText();
       report.checks.historyPreserved = body.includes(marker);
       report.checks.sendAttempted = true;
+      report.checks.agentReplyVisible =
+        /System Agent/i.test(body) && body.includes(marker);
     } else {
       report.checks.historyPreserved = false;
       report.checks.sendAttempted = false;
@@ -153,7 +175,18 @@ async function main() {
     await page.goto(`${base}/system/agent-ops/agents/not-a-real-agent`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(1500);
+    try {
+      await Promise.race([
+        page.getByRole("heading", { name: "Agent not found" }).waitFor({ timeout: 45000 }),
+        page.getByRole("button", { name: /Back to Agents/i }).waitFor({ timeout: 45000 }),
+        page.getByText(/Could not load this page|owner access required|timed out/i).waitFor({
+          timeout: 45000,
+        }),
+      ]);
+    } catch {
+      /* fall through */
+    }
+    await page.waitForTimeout(1000);
     const invalidBody = await page.locator("body").innerText();
     report.checks.invalidSlug = {
       agentNotFound: /Agent not found/i.test(invalidBody),

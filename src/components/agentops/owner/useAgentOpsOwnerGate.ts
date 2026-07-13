@@ -25,6 +25,14 @@ export function useAgentOpsOwnerGate() {
 
   useEffect(() => {
     void refresh();
+    const timer = window.setTimeout(() => {
+      setLoading((current) => {
+        if (!current) return current;
+        setError((existing) => existing ?? "Owner gate timed out. Retry.");
+        return false;
+      });
+    }, 20_000);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   return { loading, isOwner, error, refresh };

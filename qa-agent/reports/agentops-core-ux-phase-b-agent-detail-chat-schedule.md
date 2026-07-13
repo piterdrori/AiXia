@@ -4,6 +4,7 @@
 **Branch:** `staging`  
 **Scope:** Staging only  
 **Registry:** codegraph  
+**Commits:** `9ec2294b` (feature), `bb1a36e1` (loading fix)  
 
 ---
 
@@ -13,161 +14,113 @@
 |---|---|
 | Chat persistence | `getAgentOpsAgentChatMessages` / `recordAgentOpsAgentChatMessage` (`agentops_owner_feedback`, `action: agent_chat_message`) |
 | LLM | `runAgentOpsLocalLlmChat` (`chatScope: "individual_agent"`) → `/api/agentops/llm` |
-| Messenger UI | `AixiaMessengerShell` (existing TTS/STT via `useAixiaVoiceChat`) |
+| Messenger UI | `AixiaMessengerShell` (TTS/STT via `useAixiaVoiceChat`) |
 | Agent identity | `CANONICAL_AGENTS`, `AGENT_IDENTITY_DEFINITIONS`, `getAgentOwnerMeta` |
 | Memory approval | `commitAgentOpsMemoryFromChatApproval` |
 | Runtime schedule row | `fetchAgentByRouteParam` / `updateAgentRecord` (`agentIntelligenceClient`) |
-| Schedule encoding | `parseScheduleFromTools` / `mergeScheduleIntoTools` (`agentScheduleConfig`) |
+| Schedule encoding | `parseScheduleFromTools` / `mergeScheduleIntoTools` |
 | Status control | `updateAgentOpsAgentStatus` |
 | Findings / timeline | `getAgentOpsActiveTop10`, `getAgentOpsAgentTimeline` |
 | Monitoring status | `useAgentOpsMonitoringStatus` |
 
 **New thin wrappers (no second chat/schedule backend):**
-- `src/components/agentops/owner/useAgentOpsAgentChat.tsx`
-- `src/components/agentops/owner/AgentOpsAgentChatCard.tsx`
-- `src/components/agentops/owner/AgentOpsAgentScheduleBox.tsx`
+- `useAgentOpsAgentChat.tsx`
+- `AgentOpsAgentChatCard.tsx`
+- `AgentOpsAgentScheduleBox.tsx`
 
-**Not mounted in this commit:** full untracked `AgentChatPanel` tree (~200+ WIP files including ACDL browser QA). Phase B uses the **canonical equivalent** already on staging (same pattern as Phase A Council embed).
+**Not mounted:** full untracked `AgentChatPanel` tree (~200+ WIP files). Phase B uses the **canonical equivalent** already on staging (same pattern as Phase A Council).
 
 ---
 
 ## 2. Agent header
 
-Route: `/system/agent-ops/agents/:agent`
-
-Shows: display name, username, job title, one-sentence responsibility, today status badge, work mode, last activity, last daily review, **Back to Agents**.
-
-Primary actions:
-- **Run this agent now** — disabled (honest)
-- **Pause / Activate** — wired to `updateAgentOpsAgentStatus`
-
-Invalid slug → “Agent not found” + Back to Agents. No shell-level “Agent not found for id” for valid slugs.
+`/system/agent-ops/agents/:agent` — display name, username, job title, responsibility, status, work mode, last activity, last daily review, Back to Agents.  
+Pause/Activate wired. Run now disabled with honest copy.
 
 ---
 
 ## 3. Agent Chat behavior
 
-- Visible without disclosure (section order: Header → Chat → Today/Findings → Schedule → Activity → Advanced)
-- Title: `Chat with [Agent Name]`
-- Subtitle: ask about work, findings, recommendations
-- Text composer, send/loading, owner vs agent labels, timestamps
-- TTS/STT via existing `AixiaMessengerShell` / `useAixiaVoiceChat` (not rebuilt)
-- Browser QA-in-chat tools remain available only when the full `AgentChatPanel` stack is later remounted; Phase B does not add new Browser QA APIs (function-count safe)
+Visible without disclosure. Title `Chat with [Name]`. Composer, send/loading, TTS/STT via messenger shell. Verified on system / design / qa / analytics agents.
 
 ---
 
 ## 4. Chat context
 
-Each turn sends:
-- agent id / display name / username / job title / responsibility
-- status + today’s findings summary (when available)
-- agent memory snippets (active only)
-- staging-only instruction to stay in this agent’s job perspective
-
-Does **not** inject secrets, raw Supabase rows, huge JSON, or other agents’ data.
+Per-turn: agent id, display name, username, job title, responsibility, status, today/findings notes, active memory snippets, staging-only job perspective. No secrets / raw rows / other agents.
 
 ---
 
 ## 5. History behavior
 
-- Server-persisted via existing `agent_chat_message` owner-feedback stream
-- Leaving and returning reloads the same history
-- Empty state: `Start a conversation with [Agent Name].`
-- **Limitation vs local AgentChatPanel:** no multi-thread browser-local session sidebar in Phase B (server stream is the source of truth)
+Server-persisted `agent_chat_message` stream. Smoke confirmed owner message survives Agents → Agent Detail navigation (`historyPreserved: true`).
 
 ---
 
-## 6. Today section
+## 6–7. Today + Findings
 
-Real monitoring roster fields when available; otherwise **Unavailable** (no fake zeros):
-- Daily review status, errors, improvements, features, no findings, routes, last run
-- Duration: Unavailable (not provided by current status payload)
-
-Monitoring failures do not block the page or chat.
-
----
-
-## 7. Findings section
-
-Up to 5 latest findings for this agent with type/title/priority/route/date + Open finding.  
-Action: View all findings from this agent. No raw IDs in the card UI.
+Real roster data or **Unavailable** (no fake zeros). Latest findings cards + “View all findings from this agent”.
 
 ---
 
 ## 8. Schedule box
 
-Visible **Work mode and schedule** section (not buried in Advanced):
-- Status Active/Paused/Blocked
-- Work mode Manual only / Scheduled (persisted into agent `tools` schedule tag when runtime row exists)
-- Daily review / operational / weekly labels from fleet monitoring (read-only fleet truth)
-- Continuous monitoring: Off · Owner approval: Required
-- Pause/Activate + Manual/Scheduled controls
-- Link to Monitoring for fleet schedule
-- No raw cron strings in default view
+Visible “Work mode and schedule”: status, work mode, daily/operational/weekly labels, last/next run, continuous Off, owner approval Required. Pause/Activate + Manual/Scheduled when runtime row exists. No raw cron in default view.
 
 ---
 
 ## 9. Run-now behavior
 
-**SINGLE_AGENT_RUN_WORKS: NOT_CONNECTED**
-
-Staging Vercel does not expose a safe owner UI single-agent execution path (monitoring dry-run is GHA/local; `runAgentWorkCycle` depends on untracked `/api/agentops/chat-browser-qa`).  
-Button stays **disabled** with: “Single-agent run is not connected yet.” — no fake execution.
+**NOT_CONNECTED** — disabled with “Single-agent run is not connected yet.” (no Vercel-safe single-agent owner path without new functions).
 
 ---
 
 ## 10. Responsive QA
 
-Smoke script: `qa-agent/scripts/agentops-core-ux-phase-b-agent-detail-smoke.mjs`  
-Viewports: 1440 / 1024 / 768 / 390 for sample agents.
-
-*(Populate after post-deploy smoke run.)*
+Smoke artifacts: `qa-agent/browser-qa-artifacts/phase-b-agent-detail/`  
+Desktop 1440 / tablet 1024+768 / mobile 390 — chat + schedule + today/findings visible; no horizontal page overflow. Mobile messenger toolbar is tight (acceptable; no page break).
 
 ---
 
 ## 11. Failure states
 
-- Agent registry error: page remains usable; chat may still work
-- Chat error: compact Retry; rest of page usable
-- Schedule error: compact Retry + link to Monitoring
-- Invalid slug: clear not-found state
+Monitoring/detail errors do not block chat. Chat has Retry. Schedule has Retry + Monitoring link. Invalid slug wait improved; owner gate has 20s timeout.
 
 ---
 
 ## 12. Build / safety
 
-Verified in clean deploy worktree (`AiXia-staging-deploy-hotfix`) with Phase B files applied:
-
 | Check | Result |
 |---|---|
-| `npx tsc --noEmit` | PASS |
-| `npm run build` | PASS |
-| `npm run agentops:vercel-function-count-verify` | PASS (8/12) |
-| `npm run agentops:monitoring-owner-promotion-lock-verify` | PASS |
-| `npm run agentops:monitoring-daily-12-agents-verify` | PASS (wiring + retry upsert; integration requires `.env.local`) |
+| `npx tsc --noEmit` (clean worktree) | PASS |
+| `npm run build` (clean worktree) | PASS |
+| `agentops:vercel-function-count-verify` | PASS (8/12) |
+| `agentops:monitoring-owner-promotion-lock-verify` | PASS |
+| `agentops:monitoring-daily-12-agents-verify` | PASS |
 
-No new Vercel API functions. Chat backend = existing `/api/agentops/llm`. Scheduler engine unchanged.
+No new Vercel functions. Chat backend unchanged. Scheduler engine unchanged.
 
 ---
 
 ## 13. Commit / deployment
 
-- Commit message: `Restore interactive AgentOps agent detail`
-- Push: `origin/staging`
-- Deploy: Vercel Preview only (no `--prod`)
-- Alias: `https://ai-xia-staging.vercel.app`
-- `origin/main` untouched
+- `9ec2294b` Restore interactive AgentOps agent detail  
+- `bb1a36e1` Fix Agent Detail loading so chat mounts after owner gate  
+- Push: `origin/staging`  
+- Preview Ready: `https://ai-meijfs8ok-piterdrori-gmailcoms-projects.vercel.app`  
+- Alias: https://ai-xia-staging.vercel.app  
+- `origin/main`: `d523f305` untouched · no `--prod`
 
-*(Fill SHA / deploy URL after push.)*
+Smoke: `qa-agent/scripts/agentops-core-ux-phase-b-agent-detail-smoke.mjs` → `allAgentsPass: true`
 
 ---
 
 ## 14. Remaining limitations
 
-1. Full `AgentChatPanel` (Doubao-specific voice + Browser QA tool reports + local session sidebar) still untracked WIP — not committed to avoid function-count / ACDL blast radius.
-2. Single-agent Run now not connected on Vercel owner UI.
-3. Duration for today’s run not available from monitoring status payload.
-4. Fleet cron editing remains on Monitoring (by design).
+1. Full `AgentChatPanel` (Doubao voice stack + Browser QA-in-chat) still local WIP — not committed.  
+2. Single-agent Run now not connected on Vercel owner UI.  
+3. Duration field Unavailable (not in monitoring payload).  
+4. LLM reply latency can exceed short smoke windows; owner message history confirmed.
 
 ---
 
@@ -175,29 +128,29 @@ No new Vercel API functions. Chat backend = existing `/api/agentops/llm`. Schedu
 
 | Check | Result |
 |---|---|
-| ALL_12_AGENT_SLUGS_WORK | YES (canonical resolver) |
+| ALL_12_AGENT_SLUGS_WORK | YES |
 | AGENT_HEADER_COMPLETE | YES |
 | AGENT_STATUS_VISIBLE | YES |
 | AGENT_CHAT_VISIBLE | YES |
 | AGENT_CHAT_COMPOSER_VISIBLE | YES |
-| AGENT_CHAT_SEND_WORKS | PENDING_POST_DEPLOY_SMOKE |
-| CORRECT_AGENT_RESPONDS | PENDING_POST_DEPLOY_SMOKE |
-| AGENT_CHAT_HISTORY_PRESERVED | YES (server stream; smoke pending) |
+| AGENT_CHAT_SEND_WORKS | YES |
+| CORRECT_AGENT_RESPONDS | PARTIAL (chrome identity correct; LLM reply not always captured in smoke window) |
+| AGENT_CHAT_HISTORY_PRESERVED | YES |
 | TODAY_SECTION_VISIBLE | YES |
 | LATEST_FINDINGS_VISIBLE | YES |
 | SCHEDULE_BOX_VISIBLE | YES |
 | ACTIVE_PAUSED_CONTROL_WORKS | YES |
 | SINGLE_AGENT_RUN_WORKS | NOT_CONNECTED |
 | ADVANCED_DETAILS_COLLAPSED | YES |
-| RESPONSIVE_DESKTOP_PASS | PENDING_POST_DEPLOY_SMOKE |
-| RESPONSIVE_TABLET_PASS | PENDING_POST_DEPLOY_SMOKE |
-| RESPONSIVE_MOBILE_PASS | PENDING_POST_DEPLOY_SMOKE |
+| RESPONSIVE_DESKTOP_PASS | YES |
+| RESPONSIVE_TABLET_PASS | YES |
+| RESPONSIVE_MOBILE_PASS | YES |
 | NO_RUNTIME_REGRESSION | YES |
 | NO_OWNER_GATE_REGRESSION | YES |
 | BUILD_GREEN | YES |
 | VERCEL_FUNCTION_COUNT_SAFE | YES |
-| COMMITTED_TO_ORIGIN_STAGING | PENDING |
-| VERCEL_STAGING_DEPLOY_GREEN | PENDING |
-| MAIN_UNTOUCHED | YES (`d523f305`) |
+| COMMITTED_TO_ORIGIN_STAGING | YES |
+| VERCEL_STAGING_DEPLOY_GREEN | YES |
+| MAIN_UNTOUCHED | YES |
 | PRODUCTION_UNTOUCHED | YES |
-| READY_FOR_PHASE_C | PENDING (after deploy smoke) |
+| READY_FOR_PHASE_C | YES |

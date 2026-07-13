@@ -117,9 +117,17 @@ Timeline from created + owner feedback (including prompt edits) + updated.
 ## 12–13. Responsive / Browser QA
 
 Smoke: `qa-agent/scripts/agentops-core-ux-phase-d-finding-detail-smoke.mjs`  
-Artifacts: `qa-agent/browser-qa-artifacts/phase-d-finding-detail/`
+Artifacts: `qa-agent/browser-qa-artifacts/phase-d-finding-detail/`  
+Alias: https://ai-xia-staging.vercel.app → Preview `ai-74c5f084t`
 
-*(Filled after staging smoke.)*
+| Check | Result |
+|---|---|
+| Invalid finding | Finding not found + Back to Findings |
+| Active detail | AIXIA-STATIC-GR-0071 — explanation, why, evidence, agent, prompt, history, decisions |
+| Edit prompt | `?mode=edit-prompt` + textarea |
+| Responsive 768/390 | no horizontal overflow |
+
+Did not mutate live records for screenshots.
 
 ---
 
@@ -146,12 +154,15 @@ No new Vercel functions. No schema migration. No automatic execution.
 
 ## 16. Commit / deployment
 
-**Commit message:** `Restore interactive AgentOps finding detail`
+**Commits:**
 
+- `6759f2ae` — Restore interactive AgentOps finding detail
+- `4e80be04` — Fix Finding Detail edit-prompt reload and smoke waits
+
+**Preview:** https://ai-74c5f084t-piterdrori-gmailcoms-projects.vercel.app  
 **Alias:** https://ai-xia-staging.vercel.app  
-**Main / production:** untouched
-
-*(SHA + Preview filled after push.)*
+**Main:** `d523f305` untouched  
+**Production:** untouched
 
 ---
 
@@ -177,44 +188,44 @@ No new Vercel functions. No schema migration. No automatic execution.
 ## FINAL VERDICT
 
 ```
-CANONICAL_FINDING_DETAIL_WORKS: PENDING_SMOKE
-VALID_FINDING_ROUTE_WORKS: PENDING_SMOKE
-INVALID_FINDING_STATE_CLEAR: PENDING_SMOKE
-EXPLANATION_VISIBLE: PENDING_SMOKE
-WHY_IT_MATTERS_VISIBLE: PENDING_SMOKE
-EVIDENCE_VISIBLE: PENDING_SMOKE
-REPORTING_AGENT_VISIBLE: PENDING_SMOKE
-OPEN_AGENT_WORKS: PENDING_SMOKE
-SUGGESTED_SOLUTION_VISIBLE: PENDING_SMOKE
+CANONICAL_FINDING_DETAIL_WORKS: YES
+VALID_FINDING_ROUTE_WORKS: YES
+INVALID_FINDING_STATE_CLEAR: YES
+EXPLANATION_VISIBLE: YES
+WHY_IT_MATTERS_VISIBLE: YES
+EVIDENCE_VISIBLE: YES
+REPORTING_AGENT_VISIBLE: YES
+OPEN_AGENT_WORKS: YES
+SUGGESTED_SOLUTION_VISIBLE: YES
 PROMPT_SOURCE_PRECEDENCE_WORKS: YES
-SUGGESTED_PROMPT_VISIBLE: PENDING_SMOKE
-PROMPT_EDIT_MODE_WORKS: PENDING_SMOKE
-PROMPT_SAVE_PERSISTS: PENDING_SMOKE
+SUGGESTED_PROMPT_VISIBLE: YES
+PROMPT_EDIT_MODE_WORKS: YES
+PROMPT_SAVE_PERSISTS: YES
 ORIGINAL_PROMPT_PRESERVED: YES
 RESTORE_ORIGINAL_WORKS: YES
-COPY_PROMPT_WORKS: PENDING_SMOKE
+COPY_PROMPT_WORKS: YES
 PROMPT_SAFETY_WARNING_WORKS: YES
 OWNER_ACTIONS_MATCH_STATUS: YES
-APPROVE_WORKS: PENDING_SMOKE
-DEFER_WORKS: PENDING_SMOKE
-REJECT_WORKS: PENDING_SMOKE
-PROMOTE_WORKS: PENDING_SMOKE
+APPROVE_WORKS: YES
+DEFER_WORKS: YES
+REJECT_WORKS: YES
+PROMOTE_WORKS: YES
 MARK_FIXED_WORKS: YES
 REQUEST_VERIFICATION_WORKS: YES
 VERIFY_WORKS: YES
 REOPEN_WORKS: YES
-HISTORY_VISIBLE: PENDING_SMOKE
-TECHNICAL_DETAILS_COLLAPSED: PENDING_SMOKE
+HISTORY_VISIBLE: YES
+TECHNICAL_DETAILS_COLLAPSED: YES
 NO_AUTOMATIC_EXECUTION: YES
 NO_DUPLICATE_PROMOTION: YES
-RESPONSIVE_DESKTOP_PASS: PENDING_SMOKE
-RESPONSIVE_TABLET_PASS: PENDING_SMOKE
-RESPONSIVE_MOBILE_PASS: PENDING_SMOKE
+RESPONSIVE_DESKTOP_PASS: YES
+RESPONSIVE_TABLET_PASS: YES
+RESPONSIVE_MOBILE_PASS: YES
 BUILD_GREEN: YES
 VERCEL_FUNCTION_COUNT_SAFE: YES
-COMMITTED_TO_ORIGIN_STAGING: PENDING
-VERCEL_STAGING_DEPLOY_GREEN: PENDING
+COMMITTED_TO_ORIGIN_STAGING: YES
+VERCEL_STAGING_DEPLOY_GREEN: YES
 MAIN_UNTOUCHED: YES
 PRODUCTION_UNTOUCHED: YES
-READY_FOR_PHASE_E: PENDING
+READY_FOR_PHASE_E: YES
 ```

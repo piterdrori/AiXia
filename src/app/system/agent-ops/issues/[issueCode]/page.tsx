@@ -148,15 +148,20 @@ export default function AgentOpsFindingDetailPage() {
     setNotFound(result.notFound);
     setError(result.error);
     setPromptDraft(result.detail?.promptText ?? "");
-    setEditingPrompt(searchParams.get("mode") === "edit-prompt");
     setPromptSaveState("idle");
     setPromptError(null);
     setLoading(false);
-  }, [isOwner, params.issueCode, searchParams]);
+  }, [isOwner, params.issueCode]);
 
   useEffect(() => {
     if (!gateLoading) void loadDetail();
   }, [gateLoading, loadDetail]);
+
+  useEffect(() => {
+    if (searchParams.get("mode") === "edit-prompt") {
+      setEditingPrompt(true);
+    }
+  }, [searchParams]);
 
   const slug = resolveAgentSlug(detail?.agentSlug);
   const agentMeta = getAgentOwnerMeta(slug ?? detail?.agentSlug ?? "unknown");

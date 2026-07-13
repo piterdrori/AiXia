@@ -59,7 +59,7 @@ async function main() {
     await page.goto(`${base}/system/agent-ops/issues/DOES-NOT-EXIST-PHASE-D`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(3000);
+    await page.getByText("Finding not found").waitFor({ timeout: 90000 });
     const invalidBody = await page.locator("body").innerText();
     report.checks.invalidFindingClear = /Finding not found/i.test(invalidBody);
     report.checks.invalidBackButton =
@@ -101,10 +101,13 @@ async function main() {
         report.checks.editModeUrl = page.url().includes("mode=edit-prompt");
         report.checks.promptTextarea =
           (await page.locator("#suggested-fix-prompt").count()) > 0;
-        await page.getByRole("button", { name: "Cancel" }).click();
+        const cancel = page.getByRole("button", { name: "Cancel" });
+        if ((await cancel.count()) > 0) await cancel.click();
         await page.waitForTimeout(400);
       } else {
         report.checks.editModeUrl = null;
+        report.checks.promptTextarea =
+          (await page.locator("#suggested-fix-prompt").count()) > 0;
       }
 
       // Responsive

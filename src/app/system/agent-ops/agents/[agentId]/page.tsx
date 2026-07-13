@@ -331,7 +331,8 @@ export default function AgentOpsAgentDetailPage() {
     username,
   ]);
 
-  const notFound = !gateLoading && !loading && !canonical;
+  // Invalid slug: show not-found as soon as the owner gate settles (do not wait on detail fetch).
+  const notFound = !gateLoading && !canonical;
 
   if (notFound) {
     return (
@@ -350,11 +351,17 @@ export default function AgentOpsAgentDetailPage() {
     );
   }
 
-  const pageLoading = gateLoading || (loading && !managedAgent && !detailError);
+  // Gate-only full-page load — keep chat/schedule usable even if roster/monitoring is slow.
+  const pageLoading = gateLoading;
 
   return (
     <AgentOpsOwnerPageShell loading={pageLoading} error={gateError} onRetry={refreshAll}>
       <div className="space-y-8">
+        {loading ? (
+          <p className="text-sm text-white/50" role="status">
+            Loading agent details…
+          </p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-3">
           <AixiaButton variant="secondary" onClick={() => navigate("/system/agent-ops/agents")}>
             <ArrowLeft className="mr-2 h-4 w-4" />

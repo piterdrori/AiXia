@@ -50,7 +50,19 @@ async function auditAgent(page, slug, viewportName) {
     waitUntil: "domcontentloaded",
     timeout: 45000,
   });
-  await page.waitForTimeout(2500);
+
+  // Wait for either chat mount or not-found / owner error (gate can take a while).
+  try {
+    await Promise.race([
+      page.getByTestId("agentops-agent-detail-chat").waitFor({ timeout: 90000 }),
+      page.getByRole("heading", { name: "Agent not found", level: 2 }).waitFor({ timeout: 90000 }),
+      page.getByText(/AgentOps owner access required/i).waitFor({ timeout: 90000 }),
+      page.getByRole("heading", { name: /Chat with /i }).waitFor({ timeout: 90000 }),
+    ]);
+  } catch {
+    /* fall through to body inspection */
+  }
+  await page.waitForTimeout(1000);
   const body = await page.locator("body").innerText();
 
   const notFound = /Agent not found/i.test(body) && /No agent matches/i.test(body);

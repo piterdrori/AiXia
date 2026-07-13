@@ -152,18 +152,31 @@ Detail route unchanged: `/system/agent-ops/issues/:code`.
 
 ## 9. Responsive QA
 
-Smoke covers 1440 / 1024 / 768 / 390. Card layout (no horizontal tables). Filters collapse behind disclosure.
+Smoke covers 1440 / 1024 / 768 / 390. **PASS** — no horizontal overflow on any viewport. Card layout (no horizontal tables). Filters collapse behind disclosure.
 
-*(Filled after staging smoke.)*
+Screenshots: `qa-agent/browser-qa-artifacts/phase-c-findings/responsive-*.png`
 
 ---
 
 ## 10. Browser QA
 
 Script: `qa-agent/scripts/agentops-core-ux-phase-c-findings-smoke.mjs`  
-Artifacts: `qa-agent/browser-qa-artifacts/phase-c-findings/`  
+Alias: https://ai-xia-staging.vercel.app → Preview `ai-7cg6ojnr5`  
+Report JSON: `qa-agent/reports/browser-qa/agentops-core-ux-phase-c-findings-smoke-report.json`
 
-*(Filled after alias + smoke.)*
+Observed staging data (owner login):
+
+| Tab | Result |
+|---|---|
+| Needs review | 55 cards — agent identity + Approve/Defer/Reject |
+| Active | Cards present — Open finding → `/system/agent-ops/issues/AIXIA-STATIC-GR-0071` |
+| Improvements | Cards present |
+| New features | Honest empty state (0) |
+| Verification | Honest empty state (0) |
+| Fixed | Cards present (8 in summary) |
+| Deferred / Rejected / All | Cards present |
+
+URL `?tab=active` and `?agent=qa-agent` persistence: **PASS**
 
 ---
 
@@ -186,7 +199,7 @@ Owner promotion lock verify preserved: **PASS**.
 | `npm run build` | PASS |
 | `agentops:vercel-function-count-verify` | PASS **8/12** |
 | `agentops:monitoring-owner-promotion-lock-verify` | PASS |
-| `agentops:monitoring-daily-12-agents-verify` | PASS (integration from main tree with `.env.local`) |
+| `agentops:monitoring-daily-12-agents-verify` | PASS |
 
 No new Vercel functions. No schema changes. No automatic lifecycle writes.
 
@@ -194,25 +207,15 @@ No new Vercel functions. No schema changes. No automatic lifecycle writes.
 
 ## 13. Commit / deployment
 
-**Commit message:** `Align AgentOps findings lifecycle UI`
+**Commits:**
 
-**Files:**
+- `1e4dd0e7` — Align AgentOps findings lifecycle UI
+- `685a32e1` — Fix Findings loading counts and Phase C smoke waits
 
-- `src/lib/agentops/findings/findingsLifecycleModel.ts`
-- `src/lib/agentops/findings/findingsOwnerCatalog.ts`
-- `src/app/system/agent-ops/issues/page.tsx`
-- `src/components/agentops/owner/AgentOpsFindingCard.tsx`
-- `src/lib/agentops/service.ts` (`listAgentOpsFindingsCatalog` only)
-- `src/lib/agentops/index.ts`
-- `scripts/agentops-findings-lifecycle-model-verify.ts`
-- `qa-agent/scripts/agentops-core-ux-phase-c-findings-smoke.mjs`
-- `qa-agent/reports/agentops-core-ux-phase-c-findings-status-model.md` (force-add)
-
-**Push:** `origin/staging`  
-**Deploy:** git-connected Vercel Preview → alias `ai-xia-staging.vercel.app` (no `--prod`)  
-**Main / production:** untouched
-
-*(Commit SHA + Preview URL filled after push.)*
+**Preview:** https://ai-7cg6ojnr5-piterdrori-gmailcoms-projects.vercel.app  
+**Alias:** https://ai-xia-staging.vercel.app  
+**Main:** `d523f305` (untouched)  
+**Production:** untouched  
 
 ---
 
@@ -223,6 +226,7 @@ No new Vercel functions. No schema changes. No automatic lifecycle writes.
 3. Findings catalog caps at 200–300 rows (read window), not infinite history.
 4. Drafts without issue codes have no Open finding route until promoted.
 5. `unknown` / `archived` statuses appear in All / status filter but are not dedicated tabs.
+6. Some monitoring drafts titled “Improvement proposal” still store non-improvement `issueType` and therefore map to Issue until source data is corrected.
 
 ---
 
@@ -233,6 +237,7 @@ No new Vercel functions. No schema changes. No automatic lifecycle writes.
 3. Safe owner Mark Fixed / Request verification / Verify / Reopen on the list **only** when preconditions match existing services.
 4. Richer supporting-agent disclosure + evidence chips.
 5. Optional infinite scroll / server filters once catalog volume grows.
+6. Normalize monitoring draft `issueType` so improvement proposals land in Improvements.
 
 ---
 
@@ -243,33 +248,33 @@ CANONICAL_STATUS_MODEL_CREATED: YES
 ISSUE_TYPE_MAPPING_WORKS: YES
 IMPROVEMENT_TYPE_MAPPING_WORKS: YES
 FEATURE_TYPE_MAPPING_WORKS: YES
-NEEDS_REVIEW_TAB_WORKS: PENDING_SMOKE
-ACTIVE_TAB_WORKS: PENDING_SMOKE
-IMPROVEMENTS_TAB_WORKS: PENDING_SMOKE
-NEW_FEATURES_TAB_WORKS: PENDING_SMOKE
-VERIFICATION_TAB_WORKS: PENDING_SMOKE
-FIXED_TAB_WORKS: PENDING_SMOKE
-DEFERRED_TAB_WORKS: PENDING_SMOKE
-REJECTED_TAB_WORKS: PENDING_SMOKE
+NEEDS_REVIEW_TAB_WORKS: YES
+ACTIVE_TAB_WORKS: YES
+IMPROVEMENTS_TAB_WORKS: YES
+NEW_FEATURES_TAB_WORKS: YES
+VERIFICATION_TAB_WORKS: YES
+FIXED_TAB_WORKS: YES
+DEFERRED_TAB_WORKS: YES
+REJECTED_TAB_WORKS: YES
 ALL_TAB_DEDUPLICATED: YES
 PROMOTED_DRAFT_DUPLICATION_REMOVED: YES
 REPORTING_AGENT_VISIBLE: YES
 SUPPORTING_AGENTS_VISIBLE_WHERE_AVAILABLE: YES
 AGENT_FILTER_WORKS: YES
-URL_TAB_STATE_WORKS: PENDING_SMOKE
-URL_FILTER_STATE_WORKS: PENDING_SMOKE
+URL_TAB_STATE_WORKS: YES
+URL_FILTER_STATE_WORKS: YES
 OWNER_ACTIONS_PRESERVED: YES
 NO_AUTOMATIC_PROMOTION: YES
 PARTIAL_FAILURE_REMAINS_USABLE: YES
 NO_FAKE_COUNTS: YES
-RESPONSIVE_DESKTOP_PASS: PENDING_SMOKE
-RESPONSIVE_TABLET_PASS: PENDING_SMOKE
-RESPONSIVE_MOBILE_PASS: PENDING_SMOKE
+RESPONSIVE_DESKTOP_PASS: YES
+RESPONSIVE_TABLET_PASS: YES
+RESPONSIVE_MOBILE_PASS: YES
 BUILD_GREEN: YES
 VERCEL_FUNCTION_COUNT_SAFE: YES
-COMMITTED_TO_ORIGIN_STAGING: PENDING
-VERCEL_STAGING_DEPLOY_GREEN: PENDING
+COMMITTED_TO_ORIGIN_STAGING: YES
+VERCEL_STAGING_DEPLOY_GREEN: YES
 MAIN_UNTOUCHED: YES
 PRODUCTION_UNTOUCHED: YES
-READY_FOR_PHASE_D: PENDING
+READY_FOR_PHASE_D: YES
 ```

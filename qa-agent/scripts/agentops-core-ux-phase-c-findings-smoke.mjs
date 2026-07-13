@@ -124,11 +124,12 @@ async function main() {
     await page.waitForTimeout(2000);
     report.checks.urlAgentFilter = page.url().includes("agent=qa-agent");
 
-    // Open finding if any card exists
-    await page.goto(`${base}/system/agent-ops/issues?tab=all`, {
+    // Open finding if any card exists on Active (promoted issues have detail routes)
+    await page.goto(`${base}/system/agent-ops/issues?tab=active`, {
       waitUntil: "domcontentloaded",
     });
-    await page.waitForTimeout(2000);
+    await page.getByText("Loading findings…").waitFor({ state: "hidden", timeout: 90000 }).catch(() => {});
+    await page.waitForTimeout(1500);
     const openBtn = page.getByRole("button", { name: /Open finding|Open issue/i }).first();
     if ((await openBtn.count()) > 0) {
       await openBtn.click();

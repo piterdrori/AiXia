@@ -60,7 +60,8 @@ async function openFindings(page) {
     timeout: 45000,
   });
   await page.getByRole("heading", { name: "Findings", level: 1 }).waitFor({ timeout: 90000 });
-  await page.waitForTimeout(2000);
+  await page.getByText("Loading findings…").waitFor({ state: "hidden", timeout: 90000 }).catch(() => {});
+  await page.waitForTimeout(1500);
 }
 
 async function main() {
@@ -92,9 +93,13 @@ async function main() {
     for (const label of tabs) {
       const tab = page.getByRole("tab", { name: label });
       await tab.click();
+      await page.getByText("Loading findings…").waitFor({ state: "hidden", timeout: 60000 }).catch(() => {});
       await page.waitForTimeout(800);
       const text = await page.locator("body").innerText();
-      const emptyOk = /No .+|waiting for your review|No findings/i.test(text);
+      const emptyOk =
+        /No findings are waiting for your review|No active issues|No improvement suggestions|No new feature suggestions|No items are waiting for verification|No fixed findings yet|No deferred findings|No rejected findings|No findings are available/i.test(
+          text,
+        );
       const hasCards = (await page.locator("article").count()) > 0;
       report.tabs[label] = {
         selected: (await tab.getAttribute("aria-selected")) === "true",

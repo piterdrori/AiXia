@@ -273,16 +273,36 @@ export default function AgentOpsIssuesPage() {
 
         <AgentOpsStatusSummary
           items={[
-            { label: "Needs review", value: countLabel(summary.needsReview), tone: "warning" },
-            { label: "Active issues", value: countLabel(summary.activeIssues), tone: "default" },
-            { label: "Improvements", value: countLabel(summary.improvements), tone: "default" },
-            { label: "New features", value: countLabel(summary.newFeatures), tone: "default" },
             {
-              label: "Waiting for verification",
-              value: countLabel(summary.waitingVerification),
+              label: "Needs review",
+              value: loading ? "…" : countLabel(summary.needsReview),
               tone: "warning",
             },
-            { label: "Fixed", value: countLabel(summary.fixed), tone: "success" },
+            {
+              label: "Active issues",
+              value: loading ? "…" : countLabel(summary.activeIssues),
+              tone: "default",
+            },
+            {
+              label: "Improvements",
+              value: loading ? "…" : countLabel(summary.improvements),
+              tone: "default",
+            },
+            {
+              label: "New features",
+              value: loading ? "…" : countLabel(summary.newFeatures),
+              tone: "default",
+            },
+            {
+              label: "Waiting for verification",
+              value: loading ? "…" : countLabel(summary.waitingVerification),
+              tone: "warning",
+            },
+            {
+              label: "Fixed",
+              value: loading ? "…" : countLabel(summary.fixed),
+              tone: "success",
+            },
           ]}
         />
 
@@ -441,9 +461,17 @@ export default function AgentOpsIssuesPage() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-white/55" role="status">
-            Loading findings…
-          </p>
+          <div className="space-y-3" aria-busy="true" aria-live="polite">
+            <p className="text-sm text-white/55" role="status">
+              Loading findings…
+            </p>
+            {[0, 1, 2].map((slot) => (
+              <div
+                key={slot}
+                className="h-28 animate-pulse rounded-xl border border-white/10 bg-white/[0.04]"
+              />
+            ))}
+          </div>
         ) : filtered.length === 0 ? (
           <AgentOpsEmptyState
             title={EMPTY_COPY[tab].title}

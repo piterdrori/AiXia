@@ -503,7 +503,9 @@ export default function AgentOpsIssuesPage() {
                 item.openPath ??
                 (item.issueCode
                   ? `/system/agent-ops/issues/${encodeURIComponent(item.issueCode)}`
-                  : null);
+                  : item.draftId
+                    ? `/system/agent-ops/issues/${encodeURIComponent(`draft-${item.draftId}`)}`
+                    : null);
 
               return (
                 <AgentOpsFindingCard

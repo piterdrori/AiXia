@@ -1,29 +1,39 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 
-import { AixiaBadge, AixiaButton } from "@/components/aixia";
+import { AixiaBadge, AixiaButton, AixiaInfoBlock } from "@/components/aixia";
 import {
   AgentOpsAdvancedDisclosure,
   AgentOpsEmptyState,
   AgentOpsOwnerPageShell,
   AgentOpsPageHeader,
   getAgentOwnerMeta,
-  type FindingType,
+  useAgentOpsOwnerGate,
 } from "@/components/agentops/owner";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { CANONICAL_AGENTS } from "@/lib/agentops/canonicalAgents";
 import {
+  approveAgentOpsFinding,
   deferAgentOpsFinding,
-  getAgentOpsActiveTop10,
-  getAgentOpsBacklogSummary,
-  getAgentOpsFindingDetail,
-  getAgentOpsOwnerStatus,
   markAgentOpsFalsePositive,
-  markAgentOpsInProgress,
-  type AgentOpsFinding,
-  type AgentOpsFindingDetail,
-  type AgentOpsOwnerFeedback,
+  markAgentOpsFixed,
+  recordAgentOpsVerificationResult,
+  rejectAgentOpsFinding,
+  reopenAgentOpsFinding,
+  requestAgentOpsVerification,
+  saveAgentOpsSuggestedFixPrompt,
 } from "@/lib/agentops";
+import {
+  applyMonitoringDraftDecision,
+  loadCanonicalFindingDetail,
+  promoteMonitoringDraft,
+  type CanonicalFindingDetailView,
+} from "@/lib/agentops/findings/findingsDetailLoader";
+import {
+  inspectPromptSafety,
+  type OwnerDetailAction,
+} from "@/lib/agentops/findings/findingsDetailModel";
 
 function OwnerSection({
   title,
@@ -47,34 +57,6 @@ function OwnerSection({
   );
 }
 
-function decodeIssueCode(value: string | undefined): string {
-  if (!value) return "";
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-}
-
-function findingType(finding: AgentOpsFinding): FindingType {
-  const category = finding.category.toLowerCase();
-  if (category.includes("improvement")) return "improvement";
-  if (category.includes("feature")) return "feature";
-  return "error";
-}
-
-function typeLabel(type: FindingType): string {
-  if (type === "improvement") return "Improvement";
-  if (type === "feature") return "New feature";
-  return "Error";
-}
-
-function typeTone(type: FindingType): "rose" | "amber" | "cyan" {
-  if (type === "error") return "rose";
-  if (type === "improvement") return "amber";
-  return "cyan";
-}
-
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -82,160 +64,319 @@ function formatDateTime(value: string | null | undefined): string {
   return date.toLocaleString();
 }
 
-function ownerStatusLabel(status: string): string {
-  return status
-    .replace("Active Top 10", "Active issue")
-    .replace("Owner Reviewed", "Reviewed")
-    .replace("False Positive", "Rejected");
+function resolveAgentSlug(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const key = raw.trim().toLowerCase();
+  const match = CANONICAL_AGENTS.find(
+    (agent) =>
+      agent.id === key ||
+      key.endsWith(`.${agent.id}`) ||
+      key === agent.name.toLowerCase().replace(/\s+/g, "-"),
+  );
+  return match?.id ?? (key.includes("agent") ? key : null);
 }
 
-function feedbackLabel(feedback: AgentOpsOwnerFeedback): string {
-  const type = feedback.feedback_type.replaceAll("_", " ");
-  if (feedback.feedback_type === "false_positive") return "Rejected";
-  if (feedback.feedback_type === "defer") return "Deferred";
-  return type.charAt(0).toUpperCase() + type.slice(1);
+function findingsBackHref(searchParams: URLSearchParams): string {
+  const next = new URLSearchParams();
+  const from = searchParams.get("from");
+  const agent = searchParams.get("agent");
+  if (from) next.set("tab", from);
+  if (agent) next.set("agent", agent);
+  const query = next.toString();
+  return query ? `/system/agent-ops/issues?${query}` : "/system/agent-ops/issues";
 }
 
-function impactSummary(finding: AgentOpsFinding): string {
-  const parts = [
-    finding.saas_impact,
-    finding.ai_mcp_impact,
-    finding.personal_ai_impact,
-    finding.hr_impact,
-    finding.security_impact,
-  ].filter(Boolean);
-  if (parts.length > 0) return parts.join(" ");
-  return finding.problem || "This finding may affect staging quality or owner workflows.";
-}
-
-function canDefer(status: string): boolean {
-  return !["Deferred", "Archived", "False Positive", "Rejected", "Verified Fixed"].includes(status);
-}
-
-function canReject(status: string): boolean {
-  return !["False Positive", "Rejected", "Archived", "Verified Fixed"].includes(status);
-}
-
-function canStartWork(status: string): boolean {
-  return ["New", "Backlog", "Active Top 10", "Owner Reviewed", "Approved for Fix"].includes(status);
+function actionLabelSafe(action: OwnerDetailAction): string {
+  switch (action) {
+    case "approve":
+      return "Approve";
+    case "defer":
+      return "Defer";
+    case "reject":
+      return "Reject";
+    case "promote":
+      return "Promote to issue";
+    case "mark_fixed":
+      return "Mark fixed";
+    case "request_verification":
+      return "Request verification";
+    case "verify":
+      return "Verify";
+    case "reopen":
+      return "Reopen";
+    default:
+      return action;
+  }
 }
 
 export default function AgentOpsFindingDetailPage() {
   const params = useParams<{ issueCode: string }>();
   const navigate = useNavigate();
-  const issueCode = decodeIssueCode(params.issueCode);
-
-  usePageTitle(issueCode ? `Finding ${issueCode}` : "Finding");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
+    useAgentOpsOwnerGate();
 
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [finding, setFinding] = useState<AgentOpsFinding | null>(null);
-  const [detail, setDetail] = useState<AgentOpsFindingDetail | null>(null);
+  const [detail, setDetail] = useState<CanonicalFindingDetailView | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const loadFinding = useCallback(async () => {
-    if (!issueCode) {
-      setError("Missing finding code.");
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [promptDraft, setPromptDraft] = useState("");
+  const [promptSaveState, setPromptSaveState] = useState<
+    "idle" | "dirty" | "saving" | "saved" | "failed"
+  >("idle");
+  const [promptError, setPromptError] = useState<string | null>(null);
+  const [copyAnnounce, setCopyAnnounce] = useState<string | null>(null);
+  const [showOriginal, setShowOriginal] = useState(false);
+
+  usePageTitle(detail?.issueCode ? `Finding ${detail.issueCode}` : "Finding");
+
+  const backHref = useMemo(() => findingsBackHref(searchParams), [searchParams]);
+
+  const loadDetail = useCallback(async () => {
+    if (!isOwner) {
       setLoading(false);
       return;
     }
-
     setLoading(true);
     setError(null);
-    setFeedback(null);
-
-    const ownerResult = await getAgentOpsOwnerStatus();
-    if (ownerResult.error || !ownerResult.data?.isOwner) {
-      setError(ownerResult.error ?? "AgentOps owner access required.");
-      setLoading(false);
-      return;
-    }
-
-    const [activeResult, backlogResult] = await Promise.all([
-      getAgentOpsActiveTop10(),
-      getAgentOpsBacklogSummary(),
-    ]);
-
-    if (activeResult.error || backlogResult.error) {
-      setError(activeResult.error ?? backlogResult.error ?? "Could not load finding.");
-      setLoading(false);
-      return;
-    }
-
-    const selected =
-      (activeResult.data ?? []).find((item) => item.issue_code === issueCode) ??
-      (backlogResult.data?.preview ?? []).find((item) => item.issue_code === issueCode) ??
-      null;
-
-    if (!selected?.id) {
-      setFinding(null);
-      setDetail(null);
-      setLoading(false);
-      return;
-    }
-
-    const detailResult = await getAgentOpsFindingDetail(selected.id);
-    if (detailResult.error) {
-      setError(detailResult.error);
-      setLoading(false);
-      return;
-    }
-
-    setDetail(detailResult.data ?? null);
-    setFinding(detailResult.data?.finding ?? selected);
+    const result = await loadCanonicalFindingDetail(params.issueCode);
+    setDetail(result.detail);
+    setNotFound(result.notFound);
+    setError(result.error);
+    setPromptDraft(result.detail?.promptText ?? "");
+    setEditingPrompt(searchParams.get("mode") === "edit-prompt");
+    setPromptSaveState("idle");
+    setPromptError(null);
     setLoading(false);
-  }, [issueCode]);
+  }, [isOwner, params.issueCode, searchParams]);
 
   useEffect(() => {
-    void loadFinding();
-  }, [loadFinding]);
+    if (!gateLoading) void loadDetail();
+  }, [gateLoading, loadDetail]);
 
-  const runAction = async (label: string, action: () => Promise<{ error?: string | null }>) => {
+  const slug = resolveAgentSlug(detail?.agentSlug);
+  const agentMeta = getAgentOwnerMeta(slug ?? detail?.agentSlug ?? "unknown");
+  const agentName =
+    CANONICAL_AGENTS.find((agent) => agent.id === slug)?.name ??
+    agentMeta.username ??
+    detail?.agentSlug ??
+    "Unknown agent";
+  const agentHref = slug ? `/system/agent-ops/agents/${slug}` : null;
+  const chatHref = slug
+    ? `/system/agent-ops/agents/${slug}?finding=${encodeURIComponent(
+        detail?.issueCode ?? detail?.draftId ?? "",
+      )}`
+    : null;
+
+  const safetyHits = useMemo(
+    () => inspectPromptSafety(editingPrompt ? promptDraft : detail?.promptText ?? ""),
+    [editingPrompt, promptDraft, detail?.promptText],
+  );
+
+  const runAction = async (
+    label: string,
+    action: () => Promise<{ error?: string | null; ok?: boolean }>,
+  ) => {
     setSubmitting(true);
     setFeedback(null);
     const result = await action();
     setSubmitting(false);
-    if (result.error) {
-      setFeedback(result.error);
+    if (result.error || result.ok === false) {
+      setFeedback(result.error ?? "Action failed.");
       return;
     }
     setFeedback(label);
-    await loadFinding();
+    await loadDetail();
   };
 
-  const type = finding ? findingType(finding) : "error";
-  const agentMeta = finding?.agent_id ? getAgentOwnerMeta(finding.agent_id) : null;
-  const confidence =
-    typeof finding?.metadata?.confidence === "string"
-      ? finding.metadata.confidence
-      : finding?.severity ?? null;
-
-  const historyItems = useMemo(() => {
-    const items: Array<{ label: string; at: string }> = [];
-    if (finding?.created_at) {
-      items.push({ label: "Created", at: finding.created_at });
+  const handleOwnerAction = async (action: OwnerDetailAction) => {
+    if (!detail) return;
+    if (action === "open_agent" && agentHref) {
+      navigate(agentHref);
+      return;
     }
-    for (const entry of detail?.ownerFeedback ?? []) {
-      items.push({ label: feedbackLabel(entry), at: entry.created_at });
+    if (action === "chat_agent" && chatHref) {
+      navigate(chatHref);
+      return;
     }
-    if (finding?.updated_at && finding.updated_at !== finding.created_at) {
-      items.push({ label: "Updated", at: finding.updated_at });
+
+    if (detail.source === "draft" && detail.draftId) {
+      if (action === "approve") {
+        await runAction("Draft approved.", () =>
+          applyMonitoringDraftDecision(detail.draftId!, "owner_approved"),
+        );
+        return;
+      }
+      if (action === "defer") {
+        await runAction("Draft deferred.", () =>
+          applyMonitoringDraftDecision(detail.draftId!, "deferred"),
+        );
+        return;
+      }
+      if (action === "reject") {
+        await runAction("Draft rejected.", () =>
+          applyMonitoringDraftDecision(detail.draftId!, "rejected"),
+        );
+        return;
+      }
+      if (action === "promote") {
+        setSubmitting(true);
+        setFeedback(null);
+        const result = await promoteMonitoringDraft(detail.draftId);
+        setSubmitting(false);
+        if (!result.ok) {
+          setFeedback(result.error ?? "Promotion failed.");
+          return;
+        }
+        setFeedback(
+          result.issueDisplayCode
+            ? `Draft promoted to ${result.issueDisplayCode}.`
+            : "Draft promoted.",
+        );
+        if (result.issueDisplayCode) {
+          navigate(`/system/agent-ops/issues/${encodeURIComponent(result.issueDisplayCode)}`, {
+            replace: true,
+          });
+          return;
+        }
+        await loadDetail();
+        return;
+      }
     }
-    return items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()).slice(0, 8);
-  }, [detail?.ownerFeedback, finding]);
 
-  const notFound = !loading && !error && !finding;
+    if (!detail.findingId) {
+      setFeedback("This action requires a promoted finding.");
+      return;
+    }
 
-  if (notFound) {
+    if (action === "approve") {
+      await runAction("Finding approved.", () => approveAgentOpsFinding(detail.findingId!));
+      return;
+    }
+    if (action === "defer") {
+      await runAction("Finding deferred.", () => deferAgentOpsFinding(detail.findingId!));
+      return;
+    }
+    if (action === "reject") {
+      await runAction("Finding rejected.", () =>
+        detail.ownerStatus === "needs_review"
+          ? markAgentOpsFalsePositive(detail.findingId!)
+          : rejectAgentOpsFinding(detail.findingId!),
+      );
+      return;
+    }
+    if (action === "mark_fixed") {
+      await runAction("Finding marked fixed.", () => markAgentOpsFixed(detail.findingId!));
+      return;
+    }
+    if (action === "request_verification") {
+      await runAction("Verification requested.", () =>
+        requestAgentOpsVerification(detail.findingId!),
+      );
+      return;
+    }
+    if (action === "verify") {
+      if (!detail.pendingVerificationId) {
+        setFeedback("No pending verification record is available.");
+        return;
+      }
+      await runAction("Finding verified fixed.", () =>
+        recordAgentOpsVerificationResult({
+          verificationId: detail.pendingVerificationId!,
+          findingId: detail.findingId!,
+          verificationStatus: "verified_fixed",
+          actualResult: "Owner verified fixed from Finding Detail.",
+        }),
+      );
+      return;
+    }
+    if (action === "reopen") {
+      await runAction("Finding reopened.", () => reopenAgentOpsFinding(detail.findingId!));
+    }
+  };
+
+  const startEditPrompt = () => {
+    setPromptDraft(detail?.promptText ?? "");
+    setEditingPrompt(true);
+    setPromptSaveState("idle");
+    setPromptError(null);
+    const next = new URLSearchParams(searchParams);
+    next.set("mode", "edit-prompt");
+    setSearchParams(next, { replace: true });
+  };
+
+  const cancelEditPrompt = () => {
+    setEditingPrompt(false);
+    setPromptDraft(detail?.promptText ?? "");
+    setPromptSaveState("idle");
+    setPromptError(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete("mode");
+    setSearchParams(next, { replace: true });
+  };
+
+  const savePrompt = async (restoreOriginal = false) => {
+    if (!detail?.findingId) {
+      setPromptError("Promote this draft to an issue before saving an edited prompt.");
+      setPromptSaveState("failed");
+      return;
+    }
+    const text = restoreOriginal ? detail.originalPrompt ?? "" : promptDraft;
+    if (!text.trim()) {
+      setPromptError("Prompt text is required.");
+      setPromptSaveState("failed");
+      return;
+    }
+    setPromptSaveState("saving");
+    setPromptError(null);
+    const result = await saveAgentOpsSuggestedFixPrompt({
+      findingId: detail.findingId,
+      promptText: text,
+      originalPrompt: detail.originalPrompt,
+      restoreOriginal,
+    });
+    if (result.error) {
+      setPromptError(result.error);
+      setPromptSaveState("failed");
+      return;
+    }
+    setPromptSaveState("saved");
+    setFeedback(result.data?.message ?? "Prompt saved.");
+    setEditingPrompt(false);
+    const next = new URLSearchParams(searchParams);
+    next.delete("mode");
+    setSearchParams(next, { replace: true });
+    await loadDetail();
+  };
+
+  const copyPrompt = async () => {
+    const text = editingPrompt ? promptDraft : detail?.promptText ?? "";
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopyAnnounce("Prompt copied to clipboard.");
+    } catch {
+      setCopyAnnounce("Could not copy prompt.");
+    }
+  };
+
+  const primaryActions = (detail?.validActions ?? []).filter(
+    (action) => !["open_agent", "chat_agent"].includes(action),
+  );
+
+  if (!gateLoading && notFound) {
     return (
       <AgentOpsOwnerPageShell loading={false}>
         <div className="space-y-6">
           <AgentOpsEmptyState
             title="Finding not found"
-            description={`No finding matches “${issueCode}” in staging active or backlog lists.`}
+            description={`No finding matches “${params.issueCode ?? ""}”.`}
           />
-          <AixiaButton variant="secondary" onClick={() => navigate("/system/agent-ops/issues")}>
+          <AixiaButton variant="secondary" onClick={() => navigate(backHref)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Findings
           </AixiaButton>
@@ -245,246 +386,432 @@ export default function AgentOpsFindingDetailPage() {
   }
 
   return (
-    <AgentOpsOwnerPageShell loading={loading} error={error} onRetry={() => void loadFinding()}>
-      <div className="space-y-8">
+    <AgentOpsOwnerPageShell
+      loading={gateLoading}
+      error={gateError}
+      onRetry={() => void Promise.all([refreshGate(), loadDetail()])}
+    >
+      <div className="space-y-6">
         <div className="flex flex-wrap items-center gap-3">
-          <AixiaButton variant="secondary" onClick={() => navigate("/system/agent-ops/issues")}>
+          <AixiaButton variant="secondary" onClick={() => navigate(backHref)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Findings
+            Back to Findings
           </AixiaButton>
-          <AixiaButton variant="secondary" onClick={() => void loadFinding()} disabled={loading}>
+          <AixiaButton
+            variant="secondary"
+            onClick={() => void loadDetail()}
+            disabled={loading || submitting}
+          >
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </AixiaButton>
         </div>
 
-        {finding ? (
-          <>
-            <header className="space-y-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <AixiaBadge tone={typeTone(type)}>{typeLabel(type)}</AixiaBadge>
-                <AixiaBadge tone="neutral">{finding.severity}</AixiaBadge>
-                {confidence ? <AixiaBadge tone="neutral">{confidence} confidence</AixiaBadge> : null}
-                <AixiaBadge tone="neutral">{ownerStatusLabel(finding.status)}</AixiaBadge>
-              </div>
-              <AgentOpsPageHeader
-                title={finding.title}
-                subtitle={finding.issue_code}
+        {loading ? (
+          <div className="space-y-3" aria-busy="true">
+            <p className="text-sm text-white/55" role="status">
+              Loading finding…
+            </p>
+            {[0, 1, 2, 3].map((slot) => (
+              <div
+                key={slot}
+                className="h-28 animate-pulse rounded-xl border border-white/10 bg-white/[0.04]"
               />
-            </header>
+            ))}
+          </div>
+        ) : null}
 
-            {feedback ? (
-              <p className="text-sm text-white/70" role="status">
-                {feedback}
-              </p>
-            ) : null}
+        {error ? (
+          <AixiaInfoBlock tone="gold" title="Some detail data is unavailable">
+            {error}
+          </AixiaInfoBlock>
+        ) : null}
 
-            <OwnerSection title="Summary" id="finding-summary">
-              <p className="text-sm leading-relaxed text-white/80">{finding.problem}</p>
-              <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-white/45">Affected route</dt>
-                  <dd className="text-white/85">{finding.route ?? "—"}</dd>
+        {feedback ? (
+          <p className="text-sm text-white/70" role="status">
+            {feedback}
+          </p>
+        ) : null}
+
+        {detail && !loading ? (
+          <div className="grid gap-6 lg:grid-cols-3">
+            <div className="space-y-6 lg:col-span-2">
+              <header className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <AixiaBadge tone="cyan">{detail.typeLabel}</AixiaBadge>
+                  <AixiaBadge tone="neutral">{detail.ownerStatusLabel}</AixiaBadge>
+                  {detail.severity ? <AixiaBadge tone="neutral">{detail.severity}</AixiaBadge> : null}
+                  {detail.confidence ? (
+                    <AixiaBadge tone="neutral">{detail.confidence} confidence</AixiaBadge>
+                  ) : null}
                 </div>
-                <div>
-                  <dt className="text-white/45">Module</dt>
-                  <dd className="text-white/85">{finding.module ?? "—"}</dd>
-                </div>
-                <div className="sm:col-span-2">
-                  <dt className="text-white/45">Why it matters</dt>
-                  <dd className="text-white/85">{impactSummary(finding)}</dd>
-                </div>
-              </dl>
-            </OwnerSection>
-
-            <OwnerSection title="Evidence" id="finding-evidence">
-              <p className="text-sm text-white/75">
-                {finding.evidence_summary ?? finding.actual_result ?? "No short evidence summary recorded."}
-              </p>
-              <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                <div>
-                  <dt className="text-white/45">Agent</dt>
-                  <dd className="text-white/85">
-                    {agentMeta?.jobTitle ?? finding.agent_id ?? "Supporting agents"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-white/45">Source review</dt>
-                  <dd className="text-white/85">{finding.run_id ? "Daily staging review" : "AgentOps review"}</dd>
-                </div>
-              </dl>
-              {(detail?.evidenceFiles ?? []).length > 0 ? (
-                <ul className="space-y-2 text-sm">
-                  {(detail?.evidenceFiles ?? []).slice(0, 3).map((file) => (
-                    <li key={file.id}>
-                      <a
-                        href={file.file_path}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-indigo-300 hover:text-indigo-200"
-                      >
-                        {file.summary ?? file.evidence_type} — view evidence
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </OwnerSection>
-
-            <OwnerSection title="Recommendation" id="finding-recommendation">
-              {type === "error" ? (
-                <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-white/45">Suggested fix</dt>
-                    <dd className="text-white/85">
-                      {finding.recommended_fix_strategy ?? finding.expected_result ?? "Review and approve a safe fix path."}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Likely cause</dt>
-                    <dd className="text-white/85">{finding.likely_root_cause ?? "Under investigation"}</dd>
-                  </div>
-                </dl>
-              ) : null}
-              {type === "improvement" ? (
-                <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-white/45">Expected benefit</dt>
-                    <dd className="text-white/85">{finding.expected_result ?? finding.problem}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Suggested implementation</dt>
-                    <dd className="text-white/85">
-                      {finding.recommended_fix_strategy ?? "Small, owner-approved improvement on staging."}
-                    </dd>
-                  </div>
-                </dl>
-              ) : null}
-              {type === "feature" ? (
-                <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-white/45">Problem solved</dt>
-                    <dd className="text-white/85">{finding.problem}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Value</dt>
-                    <dd className="text-white/85">{finding.expected_result ?? "Improves owner or user workflow"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Scope</dt>
-                    <dd className="text-white/85">{finding.module ?? finding.route ?? "Staging module"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Risk</dt>
-                    <dd className="text-white/85">{finding.security_impact ?? "Owner approval required before build"}</dd>
-                  </div>
-                </dl>
-              ) : null}
-            </OwnerSection>
-
-            <OwnerSection title="Owner actions" id="finding-actions">
-              <p className="text-sm text-white/60">
-                Choose one action. Promotions and memory changes always require your explicit approval.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {canStartWork(finding.status) ? (
-                  <AixiaButton
-                    disabled={submitting}
-                    onClick={() =>
-                      void runAction("Marked as in progress.", () =>
-                        markAgentOpsInProgress(finding.id),
-                      )
-                    }
-                  >
-                    Approve
-                  </AixiaButton>
-                ) : null}
-                {canDefer(finding.status) ? (
-                  <AixiaButton
-                    variant="secondary"
-                    disabled={submitting}
-                    onClick={() =>
-                      void runAction("Finding deferred.", () => deferAgentOpsFinding(finding.id))
-                    }
-                  >
-                    Defer
-                  </AixiaButton>
-                ) : null}
-                {canReject(finding.status) ? (
-                  <AixiaButton
-                    variant="secondary"
-                    disabled={submitting}
-                    onClick={() =>
-                      void runAction("Finding rejected.", () =>
-                        markAgentOpsFalsePositive(finding.id),
-                      )
-                    }
-                  >
-                    Reject
-                  </AixiaButton>
-                ) : null}
-                {finding.status === "Active Top 10" || finding.status === "In Progress" ? (
-                  <AixiaButton
-                    variant="secondary"
-                    onClick={() => navigate("/system/agent-ops/issues?tab=active")}
-                  >
-                    View active issues
-                  </AixiaButton>
-                ) : null}
-                {type !== "error" ? (
-                  <AixiaButton
-                    variant="secondary"
-                    onClick={() => navigate("/system/agent-ops/issues?tab=improvements")}
-                  >
-                    Add to roadmap
-                  </AixiaButton>
-                ) : null}
-              </div>
-            </OwnerSection>
-
-            <OwnerSection title="History" id="finding-history">
-              {historyItems.length === 0 ? (
-                <p className="text-sm text-white/60">No history recorded yet.</p>
-              ) : (
-                <ul className="divide-y divide-white/10">
-                  {historyItems.map((item) => (
-                    <li
-                      key={`${item.label}-${item.at}`}
-                      className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm"
+                <AgentOpsPageHeader
+                  title={detail.title}
+                  subtitle={detail.issueCode ?? detail.draftId ?? "Finding detail"}
+                />
+                <div className="flex flex-wrap gap-2">
+                  {primaryActions.map((action) => (
+                    <AixiaButton
+                      key={action}
+                      variant={
+                        action === "approve" || action === "verify" ? "primary" : "secondary"
+                      }
+                      disabled={submitting}
+                      onClick={() => void handleOwnerAction(action)}
+                      aria-label={`${actionLabelSafe(action)} for ${detail.title}`}
                     >
-                      <span className="text-white/85">{item.label}</span>
-                      <time className="text-white/45">{formatDateTime(item.at)}</time>
-                    </li>
+                      {actionLabelSafe(action)}
+                    </AixiaButton>
                   ))}
-                </ul>
-              )}
-            </OwnerSection>
+                </div>
+              </header>
 
-            <AgentOpsAdvancedDisclosure title="Technical details">
-              <pre className="max-h-96 overflow-auto rounded-lg bg-black/40 p-3 text-xs text-white/60">
-                {JSON.stringify(
-                  {
-                    id: finding.id,
-                    issue_code: finding.issue_code,
-                    run_id: finding.run_id,
-                    queue_state: finding.queue_state,
-                    top10_rank: finding.top10_rank,
-                    metadata: finding.metadata,
-                    evidence_files: finding.evidence_files,
-                    cursor_prompt: finding.cursor_prompt,
-                    non_change_rules: finding.non_change_rules,
-                  },
-                  null,
-                  2,
+              <OwnerSection title="What was found" id="finding-summary">
+                <p className="text-sm leading-relaxed text-white/80">{detail.explanationDisplay}</p>
+                {detail.explanationInferred ? (
+                  <p className="text-xs text-white/45">
+                    Owner-readable summary derived from technical text.
+                  </p>
+                ) : null}
+                <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-white/45">Route / module</dt>
+                    <dd className="text-white/85">{detail.route ?? detail.module ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Type</dt>
+                    <dd className="text-white/85">{detail.typeLabel}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">First detected</dt>
+                    <dd className="text-white/85">{formatDateTime(detail.createdAt)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Latest update</dt>
+                    <dd className="text-white/85">{formatDateTime(detail.updatedAt)}</dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-white/45">Lifecycle</dt>
+                    <dd className="text-white/85">{detail.ownerStatusLabel}</dd>
+                  </div>
+                </dl>
+              </OwnerSection>
+
+              <OwnerSection title="Why it matters" id="finding-why">
+                {detail.whyItMatters.length === 0 ? (
+                  <p className="text-sm text-white/60">No impact fields are available for this finding.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {detail.whyItMatters.map((row) => (
+                      <li key={row.label} className="text-sm">
+                        <p className="text-white/45">
+                          {row.label}
+                          {row.inferred ? " (inferred)" : ""}
+                        </p>
+                        <p className="text-white/80">{row.text}</p>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </pre>
-              {(detail?.ownerFeedback?.length ?? 0) > 0 ? (
-                <pre className="mt-4 max-h-48 overflow-auto rounded-lg bg-black/40 p-3 text-xs text-white/60">
-                  {JSON.stringify(detail?.ownerFeedback, null, 2)}
+              </OwnerSection>
+
+              <OwnerSection title="Evidence" id="finding-evidence">
+                <p className="text-sm text-white/75">
+                  {detail.evidenceSummary ?? "No short evidence summary recorded."}
+                </p>
+                <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-white/45">Observed</dt>
+                    <dd className="text-white/85">{detail.actualResult ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Expected</dt>
+                    <dd className="text-white/85">{detail.expectedResult ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Reporting agent</dt>
+                    <dd className="text-white/85">{agentName}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Monitoring run</dt>
+                    <dd className="text-white/85">{detail.runId ?? "—"}</dd>
+                  </div>
+                </dl>
+                {detail.evidenceLinks.length > 0 ? (
+                  <ul className="space-y-2 text-sm">
+                    {detail.evidenceLinks.map((file) => (
+                      <li key={file.id}>
+                        <a
+                          href={file.href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-indigo-300 hover:text-indigo-200"
+                        >
+                          {file.label} — view evidence
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </OwnerSection>
+
+              <OwnerSection title="Suggested solution" id="finding-solution">
+                {detail.suggestedSolution || detail.likelyRootCause ? (
+                  <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <dt className="text-white/45">Recommended approach</dt>
+                      <dd className="text-white/85">
+                        {detail.suggestedSolution ?? "No suggested solution has been generated yet."}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-white/45">Likely root cause</dt>
+                      <dd className="text-white/85">{detail.likelyRootCause ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-white/45">Validation</dt>
+                      <dd className="text-white/85">
+                        Re-test the affected route on staging after an owner-approved fix.
+                      </dd>
+                    </div>
+                  </dl>
+                ) : (
+                  <p className="text-sm text-white/60">
+                    No suggested solution has been generated yet.
+                  </p>
+                )}
+              </OwnerSection>
+
+              <OwnerSection title="Suggested fix prompt" id="finding-prompt">
+                {!detail.canSavePrompt ? (
+                  <p className="text-xs text-white/45">
+                    Prompt edits can be saved after this draft is promoted to an issue.
+                  </p>
+                ) : null}
+                {safetyHits.length > 0 ? (
+                  <AixiaInfoBlock
+                    tone="gold"
+                    title="This prompt may conflict with AgentOps safety rules."
+                  >
+                    <p className="text-sm text-white/75">
+                      Detected: {safetyHits.map((hit) => hit.label).join(", ")}. Review carefully.
+                      Phase D does not execute prompts.
+                    </p>
+                  </AixiaInfoBlock>
+                ) : null}
+                <label className="block space-y-2" htmlFor="suggested-fix-prompt">
+                  <span className="text-sm text-white/55">
+                    Suggested fix prompt
+                    {detail.promptSource !== "none" ? ` · source: ${detail.promptSource}` : ""}
+                  </span>
+                  <textarea
+                    id="suggested-fix-prompt"
+                    className="min-h-[220px] w-full rounded-lg border border-white/10 bg-black/30 p-3 text-sm text-white/90"
+                    value={editingPrompt ? promptDraft : detail.promptText ?? ""}
+                    readOnly={!editingPrompt}
+                    onChange={(event) => {
+                      setPromptDraft(event.target.value);
+                      setPromptSaveState("dirty");
+                    }}
+                    placeholder="No suggested fix prompt is available yet."
+                  />
+                </label>
+                <p className="text-xs text-white/45">
+                  {(editingPrompt ? promptDraft : detail.promptText ?? "").length} characters
+                  {promptSaveState === "dirty" ? " · Unsaved changes" : ""}
+                  {promptSaveState === "saving" ? " · Saving…" : ""}
+                  {promptSaveState === "saved" ? " · Saved" : ""}
+                  {promptSaveState === "failed" ? " · Save failed" : ""}
+                </p>
+                {promptError ? (
+                  <p className="text-sm text-rose-300" role="alert">
+                    {promptError}
+                  </p>
+                ) : null}
+                {copyAnnounce ? (
+                  <p className="text-sm text-white/60" role="status">
+                    {copyAnnounce}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {!editingPrompt ? (
+                    <AixiaButton onClick={startEditPrompt}>Edit prompt</AixiaButton>
+                  ) : (
+                    <>
+                      <AixiaButton
+                        disabled={promptSaveState === "saving"}
+                        onClick={() => void savePrompt(false)}
+                      >
+                        Save changes
+                      </AixiaButton>
+                      <AixiaButton variant="secondary" onClick={cancelEditPrompt}>
+                        Cancel
+                      </AixiaButton>
+                    </>
+                  )}
+                  <AixiaButton variant="secondary" onClick={() => void copyPrompt()}>
+                    Copy prompt
+                  </AixiaButton>
+                  {detail.originalPrompt ? (
+                    <>
+                      <AixiaButton
+                        variant="secondary"
+                        onClick={() => setShowOriginal((open) => !open)}
+                      >
+                        {showOriginal ? "Hide original" : "View original"}
+                      </AixiaButton>
+                      {detail.canSavePrompt ? (
+                        <AixiaButton
+                          variant="secondary"
+                          disabled={promptSaveState === "saving"}
+                          onClick={() => void savePrompt(true)}
+                        >
+                          Restore original
+                        </AixiaButton>
+                      ) : null}
+                    </>
+                  ) : null}
+                </div>
+                {showOriginal && detail.originalPrompt ? (
+                  <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-black/40 p-3 text-xs text-white/65">
+                    {detail.originalPrompt}
+                  </pre>
+                ) : null}
+                <p className="text-xs text-white/40">
+                  Ask for a future rewrite in Phase E — this page does not auto-run Cursor prompts.
+                </p>
+              </OwnerSection>
+
+              <OwnerSection title="History" id="finding-history">
+                {detail.history.length === 0 ? (
+                  <p className="text-sm text-white/60">No history recorded yet.</p>
+                ) : (
+                  <ul className="divide-y divide-white/10">
+                    {detail.history.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm"
+                      >
+                        <div>
+                          <p className="text-white/85">{item.label}</p>
+                          <p className="text-xs text-white/45">
+                            {item.actor}
+                            {item.note ? ` · ${item.note}` : ""}
+                          </p>
+                        </div>
+                        <time className="text-white/45">{formatDateTime(item.at)}</time>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </OwnerSection>
+
+              <AgentOpsAdvancedDisclosure title="Technical details">
+                {detail.explanationTechnical ? (
+                  <div className="mb-4">
+                    <p className="text-xs text-white/45">Raw explanation</p>
+                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-black/40 p-3 text-xs text-white/60">
+                      {detail.explanationTechnical}
+                    </pre>
+                  </div>
+                ) : null}
+                <pre className="max-h-96 overflow-auto rounded-lg bg-black/40 p-3 text-xs text-white/60">
+                  {JSON.stringify(detail.technical, null, 2)}
                 </pre>
-              ) : null}
-            </AgentOpsAdvancedDisclosure>
-          </>
+              </AgentOpsAdvancedDisclosure>
+            </div>
+
+            <aside className="space-y-6">
+              <OwnerSection title="Reporting agent" id="finding-agent">
+                <p className="text-base font-medium text-white">{agentName}</p>
+                <p className="text-sm text-white/60">{agentMeta.username}</p>
+                <p className="text-sm text-white/50">{agentMeta.jobTitle}</p>
+                <p className="text-sm text-white/65">
+                  This agent reported the finding from its staging review perspective.
+                </p>
+                {detail.supportingAgentSlugs.length > 0 ? (
+                  <p className="text-xs text-white/45">
+                    +{detail.supportingAgentSlugs.length} supporting agent
+                    {detail.supportingAgentSlugs.length === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {agentHref ? (
+                    <AixiaButton variant="secondary" onClick={() => navigate(agentHref)}>
+                      Open agent
+                    </AixiaButton>
+                  ) : null}
+                  {chatHref ? (
+                    <AixiaButton variant="secondary" onClick={() => navigate(chatHref)}>
+                      Chat with agent
+                    </AixiaButton>
+                  ) : null}
+                  {slug ? (
+                    <AixiaButton
+                      variant="secondary"
+                      onClick={() =>
+                        navigate(
+                          `/system/agent-ops/issues?tab=all&agent=${encodeURIComponent(slug)}`,
+                        )
+                      }
+                    >
+                      View all findings from this agent
+                    </AixiaButton>
+                  ) : null}
+                </div>
+              </OwnerSection>
+
+              <OwnerSection title="Owner decision" id="finding-decision">
+                <p className="text-sm text-white/70">
+                  Current status: <span className="text-white">{detail.ownerStatusLabel}</span>
+                </p>
+                <p className="text-sm text-white/60">Recommended next step: {detail.nextAction}</p>
+                <ul className="space-y-3">
+                  {primaryActions.map((action) => {
+                    const meta = detail.actionMeta.find((item) => item.id === action);
+                    return (
+                      <li key={action} className="rounded-lg border border-white/10 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-white">{meta?.label ?? action}</p>
+                          <AixiaButton
+                            variant="secondary"
+                            disabled={submitting}
+                            onClick={() => void handleOwnerAction(action)}
+                          >
+                            {meta?.label ?? action}
+                          </AixiaButton>
+                        </div>
+                        <p className="mt-2 text-xs text-white/50">{meta?.help}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {primaryActions.length === 0 ? (
+                  <p className="text-sm text-white/55">No lifecycle actions are available right now.</p>
+                ) : null}
+              </OwnerSection>
+
+              <OwnerSection title="Links" id="finding-links">
+                <ul className="space-y-2 text-sm">
+                  <li>
+                    <Link className="text-cyan-300 hover:text-cyan-200" to={backHref}>
+                      Back to Findings
+                    </Link>
+                  </li>
+                  {detail.runId ? (
+                    <li>
+                      <Link
+                        className="text-cyan-300 hover:text-cyan-200"
+                        to="/system/agent-ops/monitoring"
+                      >
+                        Open monitoring
+                      </Link>
+                    </li>
+                  ) : null}
+                </ul>
+              </OwnerSection>
+            </aside>
+          </div>
         ) : null}
       </div>
     </AgentOpsOwnerPageShell>

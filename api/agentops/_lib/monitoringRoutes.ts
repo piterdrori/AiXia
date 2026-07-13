@@ -733,6 +733,7 @@ function toIssueDraftSummary(row: IssueDraftRow) {
     title: row.title,
     summary: row.summary,
     browserQaEvidence: row.browser_qa_evidence,
+    suggestedFixPrompt: row.suggested_fix_prompt,
     confidence: row.confidence,
     duplicateKey: row.duplicate_key,
     promotedIssueId: row.promoted_issue_id,

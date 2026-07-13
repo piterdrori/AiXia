@@ -473,6 +473,191 @@ export async function listAgentOpsFindingsCatalog(
   }
 }
 
+/** Owner read — resolve a finding by issue_code (latest updated). */
+export async function getAgentOpsFindingByIssueCode(
+  issueCode: string,
+): Promise<AgentOpsReadResult<AgentOpsFinding | null>> {
+  try {
+    const ownerGate = await assertAgentOpsOwner();
+    if (ownerGate.error) return fail(ownerGate.error);
+
+    const code = issueCode.trim();
+    if (!code) return fail("issueCode is required.");
+
+    const { data, error } = await supabase
+      .from("agentops_findings")
+      .select("*")
+      .eq("issue_code", code)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return fail(error);
+    return ok((data as AgentOpsFinding | null) ?? null);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/** Owner read — resolve a finding by id. */
+export async function getAgentOpsFindingById(
+  findingId: string,
+): Promise<AgentOpsReadResult<AgentOpsFinding | null>> {
+  try {
+    const ownerGate = await assertAgentOpsOwner();
+    if (ownerGate.error) return fail(ownerGate.error);
+
+    const id = findingId.trim();
+    if (!id) return fail("findingId is required.");
+
+    const { data, error } = await supabase
+      .from("agentops_findings")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (error) return fail(error);
+    return ok((data as AgentOpsFinding | null) ?? null);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+/**
+ * Persist an owner-edited suggested fix prompt without overwriting cursor_prompt.
+ * Stores in metadata.owner_edited_prompt + prompt_library + owner_feedback audit.
+ */
+export async function saveAgentOpsSuggestedFixPrompt(input: {
+  findingId: string;
+  promptText: string;
+  originalPrompt?: string | null;
+  restoreOriginal?: boolean;
+}): Promise<
+  AgentOpsWriteResult<{ feedbackId: string; promptLibraryId: string | null; message: string }>
+> {
+  try {
+    const findingId = input.findingId?.trim();
+    if (!findingId) return writeFail("findingId is required.");
+
+    const promptText = input.promptText?.trim() ?? "";
+    if (!promptText) return writeFail("Prompt text is required.");
+
+    const userResult = await getAuthenticatedOwnerUserId();
+    if (userResult.error || !userResult.data) {
+      return writeFail(userResult.error ?? "Could not resolve current user.");
+    }
+
+    const findingResult = await fetchAgentOpsFindingById(findingId);
+    if (findingResult.error || !findingResult.data) {
+      return writeFail(findingResult.error ?? "Finding not found.");
+    }
+
+    const finding = findingResult.data;
+    const existingMetadata =
+      finding.metadata && typeof finding.metadata === "object" ? { ...finding.metadata } : {};
+
+    const originalPrompt =
+      input.originalPrompt?.trim() ||
+      (typeof existingMetadata.original_cursor_prompt === "string"
+        ? existingMetadata.original_cursor_prompt
+        : null) ||
+      finding.cursor_prompt ||
+      null;
+
+    if (!existingMetadata.original_cursor_prompt && originalPrompt) {
+      existingMetadata.original_cursor_prompt = originalPrompt;
+    }
+
+    if (input.restoreOriginal) {
+      delete existingMetadata.owner_edited_prompt;
+      delete existingMetadata.owner_edited_prompt_at;
+    } else {
+      existingMetadata.owner_edited_prompt = promptText;
+      existingMetadata.owner_edited_prompt_at = new Date().toISOString();
+    }
+
+    const { error: metaError } = await supabase
+      .from("agentops_findings")
+      .update({ metadata: existingMetadata })
+      .eq("id", findingId);
+    if (metaError) return writeFail(metaError);
+
+    let promptLibraryId: string | null = null;
+    const { data: promptRow, error: promptError } = await supabase
+      .from("agentops_prompt_library")
+      .insert({
+        finding_id: findingId,
+        prompt_type: "fix",
+        prompt_text: promptText,
+        approved_by_owner: true,
+        copied_by_owner: false,
+        metadata: {
+          action: input.restoreOriginal ? "restore_original_prompt" : "save_suggested_fix_prompt",
+          original_prompt: originalPrompt,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (!promptError && promptRow?.id) {
+      promptLibraryId = promptRow.id as string;
+    }
+
+    const feedback = await addAgentOpsOwnerFeedback({
+      findingId,
+      feedbackType: "remark",
+      remark: input.restoreOriginal
+        ? "Owner restored the original suggested fix prompt."
+        : "Owner saved an edited suggested fix prompt.",
+      metadata: {
+        action: input.restoreOriginal ? "restore_original_prompt" : "save_suggested_fix_prompt",
+        promptLibraryId,
+        originalPrompt,
+        promptLength: promptText.length,
+      },
+    });
+    if (feedback.error || !feedback.data) {
+      return writeFail(feedback.error ?? "Could not record prompt save feedback.");
+    }
+
+    return writeOk({
+      feedbackId: feedback.data.feedbackId,
+      promptLibraryId,
+      message: input.restoreOriginal
+        ? "Original prompt restored."
+        : "Suggested fix prompt saved.",
+    });
+  } catch (error) {
+    return writeFail(error);
+  }
+}
+
+/** Owner reopen — restores In Progress via existing mark-in-progress path. */
+export async function reopenAgentOpsFinding(
+  findingId: string,
+  remark?: string,
+): Promise<AgentOpsWriteResult<AgentOpsActionResult>> {
+  const feedback = await addAgentOpsOwnerFeedback({
+    findingId,
+    feedbackType: "re_review_request",
+    remark: remark ?? "Owner reopened finding for review.",
+  });
+  if (feedback.error || !feedback.data) {
+    return writeFail(feedback.error ?? "Could not record reopen feedback.");
+  }
+
+  const updated = await updateAgentOpsFindingStatus(findingId, "In Progress", {
+    queueState: "active_top_10",
+  });
+  if (updated.error) return writeFail(updated.error);
+
+  return writeOk({
+    finding: updated.data,
+    feedbackId: feedback.data.feedbackId,
+    message: "Finding reopened and marked in progress.",
+  });
+}
+
 /** Backlog total count plus top preview rows. */
 export async function getAgentOpsBacklogSummary(): Promise<
   AgentOpsReadResult<{ count: number; preview: AgentOpsFinding[] }>

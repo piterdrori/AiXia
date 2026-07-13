@@ -24,6 +24,7 @@ export type MonitoringDraftApiRow = {
   confidence?: number | null;
   duplicateKey?: string | null;
   browserQaEvidence?: Record<string, unknown>;
+  suggestedFixPrompt?: string | null;
   promotedIssueId?: string | null;
   issueDisplayCode?: string | null;
   createdAt: string;

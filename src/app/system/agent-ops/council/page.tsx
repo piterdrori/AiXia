@@ -453,7 +453,7 @@ export default function AgentOpsCouncilPage() {
         <>
           <AixiaButton variant="secondary" onClick={() => navigate("/system/agent-ops/agents")}>
             <Users className="mr-2 h-4 w-4" />
-            Open Agents
+            Back to Agents
           </AixiaButton>
           <AixiaButton variant="secondary" onClick={() => void loadData()} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />

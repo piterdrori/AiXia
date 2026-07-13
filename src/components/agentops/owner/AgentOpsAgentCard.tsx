@@ -59,6 +59,7 @@ type AgentOpsAgentCardProps = {
   improvements?: number;
   features?: number;
   noFindings?: boolean;
+  openFindingsCount?: number | null;
   onOpen: () => void;
 };
 
@@ -74,6 +75,7 @@ export function AgentOpsAgentCard({
   improvements = 0,
   features = 0,
   noFindings = false,
+  openFindingsCount = null,
   onOpen,
 }: AgentOpsAgentCardProps) {
   const meta = getAgentOwnerMeta(agentSlug, { username, jobTitle, responsibility });
@@ -91,7 +93,7 @@ export function AgentOpsAgentCard({
       <p className="mt-1 text-sm text-white/60">{responsibility ?? meta.responsibility}</p>
       <dl className="mt-4 space-y-2 text-sm">
         <div className="flex justify-between gap-3">
-          <dt className="text-white/45">Last run</dt>
+          <dt className="text-white/45">Last activity</dt>
           <dd className="text-white/80">{lastRunAt ? new Date(lastRunAt).toLocaleString() : "—"}</dd>
         </div>
         <div className="flex justify-between gap-3">
@@ -100,6 +102,12 @@ export function AgentOpsAgentCard({
             {todayResultSummary({ errors, improvements, features, noFindings })}
           </dd>
         </div>
+        {openFindingsCount != null ? (
+          <div className="flex justify-between gap-3">
+            <dt className="text-white/45">Open findings</dt>
+            <dd className="text-white/80">{openFindingsCount}</dd>
+          </div>
+        ) : null}
       </dl>
       <button
         type="button"

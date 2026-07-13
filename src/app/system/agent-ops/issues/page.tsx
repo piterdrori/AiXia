@@ -2,171 +2,544 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 
-import { AixiaButton } from "@/components/aixia";
+import { AixiaButton, AixiaInfoBlock } from "@/components/aixia";
 import {
   AgentOpsAdvancedDisclosure,
   AgentOpsEmptyState,
   AgentOpsFindingCard,
   AgentOpsOwnerPageShell,
   AgentOpsPageHeader,
-  type FindingType,
+  AgentOpsStatusSummary,
+  getAgentOwnerMeta,
+  useAgentOpsOwnerGate,
 } from "@/components/agentops/owner";
-import { MonitoringIssueDraftsReview } from "@/app/system/agent-ops/issues/MonitoringIssueDraftsReview";
 import { AgentOpsQueueOperatorSurface } from "@/app/system/agent-ops/operators/AgentOpsQueueOperatorSurface";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { CANONICAL_AGENTS } from "@/lib/agentops/canonicalAgents";
 import {
-  getAgentOpsActiveTop10,
-  getAgentOpsOwnerStatus,
-  type AgentOpsFinding,
-} from "@/lib/agentops";
+  FINDINGS_TABS,
+  OWNER_FINDING_STATUS_LABEL,
+  applyFindingsFilters,
+  buildFindingsSummaryCounts,
+  findingMatchesTab,
+  parseFindingsTab,
+  type FindingsTabId,
+  type OwnerFindingStatus,
+  type OwnerFindingType,
+  type CanonicalFindingView,
+} from "@/lib/agentops/findings/findingsLifecycleModel";
+import {
+  applyMonitoringDraftDecision,
+  loadFindingsOwnerCatalog,
+  promoteMonitoringDraft,
+} from "@/lib/agentops/findings/findingsOwnerCatalog";
 
-type FindingsTab =
-  | "needs_review"
-  | "active"
-  | "improvements"
-  | "features"
-  | "completed"
-  | "all";
+const EMPTY_COPY: Record<FindingsTabId, { title: string; description: string }> = {
+  "needs-review": {
+    title: "No findings are waiting for your review.",
+    description: "When agents create new monitoring drafts, they appear here first.",
+  },
+  active: {
+    title: "No active issues.",
+    description: "Approved and promoted issues that still need work will show here.",
+  },
+  improvements: {
+    title: "No improvement suggestions.",
+    description: "Improvement-type findings from agents will collect in this tab.",
+  },
+  "new-features": {
+    title: "No new feature suggestions.",
+    description: "Feature ideas from agents will appear here when available.",
+  },
+  verification: {
+    title: "No items are waiting for verification.",
+    description: "Fixed items awaiting owner or agent verification land here.",
+  },
+  fixed: {
+    title: "No fixed findings yet.",
+    description: "Fixed and verified findings will appear in this tab.",
+  },
+  deferred: {
+    title: "No deferred findings.",
+    description: "Findings you explicitly defer will be listed here.",
+  },
+  rejected: {
+    title: "No rejected findings.",
+    description: "Rejected findings remain visible for audit.",
+  },
+  all: {
+    title: "No findings are available.",
+    description: "Findings from monitoring drafts and promoted issues will appear here.",
+  },
+};
 
-const TABS: Array<{ id: FindingsTab; label: string }> = [
-  { id: "needs_review", label: "Needs review" },
-  { id: "active", label: "Active issues" },
-  { id: "improvements", label: "Improvements" },
-  { id: "features", label: "New features" },
-  { id: "completed", label: "Completed" },
-  { id: "all", label: "All" },
-];
-
-function findingType(finding: AgentOpsFinding): FindingType {
-  const category = finding.category.toLowerCase();
-  if (category.includes("improvement")) return "improvement";
-  if (category.includes("feature")) return "feature";
-  return "error";
+function formatShortDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString();
 }
 
-function isCompleted(status: string): boolean {
-  return ["Verified Fixed", "Archived", "Rejected"].includes(status);
+function resolveAgentSlug(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const key = raw.trim().toLowerCase();
+  const match = CANONICAL_AGENTS.find(
+    (agent) =>
+      agent.id === key ||
+      key.endsWith(`.${agent.id}`) ||
+      key === agent.name.toLowerCase().replace(/\s+/g, "-"),
+  );
+  return match?.id ?? (key.includes("agent") ? key : null);
+}
+
+function countLabel(value: number | "Unavailable"): string | number {
+  return value;
 }
 
 export default function AgentOpsIssuesPage() {
-  usePageTitle("Findings");
+  usePageTitle("Findings · AgentOps");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
+    useAgentOpsOwnerGate();
 
-  const [gateLoading, setGateLoading] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [findings, setFindings] = useState<AgentOpsFinding[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<CanonicalFindingView[]>([]);
+  const [draftsError, setDraftsError] = useState<string | null>(null);
+  const [findingsError, setFindingsError] = useState<string | null>(null);
+  const [allSourcesUnavailable, setAllSourcesUnavailable] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const tab = (searchParams.get("tab") as FindingsTab | null) ?? "needs_review";
+  const tab = parseFindingsTab(searchParams.get("tab"));
+  const filterAgent = searchParams.get("agent");
+  const filterType = searchParams.get("type") as OwnerFindingType | null;
+  const filterPriority = searchParams.get("priority");
+  const filterRoute = searchParams.get("route");
+  const filterStatus = searchParams.get("status") as OwnerFindingStatus | null;
+  const filterDate = searchParams.get("date");
+  const filterQuery = searchParams.get("q");
 
-  const setTab = (next: FindingsTab) => {
-    setSearchParams(next === "needs_review" ? {} : { tab: next });
-  };
+  const patchParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const next = new URLSearchParams(searchParams);
+      for (const [key, value] of Object.entries(patch)) {
+        if (!value) next.delete(key);
+        else next.set(key, value);
+      }
+      // Default tab omitted for cleaner URLs
+      if (next.get("tab") === "needs-review") next.delete("tab");
+      setSearchParams(next, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
 
-  const loadFindings = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const ownerResult = await getAgentOpsOwnerStatus();
-    if (ownerResult.error || !ownerResult.data?.isOwner) {
-      setError(ownerResult.error ?? "AgentOps owner access required.");
+  const loadCatalog = useCallback(async () => {
+    if (!isOwner) {
       setLoading(false);
-      setGateLoading(false);
       return;
     }
-    setGateLoading(false);
-
-    const activeResult = await getAgentOpsActiveTop10();
-    if (activeResult.error) {
-      setError(activeResult.error);
-      setFindings([]);
-    } else {
-      setFindings(activeResult.data ?? []);
-    }
+    setLoading(true);
+    setActionFeedback(null);
+    const result = await loadFindingsOwnerCatalog();
+    setItems(result.items);
+    setDraftsError(result.draftsError);
+    setFindingsError(result.findingsError);
+    setAllSourcesUnavailable(result.allSourcesUnavailable);
     setLoading(false);
-  }, []);
+  }, [isOwner]);
 
   useEffect(() => {
-    void loadFindings();
-  }, [loadFindings]);
+    if (!gateLoading) void loadCatalog();
+  }, [gateLoading, loadCatalog]);
 
-  const filteredFindings = useMemo(() => {
-    return findings.filter((finding) => {
-      const type = findingType(finding);
-      if (tab === "active") return !isCompleted(finding.status);
-      if (tab === "improvements") return type === "improvement";
-      if (tab === "features") return type === "feature";
-      if (tab === "completed") return isCompleted(finding.status);
-      if (tab === "all") return true;
-      return false;
+  const filtered = useMemo(() => {
+    const tabItems = items.filter((item) => findingMatchesTab(item, tab));
+    return applyFindingsFilters(tabItems, {
+      agent: filterAgent,
+      type: filterType,
+      priority: filterPriority,
+      route: filterRoute,
+      status: filterStatus,
+      date: filterDate,
+      q: filterQuery,
     });
-  }, [findings, tab]);
+  }, [
+    items,
+    tab,
+    filterAgent,
+    filterType,
+    filterPriority,
+    filterRoute,
+    filterStatus,
+    filterDate,
+    filterQuery,
+  ]);
+
+  const summary = useMemo(
+    () => buildFindingsSummaryCounts(items, allSourcesUnavailable),
+    [items, allSourcesUnavailable],
+  );
+
+  const clearFilters = () => {
+    patchParams({
+      agent: null,
+      type: null,
+      priority: null,
+      route: null,
+      status: null,
+      date: null,
+      q: null,
+    });
+  };
+
+  const hasFilters = Boolean(
+    filterAgent ||
+      filterType ||
+      filterPriority ||
+      filterRoute ||
+      filterStatus ||
+      filterDate ||
+      filterQuery,
+  );
+
+  const decideDraft = async (
+    draftId: string,
+    decision: "owner_approved" | "rejected" | "deferred",
+  ) => {
+    setActionId(draftId);
+    setActionFeedback(null);
+    const result = await applyMonitoringDraftDecision(draftId, decision);
+    setActionId(null);
+    if (!result.ok) {
+      setActionFeedback(result.error ?? "Action failed.");
+      return;
+    }
+    setActionFeedback(
+      decision === "owner_approved"
+        ? "Draft approved."
+        : decision === "deferred"
+          ? "Draft deferred."
+          : "Draft rejected.",
+    );
+    await loadCatalog();
+  };
+
+  const promoteDraft = async (draftId: string) => {
+    setActionId(draftId);
+    setActionFeedback(null);
+    const result = await promoteMonitoringDraft(draftId);
+    setActionId(null);
+    if (!result.ok) {
+      setActionFeedback(result.error ?? "Promotion failed.");
+      return;
+    }
+    setActionFeedback(
+      result.issueDisplayCode
+        ? `Draft promoted to ${result.issueDisplayCode}.`
+        : "Draft promoted.",
+    );
+    await loadCatalog();
+  };
+
+  const refreshAll = () => void Promise.all([refreshGate(), loadCatalog()]);
 
   return (
     <AgentOpsOwnerPageShell
-      loading={gateLoading || (tab !== "needs_review" && loading)}
-      error={error}
-      onRetry={() => void loadFindings()}
+      loading={gateLoading}
+      error={gateError}
+      onRetry={refreshAll}
     >
-      <AgentOpsPageHeader
-        title="Findings"
-        subtitle="Review errors, improvements, and feature suggestions from your agents in one place."
-        actions={
-          <AixiaButton variant="secondary" onClick={() => void loadFindings()} disabled={loading}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </AixiaButton>
-        }
-      />
-
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Findings tabs">
-        {TABS.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            role="tab"
-            aria-selected={tab === item.id}
-            onClick={() => setTab(item.id)}
-            className={[
-              "rounded-lg px-3 py-1.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400",
-              tab === item.id
-                ? "bg-indigo-500/20 text-white"
-                : "text-white/60 hover:bg-white/5 hover:text-white",
-            ].join(" ")}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "needs_review" ? (
-        <MonitoringIssueDraftsReview />
-      ) : filteredFindings.length === 0 ? (
-        <AgentOpsEmptyState
-          title="No findings in this view"
-          description="When agents detect something in this category, it will appear here."
+      <div className="space-y-6">
+        <AgentOpsPageHeader
+          title="Findings"
+          subtitle="Review issues, improvements, fixes, and feature ideas reported by your agents."
+          actions={
+            <>
+              <AixiaButton variant="secondary" onClick={refreshAll} disabled={loading}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </AixiaButton>
+              <AixiaButton
+                variant="secondary"
+                onClick={() => patchParams({ tab: "active" })}
+              >
+                Open active issues
+              </AixiaButton>
+            </>
+          }
         />
-      ) : (
-        <div className="space-y-3">
-          {filteredFindings.map((finding) => (
-            <AgentOpsFindingCard
-              key={finding.id}
-              type={findingType(finding)}
-              title={finding.title}
-              route={finding.route ?? finding.module}
-              agentLabel={finding.agent_id}
-              priority={finding.severity}
-              confidence={finding.status}
-              evidenceSummary={finding.category}
-              recommendedAction="Open details to approve, reject, or defer."
-              ageLabel={finding.updated_at ? new Date(finding.updated_at).toLocaleDateString() : undefined}
-              onOpen={() => navigate(`/system/agent-ops/issues/${finding.issue_code}`)}
-            />
+
+        <AgentOpsStatusSummary
+          items={[
+            { label: "Needs review", value: countLabel(summary.needsReview), tone: "warning" },
+            { label: "Active issues", value: countLabel(summary.activeIssues), tone: "default" },
+            { label: "Improvements", value: countLabel(summary.improvements), tone: "default" },
+            { label: "New features", value: countLabel(summary.newFeatures), tone: "default" },
+            {
+              label: "Waiting for verification",
+              value: countLabel(summary.waitingVerification),
+              tone: "warning",
+            },
+            { label: "Fixed", value: countLabel(summary.fixed), tone: "success" },
+          ]}
+        />
+
+        {(draftsError || findingsError) && !allSourcesUnavailable ? (
+          <AixiaInfoBlock tone="gold" title="Some finding sources are unavailable">
+            <ul className="space-y-1 text-sm text-white/75">
+              {draftsError ? <li>Monitoring drafts: {draftsError}</li> : null}
+              {findingsError ? <li>Promoted findings: {findingsError}</li> : null}
+            </ul>
+          </AixiaInfoBlock>
+        ) : null}
+
+        {allSourcesUnavailable ? (
+          <AixiaInfoBlock tone="rose" title="Findings data unavailable">
+            Both monitoring drafts and promoted findings failed to load. Try Refresh.
+          </AixiaInfoBlock>
+        ) : null}
+
+        {actionFeedback ? (
+          <p className="text-sm text-white/70" role="status">
+            {actionFeedback}
+          </p>
+        ) : null}
+
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Findings tabs">
+          {FINDINGS_TABS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={tab === item.id}
+              onClick={() => patchParams({ tab: item.id })}
+              className={[
+                "rounded-lg px-3 py-1.5 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400",
+                tab === item.id
+                  ? "bg-indigo-500/20 text-white"
+                  : "text-white/60 hover:bg-white/5 hover:text-white",
+              ].join(" ")}
+            >
+              {item.label}
+            </button>
           ))}
         </div>
-      )}
 
-      <div className="mt-8">
+        <div className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <button
+              type="button"
+              className="text-sm text-white/70 hover:text-white"
+              onClick={() => setFiltersOpen((open) => !open)}
+              aria-expanded={filtersOpen}
+            >
+              {filtersOpen ? "Hide filters" : "Show filters"}
+              {hasFilters ? " · active" : ""}
+            </button>
+            {hasFilters ? (
+              <AixiaButton variant="secondary" onClick={clearFilters}>
+                Clear filters
+              </AixiaButton>
+            ) : null}
+          </div>
+
+          {filtersOpen ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <label className="space-y-1 text-sm">
+                <span className="text-white/55">Agent</span>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterAgent ?? ""}
+                  onChange={(event) => patchParams({ agent: event.target.value || null })}
+                >
+                  <option value="">All agents</option>
+                  {CANONICAL_AGENTS.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-white/55">Type</span>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterType ?? ""}
+                  onChange={(event) => patchParams({ type: event.target.value || null })}
+                >
+                  <option value="">All types</option>
+                  <option value="issue">Issue</option>
+                  <option value="improvement">Improvement</option>
+                  <option value="feature">New feature</option>
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-white/55">Priority</span>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterPriority ?? ""}
+                  onChange={(event) => patchParams({ priority: event.target.value || null })}
+                >
+                  <option value="">All priorities</option>
+                  {["Critical", "High", "Medium", "Low", "Suggestion"].map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-white/55">Status</span>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterStatus ?? ""}
+                  onChange={(event) => patchParams({ status: event.target.value || null })}
+                >
+                  <option value="">All statuses</option>
+                  {Object.entries(OWNER_FINDING_STATUS_LABEL).map(([id, label]) => (
+                    <option key={id} value={id}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-white/55">Route / module</span>
+                <input
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterRoute ?? ""}
+                  onChange={(event) => patchParams({ route: event.target.value || null })}
+                  placeholder="e.g. /finance"
+                />
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-white/55">Date</span>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterDate ?? ""}
+                  onChange={(event) => patchParams({ date: event.target.value || null })}
+                >
+                  <option value="">Any time</option>
+                  <option value="7d">Last 7 days</option>
+                  <option value="30d">Last 30 days</option>
+                  <option value="90d">Last 90 days</option>
+                </select>
+              </label>
+              <label className="space-y-1 text-sm sm:col-span-2 lg:col-span-1">
+                <span className="text-white/55">Search</span>
+                <input
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterQuery ?? ""}
+                  onChange={(event) => patchParams({ q: event.target.value || null })}
+                  placeholder="Title, explanation, agent…"
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-white/55" role="status">
+            Loading findings…
+          </p>
+        ) : filtered.length === 0 ? (
+          <AgentOpsEmptyState
+            title={EMPTY_COPY[tab].title}
+            description={EMPTY_COPY[tab].description}
+          />
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((item) => {
+              const slug = resolveAgentSlug(item.agentSlug);
+              const meta = getAgentOwnerMeta(slug ?? item.agentSlug ?? "unknown");
+              const supporting =
+                item.supportingAgentSlugs.length > 0
+                  ? `+${item.supportingAgentSlugs.length} supporting agent${
+                      item.supportingAgentSlugs.length === 1 ? "" : "s"
+                    }`
+                  : null;
+
+              const canDecideDraft =
+                item.source === "draft" &&
+                item.ownerStatus === "needs_review" &&
+                Boolean(item.draftId);
+
+              const canPromoteDraft =
+                item.source === "draft" &&
+                item.ownerStatus === "approved" &&
+                Boolean(item.draftId);
+
+              const openPath =
+                item.openPath ??
+                (item.issueCode
+                  ? `/system/agent-ops/issues/${encodeURIComponent(item.issueCode)}`
+                  : null);
+
+              return (
+                <AgentOpsFindingCard
+                  key={item.key}
+                  type={item.type}
+                  title={item.title}
+                  statusLabel={item.ownerStatusLabel}
+                  route={item.route ?? item.module}
+                  agentLabel={
+                    slug
+                      ? CANONICAL_AGENTS.find((agent) => agent.id === slug)?.name ?? meta.username
+                      : item.agentSlug
+                  }
+                  agentUsername={meta.username}
+                  agentJobTitle={meta.jobTitle}
+                  agentHref={slug ? `/system/agent-ops/agents/${slug}` : null}
+                  supportingAgentsLabel={supporting}
+                  priority={item.severity}
+                  confidence={item.confidence}
+                  evidenceSummary={item.summary || null}
+                  recommendedAction={item.nextAction}
+                  ageLabel={formatShortDate(item.createdAt) ?? undefined}
+                  updatedLabel={formatShortDate(item.updatedAt) ?? undefined}
+                  openLabel="Open finding"
+                  onOpen={openPath ? () => navigate(openPath) : undefined}
+                  onApprove={
+                    canDecideDraft
+                      ? () => void decideDraft(item.draftId!, "owner_approved")
+                      : undefined
+                  }
+                  onDefer={
+                    canDecideDraft ? () => void decideDraft(item.draftId!, "deferred") : undefined
+                  }
+                  onReject={
+                    canDecideDraft ? () => void decideDraft(item.draftId!, "rejected") : undefined
+                  }
+                  secondaryLabel={
+                    canPromoteDraft
+                      ? "Promote to issue"
+                      : item.ownerStatus === "waiting_for_verification"
+                        ? "Review verification"
+                        : item.source === "finding" && openPath
+                          ? "Open issue"
+                          : undefined
+                  }
+                  onSecondary={
+                    canPromoteDraft
+                      ? () => void promoteDraft(item.draftId!)
+                      : item.ownerStatus === "waiting_for_verification" ||
+                          (item.source === "finding" && openPath)
+                        ? () => navigate(openPath!)
+                        : undefined
+                  }
+                />
+              );
+            })}
+            {actionId ? (
+              <p className="text-xs text-white/45" role="status">
+                Applying owner decision…
+              </p>
+            ) : null}
+          </div>
+        )}
+
         <AgentOpsAdvancedDisclosure title="Advanced queue details">
           <AgentOpsQueueOperatorSurface />
         </AgentOpsAdvancedDisclosure>

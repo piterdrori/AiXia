@@ -260,6 +260,7 @@ export {
   approveAgentOpsFinding,
   deferAgentOpsFinding,
   getAgentOpsActiveTop10,
+  listAgentOpsFindingsCatalog,
   getAgentOpsBacklogSummary,
   getAgentOpsCursorHandoffHistory,
   getAgentOpsVerificationRequests,

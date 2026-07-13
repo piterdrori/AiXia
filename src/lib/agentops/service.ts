@@ -448,6 +448,31 @@ export async function getAgentOpsActiveTop10(): Promise<
   }
 }
 
+/**
+ * Owner catalog read — broader findings list for Findings page tabs
+ * (active, fixed, deferred, rejected, verification). Does not change queue rules.
+ */
+export async function listAgentOpsFindingsCatalog(
+  limit = 200,
+): Promise<AgentOpsReadResult<AgentOpsFinding[]>> {
+  try {
+    const ownerGate = await assertAgentOpsOwner();
+    if (ownerGate.error) return fail(ownerGate.error);
+
+    const safeLimit = Math.min(Math.max(limit, 1), 300);
+    const { data, error } = await supabase
+      .from("agentops_findings")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(safeLimit);
+
+    if (error) return fail(error);
+    return ok((data ?? []) as AgentOpsFinding[]);
+  } catch (error) {
+    return fail(error);
+  }
+}
+
 /** Backlog total count plus top preview rows. */
 export async function getAgentOpsBacklogSummary(): Promise<
   AgentOpsReadResult<{ count: number; preview: AgentOpsFinding[] }>

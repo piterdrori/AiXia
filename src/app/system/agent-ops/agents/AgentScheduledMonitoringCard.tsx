@@ -20,6 +20,8 @@ import type {
   MonitoringRunIndexSummary,
 } from "@/lib/agentops/runtime/agentOpsMonitoringStatusService";
 import type { MonitoringReportSummary } from "@/lib/agentops/runtime/agentOpsMonitoringReportReader";
+import { fetchAgentOpsMonitoringStatus } from "@/lib/agentops/monitoring/agentOpsMonitoringStatusClient";
+import { FetchTimeoutError } from "@/lib/fetchWithTimeout";
 
 type MonitoringIssueDraftSummary = {
   id: string;
@@ -341,23 +343,25 @@ export function AgentScheduledMonitoringCard() {
   const [reportOpen, setReportOpen] = useState(false);
   const [inlineReport, setInlineReport] = useState<MonitoringReportSummary | null>(null);
 
-  const loadStatus = useCallback(async () => {
+  const loadStatus = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/agentops/monitoring/status");
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        error?: string;
-        status?: ExtendedMonitoringStatus;
-      };
-      if (!response.ok || !payload.ok || !payload.status) {
+      const payload = await fetchAgentOpsMonitoringStatus({ forceRefresh });
+      if (!payload.status) {
         throw new Error(payload.error ?? "Could not load monitoring status.");
       }
-      setStatus(payload.status);
-      setInlineReport(payload.status.lastReport);
+      setStatus(payload.status as ExtendedMonitoringStatus);
+      setInlineReport(
+        (payload.status as ExtendedMonitoringStatus).lastReport ?? null,
+      );
     } catch (loadError) {
-      const message = loadError instanceof Error ? loadError.message : String(loadError);
+      const message =
+        loadError instanceof FetchTimeoutError
+          ? "Unable to load monitoring status — request timed out."
+          : loadError instanceof Error
+            ? loadError.message
+            : String(loadError);
       setError(message);
       setStatus(null);
     } finally {
@@ -366,7 +370,7 @@ export function AgentScheduledMonitoringCard() {
   }, []);
 
   useEffect(() => {
-    void loadStatus();
+    void loadStatus(false);
   }, [loadStatus]);
 
   const openGithubWorkflow = (mode: "operational" | "weekly_improvement") => {
@@ -509,7 +513,7 @@ export function AgentScheduledMonitoringCard() {
               type="button"
               variant="secondary"
               disabled={loading}
-              onClick={() => void loadStatus()}
+              onClick={() => void loadStatus(true)}
             >
               <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               {MONITORING_OWNER_DISPLAY.refreshStatus}

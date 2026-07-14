@@ -14,9 +14,10 @@ import {
   AixiaTableActionsCell,
 } from "@/components/aixia";
 import { formatTimestamp } from "@/lib/agentops/agents/monitoringOwnerDisplayCopy";
-import { FetchTimeoutError, fetchWithTimeout } from "@/lib/fetchWithTimeout";
-
-const MONITORING_STATUS_TIMEOUT_MS = 18_000;
+import {
+  fetchAgentOpsMonitoringStatus,
+} from "@/lib/agentops/monitoring/agentOpsMonitoringStatusClient";
+import { FetchTimeoutError } from "@/lib/fetchWithTimeout";
 
 type DailyRosterRow = {
   agentSlug: string;
@@ -83,30 +84,11 @@ export function AgentDaily12ReviewCard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadStatus = useCallback(async () => {
+  const loadStatus = useCallback(async (forceRefresh = false) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetchWithTimeout("/api/agentops/monitoring/status", {
-        timeoutMs: MONITORING_STATUS_TIMEOUT_MS,
-      });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        error?: string;
-        status?: {
-          daily12ReviewStatus?: Daily12ReviewStatus;
-          dailyStatusError?: string | null;
-          configError?: string | null;
-        };
-      };
-      if (!response.ok || payload.ok === false) {
-        throw new Error(
-          payload.error ??
-            payload.status?.dailyStatusError ??
-            payload.status?.configError ??
-            "Could not load daily review status.",
-        );
-      }
+      const payload = await fetchAgentOpsMonitoringStatus({ forceRefresh });
       if (payload.status?.dailyStatusError) {
         setError(payload.status.dailyStatusError);
       }
@@ -124,7 +106,7 @@ export function AgentDaily12ReviewCard() {
   }, []);
 
   useEffect(() => {
-    void loadStatus();
+    void loadStatus(false);
   }, [loadStatus]);
 
   const openGithubWorkflow = () => {
@@ -149,7 +131,7 @@ export function AgentDaily12ReviewCard() {
             {error}
           </AixiaInfoBlock>
           <div className="flex flex-wrap gap-2">
-            <AixiaButton type="button" variant="primary" onClick={() => void loadStatus()}>
+            <AixiaButton type="button" variant="primary" onClick={() => void loadStatus(true)}>
               <RefreshCw className="mr-1.5 h-4 w-4" />
               Retry
             </AixiaButton>
@@ -312,7 +294,7 @@ export function AgentDaily12ReviewCard() {
               <Play className="mr-1.5 h-4 w-4" />
               Run all 12 now
             </AixiaButton>
-            <AixiaButton type="button" variant="secondary" onClick={() => void loadStatus()}>
+            <AixiaButton type="button" variant="secondary" onClick={() => void loadStatus(true)}>
               <RefreshCw className="mr-1.5 h-4 w-4" />
               Refresh coverage
             </AixiaButton>

@@ -67,9 +67,14 @@ export default function AgentOpsAgentsPage() {
     refresh: refreshMonitoring,
   } = useAgentOpsMonitoringStatus(isOwner);
 
-  const rosterUnavailable = Boolean(monitoringError) || (!monitoringLoading && !daily12);
-  const statusValue = (value: number | null | undefined) =>
-    rosterUnavailable ? "Unavailable" : (value ?? 0);
+  const rosterLoading = monitoringLoading && !daily12;
+  const rosterUnavailable =
+    !rosterLoading && (Boolean(monitoringError) || !daily12);
+  const statusValue = (value: number | null | undefined) => {
+    if (rosterLoading) return "Loading…";
+    if (rosterUnavailable) return "Unavailable";
+    return value ?? 0;
+  };
 
   const roster = useMemo(() => {
     const bySlug = new Map((daily12?.roster ?? []).map((row) => [row.agentSlug, row]));
@@ -144,7 +149,11 @@ export default function AgentOpsAgentsPage() {
             <AixiaInfoBlock tone="gold" title="Team status temporarily unavailable">
               Live monitoring metrics could not load. Council Chat remains available below.
               <div className="mt-3">
-                <AixiaButton variant="secondary" onClick={() => void refreshMonitoring()}>
+                <AixiaButton
+                  variant="secondary"
+                  disabled={monitoringLoading}
+                  onClick={() => void refreshMonitoring()}
+                >
                   Retry status
                 </AixiaButton>
               </div>
@@ -154,30 +163,49 @@ export default function AgentOpsAgentsPage() {
             items={[
               {
                 label: "Registered",
-                value: statusValue(daily12?.registeredAgents ?? 12),
+                value: statusValue(daily12?.registeredAgents),
               },
               {
                 label: "Completed today",
                 value: statusValue(daily12?.agentsCompletedToday),
-                tone: rosterUnavailable ? "default" : "success",
+                tone: rosterLoading || rosterUnavailable ? "default" : "success",
               },
               {
                 label: "Running",
-                value: rosterUnavailable ? "Unavailable" : teamCounts.running,
-                tone: !rosterUnavailable && teamCounts.running > 0 ? "warning" : "default",
+                value: rosterLoading
+                  ? "Loading…"
+                  : rosterUnavailable
+                    ? "Unavailable"
+                    : teamCounts.running,
+                tone: !rosterUnavailable && !rosterLoading && teamCounts.running > 0
+                  ? "warning"
+                  : "default",
               },
               {
                 label: "Needs attention",
-                value: rosterUnavailable ? "Unavailable" : teamCounts.needsAttention,
-                tone: !rosterUnavailable && teamCounts.needsAttention > 0 ? "warning" : "default",
+                value: rosterLoading
+                  ? "Loading…"
+                  : rosterUnavailable
+                    ? "Unavailable"
+                    : teamCounts.needsAttention,
+                tone:
+                  !rosterUnavailable &&
+                  !rosterLoading &&
+                  teamCounts.needsAttention > 0
+                    ? "warning"
+                    : "default",
               },
               {
                 label: "Failed / missing",
-                value: rosterUnavailable
-                  ? "Unavailable"
-                  : (daily12?.agentsFailedToday ?? 0) + (daily12?.agentsMissingToday.length ?? 0),
+                value: rosterLoading
+                  ? "Loading…"
+                  : rosterUnavailable
+                    ? "Unavailable"
+                    : (daily12?.agentsFailedToday ?? 0) +
+                      (daily12?.agentsMissingToday.length ?? 0),
                 tone:
                   !rosterUnavailable &&
+                  !rosterLoading &&
                   ((daily12?.agentsFailedToday ?? 0) > 0 ||
                     (daily12?.agentsMissingToday.length ?? 0) > 0)
                     ? "danger"
@@ -185,9 +213,11 @@ export default function AgentOpsAgentsPage() {
               },
               {
                 label: "Next daily review",
-                value: rosterUnavailable
-                  ? "Unavailable"
-                  : formatNextReview(daily12?.nextExpectedDailyReviewAt),
+                value: rosterLoading
+                  ? "Loading…"
+                  : rosterUnavailable
+                    ? "Unavailable"
+                    : formatNextReview(daily12?.nextExpectedDailyReviewAt),
               },
             ]}
           />
@@ -199,6 +229,9 @@ export default function AgentOpsAgentsPage() {
           <h2 id="agent-grid" className="mb-4 text-lg font-semibold text-white">
             Agent roster
           </h2>
+          {rosterLoading ? (
+            <p className="mb-4 text-sm text-white/55">Loading live agent status…</p>
+          ) : null}
           {rosterUnavailable ? (
             <p className="mb-4 text-sm text-white/55">
               Showing the registered 12-agent roster. Live today-status is unavailable until monitoring

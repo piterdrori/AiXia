@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AixiaBadge, AixiaInfoBlock, AixiaSection } from "@/components/aixia";
 import { getCanonicalDailyReviewProfile } from "@/lib/agentops/runtime/canonicalAgentDailyReview";
 import { formatTimestamp } from "@/lib/agentops/agents/monitoringOwnerDisplayCopy";
+import { fetchAgentOpsMonitoringStatus } from "@/lib/agentops/monitoring/agentOpsMonitoringStatusClient";
+import { FetchTimeoutError } from "@/lib/fetchWithTimeout";
 import { CalendarClock } from "lucide-react";
 
 type DailyRosterRow = {
@@ -34,19 +36,18 @@ export function AgentDailyReviewStatusSection({ agentSlug }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/agentops/monitoring/status");
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        status?: {
-          daily12ReviewStatus?: { roster?: DailyRosterRow[] };
-          dailyStatusError?: string | null;
-        };
-      };
-      const roster = payload.status?.daily12ReviewStatus?.roster ?? [];
+      const payload = await fetchAgentOpsMonitoringStatus({ forceRefresh: false });
+      const roster = (payload.status?.daily12ReviewStatus?.roster ?? []) as DailyRosterRow[];
       setRow(roster.find((entry) => entry.agentSlug === agentSlug) ?? null);
       if (payload.status?.dailyStatusError) setError(payload.status.dailyStatusError);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : String(loadError));
+      setError(
+        loadError instanceof FetchTimeoutError
+          ? "Unable to load monitoring status — request timed out."
+          : loadError instanceof Error
+            ? loadError.message
+            : String(loadError),
+      );
     } finally {
       setLoading(false);
     }

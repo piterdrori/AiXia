@@ -8,6 +8,7 @@ import { randomUUID } from "node:crypto";
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 import {
   DOUBAO_TTS_CHUNK_MAX_CHARS,
+  getDoubaoTtsAccessToken,
   getDoubaoTtsServerConfig,
   isDoubaoTtsRuntimeActive,
   mapDoubaoTtsOwnerError,
@@ -238,10 +239,21 @@ export async function handleAgentOpsVoiceRequest(
       ? body.voiceId.trim()
       : config.cloud.voiceId) ?? "";
 
+  // Static process.env.* reads (bundler-safe). Do not use dynamic env[name] for secrets.
   const accessToken =
-    env.DOUBAO_TTS_API_KEY?.trim() ?? env.DOUBAO_TTS_ACCESS_TOKEN?.trim() ?? "";
-  const appId = config.cloud.appId?.trim() ?? "";
-  if (!accessToken || !appId || !voiceId) {
+    getDoubaoTtsAccessToken(env) ??
+    process.env.DOUBAO_TTS_API_KEY?.trim() ??
+    process.env.DOUBAO_TTS_ACCESS_TOKEN?.trim() ??
+    "";
+  const appId =
+    config.cloud.appId?.trim() ||
+    process.env.DOUBAO_TTS_APP_ID?.trim() ||
+    "";
+  const resolvedVoiceId =
+    voiceId ||
+    process.env.DOUBAO_TTS_VOICE_ID?.trim() ||
+    "";
+  if (!accessToken || !appId || !resolvedVoiceId) {
     return jsonResponse(
       {
         ok: false,
@@ -263,11 +275,11 @@ export async function handleAgentOpsVoiceRequest(
   try {
     const result = await synthesizeCloud({
       text,
-      voiceId,
+      voiceId: resolvedVoiceId,
       outputFormat: config.cloud.outputFormat,
       accessToken,
       appId,
-      cluster: config.cloud.cluster,
+      cluster: config.cloud.cluster || process.env.DOUBAO_TTS_CLUSTER?.trim() || "volcano_tts",
       apiUrl: config.cloud.apiUrl,
       signal: controller.signal,
     });

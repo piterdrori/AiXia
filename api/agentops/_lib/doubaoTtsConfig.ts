@@ -87,6 +87,11 @@ function resolveAccessToken(env: NodeJS.ProcessEnv): string | undefined {
   return readEnv("DOUBAO_TTS_API_KEY", env) ?? readEnv("DOUBAO_TTS_ACCESS_TOKEN", env);
 }
 
+/** Server-only accessor — uses static env reads so Vercel Preview injects credentials. */
+export function getDoubaoTtsAccessToken(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  return resolveAccessToken(env);
+}
+
 function resolveOutputFormat(env: NodeJS.ProcessEnv): DoubaoTtsOutputFormat {
   const raw = readEnv("DOUBAO_TTS_OUTPUT_FORMAT", env)?.toLowerCase();
   if (raw === "wav" || raw === "pcm") return raw;

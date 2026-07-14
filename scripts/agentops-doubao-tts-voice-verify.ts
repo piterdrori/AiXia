@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import {
+  getDoubaoTtsAccessToken,
   getDoubaoTtsServerConfig,
   mapDoubaoTtsOwnerError,
 } from "../api/agentops/_lib/doubaoTtsConfig.ts";
@@ -43,6 +44,32 @@ function main() {
   assert.equal(ready.canGenerateAudio, true, "configured + gates → ready");
   assert.equal(ready.cloud.accessTokenPresent, true, "token presence only");
   assert.equal(ready.cloud.appId, "app", "app id non-secret");
+  assert.equal(
+    getDoubaoTtsAccessToken({
+      DOUBAO_TTS_API_KEY: "secret-should-not-appear",
+    }),
+    "secret-should-not-appear",
+    "access token helper reads from env arg",
+  );
+
+  // Handler must not use dynamic-only env reads for secrets (Vercel Preview trap).
+  const handlerSource = readFileSync(
+    path.join(process.cwd(), "api/agentops/_lib/doubaoVoiceHandler.ts"),
+    "utf8",
+  );
+  assert.ok(
+    handlerSource.includes("getDoubaoTtsAccessToken"),
+    "handler uses static-safe token helper",
+  );
+  assert.ok(
+    handlerSource.includes("process.env.DOUBAO_TTS_API_KEY"),
+    "handler also has static process.env.DOUBAO_TTS_API_KEY fallback",
+  );
+  assert.equal(
+    /[^.]env\.DOUBAO_TTS_API_KEY/.test(handlerSource),
+    false,
+    "handler does not use bare env.DOUBAO_TTS_API_KEY (bundler-unsafe)",
+  );
 
   const prodBlocked = getDoubaoTtsServerConfig({
     DOUBAO_TTS_APP_ID: "app",

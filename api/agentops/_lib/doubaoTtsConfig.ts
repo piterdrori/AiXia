@@ -38,8 +38,34 @@ export type DoubaoTtsServerConfig = {
   };
 };
 
+/**
+ * Static process.env.* reads keep Vercel/serverless bundlers from dropping vars.
+ * Prefer reading from the provided env object when present (tests).
+ */
 function readEnv(name: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
-  const value = env[name];
+  const fromArg = env[name];
+  if (typeof fromArg === "string" && fromArg.trim()) return fromArg.trim();
+
+  // Explicit names — do not invent duplicates.
+  const staticMap: Record<string, string | undefined> = {
+    DOUBAO_TTS_APP_ID: process.env.DOUBAO_TTS_APP_ID,
+    DOUBAO_TTS_API_KEY: process.env.DOUBAO_TTS_API_KEY,
+    DOUBAO_TTS_ACCESS_TOKEN: process.env.DOUBAO_TTS_ACCESS_TOKEN,
+    DOUBAO_TTS_API_URL: process.env.DOUBAO_TTS_API_URL,
+    DOUBAO_TTS_API_BASE_URL: process.env.DOUBAO_TTS_API_BASE_URL,
+    DOUBAO_TTS_API_PATH: process.env.DOUBAO_TTS_API_PATH,
+    DOUBAO_TTS_VOICE_ID: process.env.DOUBAO_TTS_VOICE_ID,
+    DOUBAO_TTS_CLUSTER: process.env.DOUBAO_TTS_CLUSTER,
+    DOUBAO_TTS_LANGUAGE: process.env.DOUBAO_TTS_LANGUAGE,
+    DOUBAO_TTS_OUTPUT_FORMAT: process.env.DOUBAO_TTS_OUTPUT_FORMAT,
+    DOUBAO_TTS_LOCAL_BASE_URL: process.env.DOUBAO_TTS_LOCAL_BASE_URL,
+    DOUBAO_TTS_LOCAL_VOICE: process.env.DOUBAO_TTS_LOCAL_VOICE,
+    AGENTOPS_DOUBAO_TTS_ACTIVE: process.env.AGENTOPS_DOUBAO_TTS_ACTIVE,
+    AGENTOPS_DOUBAO_TTS_OWNER_APPROVED: process.env.AGENTOPS_DOUBAO_TTS_OWNER_APPROVED,
+    AGENTOPS_DOUBAO_TTS_PRODUCTION_ALLOWED: process.env.AGENTOPS_DOUBAO_TTS_PRODUCTION_ALLOWED,
+    VERCEL_ENV: process.env.VERCEL_ENV,
+  };
+  const value = staticMap[name];
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 

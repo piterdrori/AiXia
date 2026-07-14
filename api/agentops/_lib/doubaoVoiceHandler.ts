@@ -35,9 +35,12 @@ export type AgentOpsVoiceStatusResponse = {
   requestId: string;
 };
 
-function ownerSafeUpstreamError(status: number): string {
+function ownerSafeUpstreamError(status: number, code?: number | null): string {
+  // OpenSpeech 3001 = lifetime / quota exhaustion — still owner-safe, no secret names.
+  if (status === 429 || code === 3001) {
+    return "Doubao voice is temporarily unavailable.";
+  }
   if (status === 401 || status === 403) return "Doubao voice is temporarily unavailable.";
-  if (status === 429) return "Doubao voice is temporarily unavailable.";
   if (status >= 500) return "Doubao voice is temporarily unavailable.";
   return "Doubao voice is temporarily unavailable.";
 }
@@ -130,10 +133,20 @@ async function synthesizeCloud(params: {
         typeof json.message === "string" ? json.message.slice(0, 120) : null,
     });
     if (!response.ok) {
-      throw new Error(ownerSafeUpstreamError(response.status));
+      throw new Error(
+        ownerSafeUpstreamError(
+          response.status,
+          typeof json.code === "number" ? json.code : null,
+        ),
+      );
     }
     if (json.code && json.code !== 0 && json.code !== 3000) {
-      throw new Error("Doubao voice is temporarily unavailable.");
+      throw new Error(
+        ownerSafeUpstreamError(
+          response.status || 502,
+          typeof json.code === "number" ? json.code : null,
+        ),
+      );
     }
     if (!json.data || typeof json.data !== "string") {
       throw new Error("Doubao voice is temporarily unavailable.");

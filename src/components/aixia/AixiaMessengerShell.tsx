@@ -141,7 +141,7 @@ export function AixiaMessengerShell({
         ttsProvider={ttsProvider}
         isSpeaking={isSpeaking}
         onStopSpeech={stopVoiceOutput}
-        statusText={statusText}
+        statusText={voiceStatus ?? statusText}
         actions={toolbarActions}
         creativityMode={creativityMode}
         onCreativityModeChange={onCreativityModeChange}

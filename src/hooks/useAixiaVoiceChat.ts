@@ -214,9 +214,15 @@ export function useAixiaVoiceChat() {
           browserCapabilityAvailable: browserTtsSupported,
         });
         if (speakGenerationRef.current !== generation) return;
+        // Always reflect the provider that actually produced audio (or unavailable).
         setTtsProvider(result.provider);
-        if (result.statusText) setVoiceStatus(result.statusText);
-        else setVoiceStatus(null);
+        if (result.statusText) {
+          setVoiceStatus(result.statusText);
+        } else if (result.provider === "browser") {
+          setVoiceStatus("Using browser voice.");
+        } else {
+          setVoiceStatus(null);
+        }
       } catch {
         if (speakGenerationRef.current !== generation) return;
         setTtsProvider("unavailable");

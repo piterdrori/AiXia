@@ -256,4 +256,38 @@ PRODUCTION_UNTOUCHED: YES
 REAL_DOUBAO_TTS_OPERATIONAL: NO
 ```
 
-**Bottom line:** Staging Doubao TTS integration is configured and gated correctly. Live cloud audio is still blocked solely by OpenSpeech **3001 / `text_words_lifetime`** on app `****5938`. Restore quota (Option A) — no AiXia code change required — then re-verify HTTP 200 audio.
+**Bottom line:** Staging Doubao TTS integration is configured and gated correctly. Live cloud audio was previously blocked solely by OpenSpeech **3001 / `text_words_lifetime`** on app `****5938`. Formal service activation removed that blocker.
+
+---
+
+## Post-activation recheck (2026-07-14 afternoon)
+
+After owner confirmation of **正式版 / 不限字数 / concurrency 10** on app `****5938`:
+
+| Check | Result |
+|-------|--------|
+| Status gates | Still configured / active / ownerApproved / canGenerateAudio / provider doubao / voice `en_female_dacey_uranus_bigtts` / mp3 |
+| `POST …/voice` TTS | **HTTP 200**, `Content-Type: audio/mpeg`, **65280** bytes, no JSON, no 3001 |
+| QA Agent Chat | Badge **Doubao**; voice POST ~22KB; Stop visible during playback and clickable; preference stays ON |
+| Full Council | Badge **Doubao**; voice POST ~22KB while speaking |
+| Embedded Council (Agents page) | Badge **Doubao**; voice POST ~22KB while speaking |
+| Finding Chat | Badge **Doubao**; voice POST ~22KB while speaking |
+| Browser fallback | Not used on these success paths |
+| Voice ID change | **Not required** — configured voice authorized |
+
+### Post-activation FINAL VERDICT
+
+```
+TTS_FORMAL_SERVICE_ACTIVE: YES
+LIFETIME_QUOTA_BLOCKER_GONE: YES
+TTS_API_HTTP_200: YES
+TTS_AUDIO_MPEG_RETURNED: YES
+CONFIGURED_VOICE_AUTHORIZED: YES
+COUNCIL_REAL_DOUBAO_AUDIO: YES
+AGENT_CHAT_REAL_DOUBAO_AUDIO: YES
+FINDING_CHAT_REAL_DOUBAO_AUDIO: YES
+DOUBAO_BADGE_VISIBLE: YES
+BROWSER_FALLBACK_NOT_USED: YES
+REAL_DOUBAO_TTS_OPERATIONAL: YES
+```
+

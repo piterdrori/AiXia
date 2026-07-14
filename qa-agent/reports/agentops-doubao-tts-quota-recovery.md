@@ -208,7 +208,7 @@ Temporary local probe scripts were deleted after use (not committed).
 | `npm run agentops:doubao-tts-voice-verify` | **PASS** |
 | `npm run agentops:doubao-stt-voice-verify` | **PASS** |
 | `npm run agentops:tts-preference-verify` | **PASS** |
-| `npm run build` | See session build log / expected green on committed tree |
+| `npm run build` | **Local fail** on unrelated untracked Hermes/WIP files (not part of this quota task / not on committed voice tree). Voice verifies + `tsc --noEmit` green. Staging Preview deploy remains the ship signal. |
 | Main / production | Untouched |
 | STT | Remains working (`canTranscribe: true`) |
 | Code / architecture | Unchanged |

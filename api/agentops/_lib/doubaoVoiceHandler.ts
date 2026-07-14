@@ -98,10 +98,6 @@ async function synthesizeCloud(params: {
     throw new Error("Doubao voice is temporarily unavailable.");
   }
 
-  if (!response.ok) {
-    throw new Error(ownerSafeUpstreamError(response.status));
-  }
-
   const mimeForFormat = (format: DoubaoTtsOutputFormat) => {
     if (format === "wav") return "audio/wav";
     if (format === "pcm") return "audio/pcm";
@@ -109,12 +105,33 @@ async function synthesizeCloud(params: {
   };
 
   const contentType = response.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    const json = (await response.json()) as {
+  // OpenSpeech commonly returns JSON (including error codes) even when HTTP status is non-2xx.
+  if (contentType.includes("application/json") || !response.ok) {
+    let json: {
       data?: string;
       code?: number;
       message?: string;
     };
+    try {
+      json = (await response.json()) as typeof json;
+    } catch {
+      console.error("[agentops-voice] upstream non-json", {
+        httpStatus: response.status,
+        contentType,
+      });
+      throw new Error(ownerSafeUpstreamError(response.status));
+    }
+    // Diagnostic only: numeric OpenSpeech code + short message — never tokens/headers.
+    console.error("[agentops-voice] upstream", {
+      httpStatus: response.status,
+      contentType,
+      code: typeof json.code === "number" ? json.code : null,
+      message:
+        typeof json.message === "string" ? json.message.slice(0, 120) : null,
+    });
+    if (!response.ok) {
+      throw new Error(ownerSafeUpstreamError(response.status));
+    }
     if (json.code && json.code !== 0 && json.code !== 3000) {
       throw new Error("Doubao voice is temporarily unavailable.");
     }

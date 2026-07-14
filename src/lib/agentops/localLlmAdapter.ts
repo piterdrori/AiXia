@@ -318,7 +318,10 @@ async function callLocalLlmChat(
       error?: string;
     };
 
-    if (response.ok && payload.source === "local_llm" && payload.response?.trim()) {
+    // Server returns "local_llm" for Ollama and "cloud_llm" for Doubao Ark — both are live.
+    const liveSource =
+      payload.source === "local_llm" || payload.source === "cloud_llm";
+    if (response.ok && liveSource && payload.response?.trim()) {
       cachedReachability = { checkedAt: Date.now(), reachable: true };
       return { ok: true, content: payload.response.trim() };
     }

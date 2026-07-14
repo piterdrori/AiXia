@@ -33,6 +33,7 @@ import {
   loadFindingsOwnerCatalog,
   promoteMonitoringDraft,
 } from "@/lib/agentops/findings/findingsOwnerCatalog";
+import { normalizeReportingAgent } from "@/lib/agentops/findings/reportingAgentIdentity";
 
 const EMPTY_COPY: Record<FindingsTabId, { title: string; description: string }> = {
   "needs-review": {
@@ -78,18 +79,6 @@ function formatShortDate(value: string | null | undefined): string | null {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toLocaleDateString();
-}
-
-function resolveAgentSlug(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const key = raw.trim().toLowerCase();
-  const match = CANONICAL_AGENTS.find(
-    (agent) =>
-      agent.id === key ||
-      key.endsWith(`.${agent.id}`) ||
-      key === agent.name.toLowerCase().replace(/\s+/g, "-"),
-  );
-  return match?.id ?? (key.includes("agent") ? key : null);
 }
 
 function countLabel(value: number | "Unavailable"): string | number {
@@ -480,8 +469,11 @@ export default function AgentOpsIssuesPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map((item) => {
-              const slug = resolveAgentSlug(item.agentSlug);
-              const meta = getAgentOwnerMeta(slug ?? item.agentSlug ?? "unknown");
+              const reporter = normalizeReportingAgent(item.agentSlug);
+              const slug = reporter.canonicalId;
+              const meta = getAgentOwnerMeta(slug ?? "unknown", {
+                username: reporter.kind === "external" ? reporter.originalLabel : undefined,
+              });
               const supporting =
                 item.supportingAgentSlugs.length > 0
                   ? `+${item.supportingAgentSlugs.length} supporting agent${
@@ -515,9 +507,11 @@ export default function AgentOpsIssuesPage() {
                   statusLabel={item.ownerStatusLabel}
                   route={item.route ?? item.module}
                   agentLabel={
-                    slug
-                      ? CANONICAL_AGENTS.find((agent) => agent.id === slug)?.name ?? meta.username
-                      : item.agentSlug
+                    reporter.kind === "external"
+                      ? reporter.displayName
+                      : slug
+                        ? CANONICAL_AGENTS.find((agent) => agent.id === slug)?.name ?? meta.username
+                        : reporter.originalLabel
                   }
                   agentUsername={meta.username}
                   agentJobTitle={meta.jobTitle}

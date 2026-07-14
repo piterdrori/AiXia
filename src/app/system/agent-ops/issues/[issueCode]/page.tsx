@@ -36,6 +36,7 @@ import {
   inspectPromptSafety,
   type OwnerDetailAction,
 } from "@/lib/agentops/findings/findingsDetailModel";
+import { normalizeReportingAgent } from "@/lib/agentops/findings/reportingAgentIdentity";
 
 function OwnerSection({
   title,
@@ -64,18 +65,6 @@ function formatDateTime(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString();
-}
-
-function resolveAgentSlug(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const key = raw.trim().toLowerCase();
-  const match = CANONICAL_AGENTS.find(
-    (agent) =>
-      agent.id === key ||
-      key.endsWith(`.${agent.id}`) ||
-      key === agent.name.toLowerCase().replace(/\s+/g, "-"),
-  );
-  return match?.id ?? (key.includes("agent") ? key : null);
 }
 
 function findingsBackHref(searchParams: URLSearchParams): string {
@@ -165,13 +154,19 @@ export default function AgentOpsFindingDetailPage() {
     }
   }, [searchParams]);
 
-  const slug = resolveAgentSlug(detail?.agentSlug);
-  const agentMeta = getAgentOwnerMeta(slug ?? detail?.agentSlug ?? "unknown");
+  const reporter = useMemo(
+    () => normalizeReportingAgent(detail?.agentSlug),
+    [detail?.agentSlug],
+  );
+  const slug = reporter.canonicalId;
+  const agentMeta = getAgentOwnerMeta(slug ?? "unknown", {
+    username: reporter.kind === "external" ? reporter.originalLabel : undefined,
+  });
   const agentName =
-    CANONICAL_AGENTS.find((agent) => agent.id === slug)?.name ??
-    agentMeta.username ??
-    detail?.agentSlug ??
-    "Unknown agent";
+    reporter.kind === "external"
+      ? reporter.displayName
+      : (CANONICAL_AGENTS.find((agent) => agent.id === slug)?.name ??
+        reporter.displayName);
   const agentHref = slug ? `/system/agent-ops/agents/${slug}` : null;
   const chatHref = slug
     ? `/system/agent-ops/agents/${slug}?finding=${encodeURIComponent(
@@ -180,11 +175,9 @@ export default function AgentOpsFindingDetailPage() {
     : null;
 
   const findingChatIdentity = useMemo((): AgentOpsAgentChatIdentity | null => {
-    if (!slug && !detail?.agentSlug) return null;
-    const agentId = slug ?? detail?.agentSlug ?? "";
-    if (!agentId) return null;
+    if (!reporter.canChat || !slug) return null;
     return {
-      agentId,
+      agentId: slug,
       displayName: agentName,
       username: agentMeta.username,
       jobTitle: agentMeta.jobTitle,
@@ -195,9 +188,10 @@ export default function AgentOpsFindingDetailPage() {
       contextNotes: [
         detail?.issueCode ? `Finding ${detail.issueCode}` : null,
         detail?.route ? `Route ${detail.route}` : null,
+        reporter.kind === "alias" ? `Imported as ${reporter.originalLabel}` : null,
       ].filter(Boolean) as string[],
     };
-  }, [agentMeta, agentName, detail, slug]);
+  }, [agentMeta, agentName, detail, reporter, slug]);
 
   const safetyHits = useMemo(
     () => inspectPromptSafety(editingPrompt ? promptDraft : detail?.promptText ?? ""),
@@ -576,7 +570,19 @@ export default function AgentOpsFindingDetailPage() {
                   </div>
                   <div>
                     <dt className="text-white/45">Reporting agent</dt>
-                    <dd className="text-white/85">{agentName}</dd>
+                    <dd className="text-white/85">
+                      {agentName}
+                      {reporter.kind === "alias" ? (
+                        <span className="block text-xs text-white/45">
+                          Stored as {reporter.originalLabel}
+                        </span>
+                      ) : null}
+                      {reporter.kind === "external" ? (
+                        <span className="block text-xs text-white/45">
+                          {reporter.originalLabel}
+                        </span>
+                      ) : null}
+                    </dd>
                   </div>
                   <div>
                     <dt className="text-white/45">Monitoring run</dt>
@@ -618,7 +624,9 @@ export default function AgentOpsFindingDetailPage() {
               ) : (
                 <OwnerSection title="Finding chat" id="finding-chat-unavailable">
                   <p className="text-sm text-white/60">
-                    Reporting agent identity is unavailable, so finding chat cannot start yet.
+                    {reporter.kind === "external"
+                      ? `External / imported reporter (${reporter.originalLabel}). Finding Chat is disabled so AiXia does not pretend to be a different agent.`
+                      : "Reporting agent identity is unavailable, so finding chat cannot start yet."}
                   </p>
                 </OwnerSection>
               )}
@@ -825,6 +833,16 @@ export default function AgentOpsFindingDetailPage() {
                 <p className="text-base font-medium text-white">{agentName}</p>
                 <p className="text-sm text-white/60">{agentMeta.username}</p>
                 <p className="text-sm text-white/50">{agentMeta.jobTitle}</p>
+                {reporter.kind === "alias" ? (
+                  <p className="text-xs text-white/45">
+                    Stored reporter: {reporter.originalLabel} (mapped to {slug} for display and chat)
+                  </p>
+                ) : null}
+                {reporter.kind === "external" ? (
+                  <p className="text-xs text-white/45">
+                    Original label: {reporter.originalLabel}. Not treated as a canonical AgentOps agent.
+                  </p>
+                ) : null}
                 <p className="text-sm text-white/65">
                   This agent reported the finding from its staging review perspective.
                 </p>

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 
-import { AixiaBadge, AixiaButton } from "@/components/aixia";
+import { AixiaBadge, AixiaButton, AixiaInfoBlock } from "@/components/aixia";
 import {
   AgentOpsAdvancedDisclosure,
   AgentOpsAgentChatCard,
@@ -157,6 +157,8 @@ function activityLabel(item: AgentOpsAgentTimelineItem): string {
 export default function AgentOpsAgentDetailPage() {
   const { agentId = "" } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const findingContextCode = searchParams.get("finding")?.trim() || null;
   const canonical = useMemo(() => resolveCanonicalAgent(agentId), [agentId]);
 
   const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
@@ -444,6 +446,28 @@ export default function AgentOpsAgentDetailPage() {
           <p className="text-sm text-amber-200/90" role="status">
             Agent registry details unavailable: {detailError}. Chat may still work if the LLM is healthy.
           </p>
+        ) : null}
+
+        {findingContextCode ? (
+          <AixiaInfoBlock tone="cyan" title="Finding context (read-only)">
+            <p className="text-sm text-white/75">
+              Discussing finding: <span className="text-white">{findingContextCode}</span>
+            </p>
+            <p className="mt-2 text-xs text-white/50">
+              This Agent Chat thread stays separate from Finding Chat. Open the finding for the
+              dedicated discussion history.
+            </p>
+            <div className="mt-3">
+              <AixiaButton
+                variant="secondary"
+                onClick={() =>
+                  navigate(`/system/agent-ops/issues/${encodeURIComponent(findingContextCode)}`)
+                }
+              >
+                Open finding
+              </AixiaButton>
+            </div>
+          </AixiaInfoBlock>
         ) : null}
 
         {/* 2. Agent Chat */}

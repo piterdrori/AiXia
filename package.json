@@ -31,6 +31,7 @@
     "agentops:reporting-agent-identity-verify": "tsx scripts/agentops-reporting-agent-identity-verify.ts",
     "agentops:tts-preference-verify": "tsx scripts/agentops-tts-preference-verify.ts",
     "agentops:doubao-tts-voice-verify": "tsx scripts/agentops-doubao-tts-voice-verify.ts",
+    "agentops:doubao-stt-voice-verify": "tsx scripts/agentops-doubao-stt-voice-verify.ts",
     "agentops:monitoring:scheduled:loop:dry-run": "node scripts/agentops-monitoring-scheduled-run.mjs dry-run-loop",
     "agentops:monitoring:scheduled:once": "node scripts/agentops-monitoring-scheduled-run.mjs once",
     "agentops:monitoring:scheduled:blocked-write-test": "node scripts/agentops-monitoring-scheduled-run.mjs blocked-write-test",

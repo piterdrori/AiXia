@@ -1,6 +1,10 @@
 import { useCallback, useState } from "react";
-import { Mic, MicOff, Plus, Send } from "lucide-react";
+import { Mic, MicOff, Plus, Send, Square } from "lucide-react";
 
+import type {
+  AgentOpsSttPhase,
+  AgentOpsSttProviderStatus,
+} from "@/hooks/useAixiaVoiceChat";
 import { AixiaButton } from "./AixiaButton";
 import { AixiaMessengerAttachmentSheet } from "./AixiaMessengerAttachmentSheet";
 import type { AixiaMessengerAttachment, AixiaMessengerComposerPreset } from "./AixiaMessengerConfig";
@@ -22,11 +26,36 @@ export type AixiaMessengerComposerProps = {
   onAgentReplySpoken?: (text: string) => void;
   /** Voice controller owned by AixiaMessengerShell — do not call useAixiaVoiceChat here. */
   listening?: boolean;
+  sttPhase?: AgentOpsSttPhase;
+  recordingElapsedMs?: number;
   voiceStatus?: string | null;
   sttAvailable?: boolean;
+  sttProvider?: AgentOpsSttProviderStatus;
   toggleMic?: (onTranscript: (transcript: string, isFinal: boolean) => void) => void;
   stopListening?: () => void;
+  cancelStt?: () => void;
 };
+
+function sttProviderLabel(provider: AgentOpsSttProviderStatus | undefined, available: boolean) {
+  if (!available) return "Mic unavailable";
+  if (provider === "doubao") return "Mic · Doubao";
+  if (provider === "browser") return "Mic · Browser fallback";
+  return "Mic unavailable";
+}
+
+function sttProviderTitle(provider: AgentOpsSttProviderStatus | undefined, available: boolean) {
+  if (!available) return "Speech input unavailable";
+  if (provider === "doubao") return "Cloud speech recognition";
+  if (provider === "browser") return "Using this browser’s built-in speech recognition";
+  return "No speech recognition provider is available";
+}
+
+function formatElapsed(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 export function AixiaMessengerComposer({
   value,
@@ -42,14 +71,20 @@ export function AixiaMessengerComposer({
   onAddAttachments,
   onRemoveAttachment,
   listening = false,
+  sttPhase = "idle",
+  recordingElapsedMs = 0,
   voiceStatus = null,
   sttAvailable = false,
+  sttProvider = "unavailable",
   toggleMic,
   stopListening,
+  cancelStt,
 }: AixiaMessengerComposerProps) {
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
 
   const canSubmit = !disabled && value.trim().length > 0;
+  const processing = sttPhase === "processing" || sttPhase === "requesting";
+  const recording = listening || sttPhase === "recording";
 
   const sendMessage = useCallback(() => {
     if (!canSubmit) return;
@@ -58,12 +93,11 @@ export function AixiaMessengerComposer({
   }, [canSubmit, onSubmit, stopListening]);
 
   const handleMicClick = useCallback(() => {
-    if (!toggleMic) return;
-    toggleMic((transcript, isFinal) => {
-      onChange(transcript);
-      if (isFinal) stopListening?.();
+    if (!toggleMic || processing) return;
+    toggleMic((_transcript, _isFinal) => {
+      // Shell applies finals into composer.
     });
-  }, [onChange, stopListening, toggleMic]);
+  }, [processing, toggleMic]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -71,6 +105,14 @@ export function AixiaMessengerComposer({
       sendMessage();
     }
   };
+
+  const micTitle = !sttAvailable
+    ? "Mic unavailable — enable voice in AI Management"
+    : processing
+      ? "Processing speech…"
+      : recording
+        ? "Stop recording"
+        : "Start voice input";
 
   return (
     <div
@@ -114,21 +156,19 @@ export function AixiaMessengerComposer({
           variant="secondary"
           className={[
             "aixia-messenger-composer__mic-btn",
-            listening ? "aixia-messenger-composer__mic-btn--active" : "",
+            recording ? "aixia-messenger-composer__mic-btn--active" : "",
           ]
             .filter(Boolean)
             .join(" ")}
-          disabled={disabled || !sttAvailable || !toggleMic}
+          disabled={disabled || !sttAvailable || !toggleMic || processing}
           onClick={handleMicClick}
-          title={
-            sttAvailable
-              ? listening
-                ? "Stop listening"
-                : "Speech to text"
-              : "Mic unavailable — enable voice in AI Management"
-          }
+          title={micTitle}
+          aria-label={micTitle}
+          aria-pressed={recording}
+          data-testid="agentops-messenger-mic"
+          data-stt-provider={sttProvider}
         >
-          {listening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+          {recording ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
         </AixiaButton>
 
         <AixiaTextareaField
@@ -178,6 +218,33 @@ export function AixiaMessengerComposer({
       </div>
 
       <div className="aixia-messenger-composer__meta">
+        <span
+          className="aixia-messenger-composer__stt-provider"
+          title={sttProviderTitle(sttProvider, sttAvailable)}
+          data-testid="agentops-stt-provider"
+          data-stt-provider={sttAvailable ? sttProvider : "unavailable"}
+        >
+          {sttProviderLabel(sttProvider, sttAvailable)}
+        </span>
+        {recording ? (
+          <span className="aixia-messenger-composer__recording" data-testid="agentops-stt-recording">
+            Recording {formatElapsed(recordingElapsedMs)}
+          </span>
+        ) : null}
+        {recording || processing ? (
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            className="aixia-messenger-composer__cancel-stt"
+            onClick={() => cancelStt?.()}
+            aria-label="Cancel voice input"
+            title="Cancel voice input"
+            data-testid="agentops-stt-cancel"
+          >
+            <Square className="h-3.5 w-3.5" />
+            <span>Cancel</span>
+          </AixiaButton>
+        ) : null}
         {errorText ? (
           <span className="aixia-messenger-composer__error">{errorText}</span>
         ) : voiceStatus ? (

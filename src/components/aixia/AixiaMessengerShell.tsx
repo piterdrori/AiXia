@@ -64,6 +64,9 @@ export function AixiaMessengerShell({
   const dockRef = useRef<HTMLDivElement | null>(null);
   const historySeededRef = useRef(false);
   const handledMessageIdsRef = useRef<Set<string>>(new Set());
+  const composerValueRef = useRef(composerValue);
+  const sttBaselineRef = useRef("");
+  composerValueRef.current = composerValue;
 
   const voice = useAixiaVoiceChat();
   const {
@@ -75,10 +78,15 @@ export function AixiaMessengerShell({
     speakAgentMessage,
     stopVoiceOutput,
     listening,
+    sttPhase,
+    recordingElapsedMs,
     voiceStatus,
     sttAvailable,
+    sttProvider,
     toggleMic,
     stopListening,
+    cancelStt,
+    appendTranscript,
   } = voice;
 
   useLayoutEffect(() => {
@@ -112,11 +120,15 @@ export function AixiaMessengerShell({
     );
     if (!candidate) return;
 
+    // Mark handled even when STT is busy so we never replay these later.
     handledMessageIdsRef.current.add(candidate.messageId);
 
     if (!ttsEnabled) return;
+    if (listening || sttPhase === "recording" || sttPhase === "processing" || sttPhase === "requesting") {
+      return;
+    }
     void speakAgentMessage(candidate.content, candidate.messageId);
-  }, [messages, sending, speakAgentMessage, ttsEnabled]);
+  }, [listening, messages, sending, speakAgentMessage, sttPhase, ttsEnabled]);
 
   // Turning TTS ON must not replay the last existing response.
   const handleTtsToggle = () => {
@@ -127,6 +139,19 @@ export function AixiaMessengerShell({
       seedAgentOpsTtsHistoryMessageIds(messages, handledMessageIdsRef.current);
     }
     toggleTts();
+  };
+
+  const handleMic = (onTranscript: (transcript: string, isFinal: boolean) => void) => {
+    if (!listening && sttPhase === "idle") {
+      sttBaselineRef.current = composerValueRef.current;
+    }
+    toggleMic((transcript, isFinal) => {
+      // Commit finals only — never auto-send; owner reviews in composer.
+      if (isFinal) {
+        onComposerChange(appendTranscript(sttBaselineRef.current, transcript));
+      }
+      onTranscript(transcript, isFinal);
+    });
   };
 
   const shellClassName = ["aixia-messenger-shell", className].filter(Boolean).join(" ");
@@ -210,10 +235,14 @@ export function AixiaMessengerShell({
           onAddAttachments={onAddAttachments}
           onRemoveAttachment={onRemoveAttachment}
           listening={listening}
+          sttPhase={sttPhase}
+          recordingElapsedMs={recordingElapsedMs}
           voiceStatus={voiceStatus}
           sttAvailable={sttAvailable}
-          toggleMic={toggleMic}
+          sttProvider={sttProvider}
+          toggleMic={handleMic}
           stopListening={stopListening}
+          cancelStt={cancelStt}
         />
       </div>
     </section>

@@ -27,6 +27,18 @@ let cachedDoubaoAvailable: boolean | null = null;
 let cachedAt = 0;
 const CACHE_MS = 30_000;
 
+/** True while STT is recording or uploading — suppresses auto TTS. */
+let sttBusy = false;
+
+export function setAgentOpsSttBusy(busy: boolean): void {
+  sttBusy = busy;
+  if (busy) stopAgentOpsTtsPlayback();
+}
+
+export function isAgentOpsSttBusy(): boolean {
+  return sttBusy;
+}
+
 export function stopAgentOpsTtsPlayback(): void {
   generation += 1;
   abortController?.abort();
@@ -59,6 +71,11 @@ export async function speakAgentOpsTts(
 ): Promise<AgentOpsTtsPlaybackResult> {
   if (!input.ttsEnabled) {
     stopAgentOpsTtsPlayback();
+    return { provider: "unavailable", statusText: null };
+  }
+
+  // Do not speak while mic is recording/transcribing (echo / duplex guard).
+  if (sttBusy) {
     return { provider: "unavailable", statusText: null };
   }
 

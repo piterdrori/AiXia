@@ -36,8 +36,23 @@ export type AgentOpsVoiceServerStatus = {
   active?: boolean;
   canGenerateAudio?: boolean;
   blockingReason?: string | null;
+  ttsConfigured?: boolean;
+  ttsActive?: boolean;
+  sttConfigured?: boolean;
+  sttActive?: boolean;
+  sttProvider?: "doubao" | "none";
+  canTranscribe?: boolean;
+  sttLanguage?: string;
+  sttBlockingReason?: string | null;
   error?: string;
 };
+
+export async function probeAgentOpsDoubaoSttAvailable(
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const status = await fetchAgentOpsVoiceStatus(signal);
+  return Boolean(status.ok && status.canTranscribe);
+}
 
 export async function fetchAgentOpsVoiceStatus(
   signal?: AbortSignal,

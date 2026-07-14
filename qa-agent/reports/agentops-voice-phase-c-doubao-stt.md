@@ -1,8 +1,8 @@
 # AgentOps Voice Phase C — Real Doubao STT Integration
 
 **Date:** 2026-07-14  
-**Branch:** `staging` @ `834f335c`  
-**Staging alias:** https://ai-xia-staging.vercel.app  
+**Branch:** `staging` @ `3538524d` (STT impl `834f335c`)  
+**Staging alias:** https://ai-xia-staging.vercel.app → Preview `ai-c8tfuxl2n-…` (Ready)  
 **Main:** `d523f305` untouched  
 **Production:** untouched  
 **Registry:** codegraph  
@@ -153,24 +153,29 @@ Secrets server-only; no `VITE_*`; responses omit tokens; no arbitrary proxy URLs
 
 ## 12. Live browser QA
 
-Post-deploy on https://ai-xia-staging.vercel.app:
+Authenticated Chromium on https://ai-xia-staging.vercel.app (alias → `ai-c8tfuxl2n-…`):
 
-| Surface | Mic label / wiring |
-|---------|--------------------|
-| Embedded Council | Same `AixiaMessengerShell` |
-| Full Council | Same |
-| System / QA Agent Chat | Same |
-| Finding Chat | Same |
+| Surface | Evidence |
+|---------|----------|
+| Full Council `/system/agent-ops/council` | Composer label **Mic · Doubao**; mic **Start voice input** |
+| QA Agent Chat | Label **Mic · Doubao**; record → timer; Stop → `POST /api/agentops/voice` (~6.4s); status **No speech detected** (no spoken audio in automation); composer unchanged; no auto-send; Cancel restores idle and preserves typed baseline |
+| System Agent Chat | **Mic · Doubao** + Start voice input |
+| Finding Chat `/system/agent-ops/issues/:id` | Same shell; after status probe **Mic · Doubao** (briefly “unavailable” until probe settles — honest) |
+| Embedded Council card | Shares `AixiaMessengerShell` / `useAixiaVoiceChat` wiring (same as full Council) |
 
-Automated Chromium cannot fully exercise real microphone permission in all hosts — owner should click Mic once on staging for end-to-end transcript proof. Status endpoint and UI wiring verified after deploy.
+**Live status probe:** `sttConfigured/sttActive=true`, `sttProvider:"doubao"`, `canTranscribe:true`, `sttBlockingReason:null`.
+
+**Not proven in automation:** a real spoken phrase populating a non-empty transcript (host has no spoken audio). Owner should speak once on staging for that final proof.
+
+**TTS duplex on TTS ON:** code-path verified (stop + busy gate); live echo test limited because Phase B Doubao TTS remains vendor-quota blocked and TTS stayed Off for most of this QA.
 
 ---
 
 ## 13. Mobile QA
 
-- Desktop Chrome path implemented  
-- 390px layout: composer meta uses flex-wrap; Cancel + provider chip intended to wrap  
-- **Real Android mic / iOS Safari:** not device-proven in this session — report as not claimed  
+- Chromium emulation **390×844**: System Agent — `overflowX: false`, mic touch target ~44×36, **Mic · Doubao** present  
+- **Real Android Chrome mic:** not device-proven  
+- **iOS Safari:** not claimed  
 
 ---
 
@@ -190,15 +195,17 @@ Automated Chromium cannot fully exercise real microphone permission in all hosts
 ## 15. Build / function count
 
 - No new serverless route — still **9/12**  
-- Vercel Preview Ready for `834f335c` (git-connected) is ship signal; local `tsc` may still fail on unrelated untracked WIP  
+- Verify scripts: STT / TTS / preference / function-count — **PASS** (re-run 2026-07-14)  
+- Vercel Preview Ready + alias repointed; local `tsc` may still fail on unrelated untracked WIP  
 
 ---
 
 ## 16. Commit / deployment
 
 - Commit: `834f335c` — *Connect Doubao STT to AgentOps chats*  
+- Report commit: `3538524d` (+ follow-up report refresh if pushed)  
 - Push: `origin/staging`  
-- Alias: https://ai-xia-staging.vercel.app  
+- Alias: https://ai-xia-staging.vercel.app → Ready Preview (not `--prod`)  
 
 ---
 
@@ -208,6 +215,7 @@ Automated Chromium cannot fully exercise real microphone permission in all hosts
 2. OpenSpeech flash must accept `webm` for Chrome default recordings.  
 3. Phase B TTS vendor quota (3001) is independent and still blocks cloud TTS audio.  
 4. Real mobile OS mic permission not device-tested here.  
+5. Automated live QA could not inject spoken audio — non-empty transcript UI still needs one owner utterance.  
 
 ---
 
@@ -239,7 +247,7 @@ MIC_PERMISSION_FLOW_WORKS: YES
 RECORDING_INDICATOR_WORKS: YES
 STOP_RECORDING_WORKS: YES
 CANCEL_RECORDING_WORKS: YES
-TRANSCRIPT_APPEARS_IN_COMPOSER: YES
+TRANSCRIPT_APPEARS_IN_COMPOSER: NO
 TRANSCRIPT_IS_EDITABLE: YES
 TRANSCRIPT_NOT_AUTO_SENT: YES
 EXISTING_COMPOSER_TEXT_PRESERVED: YES
@@ -261,5 +269,10 @@ MAIN_UNTOUCHED: YES
 PRODUCTION_UNTOUCHED: YES
 READY_FOR_VOICE_PHASE_D: YES
 ```
+
+Notes on NO rows / nuances:
+
+- `TRANSCRIPT_APPEARS_IN_COMPOSER`: live automation had no spoken audio; path returned owner-facing **No speech detected** after Doubao POST and left composer empty (correct for empty). Owner should speak once to promote this to YES.
+- Duplex / stop-TTS before STT: verified by shared playback bus + busy gate in code and recording starting while TTS Off preference unchanged; full TTS-ON echo demo still limited by Phase B quota.
 
 **Live status probe (post-alias):** `sttConfigured: true`, `sttActive: true`, `sttProvider: "doubao"`, `canTranscribe: true`.

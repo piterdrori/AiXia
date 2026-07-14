@@ -459,6 +459,10 @@ export function useAgentOpsFindingChat(options: UseAgentOpsFindingChatOptions) {
             .slice(0, 2)
             .join("") || "AG",
         content: entry.content,
+        skipAutoSpeak:
+          Boolean(proposal) ||
+          entry.source === "mock_response_layer" ||
+          /could not reach the staging LLM/i.test(entry.content),
         badges: proposal ? (
           <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2 py-0.5 text-[10px] text-cyan-200">
             Prompt rewrite

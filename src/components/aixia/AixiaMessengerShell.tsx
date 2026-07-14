@@ -2,6 +2,10 @@ import { useEffect, useLayoutEffect, useRef } from "react";
 import { MessageSquareText } from "lucide-react";
 
 import { useAixiaVoiceChat } from "@/hooks/useAixiaVoiceChat";
+import {
+  seedAgentOpsTtsHistoryMessageIds,
+  selectNextAgentOpsTtsSpeakCandidate,
+} from "@/lib/agentops/agentOpsMessengerTtsEligibility";
 import { AixiaChatMessage } from "./AixiaChatMessage";
 import { AixiaChatParticipantPicker } from "./AixiaChatParticipantPicker";
 import { AixiaEmptyState } from "./AixiaEmptyState";
@@ -58,8 +62,22 @@ export function AixiaMessengerShell({
 }: AixiaMessengerShellProps) {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const dockRef = useRef<HTMLDivElement | null>(null);
-  const lastAgentMessageRef = useRef<string | null>(null);
-  const { ttsEnabled, setTtsEnabled, ttsAvailable, speakAgentMessage } = useAixiaVoiceChat();
+  const historySeededRef = useRef(false);
+  const handledMessageIdsRef = useRef<Set<string>>(new Set());
+
+  const voice = useAixiaVoiceChat();
+  const {
+    ttsEnabled,
+    toggleTts,
+    ttsAvailable,
+    speakAgentMessage,
+    stopVoiceOutput,
+    listening,
+    voiceStatus,
+    sttAvailable,
+    toggleMic,
+    stopListening,
+  } = voice;
 
   useLayoutEffect(() => {
     const dock = dockRef.current;
@@ -75,13 +93,39 @@ export function AixiaMessengerShell({
     node.scrollTop = node.scrollHeight;
   }, [messages, showTypingIndicator]);
 
+  // Seed historical IDs while the shell is still in its initial load (`sending` includes
+  // history fetch on Agent/Council/Finding cards). Never auto-speak the seeded baseline.
   useEffect(() => {
+    if (!historySeededRef.current) {
+      seedAgentOpsTtsHistoryMessageIds(messages, handledMessageIdsRef.current);
+      if (!sending) {
+        historySeededRef.current = true;
+      }
+      return;
+    }
+
+    const candidate = selectNextAgentOpsTtsSpeakCandidate(
+      messages,
+      handledMessageIdsRef.current,
+    );
+    if (!candidate) return;
+
+    handledMessageIdsRef.current.add(candidate.messageId);
+
     if (!ttsEnabled) return;
-    const lastAgent = [...messages].reverse().find((item) => item.senderType === "agent");
-    if (!lastAgent?.content || lastAgent.content === lastAgentMessageRef.current) return;
-    lastAgentMessageRef.current = lastAgent.content;
-    speakAgentMessage(lastAgent.content);
-  }, [messages, speakAgentMessage, ttsEnabled]);
+    speakAgentMessage(candidate.content);
+  }, [messages, sending, speakAgentMessage, ttsEnabled]);
+
+  // Turning TTS ON must not replay the last existing response.
+  const handleTtsToggle = () => {
+    const next = !ttsEnabled;
+    if (!next) {
+      stopVoiceOutput();
+    } else {
+      seedAgentOpsTtsHistoryMessageIds(messages, handledMessageIdsRef.current);
+    }
+    toggleTts();
+  };
 
   const shellClassName = ["aixia-messenger-shell", className].filter(Boolean).join(" ");
 
@@ -90,7 +134,7 @@ export function AixiaMessengerShell({
       <AixiaMessengerToolbar
         roomTitle={roomTitle}
         ttsEnabled={ttsEnabled}
-        onTtsToggle={() => setTtsEnabled((current) => !current)}
+        onTtsToggle={handleTtsToggle}
         ttsAvailable={ttsAvailable}
         statusText={statusText}
         actions={toolbarActions}
@@ -160,6 +204,11 @@ export function AixiaMessengerShell({
           pendingAttachments={pendingAttachments}
           onAddAttachments={onAddAttachments}
           onRemoveAttachment={onRemoveAttachment}
+          listening={listening}
+          voiceStatus={voiceStatus}
+          sttAvailable={sttAvailable}
+          toggleMic={toggleMic}
+          stopListening={stopListening}
         />
       </div>
     </section>

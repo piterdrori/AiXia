@@ -236,6 +236,9 @@ export function useAgentOpsAgentChat(options: UseAgentOpsAgentChatOptions) {
             .slice(0, 2)
             .join("") || "AG",
         content: entry.content,
+        skipAutoSpeak:
+          entry.source === "mock_response_layer" ||
+          /could not reach the staging LLM/i.test(entry.content),
         footer:
           memoryIntentDetected ? (
             <AixiaMemoryApprovalPrompt

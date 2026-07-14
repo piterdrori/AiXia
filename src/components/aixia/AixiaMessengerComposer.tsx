@@ -5,7 +5,6 @@ import { AixiaButton } from "./AixiaButton";
 import { AixiaMessengerAttachmentSheet } from "./AixiaMessengerAttachmentSheet";
 import type { AixiaMessengerAttachment, AixiaMessengerComposerPreset } from "./AixiaMessengerConfig";
 import { AixiaTextareaField } from "./AixiaFormFields";
-import { useAixiaVoiceChat } from "@/hooks/useAixiaVoiceChat";
 
 export type AixiaMessengerComposerProps = {
   value: string;
@@ -21,6 +20,12 @@ export type AixiaMessengerComposerProps = {
   onAddAttachments?: (files: FileList | File[]) => void;
   onRemoveAttachment?: (attachmentId: string) => void;
   onAgentReplySpoken?: (text: string) => void;
+  /** Voice controller owned by AixiaMessengerShell — do not call useAixiaVoiceChat here. */
+  listening?: boolean;
+  voiceStatus?: string | null;
+  sttAvailable?: boolean;
+  toggleMic?: (onTranscript: (transcript: string, isFinal: boolean) => void) => void;
+  stopListening?: () => void;
 };
 
 export function AixiaMessengerComposer({
@@ -36,22 +41,27 @@ export function AixiaMessengerComposer({
   pendingAttachments = [],
   onAddAttachments,
   onRemoveAttachment,
+  listening = false,
+  voiceStatus = null,
+  sttAvailable = false,
+  toggleMic,
+  stopListening,
 }: AixiaMessengerComposerProps) {
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
-  const { listening, voiceStatus, sttAvailable, toggleMic, stopListening } = useAixiaVoiceChat();
 
   const canSubmit = !disabled && value.trim().length > 0;
 
   const sendMessage = useCallback(() => {
     if (!canSubmit) return;
-    stopListening();
+    stopListening?.();
     onSubmit?.();
   }, [canSubmit, onSubmit, stopListening]);
 
   const handleMicClick = useCallback(() => {
+    if (!toggleMic) return;
     toggleMic((transcript, isFinal) => {
       onChange(transcript);
-      if (isFinal) stopListening();
+      if (isFinal) stopListening?.();
     });
   }, [onChange, stopListening, toggleMic]);
 
@@ -108,7 +118,7 @@ export function AixiaMessengerComposer({
           ]
             .filter(Boolean)
             .join(" ")}
-          disabled={disabled || !sttAvailable}
+          disabled={disabled || !sttAvailable || !toggleMic}
           onClick={handleMicClick}
           title={
             sttAvailable

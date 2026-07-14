@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { useAgentOpsTtsPreference } from "@/hooks/useAgentOpsTtsPreference";
 import { supabase } from "@/lib/supabase";
 
 export interface AixiaVoiceRuntimeSettings {
@@ -79,14 +80,19 @@ function convertPitchToBrowserPitch(value: number) {
   return Math.min(2, Math.max(0, value / 50));
 }
 
+/**
+ * Per-messenger voice controller: shares global TTS preference; keeps STT local/ephemeral.
+ */
 export function useAixiaVoiceChat() {
   const [voiceSettings, setVoiceSettings] =
     useState<AixiaVoiceRuntimeSettings>(defaultVoiceSettings);
-  const [ttsEnabled, setTtsEnabled] = useState(true);
+  const { ttsEnabled, setTtsEnabled, toggleTts, preferenceLoaded } = useAgentOpsTtsPreference();
   const [listening, setListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
   const recognitionRef = useRef<AgentOpsBrowserSpeechRecognition | null>(null);
   const finalTranscriptRef = useRef("");
+  const utteranceGenerationRef = useRef(0);
 
   const speechSupported = useMemo(() => Boolean(getSpeechRecognitionConstructor()), []);
   const ttsSupported = useMemo(
@@ -142,39 +148,85 @@ export function useAixiaVoiceChat() {
       recognition.onresult = null;
       recognition.onerror = null;
       recognition.onend = null;
-      recognition.stop();
+      try {
+        recognition.stop();
+      } catch {
+        // ignore
+      }
       recognitionRef.current = null;
     }
     setListening(false);
   }, []);
 
   const stopVoiceOutput = useCallback(() => {
+    utteranceGenerationRef.current += 1;
+    setIsSpeaking(false);
     if (typeof window !== "undefined" && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.cancel();
+      } catch {
+        // ignore
+      }
     }
   }, []);
 
+  // Turning preference OFF cancels active / queued browser speech immediately.
+  useEffect(() => {
+    if (!ttsEnabled) {
+      stopVoiceOutput();
+      setVoiceStatus((current) =>
+        current === "Speaking agent reply…" ? null : current,
+      );
+    }
+  }, [ttsEnabled, stopVoiceOutput]);
+
   const speakAgentMessage = useCallback(
     (text: string) => {
-      if (!ttsEnabled || !ttsAvailable) return;
+      if (!ttsEnabled) return;
+      if (!ttsAvailable) {
+        setVoiceStatus("Browser speech output is unavailable.");
+        return;
+      }
       if (typeof window === "undefined" || !window.speechSynthesis) {
         setVoiceStatus("Browser speech output is unavailable.");
         return;
       }
 
+      const trimmed = text.trim();
+      if (!trimmed) return;
+
       stopVoiceOutput();
-      const utterance = new SpeechSynthesisUtterance(text);
-      const voices = window.speechSynthesis.getVoices();
-      const preferredVoice = voices.find((voice) =>
-        voice.name.toLowerCase().includes(voiceSettings.voice_name.toLowerCase()),
-      );
-      if (preferredVoice) utterance.voice = preferredVoice;
-      utterance.rate = clampSpeechRate(voiceSettings.voice_speed);
-      utterance.pitch = convertPitchToBrowserPitch(voiceSettings.voice_pitch);
-      utterance.onstart = () => setVoiceStatus("Speaking agent reply…");
-      utterance.onend = () => setVoiceStatus(null);
-      utterance.onerror = () => setVoiceStatus("Speech output failed.");
-      window.speechSynthesis.speak(utterance);
+      const generation = utteranceGenerationRef.current;
+      try {
+        const utterance = new SpeechSynthesisUtterance(trimmed);
+        const voices = window.speechSynthesis.getVoices();
+        const preferredVoice = voices.find((voice) =>
+          voice.name.toLowerCase().includes(voiceSettings.voice_name.toLowerCase()),
+        );
+        if (preferredVoice) utterance.voice = preferredVoice;
+        utterance.rate = clampSpeechRate(voiceSettings.voice_speed);
+        utterance.pitch = convertPitchToBrowserPitch(voiceSettings.voice_pitch);
+        utterance.onstart = () => {
+          if (utteranceGenerationRef.current !== generation) return;
+          setIsSpeaking(true);
+          setVoiceStatus("Speaking agent reply…");
+        };
+        utterance.onend = () => {
+          if (utteranceGenerationRef.current !== generation) return;
+          setIsSpeaking(false);
+          setVoiceStatus(null);
+        };
+        utterance.onerror = () => {
+          if (utteranceGenerationRef.current !== generation) return;
+          setIsSpeaking(false);
+          setVoiceStatus("Speech output failed.");
+          // Preference stays ON — never flip OFF on playback failure.
+        };
+        window.speechSynthesis.speak(utterance);
+      } catch {
+        setIsSpeaking(false);
+        setVoiceStatus("Speech output failed.");
+      }
     },
     [stopVoiceOutput, ttsAvailable, ttsEnabled, voiceSettings],
   );
@@ -229,7 +281,12 @@ export function useAixiaVoiceChat() {
       recognitionRef.current = recognition;
       setListening(true);
       setVoiceStatus("Listening…");
-      recognition.start();
+      try {
+        recognition.start();
+      } catch {
+        setVoiceStatus("Mic error.");
+        stopListening();
+      }
     },
     [sttAvailable, stopListening, voiceSettings.voice_enabled],
   );
@@ -255,16 +312,22 @@ export function useAixiaVoiceChat() {
 
   return {
     voiceSettings,
+    /** Owner preference (global). Does not flip on playback failure. */
     ttsEnabled,
     setTtsEnabled,
+    toggleTts,
+    preferenceLoaded,
     listening,
+    isSpeaking,
     voiceStatus,
     speechSupported,
     ttsSupported,
     sttAvailable,
+    /** Provider + AI Management capability gate. */
     ttsAvailable,
     toggleMic,
     stopListening,
+    stopVoiceOutput,
     speakAgentMessage,
     reloadVoiceSettings: loadVoiceSettings,
   };

@@ -40,6 +40,15 @@ export function AixiaMessengerToolbar({
   llmModelRefreshing = false,
   llmInstalledCount,
 }: AixiaMessengerToolbarProps) {
+  const ariaLabel = ttsEnabled ? "Turn text-to-speech off" : "Turn text-to-speech on";
+  const title = !ttsAvailable
+    ? ttsEnabled
+      ? "TTS On — browser speech unavailable (preference kept on)"
+      : "TTS unavailable — enable voice in AI Management"
+    : ttsEnabled
+      ? "TTS On"
+      : "TTS Off";
+
   return (
     <header className="aixia-messenger-toolbar" data-testid="agentops-messenger-toolbar">
       <div className="aixia-messenger-toolbar__left">
@@ -47,19 +56,20 @@ export function AixiaMessengerToolbar({
           type="button"
           variant="secondary"
           className="aixia-messenger-toolbar__tts-btn"
-          disabled={!ttsAvailable}
           onClick={onTtsToggle}
           aria-pressed={ttsEnabled}
-          title={
-            ttsAvailable
-              ? ttsEnabled
-                ? "Agent speaks replies (on)"
-                : "Agent speaks replies (off)"
-              : "TTS unavailable — enable voice in AI Management"
-          }
+          aria-label={ariaLabel}
+          title={title}
         >
           {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-          <span className="aixia-messenger-toolbar__tts-label">TTS</span>
+          <span className="aixia-messenger-toolbar__tts-label">
+            {ttsEnabled ? "TTS On" : "TTS Off"}
+          </span>
+          {ttsEnabled && !ttsAvailable ? (
+            <span className="aixia-messenger-toolbar__tts-unavailable" aria-live="polite">
+              Unavailable
+            </span>
+          ) : null}
         </AixiaButton>
         <div className="aixia-messenger-toolbar__title-wrap">
           <h3 className="aixia-messenger-toolbar__title">{roomTitle}</h3>

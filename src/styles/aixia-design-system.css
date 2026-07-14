@@ -10069,6 +10069,19 @@ button.aixia-action-card:disabled {
   font-size: 0.72rem;
 }
 
+.aixia-messenger-toolbar__tts-btn {
+  gap: 0.25rem;
+  padding-inline: 0.55rem;
+  min-width: auto;
+}
+
+.aixia-messenger-toolbar__tts-unavailable {
+  margin-left: 0.2rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  color: rgba(250, 204, 21, 0.92);
+}
+
 .aixia-messenger-model-select-wrap {
   display: inline-flex;
   align-items: center;

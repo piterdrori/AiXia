@@ -31,6 +31,8 @@ export type AixiaMessengerMessage = {
   footer?: ReactNode;
   attachments?: AixiaMessengerAttachment[];
   planned?: boolean;
+  /** When true, messenger TTS must not auto-speak this bubble (fallback/error/system). */
+  skipAutoSpeak?: boolean;
 };
 
 export type AixiaMessengerComposerPreset = {

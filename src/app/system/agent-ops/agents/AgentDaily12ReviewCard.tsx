@@ -16,58 +16,9 @@ import {
 import { formatTimestamp } from "@/lib/agentops/agents/monitoringOwnerDisplayCopy";
 import {
   fetchAgentOpsMonitoringStatus,
+  type Daily12ReviewStatus,
 } from "@/lib/agentops/monitoring/agentOpsMonitoringStatusClient";
 import { FetchTimeoutError } from "@/lib/fetchWithTimeout";
-
-type DailyRosterRow = {
-  agentSlug: string;
-  displayName: string;
-  username: string;
-  jobTitle: string;
-  agentStatus: string;
-  lastDailyRunAt: string | null;
-  todayStatus: string;
-  todayResult: string;
-  errorsFound: number;
-  improvementsFound: number;
-  featuresFound: number;
-  draftsQueued?: number;
-  noFindings: boolean;
-};
-
-type Daily12ReviewStatus = {
-  schedule: string;
-  environment: string;
-  modeLabel: string;
-  registeredAgents: number;
-  expectedAgents: number;
-  usernamesConfigured: number;
-  executionDate: string;
-  agentsExpectedToday: number;
-  agentsAttemptedToday: number;
-  agentsCompletedToday: number;
-  agentsFailedToday: number;
-  agentsBlockedToday: number;
-  agentsMissingToday: string[];
-  lastCompletedDailyReviewAt: string | null;
-  nextExpectedDailyReviewAt: string | null;
-  latestDailyRunId: string | null;
-  latestRunStatus: string | null;
-  persistenceComplete?: boolean;
-  errorsFoundToday: number;
-  improvementsSuggestedToday: number;
-  newFeaturesSuggestedToday: number;
-  candidatesDetectedToday: number;
-  draftsQueuedToday: number;
-  candidatesNotQueuedToday: number;
-  duplicatesConsolidatedToday: number;
-  duplicatesSkippedToday: number;
-  noFindingsAgentsToday: number;
-  allAgentsAccountedFor: boolean;
-  healthWarnings: string[];
-  roster: DailyRosterRow[];
-  githubWorkflowUrl: string;
-};
 
 function todayResultTone(
   result: string,

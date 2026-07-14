@@ -24,6 +24,8 @@ export type DailyRosterRow = {
   featuresFound: number;
   draftsQueued?: number;
   noFindings: boolean;
+  routesReviewed?: string[];
+  failureReason?: string | null;
 };
 
 export type Daily12ReviewStatus = {
@@ -32,7 +34,9 @@ export type Daily12ReviewStatus = {
   modeLabel: string;
   registeredAgents: number;
   expectedAgents: number;
+  usernamesConfigured?: number;
   executionDate: string;
+  agentsExpectedToday?: number;
   agentsAttemptedToday: number;
   agentsCompletedToday: number;
   agentsFailedToday: number;
@@ -50,7 +54,9 @@ export type Daily12ReviewStatus = {
   draftsQueuedToday: number;
   candidatesNotQueuedToday: number;
   duplicatesConsolidatedToday: number;
+  duplicatesSkippedToday?: number;
   noFindingsAgentsToday: number;
+  allAgentsAccountedFor?: boolean;
   healthWarnings: string[];
   roster: DailyRosterRow[];
   githubWorkflowUrl: string;

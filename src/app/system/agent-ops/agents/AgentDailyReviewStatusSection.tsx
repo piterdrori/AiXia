@@ -14,12 +14,12 @@ type DailyRosterRow = {
   todayStatus: string;
   todayResult: string;
   lastDailyRunAt: string | null;
-  routesReviewed: string[];
+  routesReviewed?: string[];
   errorsFound: number;
   improvementsFound: number;
   featuresFound: number;
   noFindings: boolean;
-  failureReason: string | null;
+  failureReason?: string | null;
 };
 
 type Props = {
@@ -37,8 +37,11 @@ export function AgentDailyReviewStatusSection({ agentSlug }: Props) {
     setError(null);
     try {
       const payload = await fetchAgentOpsMonitoringStatus({ forceRefresh: false });
-      const roster = (payload.status?.daily12ReviewStatus?.roster ?? []) as DailyRosterRow[];
-      setRow(roster.find((entry) => entry.agentSlug === agentSlug) ?? null);
+      const roster = payload.status?.daily12ReviewStatus?.roster ?? [];
+      setRow(
+        (roster.find((entry) => entry.agentSlug === agentSlug) as DailyRosterRow | undefined) ??
+          null,
+      );
       if (payload.status?.dailyStatusError) setError(payload.status.dailyStatusError);
     } catch (loadError) {
       setError(
@@ -117,7 +120,7 @@ export function AgentDailyReviewStatusSection({ agentSlug }: Props) {
               <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 md:col-span-2">
                 <p className="text-xs uppercase tracking-wide text-white/45">Routes reviewed</p>
                 <p className="mt-1 text-white/75">
-                  {row.routesReviewed.length > 0 ? row.routesReviewed.join(", ") : "—"}
+                  {(row.routesReviewed?.length ?? 0) > 0 ? row.routesReviewed!.join(", ") : "—"}
                 </p>
                 {row.failureReason ? (
                   <p className="mt-2 text-xs text-rose-300/90">Failure: {row.failureReason}</p>

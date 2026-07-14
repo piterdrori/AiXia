@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAgentOpsTtsPreference } from "@/hooks/useAgentOpsTtsPreference";
+import {
+  probeAgentOpsDoubaoTtsAvailable,
+  speakAgentOpsTts,
+  stopAgentOpsTtsPlayback,
+} from "@/lib/agentops/voice/agentOpsTtsPlayback";
+import type { AgentOpsTtsProviderStatus } from "@/lib/agentops/voice/agentOpsTtsProviders";
 import { supabase } from "@/lib/supabase";
 
 export interface AixiaVoiceRuntimeSettings {
@@ -70,18 +76,9 @@ function getSpeechRecognitionConstructor() {
   return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
 }
 
-function clampSpeechRate(value: number) {
-  if (!Number.isFinite(value)) return 1.15;
-  return Math.min(2, Math.max(0.5, value));
-}
-
-function convertPitchToBrowserPitch(value: number) {
-  if (!Number.isFinite(value)) return 1;
-  return Math.min(2, Math.max(0, value / 50));
-}
-
 /**
  * Per-messenger voice controller: shares global TTS preference; keeps STT local/ephemeral.
+ * TTS playback uses Doubao with browser fallback via the shared playback bus.
  */
 export function useAixiaVoiceChat() {
   const [voiceSettings, setVoiceSettings] =
@@ -90,20 +87,24 @@ export function useAixiaVoiceChat() {
   const [listening, setListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
+  const [ttsProvider, setTtsProvider] = useState<AgentOpsTtsProviderStatus>("unavailable");
+  const [doubaoConfigured, setDoubaoConfigured] = useState(false);
   const recognitionRef = useRef<AgentOpsBrowserSpeechRecognition | null>(null);
   const finalTranscriptRef = useRef("");
-  const utteranceGenerationRef = useRef(0);
+  const speakGenerationRef = useRef(0);
 
   const speechSupported = useMemo(() => Boolean(getSpeechRecognitionConstructor()), []);
-  const ttsSupported = useMemo(
+  const browserTtsSupported = useMemo(
     () => typeof window !== "undefined" && Boolean(window.speechSynthesis),
     [],
   );
 
   const sttAvailable =
     speechSupported && voiceSettings.voice_stt_enabled && voiceSettings.voice_enabled;
+  const managementTtsGate =
+    voiceSettings.voice_tts_enabled && voiceSettings.voice_enabled;
   const ttsAvailable =
-    ttsSupported && voiceSettings.voice_tts_enabled && voiceSettings.voice_enabled;
+    managementTtsGate && (doubaoConfigured || browserTtsSupported);
 
   const loadVoiceSettings = useCallback(async () => {
     const settingKeys = [
@@ -142,6 +143,20 @@ export function useAixiaVoiceChat() {
     void loadVoiceSettings();
   }, [loadVoiceSettings]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const ok = await probeAgentOpsDoubaoTtsAvailable();
+      if (!cancelled) {
+        setDoubaoConfigured(ok);
+        if (ok) setTtsProvider((current) => (current === "unavailable" ? "doubao" : current));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const stopListening = useCallback(() => {
     const recognition = recognitionRef.current;
     if (recognition) {
@@ -159,36 +174,26 @@ export function useAixiaVoiceChat() {
   }, []);
 
   const stopVoiceOutput = useCallback(() => {
-    utteranceGenerationRef.current += 1;
+    speakGenerationRef.current += 1;
+    stopAgentOpsTtsPlayback();
     setIsSpeaking(false);
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      try {
-        window.speechSynthesis.cancel();
-      } catch {
-        // ignore
-      }
-    }
   }, []);
 
-  // Turning preference OFF cancels active / queued browser speech immediately.
   useEffect(() => {
     if (!ttsEnabled) {
       stopVoiceOutput();
       setVoiceStatus((current) =>
-        current === "Speaking agent reply…" ? null : current,
+        current && /Speaking|Doubao|browser voice/i.test(current) ? null : current,
       );
     }
   }, [ttsEnabled, stopVoiceOutput]);
 
   const speakAgentMessage = useCallback(
-    (text: string) => {
+    async (text: string, messageId = `msg-${Date.now()}`) => {
       if (!ttsEnabled) return;
-      if (!ttsAvailable) {
-        setVoiceStatus("Browser speech output is unavailable.");
-        return;
-      }
-      if (typeof window === "undefined" || !window.speechSynthesis) {
-        setVoiceStatus("Browser speech output is unavailable.");
+      if (!managementTtsGate) {
+        setVoiceStatus("Voice features disabled in AI Management → Voice.");
+        setTtsProvider("unavailable");
         return;
       }
 
@@ -196,39 +201,33 @@ export function useAixiaVoiceChat() {
       if (!trimmed) return;
 
       stopVoiceOutput();
-      const generation = utteranceGenerationRef.current;
+      const generation = speakGenerationRef.current + 1;
+      speakGenerationRef.current = generation;
+      setIsSpeaking(true);
+      setVoiceStatus("Speaking agent reply…");
+
       try {
-        const utterance = new SpeechSynthesisUtterance(trimmed);
-        const voices = window.speechSynthesis.getVoices();
-        const preferredVoice = voices.find((voice) =>
-          voice.name.toLowerCase().includes(voiceSettings.voice_name.toLowerCase()),
-        );
-        if (preferredVoice) utterance.voice = preferredVoice;
-        utterance.rate = clampSpeechRate(voiceSettings.voice_speed);
-        utterance.pitch = convertPitchToBrowserPitch(voiceSettings.voice_pitch);
-        utterance.onstart = () => {
-          if (utteranceGenerationRef.current !== generation) return;
-          setIsSpeaking(true);
-          setVoiceStatus("Speaking agent reply…");
-        };
-        utterance.onend = () => {
-          if (utteranceGenerationRef.current !== generation) return;
-          setIsSpeaking(false);
-          setVoiceStatus(null);
-        };
-        utterance.onerror = () => {
-          if (utteranceGenerationRef.current !== generation) return;
-          setIsSpeaking(false);
-          setVoiceStatus("Speech output failed.");
-          // Preference stays ON — never flip OFF on playback failure.
-        };
-        window.speechSynthesis.speak(utterance);
+        const result = await speakAgentOpsTts({
+          messageId,
+          text: trimmed,
+          ttsEnabled: true,
+          browserCapabilityAvailable: browserTtsSupported,
+        });
+        if (speakGenerationRef.current !== generation) return;
+        setTtsProvider(result.provider);
+        if (result.statusText) setVoiceStatus(result.statusText);
+        else setVoiceStatus(null);
       } catch {
-        setIsSpeaking(false);
-        setVoiceStatus("Speech output failed.");
+        if (speakGenerationRef.current !== generation) return;
+        setTtsProvider("unavailable");
+        setVoiceStatus("No text-to-speech provider is available.");
+      } finally {
+        if (speakGenerationRef.current === generation) {
+          setIsSpeaking(false);
+        }
       }
     },
-    [stopVoiceOutput, ttsAvailable, ttsEnabled, voiceSettings],
+    [browserTtsSupported, managementTtsGate, stopVoiceOutput, ttsEnabled],
   );
 
   const startListening = useCallback(
@@ -312,7 +311,6 @@ export function useAixiaVoiceChat() {
 
   return {
     voiceSettings,
-    /** Owner preference (global). Does not flip on playback failure. */
     ttsEnabled,
     setTtsEnabled,
     toggleTts,
@@ -321,10 +319,11 @@ export function useAixiaVoiceChat() {
     isSpeaking,
     voiceStatus,
     speechSupported,
-    ttsSupported,
+    ttsSupported: browserTtsSupported || doubaoConfigured,
     sttAvailable,
-    /** Provider + AI Management capability gate. */
     ttsAvailable,
+    ttsProvider,
+    doubaoConfigured,
     toggleMic,
     stopListening,
     stopVoiceOutput,

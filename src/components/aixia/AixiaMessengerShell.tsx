@@ -70,6 +70,8 @@ export function AixiaMessengerShell({
     ttsEnabled,
     toggleTts,
     ttsAvailable,
+    ttsProvider,
+    isSpeaking,
     speakAgentMessage,
     stopVoiceOutput,
     listening,
@@ -113,7 +115,7 @@ export function AixiaMessengerShell({
     handledMessageIdsRef.current.add(candidate.messageId);
 
     if (!ttsEnabled) return;
-    speakAgentMessage(candidate.content);
+    void speakAgentMessage(candidate.content, candidate.messageId);
   }, [messages, sending, speakAgentMessage, ttsEnabled]);
 
   // Turning TTS ON must not replay the last existing response.
@@ -136,6 +138,9 @@ export function AixiaMessengerShell({
         ttsEnabled={ttsEnabled}
         onTtsToggle={handleTtsToggle}
         ttsAvailable={ttsAvailable}
+        ttsProvider={ttsProvider}
+        isSpeaking={isSpeaking}
+        onStopSpeech={stopVoiceOutput}
         statusText={statusText}
         actions={toolbarActions}
         creativityMode={creativityMode}

@@ -1,15 +1,19 @@
 import type { ReactNode } from "react";
-import { Loader2, Volume2, VolumeX } from "lucide-react";
+import { Loader2, Square, Volume2, VolumeX } from "lucide-react";
 
 import { AixiaButton } from "./AixiaButton";
 import { AixiaMessengerModelSelect } from "./AixiaMessengerModelSelect";
 import type { AgentOpsOllamaModelOption } from "@/lib/agentops/ollamaModelCatalog";
+import type { AgentOpsTtsProviderStatus } from "@/lib/agentops/voice/agentOpsTtsProviders";
 
 export type AixiaMessengerToolbarProps = {
   roomTitle: string;
   ttsEnabled: boolean;
   onTtsToggle: () => void;
   ttsAvailable?: boolean;
+  ttsProvider?: AgentOpsTtsProviderStatus;
+  isSpeaking?: boolean;
+  onStopSpeech?: () => void;
   statusText?: string;
   actions?: ReactNode;
   creativityMode?: boolean;
@@ -23,11 +27,28 @@ export type AixiaMessengerToolbarProps = {
   llmInstalledCount?: number;
 };
 
+function providerLabel(provider: AgentOpsTtsProviderStatus | undefined, ttsEnabled: boolean) {
+  if (!ttsEnabled) return null;
+  if (provider === "doubao") return "Doubao";
+  if (provider === "browser") return "Browser fallback";
+  return "Unavailable";
+}
+
+function providerTitle(provider: AgentOpsTtsProviderStatus | undefined, ttsEnabled: boolean) {
+  if (!ttsEnabled) return undefined;
+  if (provider === "doubao") return "Cloud text-to-speech";
+  if (provider === "browser") return "Using this browser’s built-in voice";
+  return "Text-to-speech is enabled, but no voice provider is available.";
+}
+
 export function AixiaMessengerToolbar({
   roomTitle,
   ttsEnabled,
   onTtsToggle,
   ttsAvailable = true,
+  ttsProvider = "unavailable",
+  isSpeaking = false,
+  onStopSpeech,
   statusText,
   actions,
   creativityMode = false,
@@ -43,11 +64,12 @@ export function AixiaMessengerToolbar({
   const ariaLabel = ttsEnabled ? "Turn text-to-speech off" : "Turn text-to-speech on";
   const title = !ttsAvailable
     ? ttsEnabled
-      ? "TTS On — browser speech unavailable (preference kept on)"
+      ? "TTS On — no voice provider available (preference kept on)"
       : "TTS unavailable — enable voice in AI Management"
     : ttsEnabled
       ? "TTS On"
       : "TTS Off";
+  const provider = providerLabel(ttsProvider, ttsEnabled);
 
   return (
     <header className="aixia-messenger-toolbar" data-testid="agentops-messenger-toolbar">
@@ -65,12 +87,31 @@ export function AixiaMessengerToolbar({
           <span className="aixia-messenger-toolbar__tts-label">
             {ttsEnabled ? "TTS On" : "TTS Off"}
           </span>
-          {ttsEnabled && !ttsAvailable ? (
-            <span className="aixia-messenger-toolbar__tts-unavailable" aria-live="polite">
-              Unavailable
-            </span>
-          ) : null}
         </AixiaButton>
+        {provider ? (
+          <span
+            className="aixia-messenger-toolbar__tts-provider"
+            title={providerTitle(ttsProvider, ttsEnabled)}
+            data-testid="agentops-tts-provider"
+            data-tts-provider={ttsProvider}
+          >
+            {provider}
+          </span>
+        ) : null}
+        {isSpeaking && onStopSpeech ? (
+          <AixiaButton
+            type="button"
+            variant="secondary"
+            className="aixia-messenger-toolbar__stop-btn"
+            onClick={onStopSpeech}
+            aria-label="Stop speaking"
+            title="Stop current speech"
+            data-testid="agentops-tts-stop"
+          >
+            <Square className="h-3.5 w-3.5" />
+            <span>Stop</span>
+          </AixiaButton>
+        ) : null}
         <div className="aixia-messenger-toolbar__title-wrap">
           <h3 className="aixia-messenger-toolbar__title">{roomTitle}</h3>
           {statusText ? <p className="aixia-messenger-toolbar__status">{statusText}</p> : null}

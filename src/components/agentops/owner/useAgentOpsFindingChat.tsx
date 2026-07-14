@@ -459,8 +459,9 @@ export function useAgentOpsFindingChat(options: UseAgentOpsFindingChatOptions) {
             .slice(0, 2)
             .join("") || "AG",
         content: entry.content,
+        // Speak rationale/summary only — message.content is already explanation when proposal exists;
+        // full rewritten prompt lives in metadata/card UI and must not be auto-spoken.
         skipAutoSpeak:
-          Boolean(proposal) ||
           entry.source === "mock_response_layer" ||
           /could not reach the staging LLM/i.test(entry.content),
         badges: proposal ? (

@@ -39,6 +39,7 @@ function main(): void {
       !file.includes("/cron/") &&
       base !== "hermes.ts" &&
       base !== "llm.ts" &&
+      base !== "voice.ts" &&
       base !== "code-context-tools.ts" &&
       base !== "evidence-tools.ts" &&
       base !== "monitoring.ts"

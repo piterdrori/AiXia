@@ -231,6 +231,8 @@ export default function AgentOpsAgentDetailPage() {
       setActionFeedback(result.error);
       return;
     }
+    // Optimistic sync so header/schedule flip immediately (feedback write is owner-status source).
+    setManagedAgent((prev) => (prev ? { ...prev, status: next } : prev));
     setActionFeedback(ownerStatusChangeFeedback(next));
     await loadDetail();
   };
@@ -455,15 +457,42 @@ export default function AgentOpsAgentDetailPage() {
         <div className="grid gap-6 lg:grid-cols-2">
           <OwnerSection title="Latest work" id="agent-latest-work">
             {monitoringResolving ? (
-              <p className="text-sm text-white/50" role="status" data-testid="agentops-latest-work-skeleton">
-                Loading latest work…
-              </p>
-            ) : monitoringUnavailable && !rosterRow ? (
-              <AixiaInfoBlock tone="gold" title="Latest work unavailable">
-                <p className="text-sm text-white/75">
-                  Monitoring data could not be loaded. Chat and owner status controls remain available.
+              <div className="space-y-4">
+                <p
+                  className="text-sm text-white/50"
+                  role="status"
+                  data-testid="agentops-latest-work-skeleton"
+                >
+                  Loading latest work…
                 </p>
-              </AixiaInfoBlock>
+                <div>
+                  <p className="text-sm text-white/45">Assigned areas</p>
+                  <p className="mt-1 text-sm text-white/85" data-testid="agentops-assigned-areas">
+                    {assignedAreas}
+                  </p>
+                  <p className="mt-1 text-xs text-white/50">
+                    {AGENT_DETAIL_B1_COPY.assignedAreasHelper}
+                  </p>
+                </div>
+              </div>
+            ) : monitoringUnavailable && !rosterRow ? (
+              <div className="space-y-4">
+                <AixiaInfoBlock tone="gold" title="Latest work unavailable">
+                  <p className="text-sm text-white/75">
+                    Monitoring data could not be loaded. Chat and owner status controls remain
+                    available.
+                  </p>
+                </AixiaInfoBlock>
+                <div>
+                  <p className="text-sm text-white/45">Assigned areas</p>
+                  <p className="mt-1 text-sm text-white/85" data-testid="agentops-assigned-areas">
+                    {assignedAreas}
+                  </p>
+                  <p className="mt-1 text-xs text-white/50">
+                    {AGENT_DETAIL_B1_COPY.assignedAreasHelper}
+                  </p>
+                </div>
+              </div>
             ) : (
               <div className="space-y-4">
                 <dl className="grid gap-3 text-sm sm:grid-cols-2">

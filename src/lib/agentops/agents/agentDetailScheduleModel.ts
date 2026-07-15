@@ -216,11 +216,26 @@ export function nextRunDisplayLabel(config: AgentDetailScheduleConfig, nextAt: s
   if (!config.ownerEnabled) return "Manual only";
   if (!config.enableSchedule || config.frequencyType === "manual") return "Manual only";
   if (!config.schedulerExecutionConnected) {
-    if (nextAt) return `${new Date(nextAt).toLocaleString()} · pending scheduler`;
-    return "Not scheduled · pending scheduler";
+    return "Saved · not executable";
   }
   if (!nextAt) return "Not scheduled";
   return new Date(nextAt).toLocaleString();
+}
+
+/** Theoretical next-due label — must not imply execution. */
+export function theoreticalNextDueLabel(
+  config: AgentDetailScheduleConfig,
+  nextAt: string | null,
+): string {
+  if (!config.ownerEnabled || !config.enableSchedule || config.frequencyType === "manual") {
+    return "Manual only";
+  }
+  if (!nextAt) return "Not calculated";
+  return new Date(nextAt).toLocaleString();
+}
+
+export function scheduleExecutionConnectionLabel(): string {
+  return "Not connected";
 }
 
 export function detailWorkTypesToLegacy(workTypes: AgentDetailWorkType[]): AgentWorkType[] {

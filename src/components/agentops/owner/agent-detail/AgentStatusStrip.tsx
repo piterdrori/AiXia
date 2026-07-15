@@ -4,7 +4,7 @@ import type { AgentStatusStripModel } from "@/lib/agentops/agents/agentDetailCon
 function toneFor(value: string): "emerald" | "amber" | "neutral" {
   if (
     value === "Active" ||
-    value === "Connected" ||
+    value === "Fleet available" ||
     value === "Completed" ||
     value === "Idle"
   ) {
@@ -12,12 +12,14 @@ function toneFor(value: string): "emerald" | "amber" | "neutral" {
   }
   if (
     value === "Paused" ||
-    value === "Degraded" ||
+    value === "Fleet degraded" ||
+    value === "Fleet unavailable" ||
     value === "Failed" ||
     value === "Error" ||
     value === "Blocked" ||
     value === "Needs attention" ||
-    value === "Unavailable"
+    value === "Unavailable" ||
+    value === "Memory unavailable"
   ) {
     return "amber";
   }
@@ -55,7 +57,7 @@ export function AgentStatusStrip({ model }: AgentStatusStripProps) {
       data-testid="agentops-agent-status-strip"
       role="status"
     >
-      <Cell label="Agent status" value={model.agentStatus} testId="strip-agent-status" />
+      <Cell label="Owner status" value={model.agentStatus} testId="strip-agent-status" />
       <Cell
         label="Hermes"
         value={model.hermes}
@@ -74,7 +76,12 @@ export function AgentStatusStrip({ model }: AgentStatusStripProps) {
         detail={model.lastScanLabel}
         testId="strip-last-scan"
       />
-      <Cell label="Next run" value={model.nextRunLabel} testId="strip-next-run" />
+      <Cell
+        label="Schedule"
+        value={model.scheduleLabel}
+        detail={model.scheduleDetail}
+        testId="strip-schedule"
+      />
       <Cell
         label="Current activity"
         value={model.currentActivity}

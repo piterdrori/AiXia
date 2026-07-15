@@ -147,10 +147,10 @@ function operationalKind(item: AgentOpsAgentTimelineItem): OperationalKind {
   if (Boolean(item.relatedIssueCode) || /finding|issue|promot|defer|reject/i.test(blob)) {
     return "finding";
   }
-  if (type === "verification_request" || /daily|review|run complete|cycle/i.test(blob)) {
+  if (type === "verification_request" || /daily|review|run complete|cycle|execution/i.test(blob)) {
     return "review";
   }
-  if (/status|schedule|preference|work mode|paused|activat/i.test(blob)) {
+  if (/status|schedule|preference|work mode|paused|activat|hermes|memory approval|draft/i.test(blob)) {
     return "owner_control";
   }
   if (NOISE_EVENT_TYPES.has(type)) return "other";

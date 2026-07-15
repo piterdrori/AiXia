@@ -66,6 +66,7 @@ function main(): void {
   assert(memoryEmpty.status === "No assigned memory", "empty memory honesty");
 
   const strip = buildAgentStatusStrip({
+    ownerStatus: "Active",
     managedStatus: "active",
     isBlocked: false,
     rosterRow: null,
@@ -75,8 +76,8 @@ function main(): void {
     hermesDetail: "x",
     memory: "Unknown",
     memoryDetail: "y",
-    nextRunAt: null,
-    nextRunLabel: "Manual only",
+    scheduleLabel: "Manual only",
+    scheduleDetail: "Not configured",
   });
   assert(strip.lastScanResult === "Not run", "last scan not run");
   assert(strip.currentActivity === "Idle", "idle activity");
@@ -140,16 +141,18 @@ function main(): void {
   const hermesTest = evaluateHermesSafeConnectionTest({
     health: null,
     healthError: "down",
+    runtimeAgentId: "a27b8930-bad9-43e7-892d-00236e7c7d64",
     memoryQueryOk: false,
     memoryError: "x",
     assignedMemoryCount: 0,
   });
-  assert(hermesTest.status === "Failed", "hermes test failed honesty");
+  assert(hermesTest.status === "Fleet unavailable", "hermes test failed honesty");
 
   const schedulePanel = read(
     "src/components/agentops/owner/agent-detail/AgentSchedulePanel.tsx",
   );
-  assert(schedulePanel.includes("Pending scheduler connection"), "pending scheduler label");
+  assert(schedulePanel.includes("Not connected"), "pending scheduler label");
+  assert(schedulePanel.includes("Edit schedule"), "progressive schedule editor");
 
   const memoryPanel = read(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",

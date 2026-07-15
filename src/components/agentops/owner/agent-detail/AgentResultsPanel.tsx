@@ -52,10 +52,15 @@ type AgentResultsPanelProps = {
   findingsLoading: boolean;
   lastRunLabel: string;
   lastRunAt: string | null;
+  durationLabel: string;
   openFindingsCountLabel: string;
+  openFindingsScope: string;
   waitingApprovalLabel: string;
+  waitingApprovalScope: string;
   verifiedFixesLabel: string;
+  verifiedFixesScope: string;
   failedRunsLabel: string;
+  failedRunsScope: string;
   drawer: AgentRunDrawerModel;
   onOpenLatestRun: () => void;
   onCloseDrawer: () => void;
@@ -68,10 +73,15 @@ export function AgentResultsPanel({
   findingsLoading,
   lastRunLabel,
   lastRunAt,
+  durationLabel,
   openFindingsCountLabel,
+  openFindingsScope,
   waitingApprovalLabel,
+  waitingApprovalScope,
   verifiedFixesLabel,
+  verifiedFixesScope,
   failedRunsLabel,
+  failedRunsScope,
   drawer,
   onOpenLatestRun,
   onCloseDrawer,
@@ -99,20 +109,30 @@ export function AgentResultsPanel({
             </p>
           </div>
           <div>
+            <p className="text-white/45">Duration</p>
+            <p className="text-white/85" data-testid="agentops-run-duration">
+              {durationLabel}
+            </p>
+          </div>
+          <div>
             <p className="text-white/45">Open findings</p>
             <p className="text-white/85">{openFindingsCountLabel}</p>
+            <p className="text-xs text-white/40">{openFindingsScope}</p>
           </div>
           <div>
             <p className="text-white/45">Waiting for owner approval</p>
             <p className="text-white/85">{waitingApprovalLabel}</p>
+            <p className="text-xs text-white/40">{waitingApprovalScope}</p>
           </div>
           <div>
             <p className="text-white/45">Verified fixes</p>
             <p className="text-white/85">{verifiedFixesLabel}</p>
+            <p className="text-xs text-white/40">{verifiedFixesScope}</p>
           </div>
           <div>
             <p className="text-white/45">Failed runs</p>
             <p className="text-white/85">{failedRunsLabel}</p>
+            <p className="text-xs text-white/40">{failedRunsScope}</p>
           </div>
         </div>
 

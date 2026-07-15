@@ -10,28 +10,34 @@ import {
   reviewStatusLabel,
   type AgentDetailReviewStatus,
 } from "@/lib/agentops/agents/agentDetailPhaseB1Semantics";
+import type { OwnerFacingAgentStatus } from "@/lib/agentops/agents/agentRuntimeIdentityModel";
 
 export const AGENT_DETAIL_CC_COPY = {
   runAuditNotConnected: "Not connected yet",
   runBrowserQaNotConnected: "Not connected yet",
   schedulerPending:
-    "Schedule is saved for this agent. Execution is pending hourly scheduler connection — this does not change GitHub Actions fleet cron.",
-  hermesNotYetMeasurable: "Not yet measurable",
+    "This time is calculated from the saved preference. No scheduler currently executes this agent-specific schedule.",
+  scheduleExecutionNotConnected: "Not connected",
+  hermesNotYetMeasurable: "Not measurable",
+  hermesFleetAvailable:
+    "Hermes transport is available. This agent does not yet have a dedicated connection record.",
   hermesNoAgentSpecificRecord:
-    "Hermes health is fleet/transport-level. No per-agent Hermes connection row exists yet.",
+    "Hermes transport is available. This agent does not yet have a dedicated connection record.",
   permissionsReadOnly: "Read-only — no permission write API on this page",
   fileMemoryPending:
     "File memory uses secure storage plus a pending memory record. Owner approval is required before permanent Hermes use.",
+  ownerStatusHelper:
+    "This controls the owner-facing agent state. It does not yet exclude the agent from fleet GitHub Actions runs.",
 } as const;
 
-export type StripAgentStatus = "Active" | "Paused" | "Blocked" | "Running" | "Error" | "Unknown";
+export type StripAgentStatus = "Active" | "Paused" | "Blocked" | "Error" | "Unknown";
 
+/** Fleet Hermes transport health — never claim per-agent Connected. */
 export type StripHermesStatus =
-  | "Connected"
-  | "Degraded"
-  | "Disconnected"
-  | "Unknown"
-  | "Not yet measurable";
+  | "Fleet available"
+  | "Fleet degraded"
+  | "Fleet unavailable"
+  | "Unknown";
 
 export type StripMemoryStatus =
   | "Connected"
@@ -45,7 +51,8 @@ export type StripLastScanResult =
   | "Failed"
   | "Needs attention"
   | "Not run"
-  | "Not recorded";
+  | "Not recorded"
+  | "Unavailable";
 
 export type StripCurrentActivity =
   | "Idle"
@@ -57,29 +64,48 @@ export type StripCurrentActivity =
   | "Failed"
   | "Unknown";
 
+export type StripScheduleLabel =
+  | "Saved · not executable"
+  | "Manual only"
+  | "Not configured"
+  | "Unavailable";
+
 export type AgentStatusStripModel = {
   agentStatus: StripAgentStatus;
   hermes: StripHermesStatus;
   hermesDetail: string;
-  memory: StripMemoryStatus;
+  memory: string;
   memoryDetail: string;
   lastScanAt: string | null;
   lastScanLabel: string;
   lastScanResult: StripLastScanResult;
-  nextRunAt: string | null;
-  nextRunLabel: string;
+  /** Schedule cell primary label (not a theoretical timestamp). */
+  scheduleLabel: StripScheduleLabel | string;
+  scheduleDetail: string;
   currentActivity: StripCurrentActivity;
+  /** @deprecated use scheduleLabel — kept for transitional callers */
+  nextRunAt?: string | null;
+  nextRunLabel?: string;
 };
+
+export type AgentHermesRetrievalStatus =
+  | "Retrieval verified"
+  | "No assigned memory"
+  | "Not tested"
+  | "Failed"
+  | "Not measurable";
 
 export type AgentHermesConnectionModel = {
   agentId: string;
+  /** Fleet-facing strip status. */
   connectionStatus: StripHermesStatus;
+  fleetStatus: StripHermesStatus;
+  retrievalStatus: AgentHermesRetrievalStatus;
   lastHealthCheckAt: string | null;
   lastSuccessfulRetrievalAt: string | null;
   assignedMemoryCount: number | null;
   enabledMemoryCount: number | null;
   pendingApprovalCount: number | null;
-  retrievalStatus: "ok" | "empty" | "failed" | "unknown" | "not_measurable";
   lastError: string | null;
   agentSpecificRecordExists: boolean;
   notes: string[];
@@ -92,13 +118,24 @@ export function formatStatusDateTime(value: string | null | undefined): string {
   return date.toLocaleString();
 }
 
+export function mapOwnerFacingToStripStatus(
+  status: OwnerFacingAgentStatus,
+  reviewStatus: AgentDetailReviewStatus,
+): StripAgentStatus {
+  if (status === "Blocked") return "Blocked";
+  if (status === "Paused") return "Paused";
+  if (status === "Error") return "Error";
+  if (status === "Unknown") return "Unknown";
+  if (reviewStatus === "failed") return "Error";
+  return "Active";
+}
+
 export function mapManagedToStripAgentStatus(
   status: AgentOpsManagedAgent["status"] | null | undefined,
   reviewStatus: AgentDetailReviewStatus,
   isBlocked: boolean,
 ): StripAgentStatus {
   if (isBlocked || status === "blocked") return "Blocked";
-  if (reviewStatus === "running") return "Running";
   if (reviewStatus === "failed") return "Error";
   if (status == null) return "Unknown";
   const owner = ownerWorkStatusLabel(status, isBlocked);
@@ -111,7 +148,7 @@ export function mapReviewToLastScanResult(
   reviewStatus: AgentDetailReviewStatus,
   unavailable: boolean,
 ): StripLastScanResult {
-  if (unavailable) return "Not recorded";
+  if (unavailable) return "Unavailable";
   if (reviewStatus === "completed") return "Completed";
   if (reviewStatus === "failed") return "Failed";
   if (reviewStatus === "running") return "Needs attention";
@@ -129,8 +166,33 @@ export function mapReviewToCurrentActivity(
   return "Unknown";
 }
 
+export function buildScheduleStripLabel(input: {
+  configured: boolean;
+  manualOnly: boolean;
+  unavailable?: boolean;
+}): { label: StripScheduleLabel | string; detail: string } {
+  if (input.unavailable) {
+    return { label: "Unavailable", detail: "Schedule could not be loaded." };
+  }
+  if (!input.configured) {
+    return { label: "Not configured", detail: "No saved preference yet." };
+  }
+  if (input.manualOnly) {
+    return {
+      label: "Manual only",
+      detail: AGENT_DETAIL_CC_COPY.schedulerPending,
+    };
+  }
+  return {
+    label: "Saved · not executable",
+    detail: AGENT_DETAIL_CC_COPY.schedulerPending,
+  };
+}
+
 export function buildAgentStatusStrip(input: {
-  managedStatus: AgentOpsManagedAgent["status"] | null | undefined;
+  ownerStatus: OwnerFacingAgentStatus | null | undefined;
+  /** Legacy managed status — preferred path uses ownerStatus. */
+  managedStatus?: AgentOpsManagedAgent["status"] | null | undefined;
   isBlocked: boolean;
   rosterRow: {
     todayStatus: string;
@@ -142,16 +204,26 @@ export function buildAgentStatusStrip(input: {
   monitoringResolving: boolean;
   hermes: StripHermesStatus;
   hermesDetail: string;
-  memory: StripMemoryStatus;
+  memory: string;
   memoryDetail: string;
-  nextRunAt: string | null;
-  nextRunLabel: string;
+  scheduleLabel: string;
+  scheduleDetail: string;
+  currentActivityOverride?: StripCurrentActivity | null;
 }): AgentStatusStripModel {
   const reviewStatus = mapRosterToReviewStatus(input.rosterRow);
-  const ownerPaused =
-    input.managedStatus === "quiet" ||
-    input.managedStatus === "disabled" ||
-    ownerWorkStatusLabel(input.managedStatus, input.isBlocked) === "Paused";
+  const ownerStatus: OwnerFacingAgentStatus =
+    input.ownerStatus ??
+    (input.isBlocked
+      ? "Blocked"
+      : input.managedStatus == null
+        ? "Unknown"
+        : ownerWorkStatusLabel(input.managedStatus, input.isBlocked) === "Paused"
+          ? "Paused"
+          : ownerWorkStatusLabel(input.managedStatus, input.isBlocked) === "Blocked"
+            ? "Blocked"
+            : "Active");
+
+  const ownerPaused = ownerStatus === "Paused";
 
   const lastScanAt = input.rosterRow?.lastDailyRunAt ?? null;
   let lastScanLabel = formatStatusDateTime(lastScanAt);
@@ -159,11 +231,7 @@ export function buildAgentStatusStrip(input: {
   else if (input.monitoringUnavailable && !input.rosterRow) lastScanLabel = "Unavailable";
 
   return {
-    agentStatus: mapManagedToStripAgentStatus(
-      input.managedStatus,
-      reviewStatus,
-      input.isBlocked,
-    ),
+    agentStatus: mapOwnerFacingToStripStatus(ownerStatus, reviewStatus),
     hermes: input.hermes,
     hermesDetail: input.hermesDetail,
     memory: input.memory,
@@ -173,11 +241,15 @@ export function buildAgentStatusStrip(input: {
     lastScanResult: input.monitoringResolving
       ? "Not recorded"
       : mapReviewToLastScanResult(reviewStatus, input.monitoringUnavailable && !input.rosterRow),
-    nextRunAt: input.nextRunAt,
-    nextRunLabel: input.nextRunLabel,
-    currentActivity: input.monitoringResolving
-      ? "Unknown"
-      : mapReviewToCurrentActivity(reviewStatus, ownerPaused),
+    scheduleLabel: input.scheduleLabel,
+    scheduleDetail: input.scheduleDetail,
+    currentActivity:
+      input.currentActivityOverride ??
+      (input.monitoringResolving
+        ? "Unknown"
+        : mapReviewToCurrentActivity(reviewStatus, ownerPaused)),
+    nextRunAt: null,
+    nextRunLabel: input.scheduleLabel,
   };
 }
 
@@ -194,25 +266,25 @@ export function mapHermesRuntimeToStripStatus(input: {
     return { status: "Unknown", detail: "Hermes health not loaded yet." };
   }
   if (input.error) {
-    return { status: "Unknown", detail: input.error };
+    return { status: "Fleet unavailable", detail: input.error };
   }
   if (input.status === "blocked" || input.mode === "blocked") {
-    return { status: "Disconnected", detail: "Hermes runtime gated or blocked." };
+    return { status: "Fleet unavailable", detail: "Hermes runtime gated or blocked." };
   }
   if (input.ok && input.transportReachable) {
     return {
-      status: "Connected",
-      detail: "Fleet Hermes advisory transport reachable (not an agent-specific connection row).",
+      status: "Fleet available",
+      detail: AGENT_DETAIL_CC_COPY.hermesFleetAvailable,
     };
   }
   if (input.transportReachable === false) {
-    return { status: "Disconnected", detail: "Hermes transport not reachable." };
+    return { status: "Fleet unavailable", detail: "Hermes transport not reachable." };
   }
   if (input.mode === "unavailable" || input.status === "unavailable") {
-    return { status: "Degraded", detail: "Hermes transport reported unavailable." };
+    return { status: "Fleet degraded", detail: "Hermes transport reported unavailable." };
   }
   return {
-    status: "Not yet measurable",
+    status: "Unknown",
     detail: AGENT_DETAIL_CC_COPY.hermesNotYetMeasurable,
   };
 }
@@ -222,25 +294,25 @@ export function mapMemoryCountsToStripStatus(input: {
   error: string | null;
   assignedCount: number | null;
   enabledCount: number | null;
-}): { status: StripMemoryStatus; detail: string } {
+}): { status: string; detail: string } {
   if (input.error) {
-    return { status: "Unavailable", detail: input.error };
+    return { status: "Memory unavailable", detail: input.error };
   }
   if (!input.loaded || input.assignedCount == null) {
     return { status: "Unknown", detail: "Memory status not loaded." };
   }
   if (input.assignedCount === 0) {
-    return { status: "No assigned memory", detail: "No memory rows assigned to this agent." };
+    return { status: "No assigned memory", detail: "No runtime memory rows for this agent." };
   }
-  if ((input.enabledCount ?? 0) > 0) {
+  if (input.enabledCount != null) {
     return {
-      status: "Connected",
-      detail: `${input.enabledCount} enabled · ${input.assignedCount} assigned`,
+      status: `${input.assignedCount} assigned · ${input.enabledCount} active`,
+      detail: "Runtime memory (agentops_memory)",
     };
   }
   return {
-    status: "Unavailable",
-    detail: `${input.assignedCount} assigned · none enabled`,
+    status: `${input.assignedCount} runtime records`,
+    detail: "Runtime memory (agentops_memory)",
   };
 }
 

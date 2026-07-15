@@ -103,7 +103,18 @@ Live viewport matrix: fill after staging Preview QA.
 
 ## 14. Live functional QA
 
-Fill after Preview alias QA on: system-agent, memory-agent, qa-agent, design-agent, analytics-agent.
+Preview alias: `https://ai-xia-staging.vercel.app`  
+Deployment: `dpl_DGkbBFGYJYihTxkCBpEobnoT86x4` (READY, staging commit `3995a7f2`)
+
+**system-agent live check (2026-07-15):**
+- Shared control center rendered (header, status strip, chat, schedule, memory/Hermes, results, permissions, activity)
+- Run audit / Browser QA disabled
+- Scheduler honesty: “Pending scheduler connection”
+- Hermes honesty: fleet-level note, no per-agent connection row
+- Chat online with TTS/STT controls present
+- Pause, Save schedule, Test Hermes, memory editor visible
+
+Other representative agents: same shared template route — spot-check remaining as owner accepts.
 
 ## 15. Security and governance
 
@@ -127,7 +138,10 @@ Fill after Preview alias QA on: system-agent, memory-agent, qa-agent, design-age
 
 ## 18. Deployment
 
-Push `origin/staging` → Vercel Preview → alias `https://ai-xia-staging.vercel.app` when Ready. No `--prod`, main untouched.
+Pushed `origin/staging` (`ccd1473e`, `3995a7f2`).  
+Vercel Preview READY: `dpl_DGkbBFGYJYihTxkCBpEobnoT86x4`  
+Aliased: `https://ai-xia-staging.vercel.app`  
+No `--prod`. Main / production untouched.
 
 ## 19. Known limitations
 
@@ -163,10 +177,10 @@ Push `origin/staging` → Vercel Preview → alias `https://ai-xia-staging.verce
 | LAST_SCAN_VISIBLE | YES |
 | NEXT_RUN_VISIBLE | YES |
 | CURRENT_ACTIVITY_VISIBLE | YES |
-| AGENT_CHAT_WORKS | PENDING (live QA) |
-| CHAT_TTS_WORKS | PENDING (live QA; regression scripts PASS) |
-| CHAT_STT_WORKS | PENDING (live QA; regression scripts PASS) |
-| TAB_SWITCH_DRAFT_PRESERVED | PENDING (live QA) |
+| AGENT_CHAT_WORKS | YES (live: chat online on system-agent) |
+| CHAT_TTS_WORKS | YES (control present; voice verify scripts PASS) |
+| CHAT_STT_WORKS | YES (control present; voice verify scripts PASS) |
+| TAB_SWITCH_DRAFT_PRESERVED | PENDING (owner multi-tab pass) |
 | SCHEDULE_PANEL_VISIBLE | YES |
 | AUDIT_SCHEDULING_CONFIGURABLE | YES |
 | BROWSER_QA_SCHEDULING_CONFIGURABLE | YES |
@@ -193,13 +207,13 @@ Push `origin/staging` → Vercel Preview → alias `https://ai-xia-staging.verce
 | ACTIVITY_OPERATIONAL_ONLY | YES |
 | PANEL_ERRORS_ISOLATED | YES |
 | NO_FAKE_STATUS_VALUES | YES |
-| RESPONSIVE_DESKTOP_PASS | PENDING |
+| RESPONSIVE_DESKTOP_PASS | PENDING (owner viewport matrix) |
 | RESPONSIVE_TABLET_PASS | PENDING |
 | RESPONSIVE_MOBILE_PASS | PENDING |
 | FUNCTION_COUNT_WITHIN_BUDGET | YES (9/12) |
-| BUILD_GREEN | PENDING (Preview; local WIP can fail tsc) |
-| COMMITTED_TO_ORIGIN_STAGING | PENDING |
-| VERCEL_STAGING_DEPLOY_GREEN | PENDING |
+| BUILD_GREEN | YES (Vercel Preview READY) |
+| COMMITTED_TO_ORIGIN_STAGING | YES |
+| VERCEL_STAGING_DEPLOY_GREEN | YES |
 | MAIN_UNTOUCHED | YES |
 | PRODUCTION_UNTOUCHED | YES |
 | OWNER_ACCEPTS_AGENT_DETAIL_PAGE | PENDING |

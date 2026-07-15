@@ -234,10 +234,16 @@ async function main() {
     await page.waitForTimeout(300);
     report.live.history = await page.evaluate((q) => {
       const drawer = document.querySelector('[data-testid="agentops-council-history-drawer"]');
-      const text = drawer?.textContent || "";
+      const items = [...(drawer?.querySelectorAll(".agentops-council-workspace__history-item") || [])];
+      const activeTurnId =
+        document.querySelector('[data-testid="agentops-council-turn"]')?.getAttribute("data-turn-id") ||
+        "";
       return {
         open: Boolean(drawer),
-        containsLatestExact: text.includes(q),
+        itemCount: items.length,
+        // Same wording may appear if the owner asked twice; ensure active turnId is not listed as a history button target.
+        containsLatestExact: items.some((item) => (item.textContent || "").includes(q)),
+        activeTurnId,
       };
     }, QUESTION);
     await page.screenshot({ path: path.join(outDir, "06-history.png") });

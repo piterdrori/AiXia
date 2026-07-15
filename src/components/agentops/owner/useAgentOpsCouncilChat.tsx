@@ -1,14 +1,16 @@
 /**
  * Shared Council chat session — same persistence as /system/agent-ops/council
  * (agentops_owner_feedback, action: council_chat_message).
+ *
+ * Phase A.2: turn view-model + canonical/custom roster modes (UI selection only;
+ * fan-out still uses runAgentOpsLocalLlmChat).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { AixiaMemoryApprovalStatus, AixiaMessengerMessage } from "@/components/aixia";
-import { AixiaBadge, AixiaMemoryApprovalPrompt } from "@/components/aixia";
+import type { AixiaMemoryApprovalStatus } from "@/components/aixia";
+import type { CouncilRosterMode } from "@/components/agentops/owner/AgentOpsCouncilWorkspace";
 import { useAgentOpsLlmModelSelection } from "@/hooks/useAgentOpsLlmModelSelection";
 import { useAgentOpsLlmProbe } from "@/hooks/useAgentOpsLlmProbe";
-import { getAgentOwnerMeta } from "@/components/agentops/owner/agentDisplayMeta";
 import {
   activateAllAgentOpsManagedAgents,
   commitAgentOpsMemoryFromChatApproval,
@@ -23,33 +25,25 @@ import {
   type AgentOpsCouncilChatMessage,
   type AgentOpsManagedAgent,
 } from "@/lib/agentops";
-
-function managedAgentStatusTone(
-  status: AgentOpsManagedAgent["status"],
-): "emerald" | "amber" | "rose" | "cyan" | "neutral" {
-  if (status === "active") return "emerald";
-  if (status === "quiet") return "cyan";
-  if (status === "needs_memory") return "amber";
-  if (status === "blocked" || status === "disabled") return "rose";
-  return "neutral";
-}
-
-function resolveAgentUsername(agent: AgentOpsManagedAgent): string {
-  const slugGuess = agent.agentId.replace(/^aixia\./, "").toLowerCase();
-  return getAgentOwnerMeta(slugGuess, {
-    username: `@aixia.${slugGuess}`,
-    jobTitle: agent.appRole,
-  }).username;
-}
+import {
+  getAgentHumanRole,
+  getAgentResponsibilitySummary,
+  getAgentCurrentFocus,
+} from "@/lib/agentops/agents/productAgentDisplay";
+import { CANONICAL_AGENTS } from "@/lib/agentops/canonicalAgents";
+import {
+  buildCouncilTurns,
+  latestCouncilTurn,
+  type CouncilTurnView,
+} from "@/lib/agentops/council/councilTurnModel";
 
 export type UseAgentOpsCouncilChatOptions = {
-  /** When false, skip loading (e.g. owner gate not ready). */
   enabled?: boolean;
-  /** How many recent messages to show in compact embeds. */
   recentMessageLimit?: number;
 };
 
 const COUNCIL_DRAFT_STORAGE_KEY = "agentops.council.draft.agent-council";
+const COUNCIL_ROSTER_MODE_KEY = "agentops.council.roster-mode";
 
 function readCouncilDraft(): string {
   if (typeof window === "undefined") return "";
@@ -73,9 +67,52 @@ function writeCouncilDraft(value: string): void {
   }
 }
 
+function readRosterMode(): CouncilRosterMode {
+  if (typeof window === "undefined") return "canonical";
+  try {
+    const value = window.localStorage.getItem(COUNCIL_ROSTER_MODE_KEY);
+    return value === "custom" ? "custom" : "canonical";
+  } catch {
+    return "canonical";
+  }
+}
+
+function writeRosterMode(mode: CouncilRosterMode): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(COUNCIL_ROSTER_MODE_KEY, mode);
+  } catch {
+    // ignore
+  }
+}
+
+function canonicalParticipantIds(): string[] {
+  return CANONICAL_AGENTS.map((agent) => agent.id);
+}
+
+function mapCanonicalParticipants() {
+  return CANONICAL_AGENTS.map((agent) => ({
+    agentId: agent.id,
+    displayName: agent.name,
+    appRole: getAgentHumanRole(agent.id, agent.name),
+    qaSpecialty: getAgentResponsibilitySummary(agent.id),
+    status: "active",
+  }));
+}
+
+function mapManagedParticipants(agents: AgentOpsManagedAgent[]) {
+  return agents.map((agent) => ({
+    agentId: agent.agentId,
+    displayName: agent.displayName,
+    appRole: agent.appRole,
+    qaSpecialty: agent.qaSpecialty,
+    status: agent.status.replaceAll("_", " "),
+  }));
+}
+
 export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = {}) {
   const enabled = options.enabled !== false;
-  const recentMessageLimit = options.recentMessageLimit ?? 40;
+  const recentMessageLimit = options.recentMessageLimit ?? 80;
 
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState<string | null>(null);
@@ -84,10 +121,14 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
   const [councilMessages, setCouncilMessages] = useState<AgentOpsCouncilChatMessage[]>([]);
   const [composerValue, setComposerValue] = useState(() => readCouncilDraft());
   const [chatSubmitting, setChatSubmitting] = useState(false);
+  const [inFlightQuestion, setInFlightQuestion] = useState<string | null>(null);
   const [chatFeedback, setChatFeedback] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
   const [activatingAgents, setActivatingAgents] = useState(false);
-  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
+  const [rosterMode, setRosterModeState] = useState<CouncilRosterMode>(() => readRosterMode());
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>(() =>
+    readRosterMode() === "custom" ? [] : canonicalParticipantIds(),
+  );
   const [memoryApprovalByMessageId, setMemoryApprovalByMessageId] = useState<
     Record<string, AixiaMemoryApprovalStatus>
   >({});
@@ -98,6 +139,21 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     selectedModel: selectedLlmModel,
     selectedLabel: selectedLlmLabel,
   } = useAgentOpsLlmModelSelection("council");
+
+  const setRosterMode = useCallback((mode: CouncilRosterMode) => {
+    setRosterModeState(mode);
+    writeRosterMode(mode);
+    if (mode === "canonical") {
+      setSelectedParticipantIds(canonicalParticipantIds());
+    } else {
+      setSelectedParticipantIds((current) => {
+        if (current.length > 0 && !current[0]?.includes("-agent")) {
+          return current;
+        }
+        return managedAgents.map((agent) => agent.agentId);
+      });
+    }
+  }, [managedAgents]);
 
   const loadData = useCallback(async (opts?: { silent?: boolean }) => {
     if (!enabled) return;
@@ -130,13 +186,16 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     const agents = managedResult.data ?? [];
     setManagedAgents(agents);
     setCouncilMessages(councilChatResult.data ?? []);
-    setSelectedParticipantIds((current) =>
-      current.length > 0 ? current : agents.map((agent) => agent.agentId),
-    );
+    setSelectedParticipantIds((current) => {
+      if (current.length > 0) return current;
+      return rosterMode === "canonical"
+        ? canonicalParticipantIds()
+        : agents.map((agent) => agent.agentId);
+    });
 
     if (councilChatResult.error) setError(councilChatResult.error);
     setLoading(false);
-  }, [enabled]);
+  }, [enabled, rosterMode]);
 
   const ensureAgentsActive = useCallback(
     async (agents: AgentOpsManagedAgent[]) => {
@@ -166,9 +225,11 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
 
   useEffect(() => {
     if (!enabled || loading || managedAgents.length === 0 || agentsActivatedRef.current) return;
+    // Custom roster still depends on managed synthetic activation; canonical mode does not.
+    if (rosterMode !== "custom") return;
     agentsActivatedRef.current = true;
     void ensureAgentsActive(managedAgents);
-  }, [enabled, loading, managedAgents, ensureAgentsActive]);
+  }, [enabled, loading, managedAgents, ensureAgentsActive, rosterMode]);
 
   const handleCouncilSend = useCallback(async () => {
     const message = composerValue.trim();
@@ -179,6 +240,7 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     }
 
     setChatSubmitting(true);
+    setInFlightQuestion(message);
     setChatFeedback(null);
     setChatError(null);
 
@@ -190,20 +252,44 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
         selectedAgentIds: selectedParticipantIds,
         roomId: "agent-council",
         embeddedSurface: true,
+        rosterMode,
       },
     });
     if (piterResult.error) {
       setChatSubmitting(false);
+      setInFlightQuestion(null);
       setChatError(piterResult.error);
       return;
     }
 
-    const selectedAgents = managedAgents.filter((agent) =>
-      selectedParticipantIds.includes(agent.agentId),
-    );
+    const councilAgents =
+      rosterMode === "canonical"
+        ? CANONICAL_AGENTS.filter((agent) => selectedParticipantIds.includes(agent.id)).map(
+            (agent) => ({
+              agentId: agent.id,
+              displayName: agent.name,
+              appRole: getAgentHumanRole(agent.id, agent.name),
+              qaSpecialty: getAgentResponsibilitySummary(agent.id),
+              currentFocus: getAgentCurrentFocus(agent.id),
+              status: "active" as const,
+              memorySnippets: [] as string[],
+            }),
+          )
+        : managedAgents
+            .filter((agent) => selectedParticipantIds.includes(agent.agentId))
+            .map((agent) => ({
+              agentId: agent.agentId,
+              displayName: agent.displayName,
+              appRole: agent.appRole,
+              qaSpecialty: agent.qaSpecialty,
+              currentFocus: agent.currentFocus,
+              status: agent.status,
+              memorySnippets: [] as string[],
+            }));
+
     const memoryByAgent = new Map<string, string[]>();
     await Promise.all(
-      selectedAgents.map(async (agent) => {
+      councilAgents.map(async (agent) => {
         const memoryResult = await getAgentOpsAgentMemory(agent.agentId);
         memoryByAgent.set(
           agent.agentId,
@@ -216,13 +302,8 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
       chatScope: "council",
       message,
       model: selectedLlmModel,
-      councilAgents: selectedAgents.map((agent) => ({
-        agentId: agent.agentId,
-        displayName: agent.displayName,
-        appRole: agent.appRole,
-        qaSpecialty: agent.qaSpecialty,
-        currentFocus: agent.currentFocus,
-        status: agent.status,
+      councilAgents: councilAgents.map((agent) => ({
+        ...agent,
         memorySnippets: memoryByAgent.get(agent.agentId) ?? [],
       })),
     });
@@ -255,6 +336,7 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
           selectedAgentIds: selectedParticipantIds,
           creativeProposal: parsed.proposal,
           roomId: "agent-council",
+          rosterMode,
         },
       });
     }
@@ -262,6 +344,7 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     setComposerValue("");
     writeCouncilDraft("");
     setChatSubmitting(false);
+    setInFlightQuestion(null);
     if (!llmResult.localLlmCalled) {
       setChatError(
         llmResult.blockers[0] ??
@@ -280,6 +363,7 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     composerValue,
     loadData,
     managedAgents,
+    rosterMode,
     selectedLlmModel,
     selectedParticipantIds,
   ]);
@@ -308,92 +392,27 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     [],
   );
 
-  const messengerMessages = useMemo((): AixiaMessengerMessage[] => {
-    const recent = councilMessages.slice(-recentMessageLimit);
-    return recent.map((entry) => {
-      const matchedAgent =
-        entry.agentId ? managedAgents.find((agent) => agent.agentId === entry.agentId) : null;
-      const memoryIntentDetected = entry.metadata.memoryIntentDetected === true;
-      const approvalStatus =
-        memoryApprovalByMessageId[entry.id] ?? (memoryIntentDetected ? "pending" : undefined);
-      const username = matchedAgent ? resolveAgentUsername(matchedAgent) : null;
-      const timestamp = entry.createdAt
-        ? new Date(entry.createdAt).toLocaleString()
-        : undefined;
+  const recentMessages = useMemo(() => {
+    return councilMessages.slice(-recentMessageLimit);
+  }, [councilMessages, recentMessageLimit]);
 
-      if (entry.sender === "piter") {
-        return {
-          id: entry.id,
-          senderType: "user" as const,
-          senderName: "Piter",
-          senderRole: timestamp,
-          content: entry.content,
-        };
-      }
+  const turns: CouncilTurnView[] = useMemo(
+    () =>
+      buildCouncilTurns(recentMessages, {
+        pendingAgentIds: chatSubmitting ? selectedParticipantIds : [],
+        submitting: chatSubmitting,
+      }),
+    [chatSubmitting, recentMessages, selectedParticipantIds],
+  );
 
-      const displayName = entry.agentName ?? matchedAgent?.displayName ?? "Agent";
-      const roleLine = matchedAgent
-        ? `${matchedAgent.appRole}${matchedAgent.qaSpecialty ? ` · ${matchedAgent.qaSpecialty}` : ""}`
-        : undefined;
-
-      return {
-        id: entry.id,
-        senderType: "agent" as const,
-        senderName: displayName,
-        senderRole: [username, roleLine, timestamp].filter(Boolean).join(" · ") || undefined,
-        avatarInitials:
-          displayName
-            .split(/\s+/)
-            .filter(Boolean)
-            .map((part) => part[0]?.toUpperCase() ?? "")
-            .slice(0, 2)
-            .join("") || "AG",
-        badges: matchedAgent ? (
-          <AixiaBadge tone={managedAgentStatusTone(matchedAgent.status)}>
-            {matchedAgent.status.replaceAll("_", " ")}
-          </AixiaBadge>
-        ) : undefined,
-        content: entry.content,
-        skipAutoSpeak:
-          entry.source === "mock_response_layer" ||
-          /could not reach the staging LLM/i.test(entry.content),
-        footer:
-          memoryIntentDetected && entry.agentId ? (
-            <AixiaMemoryApprovalPrompt
-              suggestedMemoryText={entry.content.slice(0, 180)}
-              status={approvalStatus ?? "pending"}
-              density="inline"
-              scope="agent"
-              agentName={displayName}
-              contextLabel="Council group chat"
-              onApprove={() =>
-                void handleMemoryApproval(entry.id, entry.agentId!, entry.content, true)
-              }
-              onReject={() =>
-                void handleMemoryApproval(entry.id, entry.agentId!, entry.content, false)
-              }
-            />
-          ) : null,
-      };
-    });
-  }, [
-    councilMessages,
-    handleMemoryApproval,
-    managedAgents,
-    memoryApprovalByMessageId,
-    recentMessageLimit,
-  ]);
+  const latestTurn = useMemo(() => latestCouncilTurn(turns), [turns]);
 
   const participants = useMemo(
     () =>
-      managedAgents.map((agent) => ({
-        agentId: agent.agentId,
-        displayName: agent.displayName,
-        appRole: agent.appRole,
-        qaSpecialty: agent.qaSpecialty,
-        status: agent.status.replaceAll("_", " "),
-      })),
-    [managedAgents],
+      rosterMode === "canonical"
+        ? mapCanonicalParticipants()
+        : mapManagedParticipants(managedAgents),
+    [managedAgents, rosterMode],
   );
 
   const statusText = localLlmStatus.runtimeActive
@@ -409,11 +428,16 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     error,
     isOwner,
     managedAgents,
-    messengerMessages,
+    councilMessages: recentMessages,
+    turns,
+    latestTurn,
+    rosterMode,
+    setRosterMode,
     participants,
     composerValue,
     setComposerValue,
     chatSubmitting,
+    inFlightQuestion,
     chatFeedback,
     clearChatFeedback,
     chatError,
@@ -424,5 +448,7 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     localLlmActive: localLlmStatus.runtimeActive,
     send: handleCouncilSend,
     refresh: loadData,
+    memoryApprovalByMessageId,
+    handleMemoryApproval,
   };
 }

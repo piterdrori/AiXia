@@ -39,6 +39,7 @@ import {
   type AgentOpsCouncilChatMessage,
   type AgentOpsManagedAgent,
 } from "@/lib/agentops";
+import { isNonConversationalCouncilContent } from "@/lib/agentops/council/councilTurnModel";
 import { useAgentOpsLlmProbe } from "@/hooks/useAgentOpsLlmProbe";
 import { useAgentOpsLlmModelSelection } from "@/hooks/useAgentOpsLlmModelSelection";
 
@@ -357,7 +358,14 @@ export default function AgentOpsCouncilPage() {
   const councilMessengerMessages = useMemo((): AixiaMessengerMessage[] => {
     if (councilMessages.length === 0) return [];
 
-    return councilMessages.map((entry) => {
+    // Presence / “ready” one-liners stay persisted but are not owner-facing answers.
+    return councilMessages
+      .filter(
+        (entry) =>
+          entry.sender === "piter" ||
+          !isNonConversationalCouncilContent(entry.content),
+      )
+      .map((entry) => {
       const matchedAgent =
         entry.agentId ? managedAgents.find((agent) => agent.agentId === entry.agentId) : null;
       const dashboardItem = entry.agentId ? statusByAgentId.get(entry.agentId) : undefined;

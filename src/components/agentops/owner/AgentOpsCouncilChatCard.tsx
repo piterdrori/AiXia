@@ -5,9 +5,9 @@ import { Expand, MessageSquare, RefreshCw } from "lucide-react";
 import {
   AixiaButton,
   AixiaInfoBlock,
-  AixiaMessengerShell,
   AixiaSection,
 } from "@/components/aixia";
+import { AgentOpsCouncilWorkspace } from "@/components/agentops/owner/AgentOpsCouncilWorkspace";
 import { useAgentOpsCouncilChat } from "@/components/agentops/owner/useAgentOpsCouncilChat";
 
 type AgentOpsCouncilChatCardProps = {
@@ -15,12 +15,12 @@ type AgentOpsCouncilChatCardProps = {
 };
 
 /**
- * Large stable Council Chat embed for the Agents page.
- * Uses the same persistence/backend as /system/agent-ops/council.
+ * AgentOps Council workspace embed for the Agents page.
+ * Turn-grouped, compact responses — not a flat 12-card stream.
  */
 export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatCardProps) {
   const navigate = useNavigate();
-  const chat = useAgentOpsCouncilChat({ enabled, recentMessageLimit: 36 });
+  const chat = useAgentOpsCouncilChat({ enabled, recentMessageLimit: 80 });
 
   const openFullCouncil = () => navigate("/system/agent-ops/council");
 
@@ -48,7 +48,7 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
     <AixiaSection
       surface="command"
       title="Council Chat"
-      description="Ask all 12 agents for their professional opinions."
+      description="Ask the Council once — scan the summary, expand agents only when needed."
       icon={MessageSquare}
       bodyClassName="aixia-section-body--messenger aixia-section-body--council-embed"
       badge={
@@ -74,26 +74,23 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
           </AixiaInfoBlock>
         ) : null}
 
-        <AixiaMessengerShell
-          roomTitle="Council Chat"
-          chatScope="council"
-          layoutMode="embedded"
-          showParticipantPicker
+        <AgentOpsCouncilWorkspace
+          density="embedded"
           testId="agentops-agents-council-messenger"
-          messages={chat.messengerMessages}
+          turns={chat.turns}
+          latestTurn={chat.latestTurn}
+          inFlightQuestion={chat.inFlightQuestion}
+          rosterMode={chat.rosterMode}
+          onRosterModeChange={chat.setRosterMode}
+          participants={chat.participants}
+          selectedParticipantIds={chat.selectedParticipantIds}
+          onSelectedParticipantIdsChange={chat.setSelectedParticipantIds}
           composerValue={chat.composerValue}
           onComposerChange={chat.setComposerValue}
           onSend={() => void chat.send()}
           sending={chat.chatSubmitting || chat.loading}
           statusText={embeddedStatusText}
           errorText={chat.chatError}
-          emptyTitle="Ask the team"
-          emptyDescription="Ask all agents a question — each selected agent replies with their perspective."
-          participants={chat.participants}
-          selectedParticipantIds={chat.selectedParticipantIds}
-          onSelectedParticipantIdsChange={chat.setSelectedParticipantIds}
-          showTypingIndicator={chat.chatSubmitting}
-          typingLabel="Council agents are thinking…"
         />
       </div>
     </AixiaSection>

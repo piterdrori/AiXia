@@ -11,6 +11,9 @@ export type AixiaChatParticipantPickerProps = {
   disabled?: boolean;
   className?: string;
   defaultExpanded?: boolean;
+  /** Controlled expansion (embedded Council workspace). */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 };
 
 export function AixiaChatParticipantPicker({
@@ -20,8 +23,15 @@ export function AixiaChatParticipantPicker({
   disabled = false,
   className = "",
   defaultExpanded = false,
+  expanded: expandedProp,
+  onExpandedChange,
 }: AixiaChatParticipantPickerProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+  const [expandedInternal, setExpandedInternal] = useState(defaultExpanded);
+  const expanded = expandedProp ?? expandedInternal;
+  const setExpanded = (next: boolean) => {
+    if (expandedProp === undefined) setExpandedInternal(next);
+    onExpandedChange?.(next);
+  };
   const selectedSet = new Set(selectedIds);
   const count = selectedIds.length;
 
@@ -56,7 +66,7 @@ export function AixiaChatParticipantPicker({
             variant="secondary"
             className="aixia-messenger-participant-picker__toggle-btn"
             disabled={disabled}
-            onClick={() => setExpanded((current) => !current)}
+            onClick={() => setExpanded(!expanded)}
           >
             {expanded ? "Hide roster" : "Edit roster"}
           </AixiaButton>

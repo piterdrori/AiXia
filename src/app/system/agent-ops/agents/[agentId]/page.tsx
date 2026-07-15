@@ -221,8 +221,23 @@ export default function AgentOpsAgentDetailPage() {
     if (!canonical) return;
     setStatusUpdating(true);
     setActionFeedback(AGENT_DETAIL_B1_COPY.statusProgress);
+    let writeAgentId = managedAgent?.agentId ?? "";
+    if (!writeAgentId) {
+      const managedResult = await getAgentOpsManagedAgents();
+      const matched =
+        (managedResult.data ?? []).find(
+          (candidate) =>
+            candidate.agentId.toLowerCase() === canonical.id ||
+            candidate.agentId.toLowerCase().endsWith(`.${canonical.id}`) ||
+            candidate.displayName.toLowerCase().replace(/\s+/g, "-") === canonical.id,
+        ) ?? null;
+      if (matched) {
+        setManagedAgent(matched);
+        writeAgentId = matched.agentId;
+      }
+    }
     const result = await updateAgentOpsAgentStatus({
-      agentId: managedAgent?.agentId ?? canonical.id,
+      agentId: writeAgentId || canonical.id,
       status: next,
       note: `Status updated from agent detail (${canonical.id}).`,
     });
@@ -235,6 +250,8 @@ export default function AgentOpsAgentDetailPage() {
     setManagedAgent((prev) => (prev ? { ...prev, status: next } : prev));
     setActionFeedback(ownerStatusChangeFeedback(next));
     await loadDetail();
+    // loadDetail can rematch before feedback is visible — re-assert owner status locally.
+    setManagedAgent((prev) => (prev ? { ...prev, status: next } : prev));
   };
 
   const isPaused =

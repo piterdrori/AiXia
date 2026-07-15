@@ -26,6 +26,7 @@ function initialsFromName(name: string): string {
 
 export function AixiaMessengerShell({
   roomTitle,
+  hideRoomTitle = false,
   chatScope,
   showParticipantPicker = false,
   testId = "agentops-messenger-shell",
@@ -188,9 +189,11 @@ export function AixiaMessengerShell({
       data-testid={testId}
       data-chat-scope={chatScope}
       data-messenger-layout={layoutMode}
+      aria-label={hideRoomTitle ? roomTitle : undefined}
     >
       <AixiaMessengerToolbar
         roomTitle={roomTitle}
+        hideRoomTitle={hideRoomTitle}
         ttsEnabled={ttsEnabled}
         onTtsToggle={handleTtsToggle}
         ttsAvailable={ttsAvailable}

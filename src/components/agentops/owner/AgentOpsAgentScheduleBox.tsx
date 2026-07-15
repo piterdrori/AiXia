@@ -4,6 +4,11 @@ import { CalendarClock, ExternalLink } from "lucide-react";
 
 import { AixiaBadge, AixiaButton, AixiaInfoBlock, AixiaSection } from "@/components/aixia";
 import {
+  AGENT_DETAIL_B1_COPY,
+  ownerWorkStatusLabel,
+  workPreferenceLabel,
+} from "@/lib/agentops/agents/agentDetailPhaseB1Semantics";
+import {
   mergeScheduleIntoTools,
   parseScheduleFromTools,
   type AgentScheduleConfig,
@@ -27,8 +32,10 @@ type AgentOpsAgentScheduleBoxProps = {
   daily12: Daily12ReviewStatus | null;
   monitoringUnavailable?: boolean;
   statusUpdating?: boolean;
-  onActivate: () => void;
-  onPause: () => void;
+  /** Pause lives in the page header — schedule box only reflects status. */
+  showOwnerStatusControls?: boolean;
+  onActivate?: () => void;
+  onPause?: () => void;
   onRefresh?: () => void;
 };
 
@@ -37,18 +44,6 @@ function formatDateTime(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Unavailable";
   return date.toLocaleString();
-}
-
-function workModeLabel(schedule: AgentScheduleConfig | null, isPaused: boolean): string {
-  if (isPaused) return "Paused";
-  if (!schedule) return "Unavailable";
-  if (!schedule.enableSchedule || schedule.scheduleType === "manual") return "Manual only";
-  return "Scheduled";
-}
-
-function dailyReviewLabel(daily12: Daily12ReviewStatus | null, monitoringUnavailable?: boolean): string {
-  if (monitoringUnavailable || !daily12) return "Unavailable";
-  return "Enabled";
 }
 
 export function AgentOpsAgentScheduleBox({
@@ -60,6 +55,7 @@ export function AgentOpsAgentScheduleBox({
   daily12,
   monitoringUnavailable = false,
   statusUpdating = false,
+  showOwnerStatusControls = false,
   onActivate,
   onPause,
   onRefresh,
@@ -77,7 +73,7 @@ export function AgentOpsAgentScheduleBox({
     if (result.error || !result.data) {
       setRuntimeAgent(null);
       setSchedule(null);
-      setScheduleError(result.error ?? "Schedule data unavailable for this agent.");
+      setScheduleError(result.error ?? "Work preference data unavailable for this agent.");
       return;
     }
     setRuntimeAgent(result.data);
@@ -88,13 +84,13 @@ export function AgentOpsAgentScheduleBox({
     void loadRuntime();
   }, [loadRuntime]);
 
-  const statusLabel = useMemo(() => {
-    if (isBlocked || runtimeAgent?.status === "blocked") return "Blocked";
-    if (isPaused || runtimeAgent?.status === "paused") return "Paused";
-    return "Active";
+  const ownerStatus = useMemo(() => {
+    if (isBlocked || runtimeAgent?.status === "blocked") return "Blocked" as const;
+    if (isPaused || runtimeAgent?.status === "paused") return "Paused" as const;
+    return ownerWorkStatusLabel(isPaused ? "quiet" : "active", isBlocked);
   }, [isBlocked, isPaused, runtimeAgent?.status]);
 
-  const setWorkMode = async (mode: "manual" | "scheduled") => {
+  const setWorkPreference = async (mode: "manual" | "scheduled") => {
     if (!runtimeAgent || !schedule) return;
     setScheduleSaving(true);
     setScheduleFeedback(null);
@@ -108,33 +104,41 @@ export function AgentOpsAgentScheduleBox({
     const result = await updateAgentRecord(runtimeAgent.id, { tools });
     setScheduleSaving(false);
     if (result.error || !result.data) {
-      setScheduleError(result.error ?? "Could not update work mode.");
+      setScheduleError(result.error ?? "Could not update work preference.");
       return;
     }
     setRuntimeAgent(result.data);
     setSchedule(parseScheduleFromTools(result.data.tools));
-    setScheduleFeedback(mode === "scheduled" ? "Work mode set to Scheduled." : "Work mode set to Manual only.");
+    setScheduleFeedback(
+      mode === "scheduled"
+        ? AGENT_DETAIL_B1_COPY.preferenceScheduledSuccess
+        : AGENT_DETAIL_B1_COPY.preferenceManualSuccess,
+    );
     onRefresh?.();
   };
+
+  const rawPreference = schedule
+    ? JSON.stringify({
+        enableSchedule: schedule.enableSchedule,
+        scheduleType: schedule.scheduleType,
+        cronPreset: schedule.cronPreset,
+      })
+    : null;
 
   return (
     <AixiaSection
       surface="command"
-      title="Work mode and schedule"
-      description={`How ${agentDisplayName} works on staging — owner controls below.`}
+      title="Work mode and automation"
+      description={`How ${agentDisplayName} works on staging — owner-facing status and preferences below.`}
       icon={CalendarClock}
     >
-      <div className="space-y-4" data-testid="agentops-agent-detail-schedule">
+      <div className="space-y-6" data-testid="agentops-agent-detail-schedule">
         {scheduleError ? (
-          <AixiaInfoBlock tone="gold" title="Schedule data unavailable">
+          <AixiaInfoBlock tone="gold" title="Work preference data unavailable">
             <p className="text-sm text-white/75">{scheduleError}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               <AixiaButton variant="secondary" onClick={() => void loadRuntime()}>
                 Retry
-              </AixiaButton>
-              <AixiaButton variant="secondary" onClick={() => navigate("/system/agent-ops/monitoring")}>
-                <ExternalLink className="mr-1.5 h-4 w-4" />
-                Open Monitoring
               </AixiaButton>
             </div>
           </AixiaInfoBlock>
@@ -146,109 +150,133 @@ export function AgentOpsAgentScheduleBox({
           </p>
         ) : null}
 
-        <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <dt className="text-white/45">Status</dt>
-            <dd className="mt-1 flex items-center gap-2 text-white/85">
-              <AixiaBadge tone={statusLabel === "Active" ? "emerald" : "amber"}>{statusLabel}</AixiaBadge>
-              <span className="sr-only">{statusLabel}</span>
-            </dd>
+        {/* A. Owner work status */}
+        <div data-testid="agentops-agent-detail-owner-work-status">
+          <h3 className="text-sm font-semibold text-white/90">Owner work status</h3>
+          <p className="mt-1 text-xs text-white/50">{AGENT_DETAIL_B1_COPY.ownerWorkStatusHelper}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <AixiaBadge tone={ownerStatus === "Active" ? "emerald" : "amber"}>{ownerStatus}</AixiaBadge>
+            {showOwnerStatusControls && onActivate && onPause ? (
+              isPaused ? (
+                <AixiaButton
+                  variant="secondary"
+                  disabled={statusUpdating || isBlocked}
+                  onClick={onActivate}
+                >
+                  Activate
+                </AixiaButton>
+              ) : (
+                <AixiaButton
+                  variant="secondary"
+                  disabled={statusUpdating || isBlocked}
+                  onClick={onPause}
+                >
+                  Pause
+                </AixiaButton>
+              )
+            ) : (
+              <span className="text-xs text-white/45">Change with Pause / Activate in the header.</span>
+            )}
           </div>
-          <div>
-            <dt className="text-white/45">Work mode</dt>
-            <dd className="text-white/85">{workModeLabel(schedule, isPaused)}</dd>
-          </div>
-          <div>
-            <dt className="text-white/45">Daily review</dt>
-            <dd className="text-white/85">{dailyReviewLabel(daily12, monitoringUnavailable)}</dd>
-          </div>
-          <div>
-            <dt className="text-white/45">Daily review time</dt>
-            <dd className="text-white/85">
-              {monitoringUnavailable || !daily12
-                ? "Unavailable"
-                : formatDateTime(daily12.nextExpectedDailyReviewAt) === "Unavailable"
-                  ? daily12.schedule || "01:00 UTC (fleet)"
-                  : `Next: ${formatDateTime(daily12.nextExpectedDailyReviewAt)}`}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-white/45">Operational monitoring</dt>
-            <dd className="text-white/85">
-              {monitoringUnavailable ? "Unavailable" : "Enabled (fleet · read-only here)"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-white/45">Weekly improvement review</dt>
-            <dd className="text-white/85">
-              {monitoringUnavailable ? "Unavailable" : "Enabled (fleet · read-only here)"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-white/45">Last run</dt>
-            <dd className="text-white/85">{formatDateTime(rosterRow?.lastDailyRunAt ?? null)}</dd>
-          </div>
-          <div>
-            <dt className="text-white/45">Next run</dt>
-            <dd className="text-white/85">
-              {monitoringUnavailable || !daily12
-                ? "Unavailable"
-                : formatDateTime(daily12.nextExpectedDailyReviewAt)}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-white/45">Continuous monitoring</dt>
-            <dd className="text-white/85">Off</dd>
-          </div>
-          <div>
-            <dt className="text-white/45">Owner approval</dt>
-            <dd className="text-white/85">Required</dd>
-          </div>
-        </dl>
-
-        <div className="flex flex-wrap gap-2">
-          {isPaused ? (
-            <AixiaButton
-              variant="secondary"
-              disabled={statusUpdating || isBlocked}
-              onClick={onActivate}
-            >
-              Activate
-            </AixiaButton>
-          ) : (
-            <AixiaButton variant="secondary" disabled={statusUpdating || isBlocked} onClick={onPause}>
-              Pause
-            </AixiaButton>
-          )}
-          <AixiaButton
-            variant="secondary"
-            disabled={scheduleSaving || !runtimeAgent || !schedule || isBlocked}
-            onClick={() => void setWorkMode("manual")}
-          >
-            Manual only
-          </AixiaButton>
-          <AixiaButton
-            variant="secondary"
-            disabled={scheduleSaving || !runtimeAgent || !schedule || isBlocked}
-            onClick={() => void setWorkMode("scheduled")}
-          >
-            Scheduled
-          </AixiaButton>
-          <AixiaButton variant="secondary" onClick={() => navigate("/system/agent-ops/monitoring")}>
-            <ExternalLink className="mr-1.5 h-4 w-4" />
-            Fleet schedule (Monitoring)
-          </AixiaButton>
         </div>
 
-        <AixiaInfoBlock tone="gold" title="Run this agent now">
-          Single-agent run is not connected yet. Staging does not expose a safe owner UI path for
-          per-agent execution on Vercel (fleet dry-run stays on Monitoring / GitHub Actions). This
-          control stays disabled so we do not fake execution.
-        </AixiaInfoBlock>
+        {/* B. Agent work preference */}
+        <div data-testid="agentops-agent-detail-work-preference">
+          <h3 className="text-sm font-semibold text-white/90">Agent work preference</h3>
+          <p className="mt-1 text-xs text-white/50">{AGENT_DETAIL_B1_COPY.workPreferenceHelper}</p>
+          <p className="mt-2 text-sm text-white/80">
+            Current: {workPreferenceLabel(schedule)}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <AixiaButton
+              variant="secondary"
+              disabled={scheduleSaving || !runtimeAgent || !schedule || isBlocked}
+              onClick={() => void setWorkPreference("manual")}
+            >
+              Manual preference
+            </AixiaButton>
+            <AixiaButton
+              variant="secondary"
+              disabled={scheduleSaving || !runtimeAgent || !schedule || isBlocked}
+              onClick={() => void setWorkPreference("scheduled")}
+            >
+              Scheduled preference
+            </AixiaButton>
+          </div>
+          {/* Raw JSON surfaces only under Advanced details (page). */}
+          <span className="sr-only" data-testid="agentops-work-preference-raw">
+            {rawPreference ?? ""}
+          </span>
+        </div>
 
-        <p className="text-xs text-white/45">
-          Fleet cron details stay on Monitoring. This box does not show raw cron strings.
-        </p>
+        {/* C. Fleet automation — read only */}
+        <div data-testid="agentops-agent-detail-fleet-automation">
+          <h3 className="text-sm font-semibold text-white/90">Fleet automation</h3>
+          <p className="mt-1 text-xs text-white/50">{AGENT_DETAIL_B1_COPY.fleetAutomationLabel}</p>
+          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <dt className="text-white/45">Daily review</dt>
+              <dd className="text-white/85">
+                {monitoringUnavailable || !daily12 ? "Unavailable" : "Enabled (fleet)"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Operational checks</dt>
+              <dd className="text-white/85">
+                {monitoringUnavailable ? "Unavailable" : "Enabled (fleet)"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Weekly review</dt>
+              <dd className="text-white/85">
+                {monitoringUnavailable ? "Unavailable" : "Enabled (fleet)"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Last fleet run</dt>
+              <dd className="text-white/85">
+                {formatDateTime(
+                  daily12?.lastCompletedDailyReviewAt ?? rosterRow?.lastDailyRunAt ?? null,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-white/45">Next fleet run</dt>
+              <dd className="text-white/85">
+                {monitoringUnavailable || !daily12
+                  ? "Unavailable"
+                  : formatDateTime(daily12.nextExpectedDailyReviewAt) === "Unavailable"
+                    ? daily12.schedule || "Unavailable"
+                    : formatDateTime(daily12.nextExpectedDailyReviewAt)}
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-3">
+            <AixiaButton
+              variant="secondary"
+              onClick={() => navigate("/system/agent-ops/monitoring")}
+            >
+              <ExternalLink className="mr-1.5 h-4 w-4" />
+              Open Monitoring
+            </AixiaButton>
+          </div>
+        </div>
+
+        {/* Approval disclosure — not editable */}
+        <details
+          className="rounded-lg border border-white/10 bg-black/20 px-3 py-2"
+          data-testid="agentops-agent-detail-approval-disclosure"
+        >
+          <summary className="cursor-pointer text-sm font-medium text-white/80">
+            {AGENT_DETAIL_B1_COPY.approvalTitle}
+          </summary>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-white/70">
+            {AGENT_DETAIL_B1_COPY.approvalItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-white/55">{AGENT_DETAIL_B1_COPY.approvalAutomationLimit}</p>
+        </details>
       </div>
     </AixiaSection>
   );

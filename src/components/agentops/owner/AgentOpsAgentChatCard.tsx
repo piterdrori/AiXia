@@ -5,6 +5,7 @@ import {
   useAgentOpsAgentChat,
   type AgentOpsAgentChatIdentity,
 } from "@/components/agentops/owner/useAgentOpsAgentChat";
+import { AGENT_DETAIL_B1_COPY } from "@/lib/agentops/agents/agentDetailPhaseB1Semantics";
 
 type AgentOpsAgentChatCardProps = {
   enabled?: boolean;
@@ -18,12 +19,13 @@ type AgentOpsAgentChatCardProps = {
 export function AgentOpsAgentChatCard({ enabled = true, identity }: AgentOpsAgentChatCardProps) {
   const chat = useAgentOpsAgentChat({ enabled, identity });
   const agentName = identity?.displayName ?? "this agent";
+  const roomTitle = `Chat with ${agentName}`;
 
   return (
     <AixiaSection
       surface="command"
-      title={`Chat with ${agentName}`}
-      description="Ask this agent about its work, findings, and recommendations."
+      title={roomTitle}
+      description={AGENT_DETAIL_B1_COPY.chatSubtitle}
       icon={MessageSquare}
       bodyClassName="aixia-section-body--messenger"
     >
@@ -47,7 +49,8 @@ export function AgentOpsAgentChatCard({ enabled = true, identity }: AgentOpsAgen
         ) : null}
 
         <AixiaMessengerShell
-          roomTitle={`Chat with ${agentName}`}
+          roomTitle={roomTitle}
+          hideRoomTitle
           chatScope="individual_agent"
           testId="agentops-agent-detail-messenger"
           messages={chat.messengerMessages}
@@ -58,7 +61,7 @@ export function AgentOpsAgentChatCard({ enabled = true, identity }: AgentOpsAgen
           statusText={chat.statusText}
           errorText={chat.chatError ?? undefined}
           emptyTitle={`Start a conversation with ${agentName}.`}
-          emptyDescription="Ask about today's review, findings, or recommendations. History is saved for this agent."
+          emptyDescription="Ask about today’s review, findings, or recommendations. History is saved for this agent."
           showTypingIndicator={chat.chatSubmitting}
           typingLabel={`${agentName} is thinking…`}
           className="min-h-[360px] max-h-[640px]"

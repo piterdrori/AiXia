@@ -8,6 +8,7 @@ import type { AgentOpsTtsProviderStatus } from "@/lib/agentops/voice/agentOpsTts
 
 export type AixiaMessengerToolbarProps = {
   roomTitle: string;
+  hideRoomTitle?: boolean;
   ttsEnabled: boolean;
   onTtsToggle: () => void;
   ttsAvailable?: boolean;
@@ -43,6 +44,7 @@ function providerTitle(provider: AgentOpsTtsProviderStatus | undefined, ttsEnabl
 
 export function AixiaMessengerToolbar({
   roomTitle,
+  hideRoomTitle = false,
   ttsEnabled,
   onTtsToggle,
   ttsAvailable = true,
@@ -113,7 +115,11 @@ export function AixiaMessengerToolbar({
           </AixiaButton>
         ) : null}
         <div className="aixia-messenger-toolbar__title-wrap">
-          <h3 className="aixia-messenger-toolbar__title">{roomTitle}</h3>
+          {hideRoomTitle ? (
+            <h3 className="sr-only">{roomTitle}</h3>
+          ) : (
+            <h3 className="aixia-messenger-toolbar__title">{roomTitle}</h3>
+          )}
           {statusText ? <p className="aixia-messenger-toolbar__status">{statusText}</p> : null}
         </div>
       </div>

@@ -44,6 +44,11 @@ export type AixiaMessengerLayoutMode = "default" | "embedded" | "full";
 
 export type AixiaMessengerShellConfig = {
   roomTitle: string;
+  /**
+   * When true, roomTitle is not shown visually (section may already title the chat).
+   * Title remains available to accessibility via aria-label on the shell.
+   */
+  hideRoomTitle?: boolean;
   chatScope: AgentOpsChatScope;
   showParticipantPicker?: boolean;
   showIssueContext?: boolean;

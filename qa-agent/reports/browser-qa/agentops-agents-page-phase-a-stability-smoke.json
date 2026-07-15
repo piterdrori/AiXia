@@ -1,0 +1,157 @@
+{
+  "baseUrl": "https://ai-xia-staging.vercel.app",
+  "startedAt": "2026-07-15T04:23:02.839Z",
+  "checks": {
+    "tabFocusFetch": {
+      "monitoring": 0,
+      "council": 0,
+      "allAgentOps": 0,
+      "pass": true
+    },
+    "manualRefresh": {
+      "draftSurvived": true,
+      "messengerStillMounted": true,
+      "pageNotBlanked": true,
+      "refreshingLabelSeen": false,
+      "scrollDelta": 0,
+      "pass": true
+    },
+    "embedDesktop": {
+      "shellNear680": true,
+      "viewportFloor": true,
+      "composerVisible": true,
+      "embeddedMode": true,
+      "noLargeFeedbackBlock": true,
+      "pass": true
+    },
+    "tablet-1024": {
+      "shellPresent": true,
+      "viewportFloor": true,
+      "composerVisible": true,
+      "noOverflow": true,
+      "pass": true
+    },
+    "tablet-768": {
+      "shellPresent": true,
+      "viewportFloor": true,
+      "composerVisible": true,
+      "noOverflow": true,
+      "pass": true
+    },
+    "mobile-390": {
+      "shellPresent": true,
+      "viewportFloor": true,
+      "composerVisible": true,
+      "noOverflow": true,
+      "pass": true
+    },
+    "fullCouncil": {
+      "layoutMode": "full",
+      "shellHeight": 676,
+      "viewportHeight": 397,
+      "composerVisible": true,
+      "duplicateScrollRegions": 2,
+      "notEmbedded": true,
+      "pass": true
+    }
+  },
+  "viewports": {
+    "desktop-1440": {
+      "layoutMode": "embedded",
+      "shell": {
+        "height": 630,
+        "width": 1099,
+        "top": 505
+      },
+      "viewport": {
+        "height": 400,
+        "width": 1097,
+        "top": 526
+      },
+      "dock": {
+        "height": 209,
+        "width": 1097,
+        "top": 926
+      },
+      "composerVisible": true,
+      "pageScrollY": 0,
+      "hasInfoFeedbackBlock": false
+    },
+    "tablet-1024": {
+      "layoutMode": "embedded",
+      "shell": {
+        "height": 612,
+        "width": 683,
+        "top": 610
+      },
+      "viewport": {
+        "height": 350,
+        "width": 681,
+        "top": 662
+      },
+      "dock": {
+        "height": 209,
+        "width": 681,
+        "top": 1012
+      },
+      "composerVisible": true,
+      "pageScrollY": 0,
+      "hasInfoFeedbackBlock": false,
+      "horizontalOverflow": false
+    },
+    "tablet-768": {
+      "layoutMode": "embedded",
+      "shell": {
+        "height": 620,
+        "width": 639,
+        "top": 632
+      },
+      "viewport": {
+        "height": 345,
+        "width": 637,
+        "top": 698
+      },
+      "dock": {
+        "height": 209,
+        "width": 637,
+        "top": 1042
+      },
+      "composerVisible": true,
+      "pageScrollY": 0,
+      "hasInfoFeedbackBlock": false,
+      "horizontalOverflow": false
+    },
+    "mobile-390": {
+      "layoutMode": "embedded",
+      "shell": {
+        "height": 560,
+        "width": 285,
+        "top": 1136
+      },
+      "viewport": {
+        "height": 240,
+        "width": 283,
+        "top": 1420
+      },
+      "dock": {
+        "height": 233,
+        "width": 283,
+        "top": 1660
+      },
+      "composerVisible": true,
+      "pageScrollY": 0,
+      "hasInfoFeedbackBlock": false,
+      "horizontalOverflow": false
+    }
+  },
+  "screenshots": [
+    "qa-agent/browser-qa-artifacts/phase-a-agents-stability/agents-1440.png",
+    "qa-agent/browser-qa-artifacts/phase-a-agents-stability/agents-tablet-1024.png",
+    "qa-agent/browser-qa-artifacts/phase-a-agents-stability/agents-tablet-768.png",
+    "qa-agent/browser-qa-artifacts/phase-a-agents-stability/agents-mobile-390.png",
+    "qa-agent/browser-qa-artifacts/phase-a-agents-stability/council-full-1440.png"
+  ],
+  "errors": [],
+  "finishedAt": "2026-07-15T04:23:34.921Z",
+  "pass": true
+}

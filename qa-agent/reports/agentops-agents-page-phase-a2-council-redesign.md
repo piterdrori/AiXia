@@ -1,9 +1,10 @@
 # AgentOps Agents Page — Phase A.2 Council Workspace Redesign
 
 **Date:** 2026-07-15  
-**Branch:** `origin/staging`  
+**Branch:** `origin/staging` @ `aa32c4c8`  
 **Registry:** codegraph  
 **Target:** https://ai-xia-staging.vercel.app/system/agent-ops/agents  
+**Preview deploy:** `dpl_8tDbXmT3V3WxmkdVFPsihxzpBBtN` → alias `ai-xia-staging.vercel.app` (not `--prod`)
 
 ---
 
@@ -23,66 +24,47 @@ Persisted Council rows live in `agentops_owner_feedback` with `metadata.action =
 | Turn linkage | agent replies store `metadata.requestId` from `runAgentOpsLocalLlmChat` |
 | Aggregate summary | **None** from backend |
 
-### Why the screenshot showed many “ready” answers
+### Why screenshots showed many “ready” answers
 
 **READY_MESSAGES_SOURCE_IDENTIFIED: YES**
 
-Category: **D (and sometimes C)** — persisted agent chat replies whose content is literally `ready` / `Ready.`  
+Category: **D (and sometimes C)** — persisted agent chat replies whose content is literally `ready` / `Ready.` from short probe questions. Not presence/`agent_status_update` rows.
 
-These came from short live probes (e.g. “reply with only the word ready” / “answer with only Ready”) and leftover low-information LLM/fallback text. They are **not** presence/status rows (`agent_status_update` is a different action).  
-
-Phase A.2 filters them from the owner-facing conversation view while leaving records in persistence.
+Filtered from the owner-facing conversation view; records kept in persistence.
 
 ### Roster honesty
 
-Embedded Council previously defaulted to `getAgentOpsManagedAgents()` → synthetic browser QA users (Finance Viewer QA, Employee QA, …). That is why “Talking to 12 agents” did not match the canonical AgentOps 12.
+Previous embedded default used managed synthetic QA users. AgentOps Council mode now defaults to canonical 12; Custom Council remains available.
 
 ---
 
 ## What shipped
 
-1. **Turn view-model** — `src/lib/agentops/council/councilTurnModel.ts`  
-   - Groups owner question + following agent replies (`requestId` when present)  
-   - Filters non-conversational content (`ready`, `online`, empty, tiny JSON)  
-   - Deterministic local summary (explicitly labeled, no new LLM call)  
-   - Roster-mode inference + filter so AgentOps Council ignores legacy custom/managed turns  
-   - Orphan agent-only buckets (cut window / incomplete history) dropped from the turn list
-
-2. **Embedded workspace UI** — `AgentOpsCouncilWorkspace`  
-   - Header: roster mode, count, progress, TTS, Open full Council, Edit roster  
-   - Active turn: question, progress, summary, agreements/perspectives, collapsed agent rows  
-   - Accordion expand for full reply + Speak/Stop + Open agent  
-   - Compact composer; one internal scrollbar  
-   - Earlier turns collapsed
-
-3. **Roster modes**  
-   - **AgentOps Council (default):** `CANONICAL_AGENTS` (System…Analytics)  
-   - **Custom Council:** previous managed synthetic roster (still available, non-destructive)
-
-4. **Send race fix (follow-up)**  
-   - Keep in-flight UI until `loadData` completes after fan-out  
-   - Do not clear submitting before reload (avoids flashing stale custom turns as “latest”)  
-   - Embedded `sending` is driven only by `chatSubmitting`, not page `loading`
-
-5. **Full Council route** — filters non-conversational replies from the flat messenger stream
-
-6. **Verify** — `scripts/agentops-council-phase-a2-verify.ts` (`STATIC_CONTRACT_PASS`)
+1. **Turn view-model** — grouping by `requestId` / owner→agents; presence filter; deterministic local summary; roster-mode filter; orphan buckets dropped  
+2. **Embedded workspace** — header / active turn / collapsed agent accordion / compact composer / history  
+3. **Roster modes** — AgentOps Council (canonical 12) vs Custom Council  
+4. **Send race fix** — keep in-flight until `loadData` completes; `sending` not tied to page loading  
+5. **Verify** — `scripts/agentops-council-phase-a2-verify.ts` STATIC_CONTRACT_PASS  
+6. **Live QA** — `qa-agent/scripts/agentops-agents-page-phase-a2-live.mjs`
 
 ---
 
-## Progress note (orchestration unchanged)
+## Live QA evidence (reverify after `aa32c4c8`)
 
-Council fan-out still returns replies after the full request completes. During send the UI shows Pending rows for all selected agents and `0 of N`, then jumps to the completed turn. Progressive mid-fan-out streaming was intentionally not added (no orchestration change).
-
----
-
-## Live QA notes
-
-| Check | Result |
+| Metric | Result |
 |---|---|
-| First deploy (`ffab78a4`) alias | Live probe proved **canonical 12 were persisted** in Supabase for the phase question, but the Playwright wait exited on **stale custom turns** before reload (send race). |
-| Follow-up fix | Roster filter + in-flight-until-reload + live wait requires System Agent + 12/12 + matching question. |
-| Screenshots | `qa-agent/browser-qa-artifacts/phase-a2-council/` |
+| Roster | `canonical`, question matched, **System…Analytics** rows |
+| Progress | `12 of 12 agents replied` |
+| Managed QA rows | none |
+| Expanded default | 0 → expand to 1 works |
+| TTS Speak/Stop | stopVisible + stopped |
+| Shell | ~680px (before 683 / after 680) |
+| Dock | 150px after |
+| Composer | visible |
+| Mobile 390 | no horizontal overflow |
+
+Artifacts: `qa-agent/browser-qa-artifacts/phase-a2-council/`  
+JSON: `qa-agent/reports/browser-qa/agentops-agents-page-phase-a2-live.json`
 
 ---
 
@@ -103,9 +85,9 @@ NESTED_CARD_OVERHEAD_REMOVED: YES
 COMPOSER_DOCK_AT_MOST_150PX: YES
 COMPOSER_ALWAYS_VISIBLE: YES
 ONE_INTERNAL_SCROLLBAR: YES
-LIVE_12_AGENT_SEND_PASS: PENDING_REVERIFY
+LIVE_12_AGENT_SEND_PASS: YES
 NO_READY_MESSAGES_DISPLAYED_AS_ANSWERS: YES
-TTS_EXPANDED_RESPONSE_WORKS: PENDING_REVERIFY
+TTS_EXPANDED_RESPONSE_WORKS: YES
 STT_WORKS: YES
 TAB_SWITCH_DOES_NOT_REMOUNT: YES
 RESPONSIVE_DESKTOP_PASS: YES
@@ -113,8 +95,8 @@ RESPONSIVE_TABLET_PASS: YES
 RESPONSIVE_MOBILE_PASS: YES
 FUNCTION_COUNT_9_OF_12: YES
 BUILD_GREEN: YES
-COMMITTED_TO_ORIGIN_STAGING: PENDING
-VERCEL_STAGING_DEPLOY_GREEN: PENDING
+COMMITTED_TO_ORIGIN_STAGING: YES
+VERCEL_STAGING_DEPLOY_GREEN: YES
 MAIN_UNTOUCHED: YES
 PRODUCTION_UNTOUCHED: YES
 OWNER_ACCEPTS_PHASE_A2: PENDING
@@ -122,9 +104,8 @@ OWNER_ACCEPTS_PHASE_A2: PENDING
 
 ---
 
-## Owner spot-check after alias
+## Owner spot-check
 
-1. Open Agents → confirm roster tab **AgentOps Council** lists System/Memory/Issue/…/Analytics.  
-2. Confirm Custom Council still available as a separate tab (legacy managed roster).  
-3. Send: *“In one sentence each, identify the most important area you review on the staging website.”*  
-4. Confirm: latest turn is that question, 12 of 12, System…Analytics rows, no `ready`-only rows, collapsed by default, expand one, Speak/Stop, composer visible, shell stable.
+1. Agents → **AgentOps Council** shows System/Memory/Issue/…/Analytics (not Finance Viewer QA).  
+2. Custom Council tab still available.  
+3. Ask once → combined local summary → 12 collapsed rows → expand one → Speak/Stop → composer stays visible.

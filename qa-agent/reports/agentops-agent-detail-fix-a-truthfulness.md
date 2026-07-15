@@ -71,7 +71,7 @@ HEADER_AND_STRIP_STATUS_AGREE: YES
 HERMES_LABELED_AS_FLEET: YES
 NO_FALSE_PER_AGENT_CONNECTED_STATE: YES
 RUNTIME_MEMORY_STORE_USED: YES
-SYSTEM_AGENT_MEMORY_COUNT_NONZERO: YES (resolver + agentops_memory bridge; confirm on staging deploy)
+SYSTEM_AGENT_MEMORY_COUNT_NONZERO: YES (live: 120 assigned · 12 active)
 MEMORY_IDENTIFIER_CORRECT: YES
 OWNER_DRAFT_MEMORY_PRESERVED: YES
 HERMES_TEST_USES_RUNTIME_MEMORY: YES
@@ -87,14 +87,28 @@ EMPTY_MORE_ACTION_REMOVED: YES
 PANEL_ERRORS_ISOLATED: YES
 CHAT_TTS_STT_UNCHANGED: YES
 TAB_SWITCH_DRAFT_PRESERVED: YES (chat workspace unchanged)
-RESPONSIVE_DESKTOP_PASS: PENDING live QA after deploy
-RESPONSIVE_TABLET_PASS: PENDING live QA after deploy
-RESPONSIVE_MOBILE_PASS: PENDING live QA after deploy
+RESPONSIVE_DESKTOP_PASS: YES (live 2026-07-15 on ai-xia-staging)
+RESPONSIVE_TABLET_PASS: PARTIAL (layout tokens unchanged; full viewport matrix deferred)
+RESPONSIVE_MOBILE_PASS: PARTIAL (layout tokens unchanged; full viewport matrix deferred)
 FUNCTION_COUNT_9_OF_12: YES
-BUILD_GREEN: LOCAL_WIP_BLOCKED / VERCEL_EXPECTED
-COMMITTED_TO_ORIGIN_STAGING: PENDING
-VERCEL_STAGING_DEPLOY_GREEN: PENDING
+BUILD_GREEN: YES (Vercel Preview READY · local WIP blocked)
+COMMITTED_TO_ORIGIN_STAGING: YES (a7c3496c)
+VERCEL_STAGING_DEPLOY_GREEN: YES
 MAIN_UNTOUCHED: YES
 PRODUCTION_UNTOUCHED: YES
-READY_FOR_FIX_B: YES (after staging live confirm)
+READY_FOR_FIX_B: YES
 ```
+
+## Live staging snapshot (system-agent)
+
+URL: https://ai-xia-staging.vercel.app/system/agent-ops/agents/system-agent  
+
+Observed:
+
+- Owner work status: **Paused** (header + strip agree; Activate shown)
+- Hermes: **Fleet available** (no Connected)
+- Memory: **120 assigned · 12 active** from `agentops_memory`
+- Schedule: **Saved · not executable**
+- Current activity: Idle
+- Preview deploy: `dpl_EQDZ436yi1Tp9NxVh1ZvRQcASbDa` · functions 9/12
+- Alias: `ai-xia-staging.vercel.app` → preview

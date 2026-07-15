@@ -15,6 +15,8 @@ import type { OwnerFacingAgentStatus } from "@/lib/agentops/agents/agentRuntimeI
 export const AGENT_DETAIL_CC_COPY = {
   runAuditNotConnected: "Not connected yet",
   runBrowserQaNotConnected: "Not connected yet",
+  runAuditConnected: "Owner-gated · GHA Playwright",
+  runBrowserQaConnected: "Owner-gated · GHA Playwright",
   schedulerPending:
     "This time is calculated from the saved preference. No scheduler currently executes this agent-specific schedule.",
   scheduleExecutionNotConnected: "Not connected",

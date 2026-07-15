@@ -17,6 +17,11 @@ import {
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 import { applyMonitoringMemoryProposalViaApi } from "./monitoringMemoryApplication.js";
 import { createMonitoringReadClient, extractSupabaseProjectRef, resolveMonitoringSupabaseUrl } from "./monitoringReadClient.js";
+import {
+  handleMonitoringManualRunCapabilityRequest,
+  handleMonitoringManualRunStartRequest,
+  handleMonitoringManualRunStatusRequest,
+} from "./monitoringManualRun.js";
 import { jsonResponse } from "./ollamaProxy.js";
 
 const MONITORING_TABLE = "agentops_monitoring_runs";
@@ -1601,6 +1606,14 @@ export async function routeMonitoringRequest(request: Request): Promise<Response
   }
   if (pathname === "/api/agentops/monitoring/memory-proposals/apply") {
     return handleMonitoringMemoryProposalApplyRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/manual-run/capability") {
+    return handleMonitoringManualRunCapabilityRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/manual-run") {
+    if (request.method === "GET") return handleMonitoringManualRunStatusRequest(request);
+    if (request.method === "POST") return handleMonitoringManualRunStartRequest(request);
+    return methodNotAllowed();
   }
 
   return jsonResponse({ ok: false, error: "Not found" }, 404);

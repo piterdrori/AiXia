@@ -11,7 +11,7 @@ export type MonitoringScheduleType =
   | "weekly_improvement"
   | "daily_12_agent_review"
   | "manual";
-export type MonitoringTriggerType = "schedule" | "workflow_dispatch";
+export type MonitoringTriggerType = "schedule" | "workflow_dispatch" | "owner_manual";
 export type MonitoringMode = "operational" | "weekly_improvement" | "daily_12_agent_review";
 
 export const APPROVED_DAILY_12_AGENT_CRON = "0 1 * * *";
@@ -52,7 +52,7 @@ export function resolveScheduleType(
   triggerType: MonitoringTriggerType,
   cronExpression: string | null,
 ): MonitoringScheduleType {
-  if (triggerType === "workflow_dispatch") {
+  if (triggerType === "workflow_dispatch" || triggerType === "owner_manual") {
     return monitoringMode === "weekly_improvement" ? "weekly_improvement" : "manual";
   }
   if (cronExpression === APPROVED_WEEKLY_IMPROVEMENT_CRON) {
@@ -73,7 +73,11 @@ export function loadMonitoringScheduleMetaFromEnv(
   const monitoringMode = normalizeMonitoringMode(env.AGENTOPS_MONITORING_MODE);
   const triggerRaw = env.AGENTOPS_MONITORING_TRIGGER_TYPE?.trim().toLowerCase();
   const triggerType: MonitoringTriggerType =
-    triggerRaw === "schedule" ? "schedule" : "workflow_dispatch";
+    triggerRaw === "schedule"
+      ? "schedule"
+      : triggerRaw === "owner_manual"
+        ? "owner_manual"
+        : "workflow_dispatch";
   const cronExpression = env.AGENTOPS_MONITORING_CRON_EXPRESSION?.trim() || null;
   const scheduleTypeRaw = env.AGENTOPS_MONITORING_SCHEDULE_TYPE?.trim();
   const scheduleType = scheduleTypeRaw

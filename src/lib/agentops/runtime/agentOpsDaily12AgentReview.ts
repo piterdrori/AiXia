@@ -118,8 +118,12 @@ export function buildCanonicalRunQueueMeta(input: {
 function agentRowForProfile(
   dbAgent: AgentOpsRuntimeAgentRow,
   profile: CanonicalAgentDailyReviewProfile,
+  routeOverrides?: string[],
 ): AgentOpsRuntimeAgentRow {
-  const routes = routesForDailyReviewProfile(profile);
+  const routes =
+    routeOverrides && routeOverrides.length > 0
+      ? routeOverrides
+      : routesForDailyReviewProfile(profile);
   const usernameTag = canonicalAgentUsernameToolTag(profile.username);
   const tools = [...(dbAgent.tools ?? [])];
   if (!tools.includes(usernameTag)) tools.push(usernameTag);
@@ -139,14 +143,25 @@ async function runSingleAgentDailyReview(input: {
   executionDate: string;
   githubRunId?: string | null;
   forceRetry?: boolean;
+  routeOverrides?: string[];
+  workType?: "website_audit" | "browser_qa";
+  ownerManualRunId?: string | null;
+  maxRoutes?: number;
 }): Promise<{
   execution: DailyAgentExecutionInsert;
   draftCandidates: ReturnType<typeof dailyFindingToIssueDraftCandidate>[];
   findings: DailyReviewFinding[];
 }> {
   const startedAt = new Date().toISOString();
-  const routes = routesForDailyReviewProfile(input.profile);
-  const scanAgent = agentRowForProfile(input.dbAgent, input.profile);
+  const defaultRoutes = routesForDailyReviewProfile(input.profile);
+  const routes =
+    input.routeOverrides && input.routeOverrides.length > 0
+      ? input.routeOverrides
+      : defaultRoutes;
+  const maxRoutes =
+    input.maxRoutes ??
+    (input.workType === "browser_qa" ? Math.min(routes.length, 2) : Math.min(routes.length, 6));
+  const scanAgent = agentRowForProfile(input.dbAgent, input.profile, routes);
 
   if (input.dbAgent.status === "blocked") {
     const completedAt = new Date().toISOString();
@@ -184,7 +199,7 @@ async function runSingleAgentDailyReview(input: {
   let failureReason: string | null = null;
   try {
     scanFindings = await scanStagingWebsite(scanAgent, input.stagingUrl, {
-      maxRoutes: Math.min(routes.length, 6),
+      maxRoutes,
     });
   } catch (error) {
     failureReason = error instanceof Error ? error.message : String(error);
@@ -246,6 +261,9 @@ async function runSingleAgentDailyReview(input: {
           confidence: f.confidence,
         })),
         scanFindingsCount: scanFindings.length,
+        workType: input.workType ?? "website_audit",
+        trigger: input.ownerManualRunId ? "owner_manual" : "daily_12_agent_review",
+        ownerManualRunId: input.ownerManualRunId ?? null,
       },
       failure_reason: failureReason,
       started_at: startedAt,
@@ -260,6 +278,10 @@ async function runSingleAgentDailyReview(input: {
 export async function runDaily12AgentReview(options: {
   forceRetry?: boolean;
   agentScope?: string;
+  workType?: "website_audit" | "browser_qa";
+  selectedRoutes?: string[];
+  ownerManualRunId?: string | null;
+  maxDurationMinutes?: number;
 } = {}): Promise<Daily12AgentReviewResult> {
   const registry = validateCanonicalDailyReviewRegistry();
   const registryErrors = registry.ok ? [] : registry.errors;
@@ -392,6 +414,13 @@ export async function runDaily12AgentReview(options: {
       executionDate,
       githubRunId: process.env.GITHUB_RUN_ID ?? null,
       forceRetry: options.forceRetry,
+      routeOverrides: options.selectedRoutes,
+      workType: options.workType,
+      ownerManualRunId: options.ownerManualRunId,
+      maxRoutes:
+        options.workType === "browser_qa"
+          ? Math.min((options.selectedRoutes?.length || 2), 2)
+          : undefined,
     });
 
     pendingExecutions.push(single.execution);
@@ -457,7 +486,11 @@ export async function runDaily12AgentReview(options: {
     scheduleMeta: {
       scheduleType: "daily_12_agent_review",
       triggerType:
-        process.env.AGENTOPS_MONITORING_TRIGGER_TYPE === "schedule" ? "schedule" : "workflow_dispatch",
+        process.env.AGENTOPS_MONITORING_TRIGGER_TYPE === "schedule"
+          ? "schedule"
+          : process.env.AGENTOPS_MONITORING_TRIGGER_TYPE === "owner_manual"
+            ? "owner_manual"
+            : "workflow_dispatch",
       monitoringMode: "daily_12_agent_review",
       cronExpression: process.env.AGENTOPS_MONITORING_CRON_EXPRESSION ?? "0 1 * * *",
     },
@@ -540,8 +573,15 @@ export async function runDaily12AgentReview(options: {
     executionDate,
     scheduleType: "daily_12_agent_review",
     triggerType:
-      process.env.AGENTOPS_MONITORING_TRIGGER_TYPE === "schedule" ? "schedule" : "workflow_dispatch",
+      process.env.AGENTOPS_MONITORING_TRIGGER_TYPE === "schedule"
+        ? "schedule"
+        : process.env.AGENTOPS_MONITORING_TRIGGER_TYPE === "owner_manual"
+          ? "owner_manual"
+          : "workflow_dispatch",
     monitoringMode: "daily_12_agent_review",
+    workType: options.workType ?? "website_audit",
+    ownerManualRunId: options.ownerManualRunId ?? null,
+    selectedRoutes: options.selectedRoutes ?? null,
     expectedAgents: 12,
     attemptedAgents,
     completedAgents,
@@ -567,6 +607,48 @@ export async function runDaily12AgentReview(options: {
     registryErrors.push(`Run index persistence failed: ${runIndexInsert.error}`);
   } else {
     runIndexPersisted = true;
+  }
+
+  if (options.ownerManualRunId) {
+    const ownerStatus =
+      failedAgents > 0 || !persistenceBatch.ok
+        ? "failed"
+        : completedAgents > 0
+          ? "completed"
+          : "failed";
+    const firstExecution = pendingExecutions[0];
+    const evidence =
+      firstExecution?.evidence_summary && typeof firstExecution.evidence_summary === "object"
+        ? (firstExecution.evidence_summary as Record<string, unknown>)
+        : {};
+    const { error: ownerUpdateError } = await bootstrap.client
+      .from("agentops_monitoring_runs")
+      .update({
+        status: ownerStatus,
+        ended_at: endedAt,
+        duration_ms: Date.parse(endedAt) - Date.parse(startedAt),
+        findings_count: draftInsert.created,
+        github_run_id: process.env.GITHUB_RUN_ID ?? null,
+        github_run_url: process.env.GITHUB_RUN_URL ?? null,
+        summary: {
+          trigger: "owner_manual",
+          ownerManual: true,
+          workType: options.workType ?? "website_audit",
+          agentSlug: options.agentScope && options.agentScope !== "all" ? options.agentScope : null,
+          dailyReviewRunId: runId,
+          routesChecked: firstExecution?.routes_reviewed ?? options.selectedRoutes ?? [],
+          queuedFindings: draftInsert.created,
+          rawObservations:
+            typeof evidence.scanFindingsCount === "number" ? evidence.scanFindingsCount : null,
+          evidenceAvailable: true,
+          autoPromoteBlocked: true,
+          autoFixBlocked: true,
+        },
+      })
+      .eq("run_id", options.ownerManualRunId);
+    if (ownerUpdateError) {
+      registryErrors.push(`Owner manual run update failed: ${ownerUpdateError.message}`);
+    }
   }
 
   const persistenceMetrics = {

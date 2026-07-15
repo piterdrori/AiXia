@@ -15,6 +15,22 @@ on:
         description: "Retry completed agents"
         required: false
         default: "false"
+      work_type:
+        description: "website_audit or browser_qa (owner manual)"
+        required: false
+        default: "website_audit"
+      owner_manual_run_id:
+        description: "Owner Detail manual run id (optional)"
+        required: false
+        default: ""
+      selected_routes:
+        description: "Comma-separated routes override (optional)"
+        required: false
+        default: ""
+      max_duration_minutes:
+        description: "Soft max duration hint for owner manual runs"
+        required: false
+        default: "15"
   schedule:
     - cron: "0 1 * * *"
 
@@ -41,10 +57,15 @@ jobs:
       AGENTOPS_MONITORING_LEVEL: "1"
       AGENTOPS_MONITORING_TARGET_BASE_URL: ${{ secrets.AGENTOPS_QA_BASE_URL }}
       AGENTOPS_QA_BASE_URL: ${{ secrets.AGENTOPS_QA_BASE_URL }}
-      AGENTOPS_MONITORING_TRIGGER_TYPE: ${{ github.event_name == 'schedule' && 'schedule' || 'workflow_dispatch' }}
       AGENTOPS_MONITORING_CRON_EXPRESSION: "0 1 * * *"
       AGENTOPS_DAILY_AGENT_SCOPE: ${{ inputs.agent_scope || 'all' }}
       AGENTOPS_DAILY_FORCE_RETRY: ${{ inputs.force_retry || 'false' }}
+      AGENTOPS_MANUAL_WORK_TYPE: ${{ inputs.work_type || 'website_audit' }}
+      AGENTOPS_OWNER_MANUAL_RUN_ID: ${{ inputs.owner_manual_run_id || '' }}
+      AGENTOPS_MANUAL_SELECTED_ROUTES: ${{ inputs.selected_routes || '' }}
+      AGENTOPS_MANUAL_MAX_DURATION_MINUTES: ${{ inputs.max_duration_minutes || '15' }}
+      # owner_manual when Detail dispatches with owner_manual_run_id; else schedule / workflow_dispatch
+      AGENTOPS_MONITORING_TRIGGER_TYPE: ${{ inputs.owner_manual_run_id != '' && 'owner_manual' || (github.event_name == 'schedule' && 'schedule' || 'workflow_dispatch') }}
       VITE_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       VITE_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}

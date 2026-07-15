@@ -63,6 +63,10 @@ function verifyDailyWorkflow(): void {
   if (!workflow.includes("workflow_dispatch:")) fail("Daily workflow must support workflow_dispatch");
   if (!workflow.includes("agent_scope:")) fail("Daily workflow must include agent_scope input");
   if (!workflow.includes("force_retry:")) fail("Daily workflow must include force_retry input");
+  if (!workflow.includes("work_type:")) fail("Daily workflow must include work_type input (Fix B)");
+  if (!workflow.includes("owner_manual_run_id:")) {
+    fail("Daily workflow must include owner_manual_run_id input (Fix B)");
+  }
   if (!workflow.includes("group: agentops-staging-daily-12-agent-review")) {
     fail("Daily workflow must use concurrency group agentops-staging-daily-12-agent-review");
   }

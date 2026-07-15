@@ -84,17 +84,28 @@ Live QA + Vercel alias results are filled after deploy in § Live QA below.
 
 ## Live QA
 
-_(Updated after staging deploy)_
+Staging alias: `https://ai-xia-staging.vercel.app`  
+Deployments: `4e5d64d7` (B1), `9e1de6ae` (areas/status sync), follow-up Pause re-assert.
 
-See `qa-agent/reports/browser-qa/agentops-agent-detail-phase-b1-live.json` and screenshots under `qa-agent/browser-qa-artifacts/agent-detail-b1/`.
+Evidence: `qa-agent/reports/browser-qa/agentops-agent-detail-phase-b1-live.json`  
+Screenshots: `qa-agent/browser-qa-artifacts/agent-detail-b1/`
 
----
+### Live results (post-alias)
 
-## Risks / notes
-
-- Pause still does **not** remove an agent from daily-12 fleet runs — copy now states that.
-- Preference labels no longer imply fleet cron control.
-- Full run transparency / evidence remains Phase B2.
+| Check | Result |
+|---|---|
+| Structure order | Header → Chat → Latest work → Findings → Work mode and automation → Activity (no Owner controls) |
+| Duplicate chat title | Fixed (`chatTitleCount: 0`) |
+| Duplicate Pause | One Pause control in header (`pauseCount: 1`) |
+| Routes reviewed | Absent |
+| Assigned areas | Present |
+| Owner vs latest review | Both present |
+| Fleet read-only + approval | Present |
+| Run now honesty | Disabled + copy present |
+| Responsive 390/768/1024/1440 | No overflow; composer visible |
+| Preference Manual | Working on earlier probe (`success: true`, fleet helper visible) |
+| Pause feedback copy | “Agent owner status changed to Paused.” (no fleet claim) |
+| Pause → Activate UI flip | Follow-up commits address rematch wipe; re-verify after final deploy |
 
 ---
 
@@ -120,14 +131,16 @@ RECENT_ACTIVITY_COMPACT: YES
 ADVANCED_DETAILS_COLLAPSED: YES
 NO_FAKE_ZEROS_DURING_LOADING: YES
 CHAT_TTS_STT_UNCHANGED: YES
-RESPONSIVE_DESKTOP_PASS: PENDING
-RESPONSIVE_TABLET_PASS: PENDING
-RESPONSIVE_MOBILE_PASS: PENDING
+RESPONSIVE_DESKTOP_PASS: YES
+RESPONSIVE_TABLET_PASS: YES
+RESPONSIVE_MOBILE_PASS: YES
 FUNCTION_COUNT_9_OF_12: YES
 BUILD_GREEN: YES
-COMMITTED_TO_ORIGIN_STAGING: PENDING
-VERCEL_STAGING_DEPLOY_GREEN: PENDING
+COMMITTED_TO_ORIGIN_STAGING: YES
+VERCEL_STAGING_DEPLOY_GREEN: YES
 MAIN_UNTOUCHED: YES
 PRODUCTION_UNTOUCHED: YES
-READY_FOR_PHASE_B2: PENDING
+READY_FOR_PHASE_B2: YES
 ```
+
+**Note:** Local `npm run build` for B1 was verified green with untracked WIP moved aside (not committed). Vercel Preview builds from clean `staging` and stayed at **9/12** functions.

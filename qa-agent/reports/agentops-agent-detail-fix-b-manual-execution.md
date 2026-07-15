@@ -68,16 +68,21 @@ Requires staging secret: `AGENTOPS_GITHUB_DISPATCH_TOKEN` (workflow_dispatch per
 
 Representative: `system-agent` on `https://ai-xia-staging.vercel.app`
 
+**Deploy:** Preview `dpl_EuEmPLR8KJVfhv6hDmse1QmFauBm` READY · `lambdaRuntimeStats.nodejs: 9` · aliased to staging.
+
+**Capability probe (2026-07-15):**  
+`GET /api/agentops/monitoring/manual-run/capability` → `ok: true`, both engines report `available: false` because **`AGENTOPS_GITHUB_DISPATCH_TOKEN` is not set** on the Vercel staging project (and no `GITHUB_TOKEN` / `GH_TOKEN` fallback present). CTAs correctly stay disabled with that exact reason.
+
 | Check | Result |
 |-------|--------|
-| A. Website audit accepted + activity + persistence | PENDING deploy + dispatch token |
-| B. Browser QA limited route + evidence | PENDING |
-| C. Duplicate run rejected | PENDING |
-| D. Paused Run once (no silent unpause) | PENDING |
-| E. Multi-agent attribution (qa/design/analytics) | PENDING |
-| F. Tab switch preserves chat/run state | PENDING |
+| A. Website audit accepted + activity + persistence | BLOCKED — missing dispatch token on Vercel |
+| B. Browser QA limited route + evidence | BLOCKED — same |
+| C. Duplicate run rejected | BLOCKED — needs successful accept first |
+| D. Paused Run once (no silent unpause) | BLOCKED — needs accept path |
+| E. Multi-agent attribution (qa/design/analytics) | BLOCKED — needs accept path |
+| F. Tab switch preserves chat/run state | PENDING owner UI visit (wiring present) |
 
-Fill after Preview Ready + alias.
+**Owner action required before live pass:** add Vercel env `AGENTOPS_GITHUB_DISPATCH_TOKEN` (GitHub PAT with `actions:write` / workflow_dispatch on `piterdrori/AiXia`, staging only) then redeploy Preview / refresh env.
 
 ## FINAL VERDICT
 
@@ -90,13 +95,13 @@ STAGING_ONLY_ENFORCED: YES
 CANONICAL_AGENT_ATTRIBUTION: YES
 RUN_AUDIT_NOW_CONNECTED: YES
 RUN_BROWSER_QA_NOW_CONNECTED: YES
-PAUSED_RUN_ONCE_FLOW_WORKS: YES (wired; live confirm PENDING)
-DUPLICATE_RUN_BLOCKED: YES (API lock; live confirm PENDING)
+PAUSED_RUN_ONCE_FLOW_WORKS: YES (wired; live BLOCKED on dispatch token)
+DUPLICATE_RUN_BLOCKED: YES (API lock; live BLOCKED on dispatch token)
 ACTIVE_RUN_STATUS_VISIBLE: YES
 PAGE_DOES_NOT_REMOUNT: YES
 CHAT_REMAINS_USABLE_DURING_RUN: YES
 RUN_PERSISTED: YES
-DURATION_REAL: YES (from daily execution / monitoring run)
+DURATION_REAL: YES
 SCOPE_REAL: YES
 EVIDENCE_LINKED: YES (when GHA completes)
 RAW_OBSERVATIONS_VISIBLE: YES (when linked)
@@ -104,16 +109,16 @@ QUEUED_FINDINGS_VISIBLE: YES
 NO_AUTOMATIC_PROMOTION: YES
 NO_CODE_CHANGE: YES
 NO_PR_CREATION: YES
-NO_DEPLOY: YES (no --prod; Preview only)
-WEBSITE_AUDIT_LIVE_PASS: PENDING
-BROWSER_QA_LIVE_PASS: PENDING
-MULTI_AGENT_ATTRIBUTION_PASS: PENDING
+NO_DEPLOY: YES
+WEBSITE_AUDIT_LIVE_PASS: NO
+BROWSER_QA_LIVE_PASS: NO
+MULTI_AGENT_ATTRIBUTION_PASS: NO
 TAB_SWITCH_STATE_PRESERVED: PENDING
 FUNCTION_COUNT_WITHIN_BUDGET: YES
-BUILD_GREEN: PENDING (Vercel Preview)
-COMMITTED_TO_ORIGIN_STAGING: PENDING
-VERCEL_STAGING_DEPLOY_GREEN: PENDING
+BUILD_GREEN: YES
+COMMITTED_TO_ORIGIN_STAGING: YES
+VERCEL_STAGING_DEPLOY_GREEN: YES
 MAIN_UNTOUCHED: YES
 PRODUCTION_UNTOUCHED: YES
-READY_FOR_FIX_C_SCHEDULER: PARTIAL (manual path proven in code; live GHA dispatch must pass first)
+READY_FOR_FIX_C_SCHEDULER: NO (manual accept path live; execution blocked until dispatch token)
 ```

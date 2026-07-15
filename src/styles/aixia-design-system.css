@@ -9961,38 +9961,56 @@ button.aixia-action-card:disabled {
   overflow-y: auto;
 }
 
-/* Phase A.2 — embedded Council workspace (turn-grouped) */
+/* Phase A.3 — conversational Council workspace (fixed composer, two-column) */
 .agentops-council-workspace {
   display: flex;
   flex-direction: column;
   width: 100%;
   min-width: 0;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 12px;
   background:
-    linear-gradient(180deg, rgba(14, 26, 48, 0.92), rgba(8, 16, 32, 0.96));
+    linear-gradient(180deg, rgba(14, 26, 48, 0.94), rgba(8, 16, 32, 0.98));
   overflow: hidden;
+  position: relative;
 }
 
 .agentops-council-workspace--embedded {
   flex: 0 0 auto;
-  height: clamp(680px, 75vh, 760px);
-  min-height: 680px;
+  height: clamp(620px, 70vh, 700px);
+  min-height: 620px;
 }
 
 .agentops-council-workspace--full {
   flex: 0 0 auto;
-  height: clamp(560px, calc(100dvh - 14rem), 820px);
+  height: clamp(560px, calc(100dvh - 14rem), 780px);
   min-height: 560px;
 }
 
-.agentops-council-workspace__meta {
+.agentops-council-workspace__toolbar {
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem 0.7rem;
-  padding: 0.45rem 0.75rem;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  justify-content: space-between;
+  gap: 0.45rem 0.65rem;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.agentops-council-workspace__toolbar-left,
+.agentops-council-workspace__toolbar-right {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  min-width: 0;
+}
+
+.agentops-council-workspace__title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: rgba(242, 248, 255, 0.95);
 }
 
 .agentops-council-workspace__roster-mode {
@@ -10017,56 +10035,339 @@ button.aixia-action-card:disabled {
   color: rgba(242, 248, 255, 0.96);
 }
 
-.agentops-council-workspace__roster-label,
 .agentops-council-workspace__progress {
-  display: inline-flex;
-  align-items: center;
   font-size: 0.72rem;
-  color: rgba(188, 205, 230, 0.88);
+  color: rgba(125, 211, 252, 0.92);
+  white-space: nowrap;
 }
 
-.agentops-council-workspace__viewport {
+.agentops-council-workspace__icon-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(188, 205, 230, 0.85);
+  cursor: pointer;
+  padding: 0.2rem;
+  display: inline-grid;
+  place-items: center;
+}
+
+.agentops-council-workspace__history-drawer {
+  flex: 0 0 auto;
+  max-height: 11rem;
+  overflow-y: auto;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  padding: 0.55rem 0.75rem 0.7rem;
+  background: rgba(6, 12, 26, 0.72);
+}
+
+.agentops-council-workspace__history-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: rgba(186, 230, 253, 0.88);
+  margin-bottom: 0.35rem;
+}
+
+.agentops-council-workspace__history-empty {
+  margin: 0;
+  font-size: 0.78rem;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.agentops-council-workspace__history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.agentops-council-workspace__history-item {
+  width: 100%;
+  text-align: left;
+  appearance: none;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: inherit;
+  padding: 0.45rem 0.55rem;
+  cursor: pointer;
+}
+
+.agentops-council-workspace__history-item.is-active {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(14, 116, 144, 0.12);
+}
+
+.agentops-council-workspace__history-q {
+  display: block;
+  font-size: 0.8rem;
+  color: rgba(242, 248, 255, 0.92);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentops-council-workspace__history-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.2rem;
+  font-size: 0.68rem;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.agentops-council-workspace__body {
   flex: 1 1 auto;
-  min-height: 470px;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1.75fr) minmax(220px, 0.7fr);
+  gap: 0;
+  overflow: hidden;
+}
+
+.agentops-council-workspace__conversation {
+  min-height: 0;
+  min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0.65rem 0.75rem;
+  padding: 0.75rem 0.85rem;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.7rem;
+  border-right: 1px solid rgba(148, 163, 184, 0.14);
 }
 
 .agentops-council-workspace__empty {
   display: grid;
   place-items: center;
-  gap: 0.35rem;
-  min-height: 12rem;
+  gap: 0.3rem;
+  min-height: 10rem;
   text-align: center;
-  padding: 1.5rem;
+  padding: 1.25rem;
+  margin: auto 0;
 }
 
-.agentops-council-workspace__history-label {
+.agentops-council-workspace__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: rgba(148, 163, 184, 0.88);
+}
+
+.agentops-council-msg {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.agentops-council-msg__label {
+  margin: 0;
   font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(148, 163, 184, 0.78);
-  margin: 0.35rem 0 0;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(186, 230, 253, 0.88);
+}
+
+.agentops-council-msg__role {
+  margin: 0;
+  font-size: 0.68rem;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.agentops-council-msg__text,
+.agentops-council-msg__full {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: rgba(242, 248, 255, 0.94);
+  white-space: pre-wrap;
+}
+
+.agentops-council-msg--owner .agentops-council-msg__text {
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+}
+
+.agentops-council-msg--system .agentops-council-msg__text {
+  font-size: 0.8rem;
+  color: rgba(186, 230, 253, 0.9);
+}
+
+.agentops-council-msg--agent .agentops-council-msg__full {
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.agentops-council-msg__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.15rem;
+}
+
+.agentops-council-overview {
+  padding: 0.15rem 0 0.25rem;
+}
+
+.agentops-council-overview__title {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(242, 248, 255, 0.94);
+}
+
+.agentops-council-overview__sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.68rem;
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.agentops-council-overview__text,
+.agentops-council-overview__next {
+  margin: 0.4rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.agentops-council-overview__heading {
+  margin: 0.45rem 0 0.15rem;
+  font-size: 0.72rem;
+  color: rgba(186, 230, 253, 0.85);
+}
+
+.agentops-council-overview__block ul {
+  margin: 0;
+  padding-left: 1.05rem;
+  font-size: 0.78rem;
+  color: rgba(203, 213, 225, 0.9);
+}
+
+.agentops-council-workspace__agents {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(6, 12, 26, 0.35);
+}
+
+.agentops-council-workspace__agents-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.65rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(186, 230, 253, 0.88);
+}
+
+.agentops-council-workspace__agents-close {
+  display: none;
+}
+
+.agentops-council-workspace__agents-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 0.25rem 0.45rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.agentops-council-workspace__agents-backdrop {
+  display: none;
+}
+
+.agentops-council-agent-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.4rem;
+  align-items: start;
+  text-align: left;
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 0.4rem 0.45rem;
+  cursor: pointer;
+}
+
+.agentops-council-agent-row:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.agentops-council-agent-row.is-selected {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(14, 116, 144, 0.14);
+}
+
+.agentops-council-agent-row:disabled {
+  opacity: 0.72;
+  cursor: default;
+}
+
+.agentops-council-agent-row__avatar {
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.62rem;
+  font-weight: 600;
+  background: rgba(56, 189, 248, 0.16);
+  color: rgba(186, 230, 253, 0.95);
+}
+
+.agentops-council-agent-row__identity {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+
+.agentops-council-agent-row__name {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(242, 248, 255, 0.94);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agentops-council-agent-row__role,
+.agentops-council-agent-row__preview {
+  font-size: 0.64rem;
+  color: rgba(148, 163, 184, 0.88);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agentops-council-workspace__dock {
   flex: 0 0 auto;
-  max-height: 150px;
+  max-height: 140px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   overflow: hidden;
+  background: rgba(6, 12, 26, 0.55);
 }
 
 .agentops-council-workspace__dock:has(.aixia-messenger-participant-picker[data-expanded="true"]) {
-  max-height: 240px;
+  max-height: 220px;
   overflow-y: auto;
 }
 
 .agentops-council-workspace .aixia-messenger-composer__input {
-  min-height: 56px;
+  min-height: 60px;
   max-height: 120px;
 }
 
@@ -10074,177 +10375,8 @@ button.aixia-action-card:disabled {
   padding-top: 0.25rem;
 }
 
-.agentops-council-turn {
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
-  overflow: hidden;
-}
-
-.agentops-council-turn--pending {
-  padding: 0.8rem 0.9rem;
-}
-
-.agentops-council-turn__toggle {
-  width: 100%;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 0.55rem;
-  align-items: start;
-  text-align: left;
-  padding: 0.7rem 0.8rem;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-}
-
-.agentops-council-turn__question {
-  font-size: 0.9rem;
-  color: rgba(242, 248, 255, 0.94);
-  line-height: 1.35;
-}
-
-.agentops-council-turn__progress {
-  font-size: 0.7rem;
-  color: rgba(125, 211, 252, 0.9);
-  white-space: nowrap;
-}
-
-.agentops-council-turn__body {
-  display: grid;
-  gap: 0.65rem;
-  padding: 0 0.8rem 0.8rem;
-}
-
-.agentops-council-turn__summary {
-  border-radius: 10px;
-  border: 1px solid rgba(56, 189, 248, 0.22);
-  background: rgba(14, 116, 144, 0.12);
-  padding: 0.65rem 0.75rem;
-}
-
-.agentops-council-turn__summary-label {
-  margin: 0;
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: rgba(186, 230, 253, 0.8);
-}
-
-.agentops-council-turn__summary-text,
-.agentops-council-turn__next,
-.agentops-council-turn__subhead {
-  margin: 0.35rem 0 0;
-  font-size: 0.82rem;
-  color: rgba(226, 232, 240, 0.92);
-}
-
-.agentops-council-turn__list {
-  margin: 0.35rem 0 0;
-  padding-left: 1.1rem;
-  font-size: 0.78rem;
-  color: rgba(203, 213, 225, 0.9);
-}
-
-.agentops-council-turn__responses {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.agentops-council-response-row {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 10px;
-  background: rgba(8, 16, 34, 0.55);
-}
-
-.agentops-council-response-row__header {
-  width: 100%;
-  display: grid;
-  grid-template-columns: auto minmax(7rem, 0.9fr) minmax(0, 1.4fr) auto auto;
-  gap: 0.45rem;
-  align-items: center;
-  text-align: left;
-  padding: 0.45rem 0.55rem;
-  background: transparent;
-  border: 0;
-  color: inherit;
-  cursor: pointer;
-}
-
-.agentops-council-response-row__avatar {
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  font-size: 0.65rem;
-  font-weight: 600;
-  background: rgba(56, 189, 248, 0.16);
-  color: rgba(186, 230, 253, 0.95);
-}
-
-.agentops-council-response-row__identity {
-  display: grid;
-  gap: 0.05rem;
-  min-width: 0;
-}
-
-.agentops-council-response-row__name {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: rgba(242, 248, 255, 0.94);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agentops-council-response-row__role {
-  font-size: 0.65rem;
-  color: rgba(148, 163, 184, 0.85);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.agentops-council-response-row__preview {
-  font-size: 0.75rem;
-  color: rgba(203, 213, 225, 0.88);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-}
-
-.agentops-council-response-row__body {
-  border-top: 1px solid rgba(148, 163, 184, 0.16);
-  padding: 0.55rem 0.7rem 0.7rem;
-}
-
-.agentops-council-response-row__full {
-  margin: 0;
-  font-size: 0.84rem;
-  line-height: 1.45;
-  color: rgba(226, 232, 240, 0.94);
-  white-space: pre-wrap;
-}
-
-.agentops-council-response-row__meta {
-  margin-top: 0.55rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.45rem;
-  font-size: 0.7rem;
-  color: rgba(148, 163, 184, 0.85);
-}
-
-.agentops-council-response-row__actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+.agentops-council-workspace__agents-mobile {
+  display: none;
 }
 
 .aixia-council-embed {
@@ -10769,13 +10901,56 @@ button.aixia-action-card:disabled {
   .aixia-section-body--messenger .aixia-messenger-shell--embedded,
   .aixia-section-body--council-embed .aixia-messenger-shell--embedded,
   .agentops-council-workspace--embedded {
-    height: clamp(700px, 78vh, 760px);
-    min-height: 700px;
+    height: clamp(620px, 72vh, 700px);
+    min-height: 620px;
+  }
+
+  .agentops-council-workspace__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agentops-council-workspace__conversation {
+    border-right: 0;
+  }
+
+  .agentops-council-workspace__agents {
+    position: absolute;
+    top: 2.75rem;
+    right: 0;
+    bottom: 7.5rem;
+    width: min(320px, 88vw);
+    z-index: 20;
+    border-left: 1px solid rgba(148, 163, 184, 0.22);
+    background: rgba(8, 14, 28, 0.97);
+    transform: translateX(105%);
+    transition: transform 160ms ease;
+  }
+
+  .agentops-council-workspace__agents.is-open {
+    transform: translateX(0);
+  }
+
+  .agentops-council-workspace__agents-close {
+    display: inline-grid;
+  }
+
+  .agentops-council-workspace__agents-backdrop {
+    display: block;
+    position: absolute;
+    inset: 2.75rem 0 7.5rem 0;
+    z-index: 15;
+    border: 0;
+    background: rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+  }
+
+  .agentops-council-workspace__agents-mobile {
+    display: inline-flex;
   }
 
   .aixia-messenger-shell--embedded .aixia-messenger-shell__viewport,
-  .agentops-council-workspace--embedded .agentops-council-workspace__viewport {
-    min-height: 460px;
+  .agentops-council-workspace--embedded .agentops-council-workspace__conversation {
+    min-height: 430px;
   }
 }
 
@@ -10784,26 +10959,40 @@ button.aixia-action-card:disabled {
   .aixia-section-body--messenger .aixia-messenger-shell--embedded,
   .aixia-section-body--council-embed .aixia-messenger-shell--embedded,
   .agentops-council-workspace--embedded {
-    height: clamp(640px, 76vh, 700px);
-    min-height: 640px;
+    height: clamp(600px, 74vh, 680px);
+    min-height: 600px;
   }
 
   .aixia-messenger-shell--embedded .aixia-messenger-shell__viewport,
-  .agentops-council-workspace--embedded .agentops-council-workspace__viewport {
+  .agentops-council-workspace--embedded .agentops-council-workspace__conversation {
     min-height: 390px;
   }
 
   .aixia-messenger-shell--embedded .aixia-messenger-shell__dock,
   .agentops-council-workspace__dock {
-    max-height: 160px;
+    max-height: 140px;
   }
 
-  .agentops-council-response-row__header {
-    grid-template-columns: auto minmax(0, 1fr) auto;
+  .agentops-council-workspace__agents {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: min(58vh, 420px);
+    border-left: 0;
+    border-top: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 14px 14px 0 0;
+    transform: translateY(105%);
   }
 
-  .agentops-council-response-row__preview {
-    display: none;
+  .agentops-council-workspace__agents.is-open {
+    transform: translateY(0);
+  }
+
+  .agentops-council-workspace__agents-backdrop {
+    inset: 0;
+    bottom: 0;
   }
 }
 
@@ -10822,12 +11011,12 @@ button.aixia-action-card:disabled {
   .aixia-section-body--messenger .aixia-messenger-shell--embedded,
   .aixia-section-body--council-embed .aixia-messenger-shell--embedded,
   .agentops-council-workspace--embedded {
-    height: clamp(480px, calc(100dvh - 11rem), 620px);
-    min-height: 480px;
+    height: clamp(520px, calc(100dvh - 10rem), 640px);
+    min-height: 520px;
   }
 
   .aixia-messenger-shell--embedded .aixia-messenger-shell__viewport,
-  .agentops-council-workspace--embedded .agentops-council-workspace__viewport {
+  .agentops-council-workspace--embedded .agentops-council-workspace__conversation {
     min-height: 300px;
   }
 
@@ -10841,16 +11030,8 @@ button.aixia-action-card:disabled {
     grid-template-columns: auto minmax(80px, 1fr) auto auto;
   }
 
-  .agentops-council-workspace__meta {
-    gap: 0.35rem;
-  }
-
-  .agentops-council-turn__toggle {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .agentops-council-turn__progress {
-    grid-column: 2;
+  .agentops-council-workspace__toolbar {
+    gap: 0.3rem;
   }
 }
 

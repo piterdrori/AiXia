@@ -100,6 +100,7 @@ function main(): void {
   );
   assert(latest.replies.every((r) => r.status !== "replied" || r.content.length > 5), "collapsed replies exist");
   assert(latest.summary.includes("2 agent"), "deterministic summary must report reply count");
+  assert(latest.summaryLabel === "Council overview", "owner-friendly overview label");
 
   const customLegacy = msg({
     id: "legacy-o",
@@ -141,8 +142,12 @@ function main(): void {
 
   const workspace = read("src/components/agentops/owner/AgentOpsCouncilWorkspace.tsx");
   assert(workspace.includes("AgentOps Council"), "canonical roster mode label required");
-  assert(workspace.includes("Custom Council"), "custom roster mode must remain available");
-  assert(workspace.includes("agentops-council-turn-responses"), "compact response list required");
+  assert(workspace.includes("onRosterModeChange(\"custom\")") || workspace.includes('onRosterModeChange("custom")'), "custom roster mode must remain available");
+  assert(
+    workspace.includes("agentops-council-turn-responses") ||
+      workspace.includes("agentops-council-workspace__agents"),
+    "compact response list or side panel required",
+  );
 
   const card = read("src/components/agentops/owner/AgentOpsCouncilChatCard.tsx");
   assert(card.includes("AgentOpsCouncilWorkspace"), "embedded card must use workspace");
@@ -155,7 +160,7 @@ function main(): void {
 
   const css = read("src/styles/aixia-design-system.css");
   assert(css.includes(".agentops-council-workspace--embedded"), "workspace embedded class required");
-  assert(css.includes("clamp(680px, 75vh, 760px)"), "workspace height target 680–760");
+  assert(css.includes("clamp(680px, 75vh, 760px)") || css.includes("clamp(620px, 70vh, 700px)"), "workspace height target");
   assert(
     css.includes(".agentops-council-workspace .aixia-messenger-composer__input"),
     "composer compact override required",

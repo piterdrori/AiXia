@@ -141,11 +141,11 @@ function buildDeterministicSummary(replies: CouncilAgentReplyView[]): {
   const conversational = replies.filter((r) => !r.skippedAsNonConversational && r.status === "replied");
   if (conversational.length === 0) {
     return {
-      summaryLabel: "Local summary",
-      summary: "No conversational agent replies in this turn yet.",
+      summaryLabel: "Council overview",
+      summary: "No agent replies in this turn yet.",
       agreements: [],
       disagreements: [],
-      recommendedNextStep: "Send a clear question to the selected Council agents.",
+      recommendedNextStep: "Ask the Council a clear question.",
     };
   }
 
@@ -187,13 +187,16 @@ function buildDeterministicSummary(replies: CouncilAgentReplyView[]): {
         : [];
 
   return {
-    summaryLabel: "Local summary (not an LLM consensus)",
-    summary: `${conversational.length} agent${conversational.length === 1 ? "" : "s"} replied. Open individual responses below.`,
+    summaryLabel: "Council overview",
+    summary:
+      conversational.length >= 2
+        ? `${conversational.length} agents replied. Select an agent to review their response.`
+        : `${conversational.length} agent replied. Select them to review the full response.`,
     agreements,
     disagreements,
     recommendedNextStep:
       conversational.length >= 2
-        ? "Expand disagreeing agents, then ask a focused follow-up."
+        ? "Compare differing agents, then ask a focused follow-up."
         : "Ask a follow-up to deepen this perspective.",
   };
 }

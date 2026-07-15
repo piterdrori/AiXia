@@ -49,6 +49,30 @@ export type UseAgentOpsCouncilChatOptions = {
   recentMessageLimit?: number;
 };
 
+const COUNCIL_DRAFT_STORAGE_KEY = "agentops.council.draft.agent-council";
+
+function readCouncilDraft(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(COUNCIL_DRAFT_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeCouncilDraft(value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (!value.trim()) {
+      window.localStorage.removeItem(COUNCIL_DRAFT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(COUNCIL_DRAFT_STORAGE_KEY, value);
+  } catch {
+    // ignore quota / private mode
+  }
+}
+
 export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = {}) {
   const enabled = options.enabled !== false;
   const recentMessageLimit = options.recentMessageLimit ?? 40;
@@ -58,7 +82,7 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
   const [isOwner, setIsOwner] = useState(false);
   const [managedAgents, setManagedAgents] = useState<AgentOpsManagedAgent[]>([]);
   const [councilMessages, setCouncilMessages] = useState<AgentOpsCouncilChatMessage[]>([]);
-  const [composerValue, setComposerValue] = useState("");
+  const [composerValue, setComposerValue] = useState(() => readCouncilDraft());
   const [chatSubmitting, setChatSubmitting] = useState(false);
   const [chatFeedback, setChatFeedback] = useState<string | null>(null);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -135,6 +159,10 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     if (!enabled) return;
     void loadData();
   }, [enabled, loadData]);
+
+  useEffect(() => {
+    writeCouncilDraft(composerValue);
+  }, [composerValue]);
 
   useEffect(() => {
     if (!enabled || loading || managedAgents.length === 0 || agentsActivatedRef.current) return;
@@ -232,6 +260,7 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     }
 
     setComposerValue("");
+    writeCouncilDraft("");
     setChatSubmitting(false);
     if (!llmResult.localLlmCalled) {
       setChatError(

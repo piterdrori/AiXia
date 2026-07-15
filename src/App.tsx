@@ -328,6 +328,15 @@ async function getAccessState(sessionHint?: Session | null): Promise<AccessSnaps
   }
 }
 
+type RefreshAccessOptions = {
+  /**
+   * Soft refresh: update access/role/permissions without flipping BootstrapGate /
+   * ProtectedRoute bootstrapping. Required so TOKEN_REFRESHED and cross-tab auth
+   * events do not remount the authenticated route tree (Agents/Council).
+   */
+  silent?: boolean;
+};
+
 function AuthAccessProvider({ children }: { children: ReactNode }) {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [bootstrapTimedOut, setBootstrapTimedOut] = useState(false);
@@ -341,6 +350,7 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
   const requestIdRef = useRef(0);
   const mountedRef = useRef(true);
   const isBootstrappingRef = useRef(true);
+  const hasBootstrappedRef = useRef(false);
 
   const clearBootstrapFailure = () => {
     setBootstrapTimedOut(false);
@@ -348,10 +358,17 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
     setBootstrapMessage(null);
   };
 
-  const refreshAccessState = async (sessionHint?: Session | null) => {
+  const refreshAccessState = async (
+    sessionHint?: Session | null,
+    options?: RefreshAccessOptions,
+  ) => {
     const requestId = ++requestIdRef.current;
-    isBootstrappingRef.current = true;
-    setIsBootstrapping(true);
+    const silent = options?.silent === true;
+
+    if (!silent) {
+      isBootstrappingRef.current = true;
+      setIsBootstrapping(true);
+    }
 
     try {
       const snapshot = await getAccessState(sessionHint);
@@ -385,6 +402,7 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
       if (mountedRef.current && requestId === requestIdRef.current) {
         isBootstrappingRef.current = false;
         setIsBootstrapping(false);
+        hasBootstrappedRef.current = true;
       }
     }
   };
@@ -419,10 +437,28 @@ function AuthAccessProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       window.setTimeout(() => {
         if (!mountedRef.current) return;
-        void refreshAccessState(session);
+
+        // Initial session is already handled by the blocking refresh above.
+        // TOKEN_REFRESHED / cross-tab storage recovery must never remount the tree.
+        if (event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") {
+          void refreshAccessState(session, { silent: true });
+          return;
+        }
+
+        if (event === "SIGNED_OUT") {
+          setAccessState("unauthenticated");
+          setRole(null);
+          setPermissions({});
+          return;
+        }
+
+        // SIGNED_IN / USER_UPDATED / etc. — silent once the app has finished first bootstrap.
+        void refreshAccessState(session, {
+          silent: hasBootstrappedRef.current,
+        });
       }, 0);
     });
 

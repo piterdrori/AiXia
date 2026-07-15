@@ -178,7 +178,7 @@ export function AixiaMessengerComposer({
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          rows={3}
+          rows={2}
           maxLength={20000}
         />
 

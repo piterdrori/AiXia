@@ -104,6 +104,9 @@ export function AixiaMessengerShell({
   useEffect(() => {
     const node = viewportRef.current;
     if (!node) return;
+    const distanceFromBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
+    const stickToBottom = distanceFromBottom < 96;
+    if (!stickToBottom) return;
     if (scrollRafRef.current != null) {
       cancelAnimationFrame(scrollRafRef.current);
     }

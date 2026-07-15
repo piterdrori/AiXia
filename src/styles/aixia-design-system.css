@@ -9928,26 +9928,31 @@ button.aixia-action-card:disabled {
     0 14px 34px rgba(2, 8, 22, 0.34);
 }
 
-/* Embedded Agents Council — large stable shell (Phase A) */
+/* Embedded Agents Council — primary working surface (Phase A.1) */
 .aixia-messenger-shell--embedded,
 .aixia-section-body--messenger .aixia-messenger-shell--embedded,
 .aixia-section-body--council-embed .aixia-messenger-shell--embedded {
   flex: 0 0 auto;
-  height: clamp(620px, 70vh, 760px);
-  min-height: 620px;
+  height: clamp(780px, 82vh, 900px);
+  min-height: 780px;
   max-height: none;
 }
 
 .aixia-messenger-shell--embedded .aixia-messenger-shell__viewport {
   flex: 1 1 auto;
-  min-height: 400px;
+  min-height: 520px;
 }
 
 .aixia-messenger-shell--embedded .aixia-messenger-shell__dock {
   flex: 0 0 auto;
-  min-height: 168px;
-  max-height: none;
+  min-height: 0;
+  max-height: 190px;
   overflow: visible;
+}
+
+.aixia-messenger-shell--embedded
+  .aixia-messenger-shell__dock:has(.aixia-messenger-participant-picker[data-expanded="true"]) {
+  max-height: 260px;
 }
 
 .aixia-messenger-shell--embedded .aixia-messenger-participant-picker__chips {
@@ -9997,10 +10002,10 @@ button.aixia-action-card:disabled {
 .aixia-messenger-shell__dock {
   flex: 0 0 auto;
   display: grid;
-  gap: 0.55rem;
+  gap: 0.4rem;
   width: 100%;
-  min-height: 168px;
-  padding: 0.55rem 0 0;
+  min-height: 0;
+  padding: 0.4rem 0 0;
   border-top: 1px solid rgba(134, 156, 198, 0.28);
   background: linear-gradient(180deg, rgba(8, 16, 34, 0.55), rgba(10, 20, 40, 0.96));
   box-shadow: 0 -10px 24px rgba(2, 8, 22, 0.35);
@@ -10010,7 +10015,11 @@ button.aixia-action-card:disabled {
 .aixia-council-embed {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0;
+}
+
+.aixia-section-body--council-embed {
+  padding: 0.45rem 0.55rem 0.55rem !important;
 }
 
 .aixia-section-body--embedded .aixia-messenger-shell:not(.aixia-messenger-shell--embedded):not(.aixia-messenger-shell--full) {
@@ -10227,16 +10236,16 @@ button.aixia-action-card:disabled {
 .aixia-messenger-composer__input {
   width: 100%;
   min-width: 0;
-  min-height: 72px;
-  max-height: 160px;
+  min-height: 76px;
+  max-height: 96px;
   resize: vertical;
-  font-size: 0.95rem;
-  line-height: 1.45;
+  font-size: 0.92rem;
+  line-height: 1.4;
   color: rgba(242, 248, 255, 0.96);
   background: rgba(8, 16, 34, 0.82);
   border: 1px solid rgba(148, 163, 184, 0.38);
   border-radius: 12px;
-  padding: 0.65rem 0.75rem;
+  padding: 0.5rem 0.65rem;
 }
 
 .aixia-messenger-composer__input::placeholder {
@@ -10297,17 +10306,24 @@ button.aixia-action-card:disabled {
 }
 
 .aixia-messenger-participant-picker {
-  padding: 0.55rem 0.85rem 0;
+  padding: 0.3rem 0.7rem 0;
   display: grid;
-  gap: 0.45rem;
+  gap: 0.3rem;
 }
 
 .aixia-messenger-participant-picker__header {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.45rem;
+  min-height: 36px;
+}
+
+.aixia-messenger-participant-picker--collapsed {
+  min-height: 36px;
+  max-height: 44px;
+  overflow: hidden;
 }
 
 .aixia-messenger-participant-picker__title {
@@ -10464,12 +10480,12 @@ button.aixia-action-card:disabled {
   .aixia-messenger-shell--embedded,
   .aixia-section-body--messenger .aixia-messenger-shell--embedded,
   .aixia-section-body--council-embed .aixia-messenger-shell--embedded {
-    height: clamp(580px, 68vh, 680px);
-    min-height: 580px;
+    height: clamp(700px, 78vh, 760px);
+    min-height: 700px;
   }
 
   .aixia-messenger-shell--embedded .aixia-messenger-shell__viewport {
-    min-height: 350px;
+    min-height: 460px;
   }
 }
 
@@ -10477,16 +10493,16 @@ button.aixia-action-card:disabled {
   .aixia-messenger-shell--embedded,
   .aixia-section-body--messenger .aixia-messenger-shell--embedded,
   .aixia-section-body--council-embed .aixia-messenger-shell--embedded {
-    height: clamp(540px, 72vh, 620px);
-    min-height: 540px;
+    height: clamp(640px, 76vh, 700px);
+    min-height: 640px;
   }
 
   .aixia-messenger-shell--embedded .aixia-messenger-shell__viewport {
-    min-height: 320px;
+    min-height: 390px;
   }
 
   .aixia-messenger-shell--embedded .aixia-messenger-shell__dock {
-    max-height: none;
+    max-height: 190px;
   }
 }
 
@@ -10504,12 +10520,12 @@ button.aixia-action-card:disabled {
   .aixia-messenger-shell--embedded,
   .aixia-section-body--messenger .aixia-messenger-shell--embedded,
   .aixia-section-body--council-embed .aixia-messenger-shell--embedded {
-    height: clamp(420px, 75vh, 560px);
-    min-height: 420px;
+    height: clamp(480px, calc(100dvh - 11rem), 620px);
+    min-height: 480px;
   }
 
   .aixia-messenger-shell--embedded .aixia-messenger-shell__viewport {
-    min-height: 240px;
+    min-height: 300px;
   }
 
   .aixia-messenger-shell--full,

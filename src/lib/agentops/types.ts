@@ -2330,6 +2330,26 @@ export interface AgentOpsManagedAgent {
   status: AgentOpsManagedAgentStatus;
 }
 
+export type AgentOpsMemoryOwnerFacingType =
+  | "instruction"
+  | "approved_fact"
+  | "procedure"
+  | "preference"
+  | "website_architecture_note"
+  | "qa_rule"
+  | "known_issue"
+  | "lesson_learned"
+  | "reference_file";
+
+export type AgentOpsMemoryScope = "private" | "shared" | "global";
+
+export type AgentOpsMemoryApprovalStatus =
+  | "active"
+  | "disabled"
+  | "pending_approval"
+  | "rejected"
+  | "archived";
+
 export interface AgentOpsAgentMemoryInput {
   agentId: string;
   memoryType: AgentOpsAgentMemoryInputType;
@@ -2337,6 +2357,14 @@ export interface AgentOpsAgentMemoryInput {
   source: AgentOpsAgentMemorySource;
   priority: AgentOpsAgentMemoryPriority;
   note?: string;
+  /** When false, row is stored inactive pending owner approval (default true for legacy callers). */
+  activateImmediately?: boolean;
+  title?: string;
+  ownerFacingType?: AgentOpsMemoryOwnerFacingType;
+  scope?: AgentOpsMemoryScope;
+  approvalStatus?: AgentOpsMemoryApprovalStatus;
+  fileStoragePath?: string | null;
+  fileName?: string | null;
 }
 
 export interface AgentOpsManagedAgentMemoryItem {
@@ -2351,6 +2379,12 @@ export interface AgentOpsManagedAgentMemoryItem {
   priority: AgentOpsAgentMemoryPriority | null;
   inputMemoryType: AgentOpsAgentMemoryInputType | null;
   note: string | null;
+  title: string | null;
+  ownerFacingType: AgentOpsMemoryOwnerFacingType | null;
+  scope: AgentOpsMemoryScope | null;
+  approvalStatus: AgentOpsMemoryApprovalStatus | null;
+  fileStoragePath: string | null;
+  fileName: string | null;
 }
 
 export type AgentOpsAgentInteractionMessageType =

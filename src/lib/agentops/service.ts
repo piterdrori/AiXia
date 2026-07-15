@@ -3085,6 +3085,12 @@ function normalizeMemoryMetadata(
   priority: AgentOpsAgentMemoryPriority | null;
   inputMemoryType: AgentOpsAgentMemoryInputType | null;
   note: string | null;
+  title: string | null;
+  ownerFacingType: import("./types").AgentOpsMemoryOwnerFacingType | null;
+  scope: import("./types").AgentOpsMemoryScope | null;
+  approvalStatus: import("./types").AgentOpsMemoryApprovalStatus | null;
+  fileStoragePath: string | null;
+  fileName: string | null;
 } {
   const metadata = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
   const source =
@@ -3107,7 +3113,52 @@ function normalizeMemoryMetadata(
       ? metadata.inputMemoryType
       : null;
   const note = typeof metadata.note === "string" ? metadata.note : null;
-  return { source, priority, inputMemoryType, note };
+  const title = typeof metadata.title === "string" ? metadata.title : null;
+  const ownerFacingTypeCandidates = [
+    "instruction",
+    "approved_fact",
+    "procedure",
+    "preference",
+    "website_architecture_note",
+    "qa_rule",
+    "known_issue",
+    "lesson_learned",
+    "reference_file",
+  ] as const;
+  const ownerFacingType =
+    typeof metadata.ownerFacingType === "string" &&
+    ownerFacingTypeCandidates.includes(
+      metadata.ownerFacingType as (typeof ownerFacingTypeCandidates)[number],
+    )
+      ? (metadata.ownerFacingType as import("./types").AgentOpsMemoryOwnerFacingType)
+      : null;
+  const scope =
+    metadata.scope === "private" || metadata.scope === "shared" || metadata.scope === "global"
+      ? metadata.scope
+      : null;
+  const approvalStatus =
+    metadata.approvalStatus === "active" ||
+    metadata.approvalStatus === "disabled" ||
+    metadata.approvalStatus === "pending_approval" ||
+    metadata.approvalStatus === "rejected" ||
+    metadata.approvalStatus === "archived"
+      ? metadata.approvalStatus
+      : null;
+  const fileStoragePath =
+    typeof metadata.fileStoragePath === "string" ? metadata.fileStoragePath : null;
+  const fileName = typeof metadata.fileName === "string" ? metadata.fileName : null;
+  return {
+    source,
+    priority,
+    inputMemoryType,
+    note,
+    title,
+    ownerFacingType,
+    scope,
+    approvalStatus,
+    fileStoragePath,
+    fileName,
+  };
 }
 
 function normalizeManagedAgentStatus(
@@ -3415,6 +3466,11 @@ export async function addAgentOpsAgentMemory(
     const mappedType = MEMORY_TYPE_MAP[input.memoryType];
     if (!mappedType) return writeFail("Invalid memoryType.");
 
+    const activateImmediately = input.activateImmediately !== false;
+    const approvalStatus =
+      input.approvalStatus ??
+      (activateImmediately ? "active" : ("pending_approval" as const));
+
     const { data, error } = await supabase
       .from("agentops_agent_memory")
       .insert({
@@ -3424,13 +3480,19 @@ export async function addAgentOpsAgentMemory(
         source_finding_id: null,
         source_feedback_id: null,
         confidence_score: MEMORY_PRIORITY_CONFIDENCE[input.priority],
-        active: true,
+        active: activateImmediately && approvalStatus === "active",
         metadata: {
           action: "agent_memory_note",
           source: input.source,
           priority: input.priority,
           inputMemoryType: input.memoryType,
           note: input.note?.trim() || null,
+          title: input.title?.trim() || null,
+          ownerFacingType: input.ownerFacingType ?? null,
+          scope: input.scope ?? "private",
+          approvalStatus,
+          fileStoragePath: input.fileStoragePath ?? null,
+          fileName: input.fileName ?? null,
           ownerUserId: userResult.data,
           memoryMode: "Database-only",
         },
@@ -3440,6 +3502,124 @@ export async function addAgentOpsAgentMemory(
 
     if (error) return writeFail(error);
     return writeOk({ memoryId: data.id as string });
+  } catch (error) {
+    return writeFail(error);
+  }
+}
+
+/** Owner enable/disable or approval status for one agent memory row (no Hermes auto-write). */
+export async function setAgentOpsAgentMemoryActive(input: {
+  memoryId: string;
+  agentId: string;
+  active: boolean;
+  approvalStatus?: import("./types").AgentOpsMemoryApprovalStatus;
+}): Promise<AgentOpsWriteResult<{ memoryId: string }>> {
+  try {
+    const ownerGate = await assertAgentOpsOwner();
+    if (ownerGate.error) return writeFail(ownerGate.error);
+    const memoryId = input.memoryId?.trim();
+    const agentId = input.agentId?.trim();
+    if (!memoryId) return writeFail("memoryId is required.");
+    if (!agentId) return writeFail("agentId is required.");
+
+    const { data: existing, error: readError } = await supabase
+      .from("agentops_agent_memory")
+      .select("id, metadata")
+      .eq("id", memoryId)
+      .eq("agent_id", agentId)
+      .maybeSingle();
+    if (readError) return writeFail(readError);
+    if (!existing) return writeFail("Memory row not found for this agent.");
+
+    const metadata =
+      existing.metadata && typeof existing.metadata === "object"
+        ? { ...(existing.metadata as Record<string, unknown>) }
+        : {};
+    const approvalStatus =
+      input.approvalStatus ?? (input.active ? "active" : ("disabled" as const));
+    metadata.approvalStatus = approvalStatus;
+
+    const { error } = await supabase
+      .from("agentops_agent_memory")
+      .update({
+        active: input.active && approvalStatus === "active",
+        metadata,
+      })
+      .eq("id", memoryId)
+      .eq("agent_id", agentId);
+    if (error) return writeFail(error);
+    return writeOk({ memoryId });
+  } catch (error) {
+    return writeFail(error);
+  }
+}
+
+/** Owner edit of title/content/metadata for one agent memory row. */
+export async function updateAgentOpsAgentMemory(input: {
+  memoryId: string;
+  agentId: string;
+  content?: string;
+  title?: string;
+  note?: string;
+  scope?: import("./types").AgentOpsMemoryScope;
+  ownerFacingType?: import("./types").AgentOpsMemoryOwnerFacingType;
+  approvalStatus?: import("./types").AgentOpsMemoryApprovalStatus;
+  active?: boolean;
+}): Promise<AgentOpsWriteResult<{ memoryId: string }>> {
+  try {
+    const ownerGate = await assertAgentOpsOwner();
+    if (ownerGate.error) return writeFail(ownerGate.error);
+    const memoryId = input.memoryId?.trim();
+    const agentId = input.agentId?.trim();
+    if (!memoryId) return writeFail("memoryId is required.");
+    if (!agentId) return writeFail("agentId is required.");
+
+    const { data: existing, error: readError } = await supabase
+      .from("agentops_agent_memory")
+      .select("id, metadata, active")
+      .eq("id", memoryId)
+      .eq("agent_id", agentId)
+      .maybeSingle();
+    if (readError) return writeFail(readError);
+    if (!existing) return writeFail("Memory row not found for this agent.");
+
+    const metadata =
+      existing.metadata && typeof existing.metadata === "object"
+        ? { ...(existing.metadata as Record<string, unknown>) }
+        : {};
+    if (input.title !== undefined) metadata.title = input.title.trim() || null;
+    if (input.note !== undefined) metadata.note = input.note.trim() || null;
+    if (input.scope !== undefined) metadata.scope = input.scope;
+    if (input.ownerFacingType !== undefined) metadata.ownerFacingType = input.ownerFacingType;
+    if (input.approvalStatus !== undefined) metadata.approvalStatus = input.approvalStatus;
+
+    const patch: Record<string, unknown> = { metadata };
+    if (input.content !== undefined) {
+      const content = input.content.trim();
+      if (!content) return writeFail("content is required.");
+      patch.memory_text = content;
+    }
+    if (input.active !== undefined) {
+      patch.active =
+        input.active && (input.approvalStatus ?? metadata.approvalStatus) === "active";
+    } else if (input.approvalStatus === "active") {
+      patch.active = true;
+    } else if (
+      input.approvalStatus === "disabled" ||
+      input.approvalStatus === "pending_approval" ||
+      input.approvalStatus === "rejected" ||
+      input.approvalStatus === "archived"
+    ) {
+      patch.active = false;
+    }
+
+    const { error } = await supabase
+      .from("agentops_agent_memory")
+      .update(patch)
+      .eq("id", memoryId)
+      .eq("agent_id", agentId);
+    if (error) return writeFail(error);
+    return writeOk({ memoryId });
   } catch (error) {
     return writeFail(error);
   }
@@ -3660,6 +3840,14 @@ export async function getAgentOpsAgentMemory(
         priority: normalized.priority,
         inputMemoryType: normalized.inputMemoryType,
         note: normalized.note,
+        title: normalized.title,
+        ownerFacingType: normalized.ownerFacingType,
+        scope: normalized.scope,
+        approvalStatus:
+          normalized.approvalStatus ??
+          (row.active ? "active" : ("pending_approval" as const)),
+        fileStoragePath: normalized.fileStoragePath,
+        fileName: normalized.fileName,
       } satisfies AgentOpsManagedAgentMemoryItem;
     });
 

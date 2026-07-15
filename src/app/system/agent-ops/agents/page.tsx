@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Expand, RefreshCw } from "lucide-react";
 
@@ -58,15 +58,24 @@ function formatNextReview(value: string | null | undefined): string {
 export default function AgentOpsAgentsPage() {
   usePageTitle("AgentOps Agents");
   const navigate = useNavigate();
-  const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
-    useAgentOpsOwnerGate();
+  const {
+    loading: initialLoading,
+    refreshing: gateRefreshing,
+    isOwner,
+    error: gateError,
+    refresh: refreshGate,
+  } = useAgentOpsOwnerGate();
   const {
     daily12,
     loading: monitoringLoading,
+    refreshing: monitoringRefreshing,
     error: monitoringError,
     refresh: refreshMonitoring,
   } = useAgentOpsMonitoringStatus(isOwner);
 
+  const [softRefreshError, setSoftRefreshError] = useState<string | null>(null);
+
+  const pageRefreshing = gateRefreshing || monitoringRefreshing;
   const rosterLoading = monitoringLoading && !daily12;
   const rosterUnavailable =
     !rosterLoading && (Boolean(monitoringError) || !daily12);
@@ -108,15 +117,24 @@ export default function AgentOpsAgentsPage() {
     return { running, needsAttention };
   }, [roster]);
 
-  const refreshAll = () => void Promise.all([refreshGate(), refreshMonitoring()]);
+  const refreshTeamData = useCallback(async () => {
+    if (pageRefreshing) return;
+    setSoftRefreshError(null);
+    try {
+      // Silent gate + monitoring only — does not remount Council Chat.
+      await Promise.all([refreshGate({ silent: true }), refreshMonitoring()]);
+    } catch (error) {
+      setSoftRefreshError(error instanceof Error ? error.message : String(error));
+    }
+  }, [pageRefreshing, refreshGate, refreshMonitoring]);
 
   return (
     <AgentOpsOwnerPageShell
-      loading={gateLoading}
+      loading={initialLoading}
       error={gateError}
       onRetry={() => void refreshGate()}
     >
-      <div className="space-y-8">
+      <div className="space-y-8" data-testid="agentops-agents-page">
         <AgentOpsPageHeader
           title="Agents"
           subtitle="Manage your 12 AI agents and talk to the team."
@@ -131,27 +149,56 @@ export default function AgentOpsAgentsPage() {
               </AixiaButton>
               <AixiaButton
                 variant="secondary"
-                onClick={refreshAll}
-                disabled={gateLoading || monitoringLoading}
+                onClick={() => void refreshTeamData()}
+                disabled={initialLoading || pageRefreshing}
+                aria-busy={pageRefreshing}
+                data-testid="agentops-agents-refresh"
               >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh
+                <RefreshCw
+                  className={`mr-2 h-4 w-4 ${pageRefreshing ? "animate-spin" : ""}`}
+                  aria-hidden
+                />
+                {pageRefreshing ? "Refreshing…" : "Refresh"}
               </AixiaButton>
             </>
           }
         />
 
+        {softRefreshError || (monitoringError && daily12) ? (
+          <AixiaInfoBlock tone="gold" title="Team status refresh warning">
+            <p className="text-sm text-white/75">
+              {softRefreshError ?? monitoringError}
+            </p>
+            <div className="mt-3">
+              <AixiaButton
+                variant="secondary"
+                disabled={pageRefreshing}
+                onClick={() => void refreshTeamData()}
+              >
+                Retry
+              </AixiaButton>
+            </div>
+          </AixiaInfoBlock>
+        ) : null}
+
         <section aria-labelledby="team-status-heading" className="space-y-3">
-          <h2 id="team-status-heading" className="text-lg font-semibold text-white">
-            Team status
-          </h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 id="team-status-heading" className="text-lg font-semibold text-white">
+              Team status
+            </h2>
+            {pageRefreshing ? (
+              <p className="text-xs text-white/45" data-testid="agentops-agents-refreshing-hint">
+                Refreshing team metrics…
+              </p>
+            ) : null}
+          </div>
           {rosterUnavailable ? (
             <AixiaInfoBlock tone="gold" title="Team status temporarily unavailable">
               Live monitoring metrics could not load. Council Chat remains available below.
               <div className="mt-3">
                 <AixiaButton
                   variant="secondary"
-                  disabled={monitoringLoading}
+                  disabled={pageRefreshing}
                   onClick={() => void refreshMonitoring()}
                 >
                   Retry status
@@ -223,7 +270,8 @@ export default function AgentOpsAgentsPage() {
           />
         </section>
 
-        <AgentOpsCouncilChatCard enabled={isOwner && !gateLoading} />
+        {/* Keep chat enabled across silent refreshes — only gated by owner status. */}
+        <AgentOpsCouncilChatCard enabled={isOwner} />
 
         <section aria-labelledby="agent-grid">
           <h2 id="agent-grid" className="mb-4 text-lg font-semibold text-white">

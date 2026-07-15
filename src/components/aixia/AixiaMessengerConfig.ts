@@ -40,12 +40,21 @@ export type AixiaMessengerComposerPreset = {
   value: string;
 };
 
+export type AixiaMessengerLayoutMode = "default" | "embedded" | "full";
+
 export type AixiaMessengerShellConfig = {
   roomTitle: string;
   chatScope: AgentOpsChatScope;
   showParticipantPicker?: boolean;
   showIssueContext?: boolean;
   testId?: string;
+  /**
+   * Layout contract for shell height.
+   * - embedded: Agents (and similar) embed — tall fixed shell, large message viewport
+   * - full: dedicated Council route — fills available viewport independently
+   * - default: legacy shared sizing
+   */
+  layoutMode?: AixiaMessengerLayoutMode;
 };
 
 import type { AgentOpsOllamaModelOption } from "@/lib/agentops/ollamaModelCatalog";

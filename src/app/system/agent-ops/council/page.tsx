@@ -531,6 +531,7 @@ export default function AgentOpsCouncilPage() {
                 <AixiaMessengerShell
                   roomTitle="Agent Council"
                   chatScope="council"
+                  layoutMode="full"
                   showParticipantPicker
                   testId="agentops-council-messenger"
                   messages={councilMessengerMessages}

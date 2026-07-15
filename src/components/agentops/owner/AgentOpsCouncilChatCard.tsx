@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Expand, MessageSquare, RefreshCw } from "lucide-react";
 
@@ -14,7 +15,7 @@ type AgentOpsCouncilChatCardProps = {
 };
 
 /**
- * Compact Council Chat embed for the Agents page.
+ * Large stable Council Chat embed for the Agents page.
  * Uses the same persistence/backend as /system/agent-ops/council.
  */
 export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatCardProps) {
@@ -23,13 +24,33 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
 
   const openFullCouncil = () => navigate("/system/agent-ops/council");
 
+  useEffect(() => {
+    if (!chat.chatFeedback) return;
+    const timer = window.setTimeout(() => {
+      chat.clearChatFeedback();
+    }, 6_000);
+    return () => window.clearTimeout(timer);
+  }, [chat.chatFeedback, chat.clearChatFeedback]);
+
+  const embeddedStatusText = useMemo(() => {
+    if (chat.chatError) return chat.chatError;
+    if (chat.chatFeedback) return chat.chatFeedback;
+    if (chat.activatingAgents) return "Preparing council agents…";
+    return chat.statusText;
+  }, [
+    chat.activatingAgents,
+    chat.chatError,
+    chat.chatFeedback,
+    chat.statusText,
+  ]);
+
   return (
     <AixiaSection
       surface="command"
       title="Council Chat"
       description="Ask all 12 agents for their professional opinions."
       icon={MessageSquare}
-      bodyClassName="aixia-section-body--messenger"
+      bodyClassName="aixia-section-body--messenger aixia-section-body--council-embed"
       badge={
         <AixiaButton variant="secondary" onClick={openFullCouncil} className="text-xs">
           <Expand className="mr-1.5 h-3.5 w-3.5" aria-hidden />
@@ -37,7 +58,7 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
         </AixiaButton>
       }
     >
-      <div className="space-y-3" data-testid="agentops-agents-council-embed">
+      <div className="aixia-council-embed" data-testid="agentops-agents-council-embed">
         {chat.error && !chat.error.toLowerCase().includes("owner access required") ? (
           <AixiaInfoBlock tone="gold" title="Council temporarily unavailable">
             <p className="text-sm text-white/75">{chat.error}</p>
@@ -53,19 +74,10 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
           </AixiaInfoBlock>
         ) : null}
 
-        {chat.chatFeedback ? (
-          <AixiaInfoBlock tone="cyan" title="Council chat">
-            {chat.chatFeedback}
-          </AixiaInfoBlock>
-        ) : null}
-
-        {chat.activatingAgents ? (
-          <p className="text-xs text-white/50">Preparing council agents…</p>
-        ) : null}
-
         <AixiaMessengerShell
           roomTitle="Council Chat"
           chatScope="council"
+          layoutMode="embedded"
           showParticipantPicker
           testId="agentops-agents-council-messenger"
           messages={chat.messengerMessages}
@@ -73,7 +85,7 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
           onComposerChange={chat.setComposerValue}
           onSend={() => void chat.send()}
           sending={chat.chatSubmitting || chat.loading}
-          statusText={chat.statusText}
+          statusText={embeddedStatusText}
           errorText={chat.chatError}
           emptyTitle="Ask the team"
           emptyDescription="Ask all agents a question — each selected agent replies with their perspective."
@@ -82,7 +94,6 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
           onSelectedParticipantIdsChange={chat.setSelectedParticipantIds}
           showTypingIndicator={chat.chatSubmitting}
           typingLabel="Council agents are thinking…"
-          className="min-h-[320px] max-h-[520px]"
         />
       </div>
     </AixiaSection>

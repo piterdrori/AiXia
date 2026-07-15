@@ -178,6 +178,7 @@ export {
 export type {
   AixiaMessengerAttachment,
   AixiaMessengerComposerPreset,
+  AixiaMessengerLayoutMode,
   AixiaMessengerMessage,
   AixiaMessengerParticipant,
   AixiaMessengerShellConfig,

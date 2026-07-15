@@ -10,12 +10,18 @@ import {
 
 export type { Daily12ReviewStatus, DailyRosterRow, MonitoringStatusPayload };
 
+export type AgentOpsMonitoringRefreshOptions = {
+  forceRefresh?: boolean;
+};
+
 export function useAgentOpsMonitoringStatus(enabled = true) {
   const [status, setStatus] = useState<MonitoringStatusPayload | null>(null);
   const [daily12, setDaily12] = useState<Daily12ReviewStatus | null>(null);
   const [loading, setLoading] = useState(enabled);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const aliveRef = useRef(true);
+  const hasDataRef = useRef(false);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -25,9 +31,14 @@ export function useAgentOpsMonitoringStatus(enabled = true) {
   }, []);
 
   const refresh = useCallback(
-    async (options?: { forceRefresh?: boolean }) => {
+    async (options?: AgentOpsMonitoringRefreshOptions) => {
       if (!enabled) return;
-      setLoading(true);
+      const preserveOnError = hasDataRef.current;
+      if (preserveOnError) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError(null);
       try {
         const payload = await fetchAgentOpsMonitoringStatus({
@@ -36,6 +47,7 @@ export function useAgentOpsMonitoringStatus(enabled = true) {
         if (!aliveRef.current) return;
         setStatus(payload.status ?? null);
         setDaily12(payload.status?.daily12ReviewStatus ?? null);
+        hasDataRef.current = Boolean(payload.status?.daily12ReviewStatus);
         if (payload.status?.dailyStatusError) {
           setError(payload.status.dailyStatusError);
         }
@@ -46,11 +58,15 @@ export function useAgentOpsMonitoringStatus(enabled = true) {
         } else {
           setError(loadError instanceof Error ? loadError.message : String(loadError));
         }
-        setStatus(null);
-        setDaily12(null);
+        // Keep previous roster/metrics on soft refresh failures.
+        if (!preserveOnError) {
+          setStatus(null);
+          setDaily12(null);
+        }
       } finally {
         if (aliveRef.current) {
           setLoading(false);
+          setRefreshing(false);
         }
       }
     },
@@ -60,6 +76,7 @@ export function useAgentOpsMonitoringStatus(enabled = true) {
   useEffect(() => {
     if (!enabled) {
       setLoading(false);
+      setRefreshing(false);
       return;
     }
     void refresh({ forceRefresh: false });
@@ -67,5 +84,12 @@ export function useAgentOpsMonitoringStatus(enabled = true) {
 
   const forceRefresh = useCallback(() => refresh({ forceRefresh: true }), [refresh]);
 
-  return { status, daily12, loading, error, refresh: forceRefresh };
+  return {
+    status,
+    daily12,
+    loading,
+    refreshing,
+    error,
+    refresh: forceRefresh,
+  };
 }

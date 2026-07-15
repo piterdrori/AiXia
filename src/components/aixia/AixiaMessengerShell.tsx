@@ -29,6 +29,7 @@ export function AixiaMessengerShell({
   chatScope,
   showParticipantPicker = false,
   testId = "agentops-messenger-shell",
+  layoutMode = "default",
   messages,
   composerValue,
   onComposerChange,
@@ -66,6 +67,7 @@ export function AixiaMessengerShell({
   const handledMessageIdsRef = useRef<Set<string>>(new Set());
   const composerValueRef = useRef(composerValue);
   const sttBaselineRef = useRef("");
+  const scrollRafRef = useRef<number | null>(null);
   composerValueRef.current = composerValue;
 
   const voice = useAixiaVoiceChat();
@@ -90,17 +92,31 @@ export function AixiaMessengerShell({
   } = voice;
 
   useLayoutEffect(() => {
+    // Mount-once only — do not re-scroll the page when message batches arrive.
     const dock = dockRef.current;
     if (!dock) return;
-    requestAnimationFrame(() => {
-      dock.scrollIntoView({ block: "end", inline: "nearest" });
+    const frame = requestAnimationFrame(() => {
+      dock.scrollIntoView({ block: "nearest", inline: "nearest" });
     });
+    return () => cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
     const node = viewportRef.current;
     if (!node) return;
-    node.scrollTop = node.scrollHeight;
+    if (scrollRafRef.current != null) {
+      cancelAnimationFrame(scrollRafRef.current);
+    }
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      node.scrollTop = node.scrollHeight;
+    });
+    return () => {
+      if (scrollRafRef.current != null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
   }, [messages, showTypingIndicator]);
 
   // Seed historical IDs while the shell is still in its initial load (`sending` includes
@@ -154,10 +170,22 @@ export function AixiaMessengerShell({
     });
   };
 
-  const shellClassName = ["aixia-messenger-shell", className].filter(Boolean).join(" ");
+  const shellClassName = [
+    "aixia-messenger-shell",
+    layoutMode === "embedded" ? "aixia-messenger-shell--embedded" : "",
+    layoutMode === "full" ? "aixia-messenger-shell--full" : "",
+    className,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <section className={shellClassName} data-testid={testId} data-chat-scope={chatScope}>
+    <section
+      className={shellClassName}
+      data-testid={testId}
+      data-chat-scope={chatScope}
+      data-messenger-layout={layoutMode}
+    >
       <AixiaMessengerToolbar
         roomTitle={roomTitle}
         ttsEnabled={ttsEnabled}

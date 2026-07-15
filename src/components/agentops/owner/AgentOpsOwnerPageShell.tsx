@@ -4,6 +4,10 @@ import { AixiaAsyncState, AixiaCommandPageLayout, AixiaInfoBlock } from "@/compo
 import { AgentOpsOwnerLayout } from "@/components/agentops/owner/AgentOpsOwnerLayout";
 
 type AgentOpsOwnerPageShellProps = {
+  /**
+   * Blocking initial load only. After the first successful render, callers must not
+   * flip this during silent Refresh — use a header spinner instead.
+   */
   loading?: boolean;
   error?: string | null;
   onRetry?: () => void;

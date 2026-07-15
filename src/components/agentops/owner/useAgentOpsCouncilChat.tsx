@@ -371,6 +371,10 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     ? `Council online · ${selectedLlmLabel} · ${selectedParticipantIds.length} agents selected`
     : "Council online · LLM may use fallback replies";
 
+  const clearChatFeedback = useCallback(() => {
+    setChatFeedback(null);
+  }, []);
+
   return {
     loading,
     error,
@@ -382,6 +386,7 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     setComposerValue,
     chatSubmitting,
     chatFeedback,
+    clearChatFeedback,
     chatError,
     activatingAgents,
     selectedParticipantIds,

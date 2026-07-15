@@ -6,6 +6,8 @@ import { join } from "node:path";
 
 import {
   buildCouncilTurns,
+  filterCouncilMessagesForRosterMode,
+  inferCouncilMessageRosterMode,
   isNonConversationalCouncilContent,
   latestCouncilTurn,
   type CouncilTurnView,
@@ -99,6 +101,44 @@ function main(): void {
   assert(latest.replies.every((r) => r.status !== "replied" || r.content.length > 5), "collapsed replies exist");
   assert(latest.summary.includes("2 agent"), "deterministic summary must report reply count");
 
+  const customLegacy = msg({
+    id: "legacy-o",
+    sender: "piter",
+    content: "legacy custom question",
+    createdAt: "2026-07-15T00:00:00.000Z",
+    metadata: { selectedAgentIds: ["finance-viewer-qa"] },
+  });
+  const customReply = msg({
+    id: "legacy-a",
+    sender: "agent",
+    agentId: "finance-viewer-qa",
+    agentName: "Finance Viewer QA",
+    content: "I review finance views.",
+    createdAt: "2026-07-15T00:00:01.000Z",
+    source: "local_llm_runtime",
+    metadata: {},
+  });
+  assert(
+    inferCouncilMessageRosterMode(customLegacy) === "custom",
+    "legacy managed selectedAgentIds must infer custom roster",
+  );
+  assert(
+    inferCouncilMessageRosterMode(messages[1]!) === "canonical",
+    "system-agent replies must infer canonical roster",
+  );
+  const filteredCanonical = filterCouncilMessagesForRosterMode(
+    [...messages, customLegacy, customReply],
+    "canonical",
+  );
+  assert(
+    filteredCanonical.every((m) => inferCouncilMessageRosterMode(m) === "canonical"),
+    "canonical filter must exclude custom legacy turns",
+  );
+  assert(
+    buildCouncilTurns(filteredCanonical).every((turn) => !/Finance Viewer/i.test(turn.question)),
+    "canonical turns must not surface custom questions",
+  );
+
   const workspace = read("src/components/agentops/owner/AgentOpsCouncilWorkspace.tsx");
   assert(workspace.includes("AgentOps Council"), "canonical roster mode label required");
   assert(workspace.includes("Custom Council"), "custom roster mode must remain available");
@@ -134,7 +174,8 @@ function main(): void {
           "presence-ready-filtered",
           "turn-grouping-requestId",
           "collapsed-responses-default",
-          "canonical-roster-mode",
+          "roster-mode-filter",
+        "canonical-roster-mode",
           "custom-roster-mode",
           "workspace-embedded",
           "composer-compact-css",

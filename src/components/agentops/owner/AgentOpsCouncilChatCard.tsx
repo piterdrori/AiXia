@@ -88,7 +88,7 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
           composerValue={chat.composerValue}
           onComposerChange={chat.setComposerValue}
           onSend={() => void chat.send()}
-          sending={chat.chatSubmitting || chat.loading}
+          sending={chat.chatSubmitting}
           statusText={embeddedStatusText}
           errorText={chat.chatError}
         />

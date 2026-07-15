@@ -33,6 +33,7 @@ import {
 import { CANONICAL_AGENTS } from "@/lib/agentops/canonicalAgents";
 import {
   buildCouncilTurns,
+  filterCouncilMessagesForRosterMode,
   latestCouncilTurn,
   type CouncilTurnView,
 } from "@/lib/agentops/council/councilTurnModel";
@@ -187,10 +188,13 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     setManagedAgents(agents);
     setCouncilMessages(councilChatResult.data ?? []);
     setSelectedParticipantIds((current) => {
-      if (current.length > 0) return current;
-      return rosterMode === "canonical"
-        ? canonicalParticipantIds()
-        : agents.map((agent) => agent.agentId);
+      if (rosterMode === "canonical") {
+        return canonicalParticipantIds();
+      }
+      if (current.length > 0 && !current[0]?.includes("-agent")) {
+        return current;
+      }
+      return agents.map((agent) => agent.agentId);
     });
 
     if (councilChatResult.error) setError(councilChatResult.error);
@@ -244,120 +248,124 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     setChatFeedback(null);
     setChatError(null);
 
-    const piterResult = await recordAgentOpsCouncilChatMessage({
-      sender: "piter",
-      content: message,
-      source: "owner",
-      metadata: {
-        selectedAgentIds: selectedParticipantIds,
-        roomId: "agent-council",
-        embeddedSurface: true,
-        rosterMode,
-      },
-    });
-    if (piterResult.error) {
-      setChatSubmitting(false);
-      setInFlightQuestion(null);
-      setChatError(piterResult.error);
-      return;
-    }
-
-    const councilAgents =
-      rosterMode === "canonical"
-        ? CANONICAL_AGENTS.filter((agent) => selectedParticipantIds.includes(agent.id)).map(
-            (agent) => ({
-              agentId: agent.id,
-              displayName: agent.name,
-              appRole: getAgentHumanRole(agent.id, agent.name),
-              qaSpecialty: getAgentResponsibilitySummary(agent.id),
-              currentFocus: getAgentCurrentFocus(agent.id),
-              status: "active" as const,
-              memorySnippets: [] as string[],
-            }),
-          )
-        : managedAgents
-            .filter((agent) => selectedParticipantIds.includes(agent.agentId))
-            .map((agent) => ({
-              agentId: agent.agentId,
-              displayName: agent.displayName,
-              appRole: agent.appRole,
-              qaSpecialty: agent.qaSpecialty,
-              currentFocus: agent.currentFocus,
-              status: agent.status,
-              memorySnippets: [] as string[],
-            }));
-
-    const memoryByAgent = new Map<string, string[]>();
-    await Promise.all(
-      councilAgents.map(async (agent) => {
-        const memoryResult = await getAgentOpsAgentMemory(agent.agentId);
-        memoryByAgent.set(
-          agent.agentId,
-          (memoryResult.data ?? []).filter((item) => item.active).map((item) => item.memoryText),
-        );
-      }),
-    );
-
-    const llmResult = await runAgentOpsLocalLlmChat({
-      chatScope: "council",
-      message,
-      model: selectedLlmModel,
-      councilAgents: councilAgents.map((agent) => ({
-        ...agent,
-        memorySnippets: memoryByAgent.get(agent.agentId) ?? [],
-      })),
-    });
-
-    for (const agentReply of llmResult.perAgentResponses) {
-      const parsed = parseAgentCreativeProposal(agentReply.response);
-      if (parsed.proposal && agentReply.agentId) {
-        await recordAgentOpsCreativeProposal({
-          agentId: agentReply.agentId,
-          proposalType: parsed.proposal.proposalType,
-          title: parsed.proposal.title,
-          summary: parsed.proposal.summary,
-          suggestedRoute: parsed.proposal.suggestedRoute,
-          confidence: parsed.proposal.confidence,
-          chatScope: "council",
-          roomId: "agent-council",
-        });
-      }
-
-      await recordAgentOpsCouncilChatMessage({
-        sender: "agent",
-        agentId: agentReply.agentId,
-        agentName: agentReply.agentName,
-        content: parsed.cleanedResponse,
-        source: agentReply.source === "local_llm" ? "local_llm_runtime" : "mock_response_layer",
+    try {
+      const piterResult = await recordAgentOpsCouncilChatMessage({
+        sender: "piter",
+        content: message,
+        source: "owner",
         metadata: {
-          requestId: llmResult.requestId,
-          memoryIntentDetected: agentReply.memoryIntentDetected,
-          role: agentReply.role,
           selectedAgentIds: selectedParticipantIds,
-          creativeProposal: parsed.proposal,
           roomId: "agent-council",
+          embeddedSurface: true,
           rosterMode,
         },
       });
-    }
+      if (piterResult.error) {
+        setChatError(piterResult.error);
+        return;
+      }
 
-    setComposerValue("");
-    writeCouncilDraft("");
-    setChatSubmitting(false);
-    setInFlightQuestion(null);
-    if (!llmResult.localLlmCalled) {
-      setChatError(
-        llmResult.blockers[0] ??
-          llmResult.limitations ??
-          "Council LLM unavailable — fallback replies may be recorded.",
+      const councilAgents =
+        rosterMode === "canonical"
+          ? CANONICAL_AGENTS.filter((agent) => selectedParticipantIds.includes(agent.id)).map(
+              (agent) => ({
+                agentId: agent.id,
+                displayName: agent.name,
+                appRole: getAgentHumanRole(agent.id, agent.name),
+                qaSpecialty: getAgentResponsibilitySummary(agent.id),
+                currentFocus: getAgentCurrentFocus(agent.id),
+                status: "active" as const,
+                memorySnippets: [] as string[],
+              }),
+            )
+          : managedAgents
+              .filter((agent) => selectedParticipantIds.includes(agent.agentId))
+              .map((agent) => ({
+                agentId: agent.agentId,
+                displayName: agent.displayName,
+                appRole: agent.appRole,
+                qaSpecialty: agent.qaSpecialty,
+                currentFocus: agent.currentFocus,
+                status: agent.status,
+                memorySnippets: [] as string[],
+              }));
+
+      const memoryByAgent = new Map<string, string[]>();
+      await Promise.all(
+        councilAgents.map(async (agent) => {
+          const memoryResult = await getAgentOpsAgentMemory(agent.agentId);
+          memoryByAgent.set(
+            agent.agentId,
+            (memoryResult.data ?? []).filter((item) => item.active).map((item) => item.memoryText),
+          );
+        }),
       );
+
+      const llmResult = await runAgentOpsLocalLlmChat({
+        chatScope: "council",
+        message,
+        model: selectedLlmModel,
+        councilAgents: councilAgents.map((agent) => ({
+          ...agent,
+          memorySnippets: memoryByAgent.get(agent.agentId) ?? [],
+        })),
+      });
+
+      for (const agentReply of llmResult.perAgentResponses) {
+        const parsed = parseAgentCreativeProposal(agentReply.response);
+        if (parsed.proposal && agentReply.agentId) {
+          await recordAgentOpsCreativeProposal({
+            agentId: agentReply.agentId,
+            proposalType: parsed.proposal.proposalType,
+            title: parsed.proposal.title,
+            summary: parsed.proposal.summary,
+            suggestedRoute: parsed.proposal.suggestedRoute,
+            confidence: parsed.proposal.confidence,
+            chatScope: "council",
+            roomId: "agent-council",
+          });
+        }
+
+        await recordAgentOpsCouncilChatMessage({
+          sender: "agent",
+          agentId: agentReply.agentId,
+          agentName: agentReply.agentName,
+          content: parsed.cleanedResponse,
+          source: agentReply.source === "local_llm" ? "local_llm_runtime" : "mock_response_layer",
+          metadata: {
+            requestId: llmResult.requestId,
+            memoryIntentDetected: agentReply.memoryIntentDetected,
+            role: agentReply.role,
+            selectedAgentIds: selectedParticipantIds,
+            creativeProposal: parsed.proposal,
+            roomId: "agent-council",
+            rosterMode,
+          },
+        });
+      }
+
+      setComposerValue("");
+      writeCouncilDraft("");
+      if (!llmResult.localLlmCalled) {
+        setChatError(
+          llmResult.blockers[0] ??
+            llmResult.limitations ??
+            "Council LLM unavailable — fallback replies may be recorded.",
+        );
+      }
+      setChatFeedback(
+        llmResult.localLlmCalled
+          ? `Council message sent — ${llmResult.perAgentResponses.length} agent(s) replied.`
+          : "Council message sent — fallback replies recorded (LLM unavailable).",
+      );
+      // Keep in-flight UI until messages reload so stale custom turns never flash as "latest".
+      await loadData({ silent: true });
+    } catch (error) {
+      setChatError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setChatSubmitting(false);
+      setInFlightQuestion(null);
     }
-    setChatFeedback(
-      llmResult.localLlmCalled
-        ? `Council message sent — ${llmResult.perAgentResponses.length} agent(s) replied.`
-        : "Council message sent — fallback replies recorded (LLM unavailable).",
-    );
-    await loadData({ silent: true });
   }, [
     chatSubmitting,
     composerValue,
@@ -396,13 +404,18 @@ export function useAgentOpsCouncilChat(options: UseAgentOpsCouncilChatOptions = 
     return councilMessages.slice(-recentMessageLimit);
   }, [councilMessages, recentMessageLimit]);
 
+  const rosterScopedMessages = useMemo(
+    () => filterCouncilMessagesForRosterMode(recentMessages, rosterMode),
+    [recentMessages, rosterMode],
+  );
+
   const turns: CouncilTurnView[] = useMemo(
     () =>
-      buildCouncilTurns(recentMessages, {
+      buildCouncilTurns(rosterScopedMessages, {
         pendingAgentIds: chatSubmitting ? selectedParticipantIds : [],
         submitting: chatSubmitting,
       }),
-    [chatSubmitting, recentMessages, selectedParticipantIds],
+    [chatSubmitting, rosterScopedMessages, selectedParticipantIds],
   );
 
   const latestTurn = useMemo(() => latestCouncilTurn(turns), [turns]);

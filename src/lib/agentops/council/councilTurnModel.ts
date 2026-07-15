@@ -7,11 +7,20 @@
  * - Else synthesise turn-{ownerMessageId}.
  * Limitation: historical turns without requestId are grouped by contiguous
  * owner → subsequent agent replies until the next owner message.
+ *
+ * Roster mode:
+ * - Explicit metadata.rosterMode wins when present (Phase A.2+).
+ * - Legacy rows without rosterMode are inferred from agent IDs
+ *   (`*-agent` canonical ids → canonical; otherwise custom).
  */
 
 import type { AgentOpsCouncilChatMessage } from "@/lib/agentops/types";
+import { CANONICAL_AGENTS } from "@/lib/agentops/canonicalAgents";
 
 export type CouncilReplyStatus = "replied" | "pending" | "failed" | "unavailable";
+export type CouncilRosterModeHint = "canonical" | "custom";
+
+const CANONICAL_ID_SET = new Set(CANONICAL_AGENTS.map((agent) => agent.id));
 
 export type CouncilAgentReplyView = {
   messageId: string;
@@ -50,6 +59,11 @@ const PRESENCE_OR_NON_ANSWER =
 
 const JSON_OR_DEBUG_START = /^\s*[\[{]|^\s*```|^\s*<\?xml/i;
 
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
 /** Presence / readiness / empty / debug text must not appear as Council answers. */
 export function isNonConversationalCouncilContent(content: string | null | undefined): boolean {
   const trimmed = (content ?? "").trim();
@@ -60,15 +74,48 @@ export function isNonConversationalCouncilContent(content: string | null | undef
   return false;
 }
 
+function idsLookCanonical(ids: string[]): boolean {
+  if (ids.length === 0) return false;
+  return ids.every((id) => CANONICAL_ID_SET.has(id) || /^.+-agent$/.test(id));
+}
+
+/**
+ * Infer which roster a persisted message belongs to for view filtering.
+ * Does not mutate persistence.
+ */
+export function inferCouncilMessageRosterMode(
+  message: AgentOpsCouncilChatMessage,
+): CouncilRosterModeHint {
+  const explicit = message.metadata?.rosterMode;
+  if (explicit === "canonical" || explicit === "custom") return explicit;
+
+  const selected = asStringArray(message.metadata?.selectedAgentIds);
+  if (selected.length > 0) {
+    return idsLookCanonical(selected) ? "canonical" : "custom";
+  }
+
+  if (message.agentId) {
+    return CANONICAL_ID_SET.has(message.agentId) || /^.+-agent$/.test(message.agentId)
+      ? "canonical"
+      : "custom";
+  }
+
+  // Owner rows without selection metadata: treat as custom so they stay out of AgentOps Council.
+  return "custom";
+}
+
+/** Filter messages for the active roster tab without mutating storage. */
+export function filterCouncilMessagesForRosterMode(
+  messages: AgentOpsCouncilChatMessage[],
+  rosterMode: CouncilRosterModeHint,
+): AgentOpsCouncilChatMessage[] {
+  return messages.filter((message) => inferCouncilMessageRosterMode(message) === rosterMode);
+}
+
 export function previewCouncilReply(content: string, max = 96): string {
   const oneLine = content.replace(/\s+/g, " ").trim();
   if (oneLine.length <= max) return oneLine;
   return `${oneLine.slice(0, max - 1)}…`;
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
 }
 
 function turnIdFor(
@@ -190,7 +237,10 @@ export function buildCouncilTurns(
   const pendingIds = new Set(options?.pendingAgentIds ?? []);
   const submitting = options?.submitting === true;
 
-  return buckets.map((bucket) => {
+  // Drop orphan agent-only buckets (window slice / incomplete history). Keep owner turns only.
+  const ownerBuckets = buckets.filter((bucket) => bucket.owner != null);
+
+  return ownerBuckets.map((bucket) => {
     const requestedAgentIds = asStringArray(bucket.owner?.metadata?.selectedAgentIds);
     const replies: CouncilAgentReplyView[] = bucket.agents.map((agent) => {
       const skipped = isNonConversationalCouncilContent(agent.content);

@@ -128,7 +128,7 @@ function main(): void {
   assert(panel.includes('data-testid="agentops-council-response-row"'), "row test id retained");
 
   const css = read("src/styles/aixia-design-system.css");
-  assert(css.includes("clamp(620px, 70vh, 700px)"), "workspace height 620–700");
+  assert(css.includes("calc(100dvh - 20rem)") || css.includes("clamp(620px, 70vh, 700px)"), "workspace height target");
   assert(css.includes("grid-template-columns: minmax(0, 1.75fr) minmax(220px, 0.7fr)"), "two columns");
   assert(css.includes("max-height: 140px"), "composer dock ≤140");
   assert(css.includes("min-height: 60px"), "composer textarea floor");

@@ -427,7 +427,7 @@ export function AgentOpsCouncilWorkspace({
               </div>
               <p className="agentops-council-msg__full">{selectedReply.content}</p>
               <div className="agentops-council-msg__actions">
-                {selectedReply.content && voice.ttsEnabled ? (
+                {selectedReply.content ? (
                   voice.isSpeaking ? (
                     <AixiaButton
                       type="button"
@@ -443,9 +443,13 @@ export function AgentOpsCouncilWorkspace({
                       type="button"
                       variant="secondary"
                       className="text-xs px-2.5 py-1"
-                      onClick={() =>
-                        void voice.speakAgentMessage(selectedReply.content, selectedReply.messageId)
-                      }
+                      onClick={() => {
+                        if (!voice.ttsEnabled) voice.toggleTts();
+                        void voice.speakAgentMessage(
+                          selectedReply.content,
+                          selectedReply.messageId,
+                        );
+                      }}
                     >
                       <Volume2 className="mr-1 h-3.5 w-3.5" aria-hidden />
                       Speak

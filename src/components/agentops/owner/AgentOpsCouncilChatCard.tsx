@@ -11,6 +11,8 @@ type AgentOpsCouncilChatCardProps = {
 
 /**
  * Phase A.3 — single Council workspace surface (no nested AixiaSection chrome).
+ * Soft-scrolls the fixed composer into the browser viewport once after mount when
+ * Team status above the embed would otherwise leave the dock below the fold.
  */
 export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatCardProps) {
   const chat = useAgentOpsCouncilChat({ enabled, recentMessageLimit: 80 });
@@ -22,6 +24,20 @@ export function AgentOpsCouncilChatCard({ enabled = true }: AgentOpsCouncilChatC
     }, 6_000);
     return () => window.clearTimeout(timer);
   }, [chat.chatFeedback, chat.clearChatFeedback]);
+
+  useEffect(() => {
+    if (!enabled || chat.loading) return;
+    const timer = window.setTimeout(() => {
+      const dock = document.querySelector(
+        '[data-testid="agentops-agents-council-messenger"] [data-testid="agentops-messenger-dock"]',
+      );
+      if (!(dock instanceof HTMLElement)) return;
+      const rect = dock.getBoundingClientRect();
+      if (rect.bottom <= window.innerHeight - 8 && rect.top >= 0) return;
+      dock.scrollIntoView({ block: "end", behavior: "smooth" });
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [chat.loading, enabled]);
 
   const embeddedStatusText = useMemo(() => {
     if (chat.chatError) return chat.chatError;

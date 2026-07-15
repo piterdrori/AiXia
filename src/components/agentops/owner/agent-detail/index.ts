@@ -8,3 +8,4 @@ export type { AgentRunDrawerModel } from "./AgentResultsPanel";
 export { AgentPermissionsPanel } from "./AgentPermissionsPanel";
 export { AgentActivityPanel } from "./AgentActivityPanel";
 export { AgentDetailPanelShell } from "./AgentDetailPanelShell";
+export { AgentManualRunConfirmModal } from "./AgentManualRunConfirmModal";

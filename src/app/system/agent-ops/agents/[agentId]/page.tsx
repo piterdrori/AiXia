@@ -14,6 +14,7 @@ import {
   AgentActivityPanel,
   AgentChatWorkspace,
   AgentControlHeader,
+  AgentManualRunConfirmModal,
   AgentMemoryHermesPanel,
   AgentPermissionsPanel,
   AgentResultsPanel,
@@ -34,6 +35,8 @@ import {
   buildAgentStatusStrip,
   buildScheduleStripLabel,
   mapMemoryCountsToStripStatus,
+  AGENT_DETAIL_CC_COPY,
+  type StripCurrentActivity,
   type StripHermesStatus,
 } from "@/lib/agentops/agents/agentDetailControlCenter";
 import {
@@ -46,6 +49,22 @@ import {
 import {
   type AgentDetailScheduleConfig,
 } from "@/lib/agentops/agents/agentDetailScheduleModel";
+import {
+  AGENT_MANUAL_RUN_COPY,
+  DEFAULT_MANUAL_MAX_DURATION_MINUTES,
+  type AgentManualRunResult,
+  type AgentManualRunScope,
+  type AgentManualWorkType,
+} from "@/lib/agentops/agents/agentManualRunContract";
+import {
+  activityLabelForManualRun,
+  defaultScopeForWorkType,
+  fetchManualRunCapability,
+  fetchManualRunStatus,
+  formatManualRunResultBanner,
+  startOwnerManualRun,
+  type ManualRunCapability,
+} from "@/lib/agentops/agents/agentManualRunClient";
 import {
   fetchLatestDailyExecutionForSlug,
   formatDurationMs,
@@ -83,7 +102,9 @@ const EMPTY_DRAWER: AgentRunDrawerModel = {
 function activityFromExecution(
   execution: LatestDailyExecutionSummary | null,
   reviewRunning: boolean,
-): "Idle" | "Auditing" | "Failed" | "Unknown" {
+  manualActivity: StripCurrentActivity | null,
+): StripCurrentActivity {
+  if (manualActivity) return manualActivity;
   if (reviewRunning) return "Auditing";
   if (!execution || execution.error) return "Unknown";
   const status = execution.status.toLowerCase();
@@ -92,6 +113,51 @@ function activityFromExecution(
     return "Idle";
   }
   return "Unknown";
+}
+
+function drawerFromManualResult(
+  result: AgentManualRunResult,
+  open: boolean,
+): AgentRunDrawerModel {
+  const workType =
+    result.workType === "browser_qa" ? "Browser QA (owner manual)" : "Website audit (owner manual)";
+  return {
+    open,
+    executionStatus: result.status,
+    workType,
+    trigger: "owner_manual",
+    startedAt: result.startedAt ?? null,
+    endedAt: result.completedAt ?? null,
+    duration: formatDurationMs(result.durationMs ?? null),
+    reviewDepth: result.workType === "browser_qa" ? "Limited routes (Browser QA)" : "Assigned modules",
+    authenticationDepth: "Staging Playwright (GitHub Actions)",
+    routesModules:
+      result.routesChecked && result.routesChecked.length > 0
+        ? result.routesChecked.join(", ")
+        : "Awaiting execution evidence",
+    browserToolUsage: "playwrightStagingScanner via daily-12 GHA",
+    rawObservations:
+      result.rawObservations != null ? String(result.rawObservations) : "Not yet available",
+    filteredObservations: "Owner drafts only — no auto-promotion",
+    queuedFindings:
+      result.queuedFindings != null
+        ? result.queuedFindings > 0
+          ? String(result.queuedFindings)
+          : AGENT_MANUAL_RUN_COPY.zeroFindings
+        : "Not yet available",
+    duplicates: "Tracked in Monitoring drafts",
+    evidence: result.evidenceAvailable
+      ? result.githubRunUrl
+        ? `Evidence linked · ${result.githubRunUrl}`
+        : "Evidence available in Monitoring / GHA artifacts"
+      : "Evidence pending while run is active",
+    limitations:
+      "Dry-run / drafts only. No code changes, PRs, deploys, or automatic memory apply.",
+    failureReason:
+      result.status === "failed" || result.status === "rejected"
+        ? result.message
+        : "Not recorded",
+  };
 }
 
 export default function AgentOpsAgentDetailPage() {
@@ -133,6 +199,17 @@ export default function AgentOpsAgentDetailPage() {
   const [latestExecution, setLatestExecution] = useState<LatestDailyExecutionSummary | null>(null);
   const [localActivity, setLocalActivity] = useState<AgentOpsAgentTimelineItem[]>([]);
   const [drawer, setDrawer] = useState<AgentRunDrawerModel>(EMPTY_DRAWER);
+  const [manualCapability, setManualCapability] = useState<ManualRunCapability | null>(null);
+  const [manualCapabilityError, setManualCapabilityError] = useState<string | null>(null);
+  const [confirmWorkType, setConfirmWorkType] = useState<AgentManualWorkType | null>(null);
+  const [confirmScope, setConfirmScope] = useState<AgentManualRunScope | null>(null);
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [activeManualRunId, setActiveManualRunId] = useState<string | null>(null);
+  const [activeManualWorkType, setActiveManualWorkType] = useState<AgentManualWorkType | null>(
+    null,
+  );
+  const [manualRunResult, setManualRunResult] = useState<AgentManualRunResult | null>(null);
+  const [manualResultBanner, setManualResultBanner] = useState<string | null>(null);
 
   const resolvedSlug = canonical?.id ?? agentId.trim().toLowerCase();
   const ownerMeta = getAgentOwnerMeta(resolvedSlug);
@@ -244,7 +321,77 @@ export default function AgentOpsAgentDetailPage() {
     if (!gateLoading) void loadDetail();
   }, [gateLoading, loadDetail]);
 
+  useEffect(() => {
+    if (!isOwner || gateLoading) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await fetchManualRunCapability();
+      if (cancelled) return;
+      if (result.ok && result.capability) {
+        setManualCapability(result.capability);
+        setManualCapabilityError(null);
+      } else {
+        setManualCapability(null);
+        setManualCapabilityError(result.error ?? "Manual run capability unavailable.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner, gateLoading]);
+
+  useEffect(() => {
+    if (!isOwner || !activeManualRunId) return;
+    let cancelled = false;
+    const poll = async () => {
+      const status = await fetchManualRunStatus({
+        runId: activeManualRunId,
+        agentSlug: resolvedSlug,
+      });
+      if (cancelled) return;
+      if (!status.ok || !status.result) return;
+      setManualRunResult(status.result);
+      if (!status.active) {
+        setActiveManualRunId(null);
+        setManualResultBanner(formatManualRunResultBanner(status.result));
+        setDrawer(drawerFromManualResult(status.result, false));
+        pushLocalActivity({
+          agentId: resolvedSlug,
+          eventType: "verification_request",
+          title: "Owner manual run finished",
+          summary: formatManualRunResultBanner(status.result),
+          source: "system_report",
+          priority: "medium",
+          createdAt: new Date().toISOString(),
+          metadata: { runId: status.result.runId, workType: status.result.workType },
+          relatedPath: null,
+          relatedIssueCode: null,
+          status: "logged",
+        });
+        void loadDetail();
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 12_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeManualRunId, isOwner, loadDetail, pushLocalActivity, resolvedSlug]);
+
   const refreshAll = () => void Promise.all([refreshGate(), refreshMonitoring(), loadDetail()]);
+
+  const openConfirm = (workType: AgentManualWorkType) => {
+    setConfirmWorkType(workType);
+    setConfirmScope(defaultScopeForWorkType(workType));
+    setActionFeedback(null);
+  };
+
+  const closeConfirm = () => {
+    if (manualSubmitting) return;
+    setConfirmWorkType(null);
+    setConfirmScope(null);
+  };
 
   const setAgentStatus = async (next: AgentOpsManagedAgentStatus) => {
     if (!canonical) return;
@@ -291,6 +438,70 @@ export default function AgentOpsAgentDetailPage() {
     setOwnerStatusOverride(null);
   };
 
+  const executeManualRun = async (opts: {
+    runOnceWhilePaused?: boolean;
+    activateAndRun?: boolean;
+  }) => {
+    if (!canonical || !confirmWorkType || !confirmScope) return;
+    setManualSubmitting(true);
+    setActionFeedback("Preparing owner manual run…");
+
+    if (opts.activateAndRun) {
+      await setAgentStatus("active");
+    }
+
+    try {
+      const result = await startOwnerManualRun({
+        agentSlug: canonical.id,
+        workType: confirmWorkType,
+        scope: confirmScope,
+        maxDurationMinutes: DEFAULT_MANUAL_MAX_DURATION_MINUTES,
+        avoidOverlap: true,
+        ownerFacingPaused:
+          !opts.activateAndRun &&
+          ((ownerStatusOverride ?? identity?.latestOwnerStatus ?? "Unknown") === "Paused" ||
+            (ownerStatusOverride ?? identity?.latestOwnerStatus ?? "Unknown") === "Blocked"),
+        runOnceWhilePaused: opts.runOnceWhilePaused === true,
+        activateAndRun: opts.activateAndRun === true,
+      });
+
+      if (!result.accepted) {
+        setActionFeedback(result.message);
+        if (result.existingRunId) {
+          setActiveManualRunId(result.existingRunId);
+        }
+        setManualSubmitting(false);
+        return;
+      }
+
+      setActiveManualRunId(result.runId ?? null);
+      setActiveManualWorkType(confirmWorkType);
+      setManualRunResult(result);
+      setManualResultBanner(null);
+      setDrawer(drawerFromManualResult(result, false));
+      setActionFeedback(result.message);
+      pushLocalActivity({
+        agentId: canonical.id,
+        eventType: "verification_request",
+        title: "Owner manual run started",
+        summary: `${confirmWorkType} · ${result.runId ?? "queued"}`,
+        source: "piter",
+        priority: "medium",
+        createdAt: new Date().toISOString(),
+        metadata: { runId: result.runId, workType: confirmWorkType },
+        relatedPath: null,
+        relatedIssueCode: null,
+        status: "logged",
+      });
+      setConfirmWorkType(null);
+      setConfirmScope(null);
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : String(error));
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
+
   const ownerStatus: OwnerFacingAgentStatus =
     ownerStatusOverride ?? identity?.latestOwnerStatus ?? "Unknown";
   const isPaused = ownerStatus === "Paused" || ownerStatus === "Blocked";
@@ -316,7 +527,37 @@ export default function AgentOpsAgentDetailPage() {
   const durationLabel =
     latestExecution?.error != null
       ? "Unavailable"
-      : formatDurationMs(latestExecution?.durationMs ?? null);
+      : formatDurationMs(
+          manualRunResult?.durationMs ?? latestExecution?.durationMs ?? null,
+        );
+
+  const manualActivityLabel = activeManualRunId
+    ? activityLabelForManualRun(manualRunResult?.status ?? "running", activeManualWorkType)
+    : null;
+  const manualStripActivity: StripCurrentActivity | null =
+    manualActivityLabel === "Preparing" ||
+    manualActivityLabel === "Auditing" ||
+    manualActivityLabel === "Running Browser QA" ||
+    manualActivityLabel === "Processing evidence" ||
+    manualActivityLabel === "Failed"
+      ? manualActivityLabel
+      : manualActivityLabel === "Completed"
+        ? "Idle"
+        : null;
+
+  const runInProgress = Boolean(activeManualRunId);
+  const auditAvailable = Boolean(manualCapability?.websiteAudit.available);
+  const browserQaAvailable = Boolean(manualCapability?.browserQa.available);
+  const auditDisabledReason = auditAvailable
+    ? null
+    : manualCapability?.websiteAudit.reason ??
+      manualCapabilityError ??
+      AGENT_DETAIL_CC_COPY.runAuditNotConnected;
+  const browserQaDisabledReason = browserQaAvailable
+    ? null
+    : manualCapability?.browserQa.reason ??
+      manualCapabilityError ??
+      AGENT_DETAIL_CC_COPY.runBrowserQaNotConnected;
 
   const statusStrip = buildAgentStatusStrip({
     ownerStatus,
@@ -333,6 +574,7 @@ export default function AgentOpsAgentDetailPage() {
     currentActivityOverride: activityFromExecution(
       latestExecution,
       reviewStatus === "running",
+      manualStripActivity,
     ),
   });
 
@@ -353,7 +595,8 @@ export default function AgentOpsAgentDetailPage() {
       scheduleConfig
         ? `Schedule: ${scheduleStrip.label}`
         : "Schedule: Not configured",
-      `Run audit now / Browser QA now: Not connected yet`,
+      `Run audit now: ${auditAvailable ? "Available (owner-gated GHA)" : auditDisabledReason ?? "Unavailable"}`,
+      `Run Browser QA now: ${browserQaAvailable ? "Available (owner-gated GHA)" : browserQaDisabledReason ?? "Unavailable"}`,
       typeof errors === "number" ? `Errors reported: ${errors}` : null,
       typeof improvements === "number" ? `Improvements reported: ${improvements}` : null,
       typeof features === "number" ? `Feature ideas reported: ${features}` : null,
@@ -390,6 +633,10 @@ export default function AgentOpsAgentDetailPage() {
     scheduleConfig,
     scheduleStrip.label,
     username,
+    auditAvailable,
+    auditDisabledReason,
+    browserQaAvailable,
+    browserQaDisabledReason,
   ]);
 
   const openFindingsLabel = findingsUnavailable
@@ -471,10 +718,47 @@ export default function AgentOpsAgentDetailPage() {
           statusUpdating={statusUpdating}
           agentSlug={resolvedSlug}
           runtimeAgentId={identity?.runtimeAgentId ?? null}
+          auditAvailable={auditAvailable}
+          browserQaAvailable={browserQaAvailable}
+          auditDisabledReason={auditDisabledReason}
+          browserQaDisabledReason={browserQaDisabledReason}
+          runInProgress={runInProgress}
+          activeRunId={activeManualRunId}
+          currentActivityLabel={manualActivityLabel}
           onBack={() => navigate("/system/agent-ops/agents")}
           onRefresh={refreshAll}
           onActivate={() => void setAgentStatus("active")}
           onPause={() => void setAgentStatus("quiet")}
+          onRunAudit={() => openConfirm("website_audit")}
+          onRunBrowserQa={() => openConfirm("browser_qa")}
+          onViewCurrentRun={() => {
+            if (manualRunResult) setDrawer(drawerFromManualResult(manualRunResult, true));
+          }}
+          onViewLatestRun={() => {
+            if (manualRunResult) {
+              setDrawer(drawerFromManualResult(manualRunResult, true));
+              return;
+            }
+            setDrawer({
+              ...EMPTY_DRAWER,
+              open: true,
+              executionStatus: reviewStatusLabel(reviewStatus),
+              startedAt: latestExecution?.startedAt ?? rosterRow?.lastDailyRunAt ?? null,
+              endedAt: latestExecution?.completedAt ?? rosterRow?.lastDailyRunAt ?? null,
+              duration: durationLabel,
+              routesModules:
+                rosterRow?.routesReviewed?.join(", ") || "Not recorded",
+              queuedFindings: findingsUnavailable ? "Unavailable" : String(findings.length),
+              rawObservations: "Open Monitoring for fleet raw observations",
+              failureReason:
+                latestExecution?.failureReason ??
+                (reviewStatus === "failed"
+                  ? "Latest review reported failed / needs attention"
+                  : "Not recorded"),
+              limitations:
+                "Latest fleet/daily execution. Owner manual runs use View latest run after dispatch.",
+            });
+          }}
         />
 
         <AgentStatusStrip model={statusStrip} />
@@ -483,6 +767,34 @@ export default function AgentOpsAgentDetailPage() {
           <p className="text-sm text-white/70" role="status" data-testid="agentops-status-feedback">
             {actionFeedback}
           </p>
+        ) : null}
+
+        {manualResultBanner ? (
+          <div
+            className="rounded-lg border border-white/15 bg-white/[0.03] px-4 py-3 text-sm text-white/85"
+            role="status"
+            data-testid="agentops-manual-run-result-banner"
+          >
+            <p>{manualResultBanner}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <AixiaButton
+                variant="secondary"
+                onClick={() => {
+                  if (manualRunResult) setDrawer(drawerFromManualResult(manualRunResult, true));
+                }}
+              >
+                View latest run
+              </AixiaButton>
+              <AixiaButton
+                variant="secondary"
+                onClick={() =>
+                  navigate(`/system/agent-ops/issues?agent=${encodeURIComponent(resolvedSlug)}`)
+                }
+              >
+                View findings
+              </AixiaButton>
+            </div>
+          </div>
         ) : null}
 
         {detailError ? (
@@ -616,23 +928,33 @@ export default function AgentOpsAgentDetailPage() {
           failedRunsLabel={failedRunsLabel}
           failedRunsScope="Recorded daily-agent execution failures"
           drawer={drawer}
-          onOpenLatestRun={() =>
+          onOpenLatestRun={() => {
+            if (manualRunResult) {
+              setDrawer(drawerFromManualResult(manualRunResult, true));
+              return;
+            }
             setDrawer({
               ...EMPTY_DRAWER,
               open: true,
               executionStatus: reviewStatusLabel(reviewStatus),
+              workType: "Daily agent review",
+              trigger: "Fleet monitoring / GitHub Actions",
               startedAt: latestExecution?.startedAt ?? rosterRow?.lastDailyRunAt ?? null,
               endedAt: latestExecution?.completedAt ?? rosterRow?.lastDailyRunAt ?? null,
               duration: durationLabel,
+              routesModules: rosterRow?.routesReviewed?.join(", ") || "Not recorded",
+              browserToolUsage: "playwrightStagingScanner (daily-12)",
               queuedFindings: findingsUnavailable ? "Unavailable" : String(findings.length),
               failureReason:
                 latestExecution?.failureReason ??
                 (reviewStatus === "failed"
                   ? "Latest review reported failed / needs attention"
                   : "Not recorded"),
-            })
-          }
-          onCloseDrawer={() => setDrawer(EMPTY_DRAWER)}
+              limitations:
+                "Fleet/daily execution summary. Owner manual runs override this drawer when available.",
+            });
+          }}
+          onCloseDrawer={() => setDrawer((prev) => ({ ...prev, open: false }))}
         />
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -643,6 +965,21 @@ export default function AgentOpsAgentDetailPage() {
             loading={loading}
           />
         </div>
+
+        <AgentManualRunConfirmModal
+          open={confirmWorkType != null && confirmScope != null}
+          agentSlug={resolvedSlug}
+          displayName={displayName}
+          workType={confirmWorkType ?? "website_audit"}
+          scope={confirmScope ?? defaultScopeForWorkType("website_audit")}
+          maxDurationMinutes={DEFAULT_MANUAL_MAX_DURATION_MINUTES}
+          isPaused={isPaused}
+          submitting={manualSubmitting}
+          onCancel={closeConfirm}
+          onConfirmRun={() => void executeManualRun({})}
+          onConfirmRunOncePaused={() => void executeManualRun({ runOnceWhilePaused: true })}
+          onActivateAndRun={() => void executeManualRun({ activateAndRun: true })}
+        />
       </div>
     </AgentOpsOwnerPageShell>
   );

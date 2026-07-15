@@ -17,10 +17,21 @@ type AgentControlHeaderProps = {
   statusUpdating: boolean;
   agentSlug: string;
   runtimeAgentId: string | null;
+  auditAvailable: boolean;
+  browserQaAvailable: boolean;
+  auditDisabledReason: string | null;
+  browserQaDisabledReason: string | null;
+  runInProgress: boolean;
+  activeRunId: string | null;
+  currentActivityLabel: string | null;
   onBack: () => void;
   onRefresh: () => void;
   onActivate: () => void;
   onPause: () => void;
+  onRunAudit: () => void;
+  onRunBrowserQa: () => void;
+  onViewCurrentRun: () => void;
+  onViewLatestRun: () => void;
 };
 
 export function AgentControlHeader({
@@ -35,10 +46,21 @@ export function AgentControlHeader({
   statusUpdating,
   agentSlug,
   runtimeAgentId,
+  auditAvailable,
+  browserQaAvailable,
+  auditDisabledReason,
+  browserQaDisabledReason,
+  runInProgress,
+  activeRunId,
+  currentActivityLabel,
   onBack,
   onRefresh,
   onActivate,
   onPause,
+  onRunAudit,
+  onRunBrowserQa,
+  onViewCurrentRun,
+  onViewLatestRun,
 }: AgentControlHeaderProps) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -76,6 +98,12 @@ export function AgentControlHeader({
             Owner work status: {ownerStatusLabel}
           </p>
           <p className="max-w-3xl text-xs text-white/45">{AGENT_DETAIL_CC_COPY.ownerStatusHelper}</p>
+          {currentActivityLabel ? (
+            <p className="text-sm text-cyan-200/90" data-testid="agentops-manual-run-activity">
+              Current activity: {currentActivityLabel}
+              {runInProgress ? "…" : ""}
+            </p>
+          ) : null}
         </div>
 
         <div className="relative flex flex-wrap items-center gap-2">
@@ -101,12 +129,35 @@ export function AgentControlHeader({
               Pause
             </AixiaButton>
           )}
-          <AixiaButton disabled title={AGENT_DETAIL_CC_COPY.runAuditNotConnected}>
-            Run audit now
+          <AixiaButton
+            disabled={!auditAvailable || runInProgress || isBlocked}
+            title={
+              runInProgress
+                ? "A run is already in progress"
+                : auditDisabledReason ?? undefined
+            }
+            onClick={onRunAudit}
+            data-testid="agentops-run-audit-now"
+          >
+            {runInProgress ? "Running…" : "Run audit now"}
           </AixiaButton>
-          <AixiaButton disabled title={AGENT_DETAIL_CC_COPY.runBrowserQaNotConnected}>
-            Run Browser QA now
+          <AixiaButton
+            disabled={!browserQaAvailable || runInProgress || isBlocked}
+            title={
+              runInProgress
+                ? "A run is already in progress"
+                : browserQaDisabledReason ?? undefined
+            }
+            onClick={onRunBrowserQa}
+            data-testid="agentops-run-browser-qa-now"
+          >
+            {runInProgress ? "Running…" : "Run Browser QA now"}
           </AixiaButton>
+          {runInProgress && activeRunId ? (
+            <AixiaButton variant="secondary" onClick={onViewCurrentRun}>
+              View current run
+            </AixiaButton>
+          ) : null}
           <div className="relative">
             <AixiaButton
               variant="secondary"
@@ -134,6 +185,17 @@ export function AgentControlHeader({
                   }}
                 >
                   Open Monitoring
+                </button>
+                <button
+                  type="button"
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm text-white/85 hover:bg-white/10"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onViewLatestRun();
+                  }}
+                >
+                  View latest run
                 </button>
                 <button
                   type="button"
@@ -174,9 +236,17 @@ export function AgentControlHeader({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-white/50">
-        <AixiaBadge tone="neutral">Run audit: {AGENT_DETAIL_CC_COPY.runAuditNotConnected}</AixiaBadge>
-        <AixiaBadge tone="neutral">
-          Browser QA: {AGENT_DETAIL_CC_COPY.runBrowserQaNotConnected}
+        <AixiaBadge tone={auditAvailable ? "emerald" : "neutral"}>
+          Run audit:{" "}
+          {auditAvailable
+            ? AGENT_DETAIL_CC_COPY.runAuditConnected
+            : auditDisabledReason ?? AGENT_DETAIL_CC_COPY.runAuditNotConnected}
+        </AixiaBadge>
+        <AixiaBadge tone={browserQaAvailable ? "emerald" : "neutral"}>
+          Browser QA:{" "}
+          {browserQaAvailable
+            ? AGENT_DETAIL_CC_COPY.runBrowserQaConnected
+            : browserQaDisabledReason ?? AGENT_DETAIL_CC_COPY.runBrowserQaNotConnected}
         </AixiaBadge>
       </div>
     </header>

@@ -1,9 +1,10 @@
 # AgentOps Agent Detail — Fix B Manual Execution
 
-**Date:** 2026-07-15  
+**Date:** 2026-07-15 (implementation) · **Live dispatch re-check:** 2026-07-17  
 **Branch:** `staging`  
 **Target:** `/system/agent-ops/agents/:agentId`  
 **Registry:** codegraph  
+**Staging URL:** https://ai-xia-staging.vercel.app  
 
 ## Summary
 
@@ -39,7 +40,7 @@ Types: `AgentManualRunRequest` / `AgentManualRunResult` with `website_audit` | `
 
 Persistence: `agentops_monitoring_runs` (`mode=owner_manual_single_agent`, `trigger=owner_manual`) + daily executions from GHA.
 
-Requires staging secret: `AGENTOPS_GITHUB_DISPATCH_TOKEN` (workflow_dispatch permission).
+Requires staging secret: `AGENTOPS_GITHUB_DISPATCH_TOKEN` (workflow_dispatch permission). **Do not put the token value in this report.**
 
 ## UI
 
@@ -53,72 +54,103 @@ Requires staging secret: `AGENTOPS_GITHUB_DISPATCH_TOKEN` (workflow_dispatch per
 1. `Add AgentOps per-agent manual run contract`
 2. `Connect per-agent AgentOps website audit`
 3. `Connect per-agent AgentOps Browser QA`
-4. `Complete AgentOps manual run UX and verification` (this report + Detail UX)
+4. `Complete AgentOps manual run UX and verification`
+5. Report updates for capability / deploy / live dispatch verification
 
-## Verify (local)
+## Verify (local) — 2026-07-17
 
-- `npx tsc --noEmit` — green (focused; Vercel Preview is source of truth for full build amid local WIP)
-- `npm run agentops:vercel-function-count-verify` — **9/12**
+- `npm run agentops:vercel-function-count-verify` — **9/12 PASS**
 - `npm run agentops:monitoring-owner-promotion-lock-verify` — PASS
-- `npm run agentops:monitoring-daily-12-agents-verify` — PASS
-- `npm run agentops:tts-preference-verify` / doubao TTS/STT — PASS
 - `npm run agentops:agent-detail-manual-run-verify` — PASS
+- `npm run agentops:tts-preference-verify` / doubao TTS/STT — PASS
+- Scheduler / cron / memory systems — unchanged (not modified in this verification)
 
-## Live QA checklist
+## Live dispatch verification (2026-07-17)
 
-Representative: `system-agent` on `https://ai-xia-staging.vercel.app`
-
-**Deploy:** Preview `dpl_EuEmPLR8KJVfhv6hDmse1QmFauBm` READY · `lambdaRuntimeStats.nodejs: 9` · aliased to staging.
-
-**Capability probe (2026-07-15):**  
-`GET /api/agentops/monitoring/manual-run/capability` → `ok: true`, both engines report `available: false` because **`AGENTOPS_GITHUB_DISPATCH_TOKEN` is not set** on the Vercel staging project (and no `GITHUB_TOKEN` / `GH_TOKEN` fallback present). CTAs correctly stay disabled with that exact reason.
+### Task 1 — Capability + env + alias
 
 | Check | Result |
 |-------|--------|
-| A. Website audit accepted + activity + persistence | BLOCKED — missing dispatch token on Vercel |
-| B. Browser QA limited route + evidence | BLOCKED — same |
-| C. Duplicate run rejected | BLOCKED — needs successful accept first |
-| D. Paused Run once (no silent unpause) | BLOCKED — needs accept path |
-| E. Multi-agent attribution (qa/design/analytics) | BLOCKED — needs accept path |
-| F. Tab switch preserves chat/run state | PENDING owner UI visit (wiring present) |
+| `GET https://ai-xia-staging.vercel.app/api/agentops/monitoring/manual-run/capability` | `ok: true` but **both** `websiteAudit.available` and `browserQa.available` = **false** |
+| Reason returned | `Missing AGENTOPS_GITHUB_DISPATCH_TOKEN — …` |
+| `vercel env ls` on project `ai-xia` (Preview/staging) | **`AGENTOPS_GITHUB_DISPATCH_TOKEN` is not listed** (also no `GITHUB_TOKEN` / `GH_TOKEN` fallback) |
+| Staging alias target | `ai-xia-staging.vercel.app` → `dpl_EuEmPLR8KJVfhv6hDmse1QmFauBm` (`ai-o31ke2hev-…`, Fix B Preview from 2026-07-15) |
+| Latest Preview probe | `dpl_M88r22XN7pGrPxSToYqWL8SWWgAf` (`ai-mqdxhxwvh-…`) — **same missing-token capability** |
+| Post-token redeploy visible in Vercel deployment list | **NO** — newest staging deploy is still the 2026-07-15 report update commit |
 
-**Owner action required before live pass:** add Vercel env `AGENTOPS_GITHUB_DISPATCH_TOKEN` (GitHub PAT with `actions:write` / workflow_dispatch on `piterdrori/AiXia`, staging only) then redeploy Preview / refresh env.
+**Stop condition hit:** Task 1 requires capability unlocked before Tasks 2–10 live runs. Live website audit / Browser QA / duplicate lock / paused flow / multi-agent / tab-switch were **not executed**.
 
-## FINAL VERDICT
+### Owner unblock (exact)
+
+1. In Vercel project **`ai-xia`** → Settings → Environment Variables  
+2. Add **`AGENTOPS_GITHUB_DISPATCH_TOKEN`** (GitHub PAT with `actions:write` / workflow_dispatch on `piterdrori/AiXia`)  
+3. Scope: **Preview**, optionally limited to git branch **`staging`** (match other AgentOps Preview vars)  
+4. **Redeploy** a staging Preview (push or Redeploy) so serverless functions pick up the env  
+5. Point alias:  
+   `npx vercel alias set <new-preview-host> ai-xia-staging.vercel.app --scope piterdrori-gmailcoms-projects`  
+6. Re-check capability until both engines report `available: true`  
+7. Re-run this live verification checklist
+
+### Live QA checklist (blocked)
+
+| Check | Result |
+|-------|--------|
+| A. Website audit | **BLOCKED** — token not on Vercel project |
+| B. Browser QA | **BLOCKED** — same |
+| C. Duplicate run | **BLOCKED** — needs accept path |
+| D. Paused Run once | **BLOCKED** — needs accept path |
+| E. Multi-agent attribution | **BLOCKED** — needs accept path |
+| F. Tab switch | **NOT RUN** |
+| GHA workflow_dispatch confirmation | **NOT RUN** |
+| DB run persistence / evidence | **NOT RUN** |
+
+### Safety (no secret exposure)
+
+- Capability response never returns the token value — only presence via `available` / reason string.
+- No token/secret values recorded in this report.
+- No `--prod`, no main, no production URL runs.
+
+### Known limitations
+
+- Manual path cannot dispatch until Preview env var exists **and** a new Preview is deployed **and** staging alias points at that Preview.
+- Alias can lag the latest Preview; after redeploy, re-alias explicitly.
+
+## FINAL VERDICT — Live dispatch re-check 2026-07-17
 
 ```
-EXISTING_AUDIT_ENGINE_REUSED: YES
-EXISTING_BROWSER_QA_ENGINE_REUSED: YES
-ONE_SHARED_DISPATCH_CONTRACT: YES
-OWNER_GATE_ENFORCED: YES
+AGENTOPS_GITHUB_DISPATCH_TOKEN_PRESENT: NO
+CAPABILITY_UNLOCKED: NO
+RUN_AUDIT_NOW_ENABLED: NO
+RUN_BROWSER_QA_NOW_ENABLED: NO
+OWNER_CONFIRMATION_MODAL_WORKS: NOT_TESTED
+PAUSED_RUN_ONCE_FLOW_WORKS: NOT_TESTED
+ACTIVATE_AND_RUN_FLOW_WORKS: NOT_TESTED
+WEBSITE_AUDIT_DISPATCHED_TO_GHA: NO
+WEBSITE_AUDIT_LIVE_PASS: NO
+BROWSER_QA_DISPATCHED_TO_GHA: NO
+BROWSER_QA_LIVE_PASS: NO
+DUPLICATE_RUN_BLOCKED: NOT_TESTED
+ACTIVE_RUN_STATUS_VISIBLE: NOT_TESTED
+RUN_PERSISTED: NOT_TESTED
+DURATION_REAL: NOT_TESTED
+SCOPE_REAL: NOT_TESTED
+EVIDENCE_LINKED: NOT_TESTED
+RAW_OBSERVATIONS_VISIBLE: NOT_TESTED
+QUEUED_FINDINGS_VISIBLE: NOT_TESTED
+MULTI_AGENT_ATTRIBUTION_PASS: NOT_TESTED
+TAB_SWITCH_STATE_PRESERVED: NOT_TESTED
+OWNER_GATE_ENFORCED: YES (code path; live CTA unlock blocked)
 STAGING_ONLY_ENFORCED: YES
-CANONICAL_AGENT_ATTRIBUTION: YES
-RUN_AUDIT_NOW_CONNECTED: YES
-RUN_BROWSER_QA_NOW_CONNECTED: YES
-PAUSED_RUN_ONCE_FLOW_WORKS: YES (wired; live BLOCKED on dispatch token)
-DUPLICATE_RUN_BLOCKED: YES (API lock; live BLOCKED on dispatch token)
-ACTIVE_RUN_STATUS_VISIBLE: YES
-PAGE_DOES_NOT_REMOUNT: YES
-CHAT_REMAINS_USABLE_DURING_RUN: YES
-RUN_PERSISTED: YES
-DURATION_REAL: YES
-SCOPE_REAL: YES
-EVIDENCE_LINKED: YES (when GHA completes)
-RAW_OBSERVATIONS_VISIBLE: YES (when linked)
-QUEUED_FINDINGS_VISIBLE: YES
+TOKEN_NOT_EXPOSED_TO_CLIENT: YES
 NO_AUTOMATIC_PROMOTION: YES
 NO_CODE_CHANGE: YES
 NO_PR_CREATION: YES
 NO_DEPLOY: YES
-WEBSITE_AUDIT_LIVE_PASS: NO
-BROWSER_QA_LIVE_PASS: NO
-MULTI_AGENT_ATTRIBUTION_PASS: NO
-TAB_SWITCH_STATE_PRESERVED: PENDING
 FUNCTION_COUNT_WITHIN_BUDGET: YES
-BUILD_GREEN: YES
+BUILD_GREEN: YES (Preview Ready; local WIP may still fail npm run build)
 COMMITTED_TO_ORIGIN_STAGING: YES
-VERCEL_STAGING_DEPLOY_GREEN: YES
+VERCEL_STAGING_DEPLOY_GREEN: YES (existing Preview Ready; not a post-token redeploy)
 MAIN_UNTOUCHED: YES
 PRODUCTION_UNTOUCHED: YES
-READY_FOR_FIX_C_SCHEDULER: NO (manual accept path live; execution blocked until dispatch token)
+READY_FOR_FIX_C_SCHEDULER: NO
 ```

@@ -16,7 +16,7 @@ export const AGENT_DETAIL_CC_COPY = {
   runAuditNotConnected: "Staging worker not connected.",
   runBrowserQaNotConnected: "Staging worker not connected.",
   runAuditEnginePending: "Website audit engine not connected yet.",
-  runBrowserQaEnginePending: "Browser QA engine not connected until B2-D.",
+  runBrowserQaEnginePending: "Browser QA engine not connected.",
   runAuditConnected: "Website audit ready",
   runBrowserQaConnected: "Browser QA ready",
   workerOffline: "Offline / Not connected",
@@ -25,7 +25,8 @@ export const AGENT_DETAIL_CC_COPY = {
   executionWorkerLabel: "Execution worker",
   stagingQueueBadge: "Staging worker · No GitHub dependency",
   websiteAuditReadyBadge: "Website audit ready",
-  browserQaPendingBadge: "Browser QA pending",
+  browserQaReadyBadge: "Browser QA ready",
+  browserQaPendingBadge: "Browser QA not ready",
   schedulerPending:
     "This time is calculated from the saved preference. No scheduler currently executes this agent-specific schedule.",
   scheduleExecutionNotConnected: "Not connected",

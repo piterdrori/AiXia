@@ -140,7 +140,7 @@ function verifyWiring(): void {
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "queueAvailable: true");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Staging worker not connected.");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Website audit engine not connected");
-  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Browser QA engine not connected until B2-D.");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Browser QA engine not connected.");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "scanStagingWebsite");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "HEARTBEAT_FRESH_MS");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "Website audit running on staging worker.");
@@ -199,7 +199,7 @@ function verifyWiring(): void {
   );
   mustInclude(
     "src/lib/agentops/agents/agentDetailControlCenter.ts",
-    "Browser QA pending",
+    "Browser QA not ready",
   );
   mustNotInclude(
     "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",

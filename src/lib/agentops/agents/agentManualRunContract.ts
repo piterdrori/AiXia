@@ -64,6 +64,10 @@ export type AgentManualRunResult = {
   errorsCount?: number | null;
   scope?: AgentManualRunScope | null;
   artifactRefs?: string[];
+  screenshotRefs?: string[];
+  consoleFindings?: unknown[];
+  networkFindings?: unknown[];
+  accessibilityFindings?: unknown[];
   workerId?: string | null;
   failurePhase?: string | null;
   existingRunId?: string;

@@ -120,7 +120,7 @@ function verifyWiring(): void {
   mustNotInclude("scripts/agentops-staging-manual-run-worker.mjs", "api.github.com");
 
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "scanStagingWebsite");
-  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Browser QA engine not connected until B2-D.");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Browser QA engine not connected.");
   mustInclude(
     "api/agentops/_lib/monitoringManualRun.ts",
     "Website audit running on staging worker.",
@@ -135,7 +135,7 @@ function verifyWiring(): void {
   );
   mustInclude(
     "src/lib/agentops/agents/agentDetailControlCenter.ts",
-    "Browser QA pending",
+    "Browser QA not ready",
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",
@@ -152,6 +152,7 @@ function verifyWiring(): void {
     "agentops:manual-run-worker:website-audit-once",
     "agentops:manual-run-worker:website-audit-dev",
     "agentops:manual-run-website-audit-verify",
+    "agentops:manual-run-worker:browser-qa-once",
   ]) {
     if (!pkg.includes(script)) fail(`package.json missing script ${script}`);
   }

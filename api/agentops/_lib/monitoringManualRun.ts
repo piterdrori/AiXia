@@ -32,7 +32,7 @@ const MONITORING_TABLE = "agentops_monitoring_runs";
 const DAILY_EXECUTIONS_TABLE = "agentops_monitoring_daily_agent_executions";
 const AGENTS_TABLE = "agentops_agents";
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
-const QUEUE_VERSION = "b2-c";
+const QUEUE_VERSION = "b2-d";
 const DUPLICATE_LOCK_MESSAGE = "This agent already has an active or queued run.";
 
 function methodNotAllowed(): Response {
@@ -192,6 +192,8 @@ function statusMessageForRow(input: {
   const { status, workerConnected, stale, summary } = input;
   const isWebsiteAudit =
     summary.workType === "website_audit" || summary.executionEngine === "website_audit";
+  const isBrowserQa =
+    summary.workType === "browser_qa" || summary.executionEngine === "browser_qa";
   if (status === "queued") {
     return workerConnected
       ? "Waiting for staging worker."
@@ -199,10 +201,14 @@ function statusMessageForRow(input: {
   }
   if (status === "running") {
     if (stale) {
+      if (isBrowserQa) {
+        return "Browser QA run is running but worker heartbeat is stale.";
+      }
       return isWebsiteAudit
         ? "Website audit run is running but worker heartbeat is stale."
         : "Run is running but worker heartbeat is stale.";
     }
+    if (isBrowserQa) return "Browser QA running on staging worker.";
     return isWebsiteAudit
       ? "Website audit running on staging worker."
       : "Manual run is in progress on the staging worker.";
@@ -222,7 +228,7 @@ function statusMessageForRow(input: {
     return "Manual run failed.";
   }
   if (status === "completed") {
-    if (isWebsiteAudit) {
+    if (isWebsiteAudit || isBrowserQa) {
       const evidence =
         summary.evidenceSummary && typeof summary.evidenceSummary === "object"
           ? (summary.evidenceSummary as Record<string, unknown>)
@@ -231,9 +237,11 @@ function statusMessageForRow(input: {
         return evidence.zeroFindingsMessage;
       }
       if (summary.result === "findings_found") {
-        return "Website audit completed with qualifying findings.";
+        return isBrowserQa
+          ? "Browser QA completed with qualifying findings."
+          : "Website audit completed with qualifying findings.";
       }
-      return "Website audit completed.";
+      return isBrowserQa ? "Browser QA completed." : "Website audit completed.";
     }
     return "Manual run completed.";
   }
@@ -525,13 +533,14 @@ export async function handleMonitoringManualRunStatusRequest(
     (isLockExpired(summary) || classifyWorkerStatus(snapshot.health) === "stale");
 
   // Only look for worker/execution evidence once a worker has claimed the run (running+).
-  // Queued-only / B2-B claim-test / B2-C website-audit persist on the monitoring row itself.
+  // Queued-only / B2-B claim-test / B2-C website-audit / B2-D browser-qa persist on the monitoring row itself.
   if (
     status === "running" &&
     slug &&
     startedAt &&
     summary.workerPhase !== "b2-b" &&
-    summary.workerPhase !== "b2-c"
+    summary.workerPhase !== "b2-c" &&
+    summary.workerPhase !== "b2-d"
   ) {
     const { data: execution } = await client
       .from(DAILY_EXECUTIONS_TABLE)
@@ -599,17 +608,19 @@ export async function handleMonitoringManualRunStatusRequest(
     rawObservations = null;
   }
 
-  // B2-C website audit persists evidence on the monitoring row itself.
+  // B2-C website audit / B2-D Browser QA persist evidence on the monitoring row itself.
   if (
-    summary.workerPhase === "b2-c" &&
-    summary.executionEngine === "website_audit" &&
+    ((summary.workerPhase === "b2-c" && summary.executionEngine === "website_audit") ||
+      (summary.workerPhase === "b2-d" && summary.executionEngine === "browser_qa")) &&
     (status === "completed" || status === "failed" || status === "running")
   ) {
     const routesScanned = Array.isArray(summary.routesScanned)
       ? (summary.routesScanned as string[])
       : Array.isArray(summary.selectedRoutes)
         ? (summary.selectedRoutes as string[])
-        : [];
+        : typeof summary.route === "string"
+          ? [summary.route]
+          : [];
     if (routesScanned.length > 0) routesChecked = routesScanned;
     const evidence =
       summary.evidenceSummary && typeof summary.evidenceSummary === "object"
@@ -628,6 +639,7 @@ export async function handleMonitoringManualRunStatusRequest(
     evidenceAvailable =
       Boolean(summary.evidenceSummary) ||
       (Array.isArray(summary.artifactRefs) && summary.artifactRefs.length > 0) ||
+      (Array.isArray(summary.screenshotRefs) && summary.screenshotRefs.length > 0) ||
       (Array.isArray(summary.rawObservations) && summary.rawObservations.length > 0);
   }
 
@@ -666,6 +678,12 @@ export async function handleMonitoringManualRunStatusRequest(
       errorsCount,
       scope: summary.scope ?? null,
       artifactRefs: Array.isArray(summary.artifactRefs) ? summary.artifactRefs : [],
+      screenshotRefs: Array.isArray(summary.screenshotRefs) ? summary.screenshotRefs : [],
+      consoleFindings: Array.isArray(summary.consoleFindings) ? summary.consoleFindings : [],
+      networkFindings: Array.isArray(summary.networkFindings) ? summary.networkFindings : [],
+      accessibilityFindings: Array.isArray(summary.accessibilityFindings)
+        ? summary.accessibilityFindings
+        : [],
       workerId: typeof summary.workerId === "string" ? summary.workerId : null,
       failurePhase:
         typeof summary.failurePhase === "string" ? summary.failurePhase : null,

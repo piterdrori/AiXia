@@ -1,18 +1,18 @@
 /**
- * Fix B2-C — read staging manual-run worker health from agentops_system_config.
+ * Fix B2-D — read staging manual-run worker health from agentops_system_config.
  * Heartbeat is written by the external worker (service role). Vercel only reads.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const WORKER_VERSION = "b2-c";
+export const WORKER_VERSION = "b2-d";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
 export const WORKER_NOT_CONNECTED_REASON = "Staging worker not connected.";
 export const ENGINE_NOT_CONNECTED_WEBSITE =
   "Staging worker connected. Website audit engine not connected in this phase.";
 export const ENGINE_NOT_CONNECTED_BROWSER =
-  "Browser QA engine not connected until B2-D.";
+  "Browser QA engine not connected.";
 export const B2B_CLAIM_CLOSE_MESSAGE =
   "Worker claim verified. Execution engine not connected in B2-B.";
 
@@ -183,15 +183,17 @@ export function buildCapabilityFromHealth(
         : workerConnected
           ? health?.browserQaEngine?.reason ?? ENGINE_NOT_CONNECTED_BROWSER
           : WORKER_NOT_CONNECTED_REASON,
-      engine: "staging_worker + browser_qa (pending B2-D)",
+      engine: "staging_worker + browser_qa (runPlaywrightBrowserQA)",
     },
     notes: [
       "Staging queue accepts owner-gated runs into agentops_monitoring_runs.",
       "No GitHub dispatch. No Playwright on Vercel.",
       workerConnected
-        ? websiteAuditEngineConnected
-          ? "Staging worker connected. Website audit engine ready. Browser QA pending B2-D."
-          : "Staging worker heartbeat is fresh. Website audit engine not connected."
+        ? websiteAuditEngineConnected && browserQaEngineConnected
+          ? "Staging worker connected. Website audit and Browser QA engines ready."
+          : websiteAuditEngineConnected
+            ? "Staging worker connected. Website audit ready. Browser QA not connected."
+            : "Staging worker heartbeat is fresh. Engines not fully connected."
         : "A staging worker must heartbeat and claim queued runs.",
       "Findings remain drafts; no auto-promotion, auto-fix, PR, or deploy.",
     ],

@@ -1,5 +1,5 @@
 /**
- * Fix B2-C — staging manual-run worker (heartbeat + claim-test + website audit).
+ * Fix B2-D — staging manual-run worker (heartbeat + claim-test + website audit + Browser QA).
  *
  * Usage:
  *   node scripts/agentops-staging-manual-run-worker.mjs heartbeat
@@ -7,10 +7,11 @@
  *   node scripts/agentops-staging-manual-run-worker.mjs claim-test --run-id <id>
  *   node scripts/agentops-staging-manual-run-worker.mjs website-audit-once
  *   node scripts/agentops-staging-manual-run-worker.mjs website-audit-dev
+ *   node scripts/agentops-staging-manual-run-worker.mjs browser-qa-once
+ *   node scripts/agentops-staging-manual-run-worker.mjs browser-qa-dev
  *   node scripts/agentops-staging-manual-run-worker.mjs queue-status
  *
- * Playwright / website audit runs only via spawned engine (website-audit-once).
- * Browser QA is not executed in B2-C.
+ * Playwright runs only via spawned engines (off Vercel). No GitHub dispatch.
  */
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
@@ -21,12 +22,16 @@ import { fileURLToPath } from "node:url";
 
 import {
   B2B_CLAIM_CLOSE_MESSAGE,
+  BROWSER_QA_AUTH_NOT_CONFIGURED,
   WORKER_VERSION,
+  buildBrowserQaClaimSummary,
   buildClaimCloseSummary,
   buildClaimSummaryPatch,
+  buildConnectedBrowserQaEngine,
   buildConnectedWebsiteAuditEngine,
   buildDisconnectedBrowserQaEngine,
   buildWebsiteAuditClaimSummary,
+  isBrowserQaQueuedSummary,
   isLockExpired,
   isOwnerManualQueuedSummary,
   isWebsiteAuditQueuedSummary,
@@ -39,7 +44,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
 const MONITORING_TABLE = "agentops_monitoring_runs";
 const CONFIG_TABLE = "agentops_system_config";
-const ENGINE_SCRIPT = path.join(REPO_ROOT, "scripts", "agentops-manual-run-website-audit-engine.ts");
+const WEBSITE_AUDIT_ENGINE_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts",
+  "agentops-manual-run-website-audit-engine.ts",
+);
+const BROWSER_QA_ENGINE_SCRIPT = path.join(
+  REPO_ROOT,
+  "scripts",
+  "agentops-manual-run-browser-qa-engine.ts",
+);
 
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -95,6 +109,61 @@ function createServiceClient(config) {
   });
 }
 
+function resolveStorageStatePath() {
+  const raw =
+    process.env.AGENTOPS_BROWSER_QA_STORAGE_STATE?.trim() ||
+    "qa-agent/browser-qa-auth/storage-state.json";
+  const resolved = path.isAbsolute(raw) ? raw : path.join(REPO_ROOT, raw);
+  return fs.existsSync(resolved) ? resolved : null;
+}
+
+function resolveBrowserQaEngineHealth(nowIso) {
+  if (!resolveStorageStatePath()) {
+    return buildDisconnectedBrowserQaEngine(BROWSER_QA_AUTH_NOT_CONFIGURED);
+  }
+  const playwrightPkg = path.join(REPO_ROOT, "node_modules", "playwright");
+  if (!fs.existsSync(playwrightPkg)) {
+    return buildDisconnectedBrowserQaEngine(
+      "Playwright is not installed on the staging worker.",
+    );
+  }
+  return buildConnectedBrowserQaEngine(nowIso);
+}
+
+function engineEnv(envConfig) {
+  return {
+    ...process.env,
+    STAGING_SUPABASE_URL: envConfig.supabaseUrl,
+    STAGING_SUPABASE_SERVICE_ROLE_KEY: envConfig.serviceRoleKey,
+    STAGING_APP_URL: envConfig.appUrl,
+    AGENTOPS_ENVIRONMENT: "staging",
+    AGENTOPS_PRODUCTION_BLOCKED: "true",
+    AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING: "true",
+  };
+}
+
+function spawnEngine(scriptPath, runId, envConfig) {
+  const tsxCli = path.join(REPO_ROOT, "node_modules", "tsx", "dist", "cli.mjs");
+  const env = engineEnv(envConfig);
+  if (fs.existsSync(tsxCli)) {
+    return spawnSync(process.execPath, [tsxCli, scriptPath, "--run-id", runId], {
+      cwd: REPO_ROOT,
+      env,
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+      windowsHide: true,
+    });
+  }
+  const npxCmd = process.platform === "win32" ? "npx.cmd" : "npx";
+  return spawnSync(npxCmd, ["tsx", scriptPath, "--run-id", runId], {
+    cwd: REPO_ROOT,
+    env,
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+    windowsHide: true,
+  });
+}
+
 async function listQueuedManualRuns(client) {
   const { data, error } = await client
     .from(MONITORING_TABLE)
@@ -110,6 +179,11 @@ async function listQueuedManualRuns(client) {
 async function listQueuedWebsiteAudits(client) {
   const queued = await listQueuedManualRuns(client);
   return queued.filter((row) => isWebsiteAuditQueuedSummary(row.summary));
+}
+
+async function listQueuedBrowserQa(client) {
+  const queued = await listQueuedManualRuns(client);
+  return queued.filter((row) => isBrowserQaQueuedSummary(row.summary));
 }
 
 async function listRunningManualRuns(client) {
@@ -137,7 +211,7 @@ async function writeHeartbeat(client, patch) {
   const tools = mergeWorkerHealthIntoTools(row?.tools_enabled, {
     ...patch,
     websiteAuditEngine: buildConnectedWebsiteAuditEngine(nowIso),
-    browserQaEngine: buildDisconnectedBrowserQaEngine(),
+    browserQaEngine: resolveBrowserQaEngineHealth(nowIso),
   });
 
   if (!row) {
@@ -299,47 +373,49 @@ async function claimWebsiteAudit(client, workerId, runId) {
   return claimed;
 }
 
-function runWebsiteAuditEngine(runId, envConfig) {
-  const tsxCli = path.join(REPO_ROOT, "node_modules", "tsx", "dist", "cli.mjs");
-  const runner = fs.existsSync(tsxCli)
-    ? [process.execPath, tsxCli, ENGINE_SCRIPT, "--run-id", runId]
-    : null;
-  if (!runner) {
-    const npxCmd = process.platform === "win32" ? "npx.cmd" : "npx";
-    return spawnSync(npxCmd, ["tsx", ENGINE_SCRIPT, "--run-id", runId], {
-      cwd: REPO_ROOT,
-      env: {
-        ...process.env,
-        STAGING_SUPABASE_URL: envConfig.supabaseUrl,
-        STAGING_SUPABASE_SERVICE_ROLE_KEY: envConfig.serviceRoleKey,
-        STAGING_APP_URL: envConfig.appUrl,
-        AGENTOPS_ENVIRONMENT: "staging",
-        AGENTOPS_PRODUCTION_BLOCKED: "true",
-        AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING: "true",
-      },
-      encoding: "utf8",
-      maxBuffer: 8 * 1024 * 1024,
-      windowsHide: true,
-    });
+async function claimBrowserQa(client, workerId, runId) {
+  const { data: existing, error: readError } = await client
+    .from(MONITORING_TABLE)
+    .select("*")
+    .eq("run_id", runId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+  if (!existing) throw new Error(`Run not found: ${runId}`);
+  if (existing.status !== "queued") {
+    throw new Error(`Run ${runId} is not queued (status=${existing.status}).`);
   }
-  return spawnSync(runner[0], runner.slice(1), {
-    cwd: REPO_ROOT,
-    env: {
-      ...process.env,
-      STAGING_SUPABASE_URL: envConfig.supabaseUrl,
-      STAGING_SUPABASE_SERVICE_ROLE_KEY: envConfig.serviceRoleKey,
-      STAGING_APP_URL: envConfig.appUrl,
-      AGENTOPS_ENVIRONMENT: "staging",
-      AGENTOPS_PRODUCTION_BLOCKED: "true",
-      AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING: "true",
-    },
-    encoding: "utf8",
-    maxBuffer: 8 * 1024 * 1024,
-    windowsHide: true,
+  if (!isBrowserQaQueuedSummary(existing.summary)) {
+    throw new Error(`Run ${runId} is not a queued browser_qa owner_manual row.`);
+  }
+
+  const claimedAt = new Date().toISOString();
+  const claimedSummary = buildBrowserQaClaimSummary(existing.summary, {
+    workerId,
+    workerVersion: WORKER_VERSION,
+    claimedAt,
   });
+
+  const { data: claimed, error: claimError } = await client
+    .from(MONITORING_TABLE)
+    .update({
+      status: "running",
+      started_at: claimedAt,
+      agents_run: 1,
+      summary: claimedSummary,
+    })
+    .eq("run_id", runId)
+    .eq("status", "queued")
+    .select("run_id, status, summary, started_at")
+    .maybeSingle();
+
+  if (claimError) throw new Error(claimError.message);
+  if (!claimed) {
+    throw new Error(`Atomic claim failed for ${runId}.`);
+  }
+  return claimed;
 }
 
-async function failStuckRunning(client, runId, message, claimedAt) {
+async function failStuckRunning(client, runId, message, claimedAt, failurePhase) {
   const endedAt = new Date().toISOString();
   const { data: existing } = await client
     .from(MONITORING_TABLE)
@@ -351,7 +427,7 @@ async function failStuckRunning(client, runId, message, claimedAt) {
     existing.summary && typeof existing.summary === "object" ? { ...existing.summary } : {};
   summary.error = message;
   summary.failureReason = message;
-  summary.failurePhase = "website_audit_engine_spawn";
+  summary.failurePhase = failurePhase || "engine_spawn";
   summary.closedAt = endedAt;
   const { data } = await client
     .from(MONITORING_TABLE)
@@ -366,6 +442,18 @@ async function failStuckRunning(client, runId, message, claimedAt) {
     .select("run_id, status")
     .maybeSingle();
   return data;
+}
+
+function parseEngineStdout(engine) {
+  let enginePayload = null;
+  try {
+    const stdout = (engine.stdout || "").trim();
+    const jsonStart = stdout.indexOf("{");
+    if (jsonStart >= 0) enginePayload = JSON.parse(stdout.slice(jsonStart));
+  } catch {
+    enginePayload = null;
+  }
+  return enginePayload;
 }
 
 async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = null) {
@@ -392,22 +480,21 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
     lastError: null,
   });
 
-  const engine = runWebsiteAuditEngine(runId, envConfig);
-  let enginePayload = null;
-  try {
-    const stdout = (engine.stdout || "").trim();
-    const jsonStart = stdout.indexOf("{");
-    if (jsonStart >= 0) enginePayload = JSON.parse(stdout.slice(jsonStart));
-  } catch {
-    enginePayload = null;
-  }
+  const engine = spawnEngine(WEBSITE_AUDIT_ENGINE_SCRIPT, runId, envConfig);
+  const enginePayload = parseEngineStdout(engine);
 
   if (engine.status !== 0) {
     const message =
       (engine.stderr || "").trim().slice(0, 500) ||
       (engine.stdout || "").trim().slice(0, 500) ||
       `Website audit engine exited with code ${engine.status}`;
-    await failStuckRunning(client, runId, message, claimed.started_at);
+    await failStuckRunning(
+      client,
+      runId,
+      message,
+      claimed.started_at,
+      "website_audit_engine_spawn",
+    );
   }
 
   await writeHeartbeat(client, {
@@ -429,6 +516,84 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
 
   return {
     ok: engine.status === 0 && finalRow?.status === "completed",
+    claimed: true,
+    runId,
+    engineExit: engine.status,
+    engine: enginePayload,
+    final: finalRow,
+  };
+}
+
+async function browserQaOnce(client, workerId, envConfig, preferredRunId = null) {
+  await heartbeat(client, workerId);
+
+  if (!resolveStorageStatePath()) {
+    return {
+      ok: false,
+      claimed: false,
+      message: BROWSER_QA_AUTH_NOT_CONFIGURED,
+    };
+  }
+
+  let runId = preferredRunId;
+  if (!runId) {
+    const queued = await listQueuedBrowserQa(client);
+    if (queued.length === 0) {
+      return { ok: true, claimed: false, message: "No queued browser_qa runs." };
+    }
+    runId = queued[0].run_id;
+  }
+
+  const claimed = await claimBrowserQa(client, workerId, runId);
+  await writeHeartbeat(client, {
+    connected: true,
+    lastHeartbeatAt: new Date().toISOString(),
+    workerId,
+    workerVersion: WORKER_VERSION,
+    activeRunId: runId,
+    lastClaimedRunId: runId,
+    queueLength: (await listQueuedManualRuns(client)).length,
+    lastError: null,
+  });
+
+  const engine = spawnEngine(BROWSER_QA_ENGINE_SCRIPT, runId, envConfig);
+  const enginePayload = parseEngineStdout(engine);
+
+  if (engine.status !== 0) {
+    const message =
+      (engine.stderr || "").trim().slice(0, 500) ||
+      (engine.stdout || "").trim().slice(0, 500) ||
+      `Browser QA engine exited with code ${engine.status}`;
+    await failStuckRunning(
+      client,
+      runId,
+      message,
+      claimed.started_at,
+      "browser_qa_engine_spawn",
+    );
+  }
+
+  await writeHeartbeat(client, {
+    connected: true,
+    lastHeartbeatAt: new Date().toISOString(),
+    workerId,
+    workerVersion: WORKER_VERSION,
+    activeRunId: null,
+    lastClaimedRunId: runId,
+    queueLength: (await listQueuedManualRuns(client)).length,
+    lastError: engine.status === 0 ? null : `Browser QA engine failed for ${runId}`,
+  });
+
+  const { data: finalRow } = await client
+    .from(MONITORING_TABLE)
+    .select("run_id, status, duration_ms, findings_count, errors_count, summary")
+    .eq("run_id", runId)
+    .maybeSingle();
+
+  return {
+    ok:
+      engine.status === 0 &&
+      (finalRow?.status === "completed" || finalRow?.status === "failed"),
     claimed: true,
     runId,
     engineExit: engine.status,
@@ -468,6 +633,8 @@ async function main() {
           websiteAuditQueued: result.queued.filter((r) =>
             isWebsiteAuditQueuedSummary(r.summary),
           ).length,
+          browserQaQueued: result.queued.filter((r) => isBrowserQaQueuedSummary(r.summary))
+            .length,
           runningCount: result.running.length,
           staleCount: result.stale.length,
           queuedRunIds: result.queued.map((r) => r.run_id),
@@ -555,8 +722,38 @@ async function main() {
     }
   }
 
+  if (args.command === "browser-qa-once") {
+    const result = await browserQaOnce(client, workerId, validated.config, args.runId);
+    console.log(JSON.stringify({ ok: true, command: "browser-qa-once", workerId, ...result }, null, 2));
+    if (!result.ok && result.claimed && result.engineExit !== 0) process.exit(1);
+    if (!result.ok && !result.claimed && result.message === BROWSER_QA_AUTH_NOT_CONFIGURED) {
+      process.exit(1);
+    }
+    return;
+  }
+
+  if (args.command === "browser-qa-dev") {
+    if (process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true") {
+      console.error("browser-qa-dev must not run in CI.");
+      process.exit(2);
+    }
+    console.error(`[manual-run-worker] browser-qa-dev loop interval=${args.intervalMs}ms`);
+    for (;;) {
+      try {
+        const result = await browserQaOnce(client, workerId, validated.config);
+        console.log(JSON.stringify({ at: new Date().toISOString(), ...result }, null, 2));
+      } catch (error) {
+        console.error(
+          "[manual-run-worker] browser-qa-dev tick failed:",
+          error instanceof Error ? error.message : error,
+        );
+      }
+      await sleep(args.intervalMs);
+    }
+  }
+
   console.error(
-    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev",
+    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev",
   );
   process.exit(2);
 }

@@ -127,7 +127,9 @@ function drawerFromManualResult(
       : result.status === "queued"
         ? "Queued — waiting for staging worker"
         : result.status === "running"
-          ? "Website audit running on staging worker"
+          ? result.workType === "browser_qa"
+            ? "Browser QA running on staging worker"
+            : "Website audit running on staging worker"
           : "Awaiting execution evidence";
   return {
     open,
@@ -169,11 +171,26 @@ function drawerFromManualResult(
       result.status === "queued"
         ? "No evidence yet — waiting for staging worker"
         : result.evidenceAvailable
-          ? result.artifactRefs && result.artifactRefs.length > 0
-            ? `Evidence available (${result.artifactRefs.length} artifact ref(s))`
-            : "Evidence available in Monitoring"
+          ? [
+              result.artifactRefs && result.artifactRefs.length > 0
+                ? `${result.artifactRefs.length} artifact ref(s)`
+                : null,
+              result.screenshotRefs && result.screenshotRefs.length > 0
+                ? `${result.screenshotRefs.length} screenshot(s)`
+                : null,
+              result.consoleFindings && result.consoleFindings.length > 0
+                ? `${result.consoleFindings.length} console observation(s)`
+                : null,
+              result.networkFindings && result.networkFindings.length > 0
+                ? `${result.networkFindings.length} network observation(s)`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "Evidence available in Monitoring"
           : result.status === "running"
-            ? "Evidence pending while website audit runs"
+            ? result.workType === "browser_qa"
+              ? "Evidence pending while Browser QA runs"
+              : "Evidence pending while website audit runs"
             : "No evidence linked",
     limitations:
       "Dry-run / drafts only. Staging worker execution. No GitHub dispatch. No code changes, PRs, deploys, or automatic memory apply.",

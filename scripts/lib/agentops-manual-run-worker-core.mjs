@@ -1,21 +1,25 @@
 /**
- * Fix B2-C — shared pure helpers for staging manual-run worker.
+ * Fix B2-D — shared pure helpers for staging manual-run worker.
  * Used by worker CLI + verify scripts (no Supabase imports).
  */
 
-export const WORKER_VERSION = "b2-c";
+export const WORKER_VERSION = "b2-d";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
 export const LOCK_TTL_MS = 5 * 60 * 1000;
 export const WEBSITE_AUDIT_LOCK_TTL_MS = 15 * 60 * 1000;
+export const BROWSER_QA_LOCK_TTL_MS = 15 * 60 * 1000;
 export const B2B_CLAIM_CLOSE_MESSAGE =
   "Worker claim verified. Execution engine not connected in B2-B.";
 export const ENGINE_NOT_CONNECTED_WEBSITE =
   "Staging worker connected. Website audit engine not connected in this phase.";
 export const ENGINE_NOT_CONNECTED_BROWSER =
-  "Browser QA engine not connected until B2-D.";
+  "Browser QA engine not connected.";
+export const BROWSER_QA_AUTH_NOT_CONFIGURED =
+  "Browser QA auth not configured for staging worker.";
 export const WORKER_NOT_CONNECTED = "Staging worker not connected.";
 export const WEBSITE_AUDIT_ENGINE_VERSION = "b2-c";
+export const BROWSER_QA_ENGINE_VERSION = "b2-d";
 
 export function validateWorkerEnv(env = process.env) {
   const errors = [];
@@ -119,12 +123,20 @@ export function normalizeBrowserQaEngine(raw) {
   if (raw && typeof raw === "object") {
     return {
       connected: Boolean(raw.connected),
+      version: typeof raw.version === "string" ? raw.version : BROWSER_QA_ENGINE_VERSION,
+      lastCheckedAt: typeof raw.lastCheckedAt === "string" ? raw.lastCheckedAt : null,
       reason:
-        typeof raw.reason === "string" ? raw.reason : ENGINE_NOT_CONNECTED_BROWSER,
+        typeof raw.reason === "string"
+          ? raw.reason
+          : raw.connected
+            ? null
+            : ENGINE_NOT_CONNECTED_BROWSER,
     };
   }
   return {
     connected: false,
+    version: BROWSER_QA_ENGINE_VERSION,
+    lastCheckedAt: null,
     reason: ENGINE_NOT_CONNECTED_BROWSER,
   };
 }
@@ -132,6 +144,12 @@ export function normalizeBrowserQaEngine(raw) {
 export function isWebsiteAuditEngineConnected(health) {
   if (!health || typeof health !== "object") return false;
   const engine = normalizeWebsiteAuditEngine(health.websiteAuditEngine);
+  return engine.connected === true;
+}
+
+export function isBrowserQaEngineConnected(health) {
+  if (!health || typeof health !== "object") return false;
+  const engine = normalizeBrowserQaEngine(health.browserQaEngine);
   return engine.connected === true;
 }
 
@@ -164,11 +182,53 @@ export function buildConnectedWebsiteAuditEngine(nowIso = new Date().toISOString
   };
 }
 
-export function buildDisconnectedBrowserQaEngine() {
+export function buildDisconnectedBrowserQaEngine(reason = ENGINE_NOT_CONNECTED_BROWSER) {
   return {
     connected: false,
-    reason: ENGINE_NOT_CONNECTED_BROWSER,
+    version: BROWSER_QA_ENGINE_VERSION,
+    lastCheckedAt: null,
+    reason,
   };
+}
+
+export function buildConnectedBrowserQaEngine(nowIso = new Date().toISOString()) {
+  return {
+    connected: true,
+    version: BROWSER_QA_ENGINE_VERSION,
+    lastCheckedAt: nowIso,
+    reason: null,
+  };
+}
+
+export function isBrowserQaQueuedSummary(summary) {
+  return isOwnerManualQueuedSummary(summary) && summary.workType === "browser_qa";
+}
+
+/** B2-D Browser QA claim — execution follows. */
+export function buildBrowserQaClaimSummary(summary, input) {
+  const claimedAt = input.claimedAt || new Date().toISOString();
+  const lockExpiresAt =
+    input.lockExpiresAt ||
+    new Date(Date.parse(claimedAt) + BROWSER_QA_LOCK_TTL_MS).toISOString();
+  return {
+    ...(summary && typeof summary === "object" ? summary : {}),
+    workerId: input.workerId,
+    workerVersion: input.workerVersion || WORKER_VERSION,
+    claimedAt,
+    lockExpiresAt,
+    workerPhase: "b2-d",
+    executionEngine: "browser_qa",
+    claimTest: false,
+    b2bClaimOnly: false,
+  };
+}
+
+export function resolveLimitedBrowserQaRoute(summary, agentSlug, appUrl) {
+  const routes = resolveLimitedAuditRoutes(summary, agentSlug);
+  const route = routes[0] || `/system/agent-ops/agents/${agentSlug || "system-agent"}`;
+  const base = String(appUrl || "https://ai-xia-staging.vercel.app").replace(/\/+$/, "");
+  const path = route.startsWith("/") ? route : `/${route}`;
+  return { route: path, absoluteUrl: `${base}${path}` };
 }
 
 export function mergeWorkerHealthIntoTools(toolsEnabled, healthPatch) {

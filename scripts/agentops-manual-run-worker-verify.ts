@@ -148,7 +148,7 @@ function verifyWiring(): void {
 
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "HEARTBEAT_FRESH_MS");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "buildCapabilityFromHealth");
-  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Browser QA engine not connected until B2-D.");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Browser QA engine not connected.");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "readManualRunWorkerHealth");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "Waiting for staging worker.");
   mustInclude(
@@ -157,7 +157,7 @@ function verifyWiring(): void {
   );
   mustInclude(
     "src/lib/agentops/agents/agentDetailControlCenter.ts",
-    "Browser QA engine not connected until B2-D.",
+    "Browser QA engine not connected.",
   );
 
   const pkg = readFileSync(join(REPO_ROOT, "package.json"), "utf8");
@@ -166,6 +166,7 @@ function verifyWiring(): void {
     "agentops:manual-run-worker:heartbeat",
     "agentops:manual-run-worker:claim-test",
     "agentops:manual-run-worker:website-audit-once",
+    "agentops:manual-run-worker:browser-qa-once",
     "agentops:manual-run-worker-verify",
   ]) {
     if (!pkg.includes(script)) fail(`package.json missing script ${script}`);

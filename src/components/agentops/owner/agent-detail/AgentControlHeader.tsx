@@ -277,7 +277,7 @@ export function AgentControlHeader({
         </AixiaBadge>
         <AixiaBadge tone={browserQaAvailable ? "emerald" : "neutral"}>
           {browserQaAvailable
-            ? AGENT_DETAIL_CC_COPY.runBrowserQaConnected
+            ? AGENT_DETAIL_CC_COPY.browserQaReadyBadge
             : AGENT_DETAIL_CC_COPY.browserQaPendingBadge}
         </AixiaBadge>
       </div>

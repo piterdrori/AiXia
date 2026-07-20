@@ -53,6 +53,7 @@ import {
 } from "./agentops-manual-run-scheduler-tick.mjs";
 import {
   OPS_VERSION,
+  appendAlertHistory,
   buildCancelAcknowledgedSummary,
   buildCanceledSummary,
   buildOpsHealthPatch,
@@ -69,9 +70,12 @@ import {
 } from "./lib/agentops-staging-worker-ops-core.mjs";
 import {
   isArtifactUploadEnabled,
+  listEligibleArtifactCleanups,
+  mutateArtifactCleanup,
   resolveArtifactBucket,
   uploadRunArtifacts,
 } from "./lib/agentops-staging-artifact-storage.mjs";
+import { fanoutHealthAlerts } from "./lib/agentops-staging-alert-fanout.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -1079,6 +1083,23 @@ async function runOpsCycle(client, workerId, envConfig, intervalMs) {
     enginesReady,
   });
   const alerts = mergeAcknowledgedAlerts(priorAlerts, rawAlerts);
+  const priorFanout =
+    heartbeatResult.health?.ops?.alertFanout &&
+    typeof heartbeatResult.health.ops.alertFanout === "object"
+      ? heartbeatResult.health.ops.alertFanout
+      : {};
+  const alertFanout = await fanoutHealthAlerts(
+    alerts,
+    { workerId },
+    process.env,
+    priorFanout,
+  );
+  const alertHistory = appendAlertHistory(
+    Array.isArray(heartbeatResult.health?.ops?.alertHistory)
+      ? heartbeatResult.health.ops.alertHistory
+      : [],
+    alerts,
+  );
 
   const opsPatch = buildOpsHealthPatch({
     activeRunId: null,
@@ -1096,9 +1117,12 @@ async function runOpsCycle(client, workerId, envConfig, intervalMs) {
     ),
     enginesReady,
     alerts,
+    alertFanout,
+    alertHistory,
     artifactUploadEnabled: isArtifactUploadEnabled(process.env),
     artifactBucket: resolveArtifactBucket(process.env),
     lastArtifactUploadStatus: processResult?.artifactUpload?.artifactUploadStatus ?? null,
+    artifactCleanup: heartbeatResult.health?.ops?.artifactCleanup ?? null,
   });
 
   // Keep last active metadata readable when a run is still mid-flight elsewhere.
@@ -1326,6 +1350,71 @@ async function main() {
     return;
   }
 
+  if (args.command === "artifact-cleanup") {
+    const opsEnv = validatePersistentWorkerEnv(process.env);
+    if (!opsEnv.ok) {
+      console.error("[staging-worker] artifact-cleanup env validation failed:");
+      for (const err of opsEnv.errors) console.error(` - ${err}`);
+      process.exit(2);
+    }
+    const bucket = resolveArtifactBucket(process.env);
+    const listed = await listEligibleArtifactCleanups(client, { bucket });
+    if (!listed.ok) {
+      console.log(
+        JSON.stringify(
+          { ok: false, command: "artifact-cleanup", dryRun: !args.mutate, error: listed.error },
+          null,
+          2,
+        ),
+      );
+      process.exit(1);
+    }
+    let deleted = [];
+    let errors = [];
+    if (args.mutate) {
+      const mutated = await mutateArtifactCleanup(client, listed.eligible, { bucket });
+      deleted = mutated.deleted;
+      errors = mutated.errors;
+    }
+    const cleanupSummary = {
+      at: new Date().toISOString(),
+      dryRun: !args.mutate,
+      mutate: Boolean(args.mutate),
+      bucket,
+      eligibleCount: listed.eligible.length,
+      deletedCount: deleted.length,
+      eligible: listed.eligible.slice(0, 50),
+      deletedPaths: deleted.map((d) => d.path).slice(0, 50),
+      errors: errors.slice(0, 20),
+    };
+    const hb = await heartbeat(client, workerId);
+    await writeHeartbeat(client, {
+      connected: true,
+      lastHeartbeatAt: new Date().toISOString(),
+      workerId,
+      workerVersion: WORKER_VERSION,
+      queueLength: hb.queued?.length ?? 0,
+      lastError: null,
+      ops: {
+        ...(hb.health?.ops && typeof hb.health.ops === "object" ? hb.health.ops : {}),
+        artifactCleanup: cleanupSummary,
+      },
+    });
+    console.log(
+      JSON.stringify(
+        {
+          ok: errors.length === 0,
+          command: "artifact-cleanup",
+          workerId,
+          ...cleanupSummary,
+        },
+        null,
+        2,
+      ),
+    );
+    return;
+  }
+
   if (args.command === "ops") {
     const opsEnv = validatePersistentWorkerEnv(process.env);
     if (!opsEnv.ok) {
@@ -1409,7 +1498,7 @@ async function main() {
   }
 
   console.error(
-    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev | scheduler-tick [--dry-run] | scheduler-dev | scheduler-cleanup-stale [--dry-run|--mutate] | ops|staging-worker [--once]",
+    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev | scheduler-tick [--dry-run] | scheduler-dev | scheduler-cleanup-stale [--dry-run|--mutate] | artifact-cleanup [--mutate] | ops|staging-worker [--once]",
   );
   process.exit(2);
 }

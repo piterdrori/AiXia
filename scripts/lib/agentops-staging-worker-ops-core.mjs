@@ -3,7 +3,7 @@
  * Queue policy, retry classification, cancel/stale, evidence labels.
  */
 
-export const OPS_VERSION = "d-c";
+export const OPS_VERSION = "d-d";
 export const REQUIRED_STAGING_APP_URL = "https://ai-xia-staging.vercel.app";
 export const DEFAULT_OPS_INTERVAL_MS = 60_000;
 export const MIN_OPS_INTERVAL_MS = 30_000;
@@ -234,8 +234,13 @@ export function buildHealthAlert({
   recommendedAction = null,
   detectedAt = new Date().toISOString(),
   acknowledged = false,
+  id = null,
 }) {
+  const alertId =
+    id ||
+    `alert-${String(type || "unknown")}-${relatedRunId || "none"}-${String(detectedAt).slice(0, 19)}`;
   return {
+    id: alertId,
     type,
     level,
     message,
@@ -385,13 +390,48 @@ export function mergeAcknowledgedAlerts(previousAlerts, nextAlerts) {
   const ackMap = new Map(
     prev.filter((a) => a && a.acknowledged && a.type).map((a) => [a.type, a]),
   );
-  return (nextAlerts || []).map((alert) => {
+  const history = Array.isArray(
+    prev.find((a) => a && a.__historyMarker)?.history,
+  )
+    ? prev.find((a) => a && a.__historyMarker).history
+    : [];
+  const merged = (nextAlerts || []).map((alert) => {
     const prior = ackMap.get(alert.type);
     if (prior && prior.acknowledged && prior.message === alert.message) {
-      return { ...alert, acknowledged: true, acknowledgedAt: prior.acknowledgedAt ?? null };
+      return {
+        ...alert,
+        id: prior.id || alert.id,
+        acknowledged: true,
+        acknowledgedAt: prior.acknowledgedAt ?? null,
+        acknowledgedBy: prior.acknowledgedBy ?? null,
+        acknowledgeNote: prior.acknowledgeNote ?? null,
+      };
     }
     return alert;
   });
+  // Preserve recent ack history separately via ops.alertHistory (caller merges).
+  void history;
+  return merged;
+}
+
+export function appendAlertHistory(previousHistory, alerts, max = 40) {
+  const hist = Array.isArray(previousHistory) ? [...previousHistory] : [];
+  for (const alert of alerts || []) {
+    if (!alert?.acknowledged) continue;
+    const key = `${alert.type}|${alert.message}|${alert.acknowledgedAt || ""}`;
+    if (hist.some((h) => `${h.type}|${h.message}|${h.acknowledgedAt || ""}` === key)) continue;
+    hist.unshift({
+      id: alert.id || null,
+      type: alert.type,
+      level: alert.level,
+      message: alert.message,
+      acknowledgedAt: alert.acknowledgedAt || null,
+      acknowledgedBy: alert.acknowledgedBy || null,
+      acknowledgeNote: alert.acknowledgeNote || null,
+      relatedRunId: alert.relatedRunId || null,
+    });
+  }
+  return hist.slice(0, max);
 }
 
 // Re-export artifact env helpers for worker convenience (implementation lives in artifact-storage).
@@ -422,5 +462,10 @@ export function buildOpsHealthPatch(input) {
     artifactUploadEnabled: Boolean(input.artifactUploadEnabled),
     artifactBucket: input.artifactBucket ?? null,
     lastArtifactUploadStatus: input.lastArtifactUploadStatus ?? null,
+    alertFanout: input.alertFanout && typeof input.alertFanout === "object" ? input.alertFanout : null,
+    alertHistory: Array.isArray(input.alertHistory) ? input.alertHistory : [],
+    artifactCleanup: input.artifactCleanup && typeof input.artifactCleanup === "object"
+      ? input.artifactCleanup
+      : null,
   };
 }

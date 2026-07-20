@@ -29,6 +29,7 @@ import {
   waitForRouteSpaReadiness,
 } from "@/lib/agentops/browserQa/browserQaSpaReadiness";
 import type { BrowserQaReadinessEvidence } from "@/lib/agentops/browserQa/browserQaRunResult";
+import { honorCancelCheckpoint } from "@/lib/agentops/runtime/agentOpsCancelCheckpoint";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const ARTIFACT_DIR = join(REPO_ROOT, "qa-agent", "browser-qa-artifacts");
@@ -40,6 +41,8 @@ export type PlaywrightBrowserQaInput = {
   targetUrl: string;
   agentId: string;
   canonicalAgentId: string;
+  /** Staging worker cancel probe — throw AgentOpsCancelRequestedError when true. */
+  cancelCheck?: (phase: string) => Promise<boolean> | boolean;
 };
 
 type StorageStateConfig = {
@@ -421,6 +424,7 @@ async function scanSinglePage(
   attachPageListeners(page, consoleErrors, failedRequests);
 
   try {
+    await honorCancelCheckpoint(input.cancelCheck, "before_navigation");
     let response: Response | null = null;
     try {
       response = await page.goto(input.targetUrl, {
@@ -433,6 +437,7 @@ async function scanSinglePage(
         evidence: { consoleErrors, failedRequests, scannedLinks: [] },
       });
     }
+    await honorCancelCheckpoint(input.cancelCheck, "after_navigation");
 
     let readiness = await waitForRouteSpaReadiness(page, input.targetUrl);
     const bodyRead = await readBodyTextWithSpaRetry(page, input.targetUrl, readiness);
@@ -444,12 +449,15 @@ async function scanSinglePage(
     const status = response?.status() ?? null;
     const visibleTextSample = bodySample.slice(0, 500);
 
+    await honorCancelCheckpoint(input.cancelCheck, "before_screenshot");
     let screenshotPath: string | undefined;
     try {
       screenshotPath = await captureScreenshot(page, input.canonicalAgentId);
     } catch (error) {
       consoleErrors.push(`Screenshot capture failed: ${formatBrowserQaError(error)}`);
     }
+    await honorCancelCheckpoint(input.cancelCheck, "after_screenshot");
+    await honorCancelCheckpoint(input.cancelCheck, "before_analysis");
 
     if (isLoginUrl(finalUrl)) {
       return buildAuthRedirectResult({
@@ -607,6 +615,7 @@ export async function runPlaywrightBrowserQA(
   let context: BrowserContext | null = null;
 
   try {
+    await honorCancelCheckpoint(input.cancelCheck, "before_browser_launch");
     const { chromium } = await import("playwright");
     browser = await chromium.launch({ headless: true });
     context = storageConfig.path
@@ -614,6 +623,13 @@ export async function runPlaywrightBrowserQA(
       : await browser.newContext();
     return await scanSinglePage(context, { ...input, targetUrl }, storageConfig);
   } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      (error as { code?: string }).code === "AGENTOPS_CANCEL_REQUESTED"
+    ) {
+      throw error;
+    }
     return buildFailedResult(targetUrl, error, { auth: storageConfig.auth });
   } finally {
     await context?.close().catch(() => undefined);

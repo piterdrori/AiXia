@@ -45,9 +45,13 @@ async function verifyOpsCore(): Promise<void> {
   ).href;
   const worker = (await import(workerUrl)) as typeof import("./lib/agentops-manual-run-worker-core.mjs");
 
-  if (ops.OPS_VERSION !== "d-c") fail("OPS_VERSION must be d-c");
-  if (worker.WORKER_VERSION !== "d-a" && worker.WORKER_VERSION !== "d-c") {
-    fail("WORKER_VERSION must be d-a or d-c");
+  if (ops.OPS_VERSION !== "d-d") fail("OPS_VERSION must be d-d");
+  if (
+    worker.WORKER_VERSION !== "d-a" &&
+    worker.WORKER_VERSION !== "d-c" &&
+    worker.WORKER_VERSION !== "d-d"
+  ) {
+    fail("WORKER_VERSION must be d-a/d-c/d-d");
   }
 
   const badEnv = ops.validatePersistentWorkerEnv({
@@ -147,7 +151,7 @@ async function verifyOpsCore(): Promise<void> {
     enginesReady: true,
     lastCompletedRunId: "r1",
   });
-  if (patch.opsVersion !== "d-c" || patch.mode !== "staging_worker_ops") {
+  if (patch.opsVersion !== "d-d" || patch.mode !== "staging_worker_ops") {
     fail("ops health patch shape invalid");
   }
 }
@@ -186,7 +190,7 @@ async function main(): Promise<void> {
       {
         ok: true,
         command: "agentops:staging-worker-ops-verify",
-        opsVersion: "d-c",
+        opsVersion: "d-d",
         checks: "pass",
       },
       null,

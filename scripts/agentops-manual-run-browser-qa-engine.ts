@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { runPlaywrightBrowserQA } from "../src/lib/agentops/browserQa/playwrightBrowserQaRunner";
 import type { BrowserQaFinding } from "../src/lib/agentops/browserQa/browserQaRunResult";
+import { isCancelRequestedError } from "../src/lib/agentops/runtime/agentOpsCancelCheckpoint";
 import { assertStagingScanUrl } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
 
 const MONITORING_TABLE = "agentops_monitoring_runs";
@@ -287,24 +288,62 @@ async function main(): Promise<void> {
     return;
   }
 
+  const cancelCheck = async (_phase: string): Promise<boolean> => {
+    const { data } = await client
+      .from(MONITORING_TABLE)
+      .select("summary, status")
+      .eq("run_id", runId)
+      .maybeSingle();
+    if (!data || data.status !== "running") return true;
+    const s =
+      data.summary && typeof data.summary === "object"
+        ? (data.summary as Record<string, unknown>)
+        : {};
+    return s.cancelRequested === true;
+  };
+
   let failureReason: string | null = null;
   let failurePhase: string | null = null;
-  let qaResult = await runPlaywrightBrowserQA({
-    targetUrl: absoluteUrl,
-    agentId: runtimeAgentId,
-    canonicalAgentId: agentSlug,
-  });
+  let qaResult;
+  try {
+    qaResult = await runPlaywrightBrowserQA({
+      targetUrl: absoluteUrl,
+      agentId: runtimeAgentId,
+      canonicalAgentId: agentSlug,
+      cancelCheck,
+    });
+  } catch (error) {
+    if (isCancelRequestedError(error)) {
+      const endedAt = new Date().toISOString();
+      await client
+        .from(MONITORING_TABLE)
+        .update({
+          status: "canceled",
+          ended_at: endedAt,
+          duration_ms: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)),
+          summary: {
+            ...summary,
+            cancelRequested: false,
+            canceledAt: endedAt,
+            cancelAcknowledgedAt: endedAt,
+            cancelPhase: error.phase,
+            cancelReason:
+              error.phase.includes("navigation") || error.phase.includes("screenshot")
+                ? `Cancel request recorded; current browser step completed before cancellation (${error.phase}).`
+                : `Canceled at checkpoint: ${error.phase}`,
+          },
+        })
+        .eq("run_id", runId)
+        .eq("status", "running");
+      console.log(
+        JSON.stringify({ ok: true, canceled: true, runId, cancelPhase: error.phase }),
+      );
+      return;
+    }
+    throw error;
+  }
 
-  const midCheck = await client
-    .from(MONITORING_TABLE)
-    .select("summary, status")
-    .eq("run_id", runId)
-    .maybeSingle();
-  const midSummary =
-    midCheck.data?.summary && typeof midCheck.data.summary === "object"
-      ? (midCheck.data.summary as Record<string, unknown>)
-      : {};
-  if (midCheck.data?.status === "running" && midSummary.cancelRequested === true) {
+  if (await cancelCheck("before_artifact_upload")) {
     const endedAt = new Date().toISOString();
     await client
       .from(MONITORING_TABLE)
@@ -314,13 +353,12 @@ async function main(): Promise<void> {
         duration_ms: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)),
         summary: {
           ...summary,
-          ...midSummary,
           cancelRequested: false,
           canceledAt: endedAt,
           cancelAcknowledgedAt: endedAt,
-          cancelPhase: "after_browser_qa_before_analysis",
+          cancelPhase: "before_artifact_upload",
           cancelReason:
-            "Canceled at checkpoint: after_browser_qa_before_analysis. Current browser step may have finished first.",
+            "Cancel request recorded; current browser step completed before cancellation.",
           partialEvidence: {
             screenshotPath: qaResult.evidence?.screenshotPath ?? null,
             findingsCount: qaResult.findings?.length ?? 0,
@@ -334,7 +372,7 @@ async function main(): Promise<void> {
         ok: true,
         canceled: true,
         runId,
-        cancelPhase: "after_browser_qa_before_analysis",
+        cancelPhase: "before_artifact_upload",
       }),
     );
     return;

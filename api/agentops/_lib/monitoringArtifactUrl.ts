@@ -196,8 +196,14 @@ export async function handleMonitoringHealthAlertAckRequest(
   }
   const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const alertType = typeof record.alertType === "string" ? record.alertType.trim() : "";
-  if (!alertType) {
-    return jsonResponse({ ok: false, error: "alertType is required." }, 400);
+  const alertId = typeof record.alertId === "string" ? record.alertId.trim() : "";
+  const note =
+    typeof record.note === "string" ? record.note.trim().slice(0, 300) : "";
+  if (!alertType && !alertId) {
+    return jsonResponse({ ok: false, error: "alertType or alertId is required." }, 400);
+  }
+  if (alertType && !/^[a-z0-9_]{3,64}$/i.test(alertType)) {
+    return jsonResponse({ ok: false, error: "Invalid alertType." }, 400);
   }
 
   const client = createServiceClient();
@@ -232,22 +238,47 @@ export async function handleMonitoringHealthAlertAckRequest(
   const nextAlerts = alerts.map((raw) => {
     if (!raw || typeof raw !== "object") return raw;
     const alert = { ...(raw as Record<string, unknown>) };
-    if (alert.type === alertType) {
+    const typeMatch = alertType && alert.type === alertType;
+    const idMatch = alertId && alert.id === alertId;
+    if (typeMatch || idMatch) {
       matched = true;
       return {
         ...alert,
         acknowledged: true,
         acknowledgedAt: nowIso,
         acknowledgedBy: owner.userId || "owner",
+        acknowledgeNote: note || alert.acknowledgeNote || null,
       };
     }
     return alert;
   });
   if (!matched) {
-    return jsonResponse({ ok: false, error: `Alert type not found: ${alertType}` }, 404);
+    return jsonResponse(
+      { ok: false, error: `Alert not found: ${alertId || alertType}` },
+      404,
+    );
+  }
+
+  const history = Array.isArray(ops.alertHistory) ? [...ops.alertHistory] : [];
+  for (const raw of nextAlerts) {
+    if (!raw || typeof raw !== "object") continue;
+    const alert = raw as Record<string, unknown>;
+    if (alert.acknowledged !== true) continue;
+    if (alertType && alert.type !== alertType && !(alertId && alert.id === alertId)) continue;
+    history.unshift({
+      id: alert.id ?? null,
+      type: alert.type ?? null,
+      level: alert.level ?? null,
+      message: alert.message ?? null,
+      acknowledgedAt: alert.acknowledgedAt ?? nowIso,
+      acknowledgedBy: alert.acknowledgedBy ?? null,
+      acknowledgeNote: alert.acknowledgeNote ?? null,
+      relatedRunId: alert.relatedRunId ?? null,
+    });
   }
 
   ops.alerts = nextAlerts;
+  ops.alertHistory = history.slice(0, 40);
   ops.alertCount = nextAlerts.filter(
     (a) => a && typeof a === "object" && (a as Record<string, unknown>).acknowledged !== true,
   ).length;
@@ -263,7 +294,9 @@ export async function handleMonitoringHealthAlertAckRequest(
   return jsonResponse({
     ok: true,
     acknowledged: true,
-    alertType,
+    alertType: alertType || null,
+    alertId: alertId || null,
     acknowledgedAt: nowIso,
+    note: note || null,
   });
 }

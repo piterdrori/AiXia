@@ -12,6 +12,9 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentOpsRuntimeAgentRow } from "../src/lib/agentops/db/agentOpsRuntimeTypes";
+import {
+  isCancelRequestedError,
+} from "../src/lib/agentops/runtime/agentOpsCancelCheckpoint";
 import { scanStagingWebsite } from "../src/lib/agentops/runtime/scanStagingWebsite";
 import type { StagingScanFinding } from "../src/lib/agentops/runtime/stagingScanTypes";
 import { assertStagingScanUrl } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
@@ -291,6 +294,20 @@ async function main(): Promise<void> {
     return;
   }
 
+  const cancelCheck = async (_phase: string): Promise<boolean> => {
+    const { data } = await client
+      .from(MONITORING_TABLE)
+      .select("summary, status")
+      .eq("run_id", runId)
+      .maybeSingle();
+    if (!data || data.status !== "running") return true;
+    const s =
+      data.summary && typeof data.summary === "object"
+        ? (data.summary as Record<string, unknown>)
+        : {};
+    return s.cancelRequested === true;
+  };
+
   let findings: StagingScanFinding[] = [];
   let failureReason: string | null = null;
   let failurePhase: string | null = null;
@@ -301,10 +318,66 @@ async function main(): Promise<void> {
       maxRoutes: Math.min(3, routes.length || 1),
       pageTimeoutMs: 10_000,
       screenshotDir: join(process.cwd(), "qa-agent", "reports", "runtime-scans", "manual-b2c"),
+      cancelCheck,
     });
   } catch (error) {
+    if (isCancelRequestedError(error)) {
+      const endedAt = new Date().toISOString();
+      await client
+        .from(MONITORING_TABLE)
+        .update({
+          status: "canceled",
+          ended_at: endedAt,
+          duration_ms: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)),
+          summary: {
+            ...summary,
+            cancelRequested: false,
+            canceledAt: endedAt,
+            cancelAcknowledgedAt: endedAt,
+            cancelPhase: error.phase,
+            cancelReason: `Canceled at checkpoint: ${error.phase}`,
+          },
+        })
+        .eq("run_id", runId)
+        .eq("status", "running");
+      console.log(
+        JSON.stringify({ ok: true, canceled: true, runId, cancelPhase: error.phase }),
+      );
+      return;
+    }
     failureReason = error instanceof Error ? error.message : String(error);
     failurePhase = "scanStagingWebsite";
+  }
+
+  if (await cancelCheck("before_artifact_upload")) {
+    const endedAt = new Date().toISOString();
+    await client
+      .from(MONITORING_TABLE)
+      .update({
+        status: "canceled",
+        ended_at: endedAt,
+        duration_ms: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)),
+        summary: {
+          ...summary,
+          cancelRequested: false,
+          canceledAt: endedAt,
+          cancelAcknowledgedAt: endedAt,
+          cancelPhase: "before_artifact_upload",
+          cancelReason: "Canceled at checkpoint: before_artifact_upload",
+          partialEvidence: { scanFindingsCount: findings.length },
+        },
+      })
+      .eq("run_id", runId)
+      .eq("status", "running");
+    console.log(
+      JSON.stringify({
+        ok: true,
+        canceled: true,
+        runId,
+        cancelPhase: "before_artifact_upload",
+      }),
+    );
+    return;
   }
 
   const durationMs = Math.max(0, Date.now() - scanStarted);
@@ -320,6 +393,35 @@ async function main(): Promise<void> {
   let draftsSkipped = 0;
   let draftIds: string[] = [];
   if (!failureReason && qualifying.length > 0) {
+    if (await cancelCheck("before_final_persistence")) {
+      const cancelEnded = new Date().toISOString();
+      await client
+        .from(MONITORING_TABLE)
+        .update({
+          status: "canceled",
+          ended_at: cancelEnded,
+          duration_ms: Math.max(0, Date.parse(cancelEnded) - Date.parse(startedAt)),
+          summary: {
+            ...summary,
+            cancelRequested: false,
+            canceledAt: cancelEnded,
+            cancelAcknowledgedAt: cancelEnded,
+            cancelPhase: "before_final_persistence",
+            cancelReason: "Canceled at checkpoint: before_final_persistence",
+          },
+        })
+        .eq("run_id", runId)
+        .eq("status", "running");
+      console.log(
+        JSON.stringify({
+          ok: true,
+          canceled: true,
+          runId,
+          cancelPhase: "before_final_persistence",
+        }),
+      );
+      return;
+    }
     try {
       const draftResult = await insertDraftFindings(client, runId, agentSlug, qualifying);
       draftsCreated = draftResult.created;

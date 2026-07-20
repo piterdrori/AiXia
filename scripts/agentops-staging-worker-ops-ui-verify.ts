@@ -42,6 +42,24 @@ function verify(): void {
   mustInclude("scripts/agentops-staging-worker-doctor.mjs", "validatePersistentWorkerEnv");
   mustInclude("scripts/agentops-staging-worker-doctor.mjs", "storage_state");
   mustInclude("scripts/agentops-staging-worker-doctor.mjs", "Doctor does not run");
+  mustInclude("scripts/agentops-staging-worker-doctor.mjs", "--alert-test");
+  mustInclude("scripts/agentops-staging-worker-doctor.mjs", "--cleanup-test");
+  mustInclude(
+    "src/components/agentops/owner/StagingWorkerQueuePanel.tsx",
+    "agentops-health-alert-ack",
+  );
+  mustInclude(
+    "src/components/agentops/owner/StagingWorkerQueuePanel.tsx",
+    "agentops-alert-fanout-status",
+  );
+  mustInclude(
+    "qa-agent/reports/agentops-staging-worker-runbook.md",
+    "Alert fanout (D-D)",
+  );
+  mustInclude(
+    "qa-agent/reports/agentops-staging-worker-runbook.md",
+    "Artifact retention / cleanup (D-D)",
+  );
 
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "handleMonitoringWorkerQueueRequest");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "Cancel rejected: run belongs to a different agent");
@@ -139,7 +157,7 @@ console.log(
     {
       ok: true,
       command: "agentops:staging-worker-ops-ui-verify",
-      phase: "d-b",
+      phase: "d-d",
       checks: "pass",
     },
     null,

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AixiaBadge, AixiaButton } from "@/components/aixia";
 import {
+  acknowledgeWorkerHealthAlert,
   fetchWorkerQueueStatus,
   type ManualRunCapability,
   type WorkerQueueSnapshot,
@@ -44,6 +45,7 @@ export function StagingWorkerQueuePanel({
   const [workTypeFilter, setWorkTypeFilter] = useState("");
   const [triggerFilter, setTriggerFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [ackBusyType, setAckBusyType] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -58,6 +60,21 @@ export function StagingWorkerQueuePanel({
     setError(result.error);
     setLoading(false);
   }, [agentSlug, workTypeFilter, triggerFilter, statusFilter]);
+
+  const onAcknowledgeAlert = useCallback(
+    async (alertType: string) => {
+      if (!alertType || ackBusyType) return;
+      setAckBusyType(alertType);
+      const result = await acknowledgeWorkerHealthAlert(alertType);
+      if (!result.ok) {
+        setError(result.error || "Could not acknowledge alert.");
+      } else {
+        await load();
+      }
+      setAckBusyType(null);
+    },
+    [ackBusyType, load],
+  );
 
   useEffect(() => {
     void load();
@@ -142,36 +159,82 @@ export function StagingWorkerQueuePanel({
         </p>
       </div>
 
-      {(queue?.alerts?.length ?? 0) > 0 ? (
+      {(queue?.alerts?.length ?? 0) > 0 || queue?.alertFanout ? (
         <div className="space-y-2" data-testid="agentops-worker-health-alerts">
           <h3 className="text-sm font-medium text-white/80">Health alerts</h3>
+          {queue?.alertFanout ? (
+            <p className="text-xs text-white/45" data-testid="agentops-alert-fanout-status">
+              Fanout: {queue.alertFanout.enabled === false ? "disabled" : queue.alertFanout.lastFanoutChannel || "—"}
+              {queue.alertFanout.lastFanoutAt
+                ? ` · last ${new Date(queue.alertFanout.lastFanoutAt).toLocaleString()}`
+                : ""}
+              {typeof queue.alertFanout.suppressedCount === "number"
+                ? ` · suppressed ${queue.alertFanout.suppressedCount}`
+                : ""}
+            </p>
+          ) : null}
           <ul className="space-y-1 text-xs text-white/70">
-            {queue!.alerts!.slice(0, 8).map((alert) => (
-              <li
-                key={String(alert.type)}
-                className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1"
-              >
-                <AixiaBadge
-                  tone={
-                    alert.level === "critical"
-                      ? "rose"
-                      : alert.level === "warning"
-                        ? "amber"
-                        : "neutral"
-                  }
+            {queue!
+              .alerts!.filter((a) => !a.acknowledged)
+              .slice(0, 8)
+              .map((alert) => (
+                <li
+                  key={String(alert.id || alert.type)}
+                  className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1"
                 >
-                  {String(alert.level || "info")}
-                </AixiaBadge>
-                <span className="font-mono">{String(alert.type)}</span>
-                <span>{String(alert.message || "")}</span>
-                {alert.recommendedAction ? (
-                  <span className="basis-full text-amber-200/70">
-                    {String(alert.recommendedAction)}
-                  </span>
-                ) : null}
-              </li>
-            ))}
+                  <AixiaBadge
+                    tone={
+                      alert.level === "critical"
+                        ? "rose"
+                        : alert.level === "warning"
+                          ? "amber"
+                          : "neutral"
+                    }
+                  >
+                    {String(alert.level || "info")}
+                  </AixiaBadge>
+                  <span className="font-mono">{String(alert.type)}</span>
+                  <span>{String(alert.message || "")}</span>
+                  {alert.recommendedAction ? (
+                    <span className="basis-full text-amber-200/70">
+                      {String(alert.recommendedAction)}
+                    </span>
+                  ) : null}
+                  {alert.type ? (
+                    <AixiaButton
+                      variant="secondary"
+                      className="ml-auto"
+                      data-testid="agentops-health-alert-ack"
+                      disabled={ackBusyType === String(alert.type)}
+                      onClick={() => void onAcknowledgeAlert(String(alert.type))}
+                    >
+                      {ackBusyType === String(alert.type) ? "Ack…" : "Acknowledge"}
+                    </AixiaButton>
+                  ) : null}
+                </li>
+              ))}
           </ul>
+          {(queue!.alerts!.filter((a) => a.acknowledged).length > 0 ||
+            (queue?.alertHistory?.length ?? 0) > 0) && (
+            <details className="text-xs text-white/50">
+              <summary>Acknowledged / history</summary>
+              <ul className="mt-1 space-y-1">
+                {queue!
+                  .alerts!.filter((a) => a.acknowledged)
+                  .slice(0, 5)
+                  .map((alert) => (
+                    <li key={`ack-${alert.id || alert.type}`}>
+                      {String(alert.type)} — {String(alert.message || "")}
+                    </li>
+                  ))}
+                {(queue?.alertHistory || []).slice(0, 5).map((h, i) => (
+                  <li key={`hist-${i}`}>
+                    {String(h.type || "")} @ {String(h.acknowledgedAt || "")}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       ) : null}
 

@@ -11,6 +11,10 @@ import { fileURLToPath } from "node:url";
 import type { Browser, Page, Response } from "playwright";
 
 import type { AgentOpsRuntimeAgentRow } from "../db/agentOpsRuntimeTypes";
+import {
+  honorCancelCheckpoint,
+  type AgentOpsCancelCheck,
+} from "./agentOpsCancelCheckpoint";
 import { assertStagingScanUrl } from "./stagingScanUrlGuard";
 import {
   buildAbsolutePageUrl,
@@ -24,6 +28,8 @@ export type PlaywrightStagingScanOptions = {
   slowLoadThresholdMs?: number;
   screenshotDir?: string;
   maxRoutes?: number;
+  /** Staging worker cancel probe — throw AgentOpsCancelRequestedError when true. */
+  cancelCheck?: AgentOpsCancelCheck;
 };
 
 type PageScanContext = {
@@ -382,12 +388,15 @@ export async function runPlaywrightStagingScan(
   const screenshotDir =
     options.screenshotDir ?? join(REPO_ROOT, "qa-agent", "reports", "runtime-scans");
 
+  await honorCancelCheckpoint(options.cancelCheck, "before_browser_launch");
+
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const allFindings: StagingScanFinding[] = [];
 
   try {
     for (const route of routes) {
+      await honorCancelCheckpoint(options.cancelCheck, "before_route");
       const pageUrl = route.startsWith("/") ? route : `/${route}`;
       const context: PageScanContext = {
         agent,
@@ -398,10 +407,12 @@ export async function runPlaywrightStagingScan(
       };
       const routeFindings = await scanSingleRoute(browser, context, options);
       allFindings.push(...routeFindings);
+      await honorCancelCheckpoint(options.cancelCheck, "after_route");
     }
   } finally {
     await browser.close().catch(() => undefined);
   }
 
+  await honorCancelCheckpoint(options.cancelCheck, "after_scan_before_persist");
   return allFindings;
 }

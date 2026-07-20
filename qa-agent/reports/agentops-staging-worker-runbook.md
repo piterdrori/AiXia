@@ -1,4 +1,4 @@
-# AgentOps Staging Worker Runbook (Phase D-A / D-B)
+# AgentOps Staging Worker Runbook (Phase D-A / D-B / D-C / D-D)
 
 Staging-only operations for the external worker that heartbeats, ticks the scheduler, and executes queued `website_audit` / `browser_qa` runs.
 
@@ -311,15 +311,19 @@ npm run agentops:staging-worker:doctor
 npm run agentops:staging-worker:status
 ```
 
-Doctor checks staging env, staging URL, Supabase reachability, heartbeat writability, Playwright install, storage_state presence (if Browser QA expected), private artifact bucket (exists/private), and upload flag. It does **not** run audits by default.
+Doctor checks staging env, staging URL, Supabase reachability, heartbeat writability, Playwright install, storage_state presence (if Browser QA expected), private artifact bucket (exists/private), upload flag, alert fanout config, artifact retention config, cleanup dry-run, and cancel checkpoint sources. It does **not** run audits by default and **never** deletes artifacts.
 
-Optional bucket write probe (never default):
+Optional probes (never default):
 
 ```bash
 npm run agentops:staging-worker:doctor -- --upload-test
+npm run agentops:staging-worker:doctor -- --alert-test
+npm run agentops:staging-worker:doctor -- --cleanup-test
 ```
 
-Requires `AGENTOPS_ARTIFACT_UPLOAD_ENABLED=true` on the host.
+- `--upload-test` requires `AGENTOPS_ARTIFACT_UPLOAD_ENABLED=true`
+- `--alert-test` requires `AGENTOPS_ALERT_FANOUT_ENABLED=true` (sends one safe staging payload via configured channel)
+- `--cleanup-test` re-runs cleanup **dry-run only** (doctor never mutates)
 
 ---
 
@@ -350,3 +354,49 @@ Requires `AGENTOPS_ARTIFACT_UPLOAD_ENABLED=true` on the host.
 - Owner signed URL: `GET /api/agentops/monitoring/manual-run/artifact-url?runId=...&artifactPath=...`
 - Never upload `storage_state`, `.env`, cookies, or secrets.
 - Upload failure does not fail the run; local fallback retained.
+
+---
+
+## 19. Alert fanout (D-D)
+
+Disabled by default. Worker-host only. Never sends secrets, signed URLs, or `storage_state`.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `AGENTOPS_ALERT_FANOUT_ENABLED` | `false` | Must be `true` to send |
+| `AGENTOPS_ALERT_CHANNEL` | `log` | `log` or `webhook` |
+| `AGENTOPS_ALERT_WEBHOOK_URL` | unset | Staging webhook only; production hosts rejected |
+| `AGENTOPS_ALERT_WEBHOOK_SECRET` | unset | Worker-host header only; never browser |
+| `AGENTOPS_ALERT_MIN_LEVEL` | `warning` | `info` / `warning` / `critical` |
+| `AGENTOPS_ALERT_RATE_LIMIT_MINUTES` | `30` | Dedupe + rate limit by type/run/message hash |
+
+Ops JSON stores `alertFanout` (`lastFanoutAt`, channel, count, error, `suppressedCount`) and `alertHistory`. Owner ack via queue **Acknowledge** → `POST .../health-alert-ack` (does not delete alert).
+
+Email/Slack: future — only if safe existing infra is approved later.
+
+---
+
+## 20. Artifact retention / cleanup (D-D)
+
+- Default retention: **14 days** (`AGENTOPS_ARTIFACT_RETENTION_DAYS`, class `staging_default`)
+- Uploaded refs include `uploadedAt`, `retentionClass`, `retentionDays`, `expiresAt`, `cleanupEligible`
+- DB run summaries are retained; storage objects may be cleaned later
+- **Never auto-delete** — explicit command only
+
+```bash
+# Dry-run (default)
+npm run agentops:staging-worker:artifact-cleanup
+
+# Mutate only after reviewing dry-run output
+node scripts/agentops-staging-manual-run-worker.mjs artifact-cleanup --mutate
+```
+
+Mutation rules: staging only, bucket `agentops-artifacts-staging`, path `agentops/…`, never `storage_state`, never unknown buckets. UI shows cleaned copy: “Artifact expired or cleaned from staging storage.”
+
+---
+
+## 21. Deeper cancel checkpoints (D-D)
+
+Website audit: before scan, before/after each route, before artifact upload, before final persistence.  
+Browser QA: before browser launch, before/after navigation, before/after screenshot, before analysis, before artifact upload, before final persistence.  
+Owned child only may receive SIGTERM/SIGKILL after cancel poll timeout — never arbitrary PIDs.

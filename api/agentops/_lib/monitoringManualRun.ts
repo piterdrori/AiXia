@@ -1071,6 +1071,17 @@ export async function handleMonitoringWorkerQueueRequest(
       alerts: Array.isArray((ops as { alerts?: unknown } | null)?.alerts)
         ? (ops as { alerts: unknown[] }).alerts
         : [],
+      alertHistory: Array.isArray((ops as { alertHistory?: unknown } | null)?.alertHistory)
+        ? (ops as { alertHistory: unknown[] }).alertHistory
+        : [],
+      alertFanout:
+        ops && typeof ops === "object" && (ops as { alertFanout?: unknown }).alertFanout
+          ? (ops as { alertFanout: unknown }).alertFanout
+          : null,
+      artifactCleanup:
+        ops && typeof ops === "object" && (ops as { artifactCleanup?: unknown }).artifactCleanup
+          ? (ops as { artifactCleanup: unknown }).artifactCleanup
+          : null,
       notes: [
         "Staging worker queue only. No GitHub dispatch. No Playwright on Vercel.",
         "Private staging artifacts use short-lived signed links (owner only). Local-only refs stay host-local.",

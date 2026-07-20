@@ -49,7 +49,7 @@ function mustNotInclude(relativePath: string, needle: string): void {
 }
 
 function verify(): void {
-  if (OPS_VERSION !== "d-c") fail(`OPS_VERSION expected d-c, got ${OPS_VERSION}`);
+  if (OPS_VERSION !== "d-d") fail(`OPS_VERSION expected d-d, got ${OPS_VERSION}`);
 
   // Upload disabled by default
   if (isArtifactUploadEnabled({})) {

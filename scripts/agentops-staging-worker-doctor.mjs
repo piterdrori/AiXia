@@ -1,5 +1,6 @@
 /**
- * Phase D-B — staging worker doctor (read-only checks, no audits by default).
+ * Phase D-D — staging worker doctor (read-only checks by default).
+ * Optional flags: --upload-test --alert-test --cleanup-test
  */
 import { createClient } from "@supabase/supabase-js";
 import fs from "node:fs";
@@ -14,9 +15,16 @@ import { validateWorkerEnv, WORKER_VERSION } from "./lib/agentops-manual-run-wor
 import {
   DEFAULT_ARTIFACT_BUCKET,
   isArtifactUploadEnabled,
+  listEligibleArtifactCleanups,
   probeArtifactBucket,
   resolveArtifactBucket,
+  resolveRetentionDays,
 } from "./lib/agentops-staging-artifact-storage.mjs";
+import {
+  fanoutHealthAlerts,
+  isAlertFanoutEnabled,
+  validateAlertFanoutConfig,
+} from "./lib/agentops-staging-alert-fanout.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -61,8 +69,35 @@ function resolveStorageStatePath() {
   return { raw, resolved, exists: fs.existsSync(resolved) };
 }
 
+function cancelCheckpointSourcesPresent() {
+  const required = [
+    ["src/lib/agentops/runtime/agentOpsCancelCheckpoint.ts", ["honorCancelCheckpoint"]],
+    [
+      "src/lib/agentops/runtime/playwrightStagingScanner.ts",
+      ["before_browser_launch", "before_route", "after_route"],
+    ],
+    [
+      "src/lib/agentops/browserQa/playwrightBrowserQaRunner.ts",
+      ["before_browser_launch", "before_navigation", "before_screenshot", "after_screenshot"],
+    ],
+    ["scripts/agentops-manual-run-browser-qa-engine.ts", ["before_browser_launch"]],
+    ["scripts/agentops-manual-run-website-audit-engine.ts", ["before_route_scan"]],
+  ];
+  for (const [rel, needles] of required) {
+    const full = path.join(REPO_ROOT, rel);
+    if (!fs.existsSync(full)) return { ok: false, missing: rel };
+    const text = fs.readFileSync(full, "utf8");
+    for (const needle of needles) {
+      if (!text.includes(needle)) return { ok: false, missing: `${rel}:${needle}` };
+    }
+  }
+  return { ok: true, missing: null };
+}
+
 async function main() {
   const uploadTest = process.argv.includes("--upload-test");
+  const alertTest = process.argv.includes("--alert-test");
+  const cleanupTest = process.argv.includes("--cleanup-test");
   const checks = [];
   const fail = (id, message) => checks.push({ id, ok: false, message });
   const pass = (id, message) => checks.push({ id, ok: true, message });
@@ -110,6 +145,42 @@ async function main() {
     pass("playwright", "Playwright package is installed on this host.");
   } else {
     fail("playwright", "Playwright is not installed on this host.");
+  }
+
+  const fanoutConfig = validateAlertFanoutConfig(process.env);
+  if (!fanoutConfig.ok) {
+    fail("alert_fanout_config", fanoutConfig.errors.join("; "));
+  } else if (!fanoutConfig.enabled) {
+    pass("alert_fanout_config", "Alert fanout disabled (safe default).");
+  } else {
+    pass(
+      "alert_fanout_config",
+      `Alert fanout enabled channel=${fanoutConfig.channel} (worker-host only).`,
+    );
+  }
+  if (!isAlertFanoutEnabled(process.env) && String(process.env.AGENTOPS_ALERT_FANOUT_ENABLED || "")) {
+    // non-true values stay disabled
+    pass("alert_fanout_default", "Non-true AGENTOPS_ALERT_FANOUT_ENABLED keeps fanout off.");
+  }
+
+  const retentionDays = resolveRetentionDays(process.env);
+  if (retentionDays < 1 || retentionDays > 90) {
+    fail("artifact_retention_config", `Invalid retention days: ${retentionDays}`);
+  } else {
+    pass(
+      "artifact_retention_config",
+      `Artifact retentionDays=${retentionDays} (staging_default; cleanup dry-run by default).`,
+    );
+  }
+
+  const cancelSupport = cancelCheckpointSourcesPresent();
+  if (!cancelSupport.ok) {
+    fail("cancel_checkpoints", "Deep cancel checkpoint sources incomplete.");
+  } else {
+    pass(
+      "cancel_checkpoints",
+      "Cancel checkpoints present (before_browser_launch / before_route / before_navigation / screenshots).",
+    );
   }
 
   if (workerEnv.ok) {
@@ -180,6 +251,16 @@ async function main() {
         pass("artifact_bucket", `Bucket ${bucket} exists and is private.`);
       }
 
+      const listed = await listEligibleArtifactCleanups(client, { bucket });
+      if (!listed.ok) {
+        fail("artifact_cleanup_dry_run", listed.error || "cleanup dry-run failed");
+      } else {
+        pass(
+          "artifact_cleanup_dry_run",
+          `Cleanup dry-run OK (eligible=${listed.eligible.length}; no deletes).`,
+        );
+      }
+
       if (uploadTest) {
         if (!uploadEnabled) {
           fail("artifact_upload_test", "--upload-test requires AGENTOPS_ARTIFACT_UPLOAD_ENABLED=true.");
@@ -204,6 +285,61 @@ async function main() {
         );
       }
 
+      if (alertTest) {
+        if (!isAlertFanoutEnabled(process.env)) {
+          fail(
+            "alert_fanout_test",
+            "--alert-test requires AGENTOPS_ALERT_FANOUT_ENABLED=true on worker host.",
+          );
+        } else {
+          const result = await fanoutHealthAlerts(
+            [
+              {
+                type: "queue_backlog",
+                level: "warning",
+                message: "Doctor alert-test probe (safe staging payload).",
+                recommendedAction: "No action — doctor probe only.",
+                detectedAt: new Date().toISOString(),
+              },
+            ],
+            { workerId: process.env.AGENTOPS_WORKER_ID || "doctor" },
+            process.env,
+            {},
+          );
+          if (result.lastFanoutError) {
+            fail("alert_fanout_test", result.lastFanoutError);
+          } else {
+            pass(
+              "alert_fanout_test",
+              `Alert test fanout channel=${result.lastFanoutChannel} count=${result.lastFanoutCount}.`,
+            );
+          }
+        }
+      } else {
+        warn(
+          "alert_fanout_test",
+          "Skipped alert test (pass --alert-test; does not send unless fanout enabled).",
+        );
+      }
+
+      if (cleanupTest) {
+        // Explicit dry-run only — never mutate from doctor even with --cleanup-test.
+        const again = await listEligibleArtifactCleanups(client, { bucket, limit: 10 });
+        if (!again.ok) {
+          fail("artifact_cleanup_test", again.error || "cleanup-test dry-run failed");
+        } else {
+          pass(
+            "artifact_cleanup_test",
+            `Cleanup-test dry-run only (eligible=${again.eligible.length}). Doctor never mutates.`,
+          );
+        }
+      } else {
+        warn(
+          "artifact_cleanup_test",
+          "Skipped cleanup-test flag (pass --cleanup-test for extra dry-run; never deletes).",
+        );
+      }
+
       const alerts = data?.[0]?.tools_enabled?.manualRunWorker?.ops?.alerts;
       if (Array.isArray(alerts) && alerts.length > 0) {
         warn(
@@ -213,13 +349,21 @@ async function main() {
       } else {
         pass("health_alerts", "No active health alerts stored on worker ops.");
       }
+
+      const fanout = data?.[0]?.tools_enabled?.manualRunWorker?.ops?.alertFanout;
+      if (fanout && typeof fanout === "object") {
+        pass(
+          "alert_fanout_status",
+          `Stored fanout channel=${fanout.lastFanoutChannel || "—"} count=${fanout.lastFanoutCount ?? 0}.`,
+        );
+      } else {
+        warn("alert_fanout_status", "No alertFanout status stored yet (worker loop not run).");
+      }
     } catch (error) {
       fail("supabase", error instanceof Error ? error.message : String(error));
     }
   }
 
-  const ok = checks.every((c) => c.ok || c.id === "storage_state");
-  // storage_state soft-fail for doctor overall if only BQ missing — still report.
   const hardOk = checks
     .filter((c) => c.id !== "storage_state" && !c.warn)
     .every((c) => c.ok);
@@ -231,10 +375,15 @@ async function main() {
         command: "staging-worker:doctor",
         workerVersion: WORKER_VERSION,
         uploadTest,
+        alertTest,
+        cleanupTest,
         artifactUploadEnabled: isArtifactUploadEnabled(process.env),
         artifactBucket: resolveArtifactBucket(process.env),
+        alertFanoutEnabled: isAlertFanoutEnabled(process.env),
+        retentionDays,
         checks,
-        note: "Doctor does not run website_audit or browser_qa engines. Use --upload-test for optional bucket write probe.",
+        note:
+          "Doctor does not run website_audit or browser_qa engines. Optional: --upload-test --alert-test --cleanup-test (cleanup-test is dry-run only; never deletes).",
       },
       null,
       2,

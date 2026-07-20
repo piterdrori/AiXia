@@ -8,9 +8,11 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 
 export const DEFAULT_ARTIFACT_BUCKET = "agentops-artifacts-staging";
-export const REDACTION_VERSION = "d-c-1";
+export const REDACTION_VERSION = "d-d-1";
 export const SIGNED_URL_TTL_SECONDS = 10 * 60;
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+export const DEFAULT_RETENTION_DAYS = 14;
+export const RETENTION_CLASS = "staging_default";
 
 const FORBIDDEN_NAME_RE =
   /storage[-_]?state|\.env|service[_-]?role|cookie|password|secret|token\.json|auth\.json/i;
@@ -155,6 +157,26 @@ function resolveLocalFile(localPath, repoRoot = process.cwd()) {
   return resolved;
 }
 
+export function resolveRetentionDays(env = process.env) {
+  const n = Number(env.AGENTOPS_ARTIFACT_RETENTION_DAYS);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_RETENTION_DAYS;
+  return Math.min(90, Math.floor(n));
+}
+
+export function buildRetentionMeta(uploadedAt = new Date().toISOString(), env = process.env) {
+  const retentionDays = resolveRetentionDays(env);
+  const uploadedMs = Date.parse(uploadedAt);
+  const base = Number.isFinite(uploadedMs) ? uploadedMs : Date.now();
+  const expiresAt = new Date(base + retentionDays * 24 * 60 * 60 * 1000).toISOString();
+  const cleanupEligible = Date.now() >= Date.parse(expiresAt);
+  return {
+    retentionClass: RETENTION_CLASS,
+    retentionDays,
+    expiresAt,
+    cleanupEligible,
+  };
+}
+
 export function buildStorageRef({
   bucket,
   path,
@@ -162,7 +184,10 @@ export function buildStorageRef({
   artifactType,
   contentType,
   uploadedAt = new Date().toISOString(),
+  env = process.env,
+  cleaned = false,
 }) {
+  const retention = buildRetentionMeta(uploadedAt, env);
   return {
     provider: "supabase_storage",
     bucket,
@@ -171,12 +196,15 @@ export function buildStorageRef({
       ? redactSensitiveText(String(localFallback).replace(/\\/g, "/").split("/").slice(-4).join("/"))
       : null,
     visibility: "private",
-    signedUrlAvailable: true,
+    signedUrlAvailable: !cleaned,
     artifactType: artifactType || "evidence",
     contentType: contentType || "application/octet-stream",
     uploadedAt,
     redactionVersion: REDACTION_VERSION,
     environment: "staging",
+    ...retention,
+    cleaned: Boolean(cleaned),
+    cleanedAt: cleaned ? new Date().toISOString() : null,
   };
 }
 
@@ -382,4 +410,129 @@ export async function probeArtifactBucket(client, bucket = DEFAULT_ARTIFACT_BUCK
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+export function isCleanupEligibleRef(ref, nowMs = Date.now()) {
+  if (!ref || typeof ref !== "object") return false;
+  if (ref.provider !== "supabase_storage") return false;
+  if (ref.cleaned === true) return false;
+  if (typeof ref.path !== "string" || !ref.path.startsWith("agentops/")) return false;
+  if (isForbiddenUploadPath(ref.path)) return false;
+  if (ref.cleanupEligible === true) return true;
+  if (typeof ref.expiresAt === "string") {
+    const exp = Date.parse(ref.expiresAt);
+    return Number.isFinite(exp) && nowMs >= exp;
+  }
+  return false;
+}
+
+/**
+ * Collect cleanup-eligible refs from recent monitoring run summaries.
+ * Dry-run by default — caller performs mutation.
+ */
+export async function listEligibleArtifactCleanups(client, {
+  bucket = DEFAULT_ARTIFACT_BUCKET,
+  limit = 40,
+  nowMs = Date.now(),
+} = {}) {
+  if (!client) return { ok: false, eligible: [], error: "missing_client" };
+  if (bucket !== DEFAULT_ARTIFACT_BUCKET) {
+    return { ok: false, eligible: [], error: "wrong_bucket_rejected" };
+  }
+  const { data, error } = await client
+    .from("agentops_monitoring_runs")
+    .select("run_id, status, summary, ended_at, created_at")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) return { ok: false, eligible: [], error: error.message };
+
+  const eligible = [];
+  for (const row of data || []) {
+    const summary =
+      row.summary && typeof row.summary === "object" ? row.summary : {};
+    const refs = [
+      ...(Array.isArray(summary.uploadedArtifacts) ? summary.uploadedArtifacts : []),
+      ...(Array.isArray(summary.artifactRefs) ? summary.artifactRefs : []),
+      ...(Array.isArray(summary.screenshotRefs) ? summary.screenshotRefs : []),
+    ];
+    for (const ref of refs) {
+      if (!isCleanupEligibleRef(ref, nowMs)) continue;
+      if (ref.bucket && ref.bucket !== bucket) continue;
+      const validation = validateArtifactPathForRun(row.run_id, ref.path, bucket);
+      if (!validation.ok) continue;
+      eligible.push({
+        runId: row.run_id,
+        path: ref.path,
+        bucket,
+        uploadedAt: ref.uploadedAt || null,
+        expiresAt: ref.expiresAt || null,
+        artifactType: ref.artifactType || null,
+      });
+    }
+  }
+  // Dedupe by path
+  const byPath = new Map();
+  for (const item of eligible) byPath.set(item.path, item);
+  return { ok: true, eligible: [...byPath.values()], error: null };
+}
+
+export async function mutateArtifactCleanup(client, eligibleItems, {
+  bucket = DEFAULT_ARTIFACT_BUCKET,
+} = {}) {
+  if (bucket !== DEFAULT_ARTIFACT_BUCKET) {
+    return { ok: false, deleted: [], errors: ["wrong_bucket_rejected"] };
+  }
+  const deleted = [];
+  const errors = [];
+  const byRun = new Map();
+
+  for (const item of eligibleItems || []) {
+    const validation = validateArtifactPathForRun(item.runId, item.path, bucket);
+    if (!validation.ok || isForbiddenUploadPath(item.path)) {
+      errors.push(`rejected:${item.path}`);
+      continue;
+    }
+    const { error } = await client.storage.from(bucket).remove([item.path]);
+    if (error) {
+      errors.push(error.message || `delete_failed:${item.path}`);
+      continue;
+    }
+    deleted.push(item);
+    const list = byRun.get(item.runId) || [];
+    list.push(item.path);
+    byRun.set(item.runId, list);
+  }
+
+  // Mark refs cleaned in run summaries (keep DB evidence).
+  for (const [runId, paths] of byRun.entries()) {
+    const { data: row } = await client
+      .from("agentops_monitoring_runs")
+      .select("summary")
+      .eq("run_id", runId)
+      .maybeSingle();
+    if (!row?.summary || typeof row.summary !== "object") continue;
+    const summary = { ...row.summary };
+    const mark = (arr) =>
+      (Array.isArray(arr) ? arr : []).map((ref) => {
+        if (ref && typeof ref === "object" && paths.includes(ref.path)) {
+          return {
+            ...ref,
+            cleaned: true,
+            cleanedAt: new Date().toISOString(),
+            signedUrlAvailable: false,
+            cleanupEligible: false,
+          };
+        }
+        return ref;
+      });
+    summary.artifactRefs = mark(summary.artifactRefs);
+    summary.screenshotRefs = mark(summary.screenshotRefs);
+    summary.uploadedArtifacts = mark(summary.uploadedArtifacts);
+    summary.artifactNote =
+      "Artifact expired or cleaned from staging storage. DB evidence summary retained.";
+    await client.from("agentops_monitoring_runs").update({ summary }).eq("run_id", runId);
+  }
+
+  return { ok: errors.length === 0, deleted, errors };
 }

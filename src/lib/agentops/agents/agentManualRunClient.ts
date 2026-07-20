@@ -28,6 +28,12 @@ export type AgentopsStorageArtifactRef = {
   signedUrlAvailable?: boolean;
   artifactType?: string;
   contentType?: string;
+  retentionClass?: string;
+  retentionDays?: number;
+  expiresAt?: string;
+  cleanupEligible?: boolean;
+  cleaned?: boolean;
+  cleanedAt?: string | null;
 };
 
 export function isStorageArtifactRef(value: unknown): value is AgentopsStorageArtifactRef {
@@ -89,12 +95,24 @@ export type WorkerQueueSnapshot = {
   schedulerHeartbeatAt: string | null;
   enginesReady: boolean;
   alerts?: Array<{
+    id?: string;
     type: string;
     level?: string;
     message?: string;
     recommendedAction?: string | null;
     acknowledged?: boolean;
+    acknowledgedAt?: string | null;
+    acknowledgeNote?: string | null;
   }>;
+  alertHistory?: Array<Record<string, unknown>>;
+  alertFanout?: {
+    lastFanoutAt?: string | null;
+    lastFanoutChannel?: string | null;
+    lastFanoutCount?: number;
+    lastFanoutError?: string | null;
+    suppressedCount?: number;
+    enabled?: boolean;
+  } | null;
   notes: string[];
 };
 

@@ -282,23 +282,52 @@ export function AgentResultsPanel({
               <div className="mb-3 space-y-2" data-testid="agentops-drawer-storage-artifacts">
                 <p className="text-sm text-white/70">Private staging artifacts</p>
                 <ul className="space-y-1">
-                  {drawer.storageArtifacts!.slice(0, 8).map((ref) => (
-                    <li
-                      key={ref.path}
-                      className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1 text-xs text-white/75"
-                    >
-                      <AixiaBadge tone="emerald">uploaded/private</AixiaBadge>
-                      <span>{ref.artifactType || "artifact"}</span>
-                      <AixiaButton
-                        variant="secondary"
-                        disabled={artifactBusyPath === ref.path}
-                        onClick={() => void openSignedArtifact(ref)}
-                        data-testid="agentops-open-signed-artifact"
+                  {drawer.storageArtifacts!.slice(0, 8).map((ref) => {
+                    const cleaned = Boolean(
+                      (ref as { cleaned?: boolean }).cleaned,
+                    );
+                    const expiresAt = (ref as { expiresAt?: string }).expiresAt;
+                    const retentionClass = (ref as { retentionClass?: string }).retentionClass;
+                    const cleanupEligible = Boolean(
+                      (ref as { cleanupEligible?: boolean }).cleanupEligible,
+                    );
+                    return (
+                      <li
+                        key={ref.path}
+                        className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1 text-xs text-white/75"
                       >
-                        {artifactBusyPath === ref.path ? "Signing…" : "Open signed link"}
-                      </AixiaButton>
-                    </li>
-                  ))}
+                        <AixiaBadge tone={cleaned ? "neutral" : "emerald"}>
+                          {cleaned ? "cleaned" : "uploaded/private"}
+                        </AixiaBadge>
+                        <span>{ref.artifactType || "artifact"}</span>
+                        {retentionClass ? (
+                          <span className="text-white/40">{retentionClass}</span>
+                        ) : null}
+                        {expiresAt ? (
+                          <span className="text-white/40">
+                            expires {new Date(expiresAt).toLocaleDateString()}
+                          </span>
+                        ) : null}
+                        {cleanupEligible && !cleaned ? (
+                          <span className="text-amber-200/70">cleanup eligible</span>
+                        ) : null}
+                        {cleaned ? (
+                          <span data-testid="agentops-artifact-cleaned">
+                            Artifact expired or cleaned from staging storage.
+                          </span>
+                        ) : (
+                          <AixiaButton
+                            variant="secondary"
+                            disabled={artifactBusyPath === ref.path}
+                            onClick={() => void openSignedArtifact(ref)}
+                            data-testid="agentops-open-signed-artifact"
+                          >
+                            {artifactBusyPath === ref.path ? "Signing…" : "Open signed link"}
+                          </AixiaButton>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
                 <p className="text-xs text-white/40">Signed link expires shortly.</p>
                 {artifactError ? (

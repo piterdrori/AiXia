@@ -22,6 +22,7 @@ import {
   handleMonitoringManualRunCapabilityRequest,
   handleMonitoringManualRunStartRequest,
   handleMonitoringManualRunStatusRequest,
+  handleMonitoringWorkerQueueRequest,
 } from "./monitoringManualRun.js";
 import { jsonResponse } from "./ollamaProxy.js";
 
@@ -1613,6 +1614,9 @@ export async function routeMonitoringRequest(request: Request): Promise<Response
   }
   if (pathname === "/api/agentops/monitoring/manual-run/cancel") {
     return handleMonitoringManualRunCancelRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/manual-run/queue") {
+    return handleMonitoringWorkerQueueRequest(request);
   }
   if (pathname === "/api/agentops/monitoring/manual-run") {
     if (request.method === "GET") return handleMonitoringManualRunStatusRequest(request);

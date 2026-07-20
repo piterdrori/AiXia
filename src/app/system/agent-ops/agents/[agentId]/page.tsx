@@ -18,10 +18,12 @@ import {
   AgentMemoryHermesPanel,
   AgentPermissionsPanel,
   AgentResultsPanel,
+  AgentRunCancelConfirmModal,
   AgentSchedulePanel,
   AgentStatusStrip,
   type AgentRunDrawerModel,
 } from "@/components/agentops/owner/agent-detail";
+import { StagingWorkerQueuePanel } from "@/components/agentops/owner/StagingWorkerQueuePanel";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import {
   getAgentOpsActiveTop10,
@@ -58,9 +60,11 @@ import {
 } from "@/lib/agentops/agents/agentManualRunContract";
 import {
   activityLabelForManualRun,
+  cancelOwnerManualRun,
   defaultScopeForWorkType,
   fetchManualRunCapability,
   fetchManualRunStatus,
+  formatLocalArtifactEvidence,
   formatManualRunResultBanner,
   startOwnerManualRun,
   type ManualRunCapability,
@@ -120,7 +124,13 @@ function drawerFromManualResult(
   open: boolean,
 ): AgentRunDrawerModel {
   const workType =
-    result.workType === "browser_qa" ? "Browser QA (owner manual)" : "Website audit (owner manual)";
+    result.workType === "browser_qa"
+      ? result.status === "queued" || result.status === "running"
+        ? "Browser QA"
+        : "Browser QA (owner manual)"
+      : result.status === "queued" || result.status === "running"
+        ? "Website audit"
+        : "Website audit (owner manual)";
   const routesLabel =
     result.routesChecked && result.routesChecked.length > 0
       ? result.routesChecked.join(", ")
@@ -131,6 +141,7 @@ function drawerFromManualResult(
             ? "Browser QA running on staging worker"
             : "Website audit running on staging worker"
           : "Awaiting execution evidence";
+  const canCancel = result.status === "queued" || result.status === "running";
   return {
     open,
     executionStatus: result.status,
@@ -170,28 +181,11 @@ function drawerFromManualResult(
     evidence:
       result.status === "queued"
         ? "No evidence yet — waiting for staging worker"
-        : result.evidenceAvailable
-          ? [
-              result.artifactRefs && result.artifactRefs.length > 0
-                ? `${result.artifactRefs.length} artifact ref(s)`
-                : null,
-              result.screenshotRefs && result.screenshotRefs.length > 0
-                ? `${result.screenshotRefs.length} screenshot(s)`
-                : null,
-              result.consoleFindings && result.consoleFindings.length > 0
-                ? `${result.consoleFindings.length} console observation(s)`
-                : null,
-              result.networkFindings && result.networkFindings.length > 0
-                ? `${result.networkFindings.length} network observation(s)`
-                : null,
-            ]
-              .filter(Boolean)
-              .join(" · ") || "Evidence available in Monitoring"
-          : result.status === "running"
-            ? result.workType === "browser_qa"
-              ? "Evidence pending while Browser QA runs"
-              : "Evidence pending while website audit runs"
-            : "No evidence linked",
+        : result.status === "running"
+          ? result.workType === "browser_qa"
+            ? "Evidence pending while Browser QA runs"
+            : "Evidence pending while website audit runs"
+          : formatLocalArtifactEvidence(result),
     limitations:
       "Dry-run / drafts only. Staging worker execution. No GitHub dispatch. No code changes, PRs, deploys, or automatic memory apply.",
     failureReason:
@@ -199,7 +193,14 @@ function drawerFromManualResult(
         ? result.failurePhase
           ? `${result.message} (${result.failurePhase})`
           : result.message
-        : "Not recorded",
+        : result.status === "canceled"
+          ? result.message || "Canceled by owner"
+          : "Not recorded",
+    runId: result.runId ?? null,
+    stale: Boolean(result.stale),
+    cancelRequested: Boolean(result.cancelRequested),
+    lockExpiresAt: result.lockExpiresAt ?? null,
+    canCancel,
   };
 }
 
@@ -253,6 +254,9 @@ export default function AgentOpsAgentDetailPage() {
   );
   const [manualRunResult, setManualRunResult] = useState<AgentManualRunResult | null>(null);
   const [manualResultBanner, setManualResultBanner] = useState<string | null>(null);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [queueRefreshKey, setQueueRefreshKey] = useState(0);
 
   const resolvedSlug = canonical?.id ?? agentId.trim().toLowerCase();
   const ownerMeta = getAgentOwnerMeta(resolvedSlug);
@@ -649,6 +653,65 @@ export default function AgentOpsAgentDetailPage() {
         : null;
 
   const runInProgress = Boolean(activeManualRunId);
+  const canCancelRun = Boolean(
+    isOwner &&
+      activeManualRunId &&
+      manualRunResult &&
+      (manualRunResult.status === "queued" || manualRunResult.status === "running") &&
+      (!manualRunResult.agentSlug || manualRunResult.agentSlug === resolvedSlug),
+  );
+  const cancelRequested = Boolean(manualRunResult?.cancelRequested);
+
+  const confirmCancelRun = useCallback(async () => {
+    if (!activeManualRunId) return;
+    setCancelBusy(true);
+    try {
+      const result = await cancelOwnerManualRun({
+        runId: activeManualRunId,
+        agentSlug: resolvedSlug,
+      });
+      setManualResultBanner(result.message);
+      if (result.ok && result.canceled) {
+        setActiveManualRunId(null);
+        setActiveManualWorkType(null);
+        setManualRunResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "canceled",
+                message: result.message,
+                cancelRequested: false,
+              }
+            : prev,
+        );
+        setDrawer((prev) =>
+          prev.open
+            ? {
+                ...prev,
+                executionStatus: "canceled",
+                canCancel: false,
+                cancelRequested: false,
+                failureReason: result.message,
+              }
+            : prev,
+        );
+      } else if (result.ok && result.cancelRequested) {
+        setManualRunResult((prev) =>
+          prev ? { ...prev, cancelRequested: true, message: result.message } : prev,
+        );
+        setDrawer((prev) =>
+          prev.open ? { ...prev, cancelRequested: true } : prev,
+        );
+      }
+      setQueueRefreshKey((n) => n + 1);
+      const cap = await fetchManualRunCapability();
+      if (cap.ok && cap.capability) setManualCapability(cap.capability);
+    } finally {
+      setCancelBusy(false);
+      setCancelConfirmOpen(false);
+    }
+  }, [activeManualRunId, resolvedSlug]);
+
   const workerConnected = Boolean(manualCapability?.workerConnected);
   const workerStatus = manualCapability?.workerStatus ?? "unknown";
   const workerStatusLabel =
@@ -902,6 +965,10 @@ export default function AgentOpsAgentDetailPage() {
           onPause={() => void setAgentStatus("quiet")}
           onRunAudit={() => openConfirm("website_audit")}
           onRunBrowserQa={() => openConfirm("browser_qa")}
+          canCancelRun={canCancelRun}
+          cancelRequested={cancelRequested}
+          cancelBusy={cancelBusy}
+          onCancelRun={() => setCancelConfirmOpen(true)}
           onViewCurrentRun={() => {
             if (manualRunResult) setDrawer(drawerFromManualResult(manualRunResult, true));
           }}
@@ -933,6 +1000,14 @@ export default function AgentOpsAgentDetailPage() {
         />
 
         <AgentStatusStrip model={statusStrip} />
+
+        {isOwner ? (
+          <StagingWorkerQueuePanel
+            agentSlug={resolvedSlug}
+            compact
+            refreshKey={queueRefreshKey}
+          />
+        ) : null}
 
         {actionFeedback ? (
           <p className="text-sm text-white/70" role="status" data-testid="agentops-status-feedback">
@@ -1156,6 +1231,8 @@ export default function AgentOpsAgentDetailPage() {
             });
           }}
           onCloseDrawer={() => setDrawer((prev) => ({ ...prev, open: false }))}
+          onCancelRun={() => setCancelConfirmOpen(true)}
+          cancelBusy={cancelBusy}
         />
 
         <div className="grid gap-6 lg:grid-cols-2">
@@ -1180,6 +1257,18 @@ export default function AgentOpsAgentDetailPage() {
           onConfirmRun={() => void executeManualRun({})}
           onConfirmRunOncePaused={() => void executeManualRun({ runOnceWhilePaused: true })}
           onActivateAndRun={() => void executeManualRun({ activateAndRun: true })}
+        />
+
+        <AgentRunCancelConfirmModal
+          open={cancelConfirmOpen && Boolean(activeManualRunId)}
+          runId={activeManualRunId ?? ""}
+          status={manualRunResult?.status === "running" ? "running" : "queued"}
+          workTypeLabel={
+            activeManualWorkType === "browser_qa" ? "Browser QA" : "Website audit"
+          }
+          submitting={cancelBusy}
+          onDismiss={() => setCancelConfirmOpen(false)}
+          onConfirm={() => void confirmCancelRun()}
         />
       </div>
     </AgentOpsOwnerPageShell>

@@ -14,6 +14,50 @@ import {
 
 export const MANUAL_RUN_CAPABILITY_URL = "/api/agentops/monitoring/manual-run/capability";
 export const MANUAL_RUN_URL = "/api/agentops/monitoring/manual-run";
+export const MANUAL_RUN_QUEUE_URL = "/api/agentops/monitoring/manual-run/queue";
+
+export type WorkerQueueRunView = {
+  runId: string;
+  agentSlug: string | null;
+  workType: string | null;
+  trigger: string | null;
+  status: string;
+  mode: string;
+  createdAt: string | null;
+  startedAt: string | null;
+  lockExpiresAt: string | null;
+  stale: boolean;
+  cancelRequested: boolean;
+  ageMs: number | null;
+  suggestedAction: string | null;
+};
+
+export type WorkerQueueSnapshot = {
+  length: number;
+  oldestQueuedAgeMs: number | null;
+  active: {
+    runId: string;
+    agentSlug: string | null;
+    workType: string | null;
+    trigger: string | null;
+    status: string;
+    cancelRequested: boolean;
+    stale: boolean;
+    lockExpiresAt: string | null;
+  } | null;
+  queued: WorkerQueueRunView[];
+  running: WorkerQueueRunView[];
+  stale: WorkerQueueRunView[];
+  recentTerminal: WorkerQueueRunView[];
+  lastCompletedRunId: string | null;
+  lastFailedRunId: string | null;
+  lastCanceledRunId: string | null;
+  lastError: string | null;
+  workerHeartbeatAt: string | null;
+  schedulerHeartbeatAt: string | null;
+  enginesReady: boolean;
+  notes: string[];
+};
 
 export type ManualRunCapability = {
   queueAvailable: boolean;
@@ -99,7 +143,10 @@ export async function fetchManualRunCapability(): Promise<{
   }
 }
 
-export async function cancelOwnerManualRun(runId: string): Promise<{
+export async function cancelOwnerManualRun(input: {
+  runId: string;
+  agentSlug?: string;
+}): Promise<{
   ok: boolean;
   canceled: boolean;
   cancelRequested?: boolean;
@@ -110,7 +157,10 @@ export async function cancelOwnerManualRun(runId: string): Promise<{
   const response = await fetch(`${MANUAL_RUN_URL}/cancel`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ runId }),
+    body: JSON.stringify({
+      runId: input.runId,
+      ...(input.agentSlug ? { agentSlug: input.agentSlug } : {}),
+    }),
   });
   const payload = (await response.json()) as {
     ok?: boolean;
@@ -126,6 +176,59 @@ export async function cancelOwnerManualRun(runId: string): Promise<{
     status: payload.status,
     message: payload.message ?? (response.ok ? "Cancel processed." : "Cancel failed."),
   };
+}
+
+export async function fetchWorkerQueueStatus(input?: {
+  agentSlug?: string;
+  workType?: string;
+  trigger?: string;
+  status?: string;
+}): Promise<{
+  ok: boolean;
+  queue: WorkerQueueSnapshot | null;
+  capability: ManualRunCapability | null;
+  error: string | null;
+}> {
+  try {
+    const headers = await authHeaders();
+    const params = new URLSearchParams();
+    if (input?.agentSlug) params.set("agentSlug", input.agentSlug);
+    if (input?.workType) params.set("workType", input.workType);
+    if (input?.trigger) params.set("trigger", input.trigger);
+    if (input?.status) params.set("status", input.status);
+    const qs = params.toString();
+    const response = await fetch(qs ? `${MANUAL_RUN_QUEUE_URL}?${qs}` : MANUAL_RUN_QUEUE_URL, {
+      method: "GET",
+      headers,
+    });
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      queue?: WorkerQueueSnapshot;
+      capability?: ManualRunCapability;
+      error?: string;
+    };
+    if (!response.ok || payload.ok === false) {
+      return {
+        ok: false,
+        queue: null,
+        capability: null,
+        error: payload.error ?? "Worker queue unavailable.",
+      };
+    }
+    return {
+      ok: true,
+      queue: payload.queue ?? null,
+      capability: payload.capability ?? null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      queue: null,
+      capability: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export async function startOwnerManualRun(
@@ -183,6 +286,10 @@ export async function startOwnerManualRun(
     existingRunId: payload.existingRunId,
     workerConnected: payload.workerConnected,
     stale: payload.stale,
+    cancelRequested: payload.cancelRequested,
+    artifactVisibility: payload.artifactVisibility ?? null,
+    artifactNote: payload.artifactNote ?? null,
+    lockExpiresAt: payload.lockExpiresAt ?? null,
   };
 }
 
@@ -249,6 +356,7 @@ export function activityLabelForManualRun(
   | "Processing evidence"
   | "Completed"
   | "Failed"
+  | "Canceled"
   | "Idle" {
   const s = (status ?? "").toLowerCase();
   if (s === "queued") return "Queued for staging worker";
@@ -256,8 +364,35 @@ export function activityLabelForManualRun(
     return workType === "browser_qa" ? "Running Browser QA" : "Auditing";
   }
   if (s === "completed") return "Completed";
+  if (s === "canceled") return "Canceled";
   if (s === "failed" || s === "rejected") return "Failed";
   return "Idle";
+}
+
+export function formatLocalArtifactEvidence(
+  result: Pick<
+    AgentManualRunResult,
+    "artifactRefs" | "screenshotRefs" | "artifactVisibility" | "artifactNote" | "evidenceAvailable"
+  >,
+): string {
+  if (!result.evidenceAvailable) return "No evidence linked";
+  const parts: string[] = [];
+  if (result.screenshotRefs && result.screenshotRefs.length > 0) {
+    const safe = result.screenshotRefs
+      .filter((ref) => typeof ref === "string" && !/storage[-_]?state|service[_-]?role|token=/i.test(ref))
+      .slice(0, 3);
+    if (safe.length > 0) parts.push(`Screenshot ref(s): ${safe.join(", ")}`);
+    else parts.push(`${result.screenshotRefs.length} screenshot ref(s)`);
+  }
+  if (result.artifactRefs && result.artifactRefs.length > 0) {
+    parts.push(`${result.artifactRefs.length} artifact ref(s)`);
+  }
+  const visibility = result.artifactVisibility || "local_worker_only";
+  if (visibility === "local_worker_only") {
+    parts.push("Local worker artifact — available on the worker host, not uploaded to public storage.");
+  }
+  if (result.artifactNote) parts.push(result.artifactNote);
+  return parts.join(" · ") || "Evidence available in Monitoring";
 }
 
 export function defaultScopeForWorkType(

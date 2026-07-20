@@ -20,6 +20,7 @@ export const AGENT_MANUAL_RUN_STATUSES = [
   "completed",
   "failed",
   "rejected",
+  "canceled",
 ] as const;
 export type AgentManualRunStatus = (typeof AGENT_MANUAL_RUN_STATUSES)[number];
 
@@ -73,6 +74,10 @@ export type AgentManualRunResult = {
   existingRunId?: string;
   workerConnected?: boolean;
   stale?: boolean;
+  cancelRequested?: boolean;
+  artifactVisibility?: string | null;
+  artifactNote?: string | null;
+  lockExpiresAt?: string | null;
 };
 
 export const AGENT_MANUAL_RUN_COPY = {

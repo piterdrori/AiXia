@@ -43,6 +43,11 @@ export type AgentRunDrawerModel = {
   evidence: string;
   limitations: string;
   failureReason: string;
+  runId?: string | null;
+  stale?: boolean;
+  cancelRequested?: boolean;
+  lockExpiresAt?: string | null;
+  canCancel?: boolean;
 };
 
 type AgentResultsPanelProps = {
@@ -64,6 +69,8 @@ type AgentResultsPanelProps = {
   drawer: AgentRunDrawerModel;
   onOpenLatestRun: () => void;
   onCloseDrawer: () => void;
+  onCancelRun?: () => void;
+  cancelBusy?: boolean;
 };
 
 export function AgentResultsPanel({
@@ -85,6 +92,8 @@ export function AgentResultsPanel({
   drawer,
   onOpenLatestRun,
   onCloseDrawer,
+  onCancelRun,
+  cancelBusy = false,
 }: AgentResultsPanelProps) {
   const navigate = useNavigate();
 
@@ -204,19 +213,53 @@ export function AgentResultsPanel({
           <div className="flex h-full w-full max-w-lg flex-col overflow-y-auto border-l border-white/10 bg-[#0b1220] p-5 shadow-xl sm:rounded-xl sm:border">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-lg font-semibold text-white">Latest run</h3>
-              <AixiaButton variant="secondary" onClick={onCloseDrawer}>
-                Close
-              </AixiaButton>
+              <div className="flex flex-wrap gap-2">
+                {drawer.canCancel && onCancelRun ? (
+                  <AixiaButton
+                    variant="secondary"
+                    disabled={cancelBusy || drawer.cancelRequested}
+                    onClick={onCancelRun}
+                    data-testid="agentops-drawer-cancel-run"
+                  >
+                    {drawer.cancelRequested
+                      ? "Cancel requested"
+                      : cancelBusy
+                        ? "Canceling…"
+                        : "Cancel run"}
+                  </AixiaButton>
+                ) : null}
+                <AixiaButton variant="secondary" onClick={onCloseDrawer}>
+                  Close
+                </AixiaButton>
+              </div>
             </div>
+            {drawer.stale ? (
+              <p className="mb-3 text-sm text-amber-200/85" data-testid="agentops-drawer-stale-badge">
+                Stale run — lock may have expired. Suggested: run cleanup-stale dry-run on the worker,
+                or cancel / mark failed via owner action. No auto-delete.
+              </p>
+            ) : null}
+            {drawer.cancelRequested ? (
+              <p className="mb-3 text-sm text-amber-200/85" data-testid="agentops-drawer-cancel-requested">
+                Cancel requested — worker will honor before the next safe boundary.
+              </p>
+            ) : null}
             <dl className="grid gap-3 text-sm">
               {(
                 [
                   ["Execution status", drawer.executionStatus],
+                  ["Run id", drawer.runId ?? "Not recorded"],
                   ["Work type", drawer.workType],
                   ["Trigger", drawer.trigger],
                   ["Started", drawer.startedAt ? new Date(drawer.startedAt).toLocaleString() : "Not recorded"],
                   ["Ended", drawer.endedAt ? new Date(drawer.endedAt).toLocaleString() : "Not recorded"],
                   ["Duration", drawer.duration],
+                  [
+                    "Lock expires",
+                    drawer.lockExpiresAt
+                      ? new Date(drawer.lockExpiresAt).toLocaleString()
+                      : "Not recorded",
+                  ],
                   ["Review depth", drawer.reviewDepth],
                   ["Authentication depth", drawer.authenticationDepth],
                   ["Routes / modules", drawer.routesModules],

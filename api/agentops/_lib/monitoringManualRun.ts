@@ -694,6 +694,10 @@ export async function handleMonitoringManualRunStatusRequest(
         typeof summary.failurePhase === "string" ? summary.failurePhase : null,
       stale: status === "running" ? stale : false,
       cancelRequested: summary.cancelRequested === true,
+      artifactVisibility:
+        typeof summary.artifactVisibility === "string" ? summary.artifactVisibility : null,
+      artifactNote: typeof summary.artifactNote === "string" ? summary.artifactNote : null,
+      lockExpiresAt: typeof summary.lockExpiresAt === "string" ? summary.lockExpiresAt : null,
     },
   });
 }
@@ -726,6 +730,8 @@ export async function handleMonitoringManualRunCancelRequest(
 
   const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
   const runId = typeof record.runId === "string" ? record.runId.trim() : "";
+  const agentSlugFilter =
+    typeof record.agentSlug === "string" ? record.agentSlug.trim().toLowerCase() : "";
   if (!runId) {
     return jsonResponse(
       { ok: false, canceled: false, message: "runId is required." },
@@ -762,11 +768,23 @@ export async function handleMonitoringManualRunCancelRequest(
     );
   }
 
-  const nowIso = new Date().toISOString();
-  const summary =
+  const existingSummary =
     existing.summary && typeof existing.summary === "object"
-      ? { ...(existing.summary as Record<string, unknown>) }
+      ? (existing.summary as Record<string, unknown>)
       : {};
+  const runAgentSlug =
+    typeof existingSummary.agentSlug === "string"
+      ? existingSummary.agentSlug.trim().toLowerCase()
+      : "";
+  if (agentSlugFilter && runAgentSlug && agentSlugFilter !== runAgentSlug) {
+    return jsonResponse(
+      { ok: false, canceled: false, message: "Cancel rejected: run belongs to a different agent." },
+      403,
+    );
+  }
+
+  const nowIso = new Date().toISOString();
+  const summary = { ...existingSummary };
   const ownerRef = owner.userId || "owner";
 
   if (existing.status === "queued") {
@@ -850,4 +868,198 @@ export async function handleMonitoringManualRunCancelRequest(
     },
     409,
   );
+}
+
+type QueueRunView = {
+  runId: string;
+  agentSlug: string | null;
+  workType: string | null;
+  trigger: string | null;
+  status: string;
+  mode: string;
+  createdAt: string | null;
+  startedAt: string | null;
+  lockExpiresAt: string | null;
+  stale: boolean;
+  cancelRequested: boolean;
+  ageMs: number | null;
+  suggestedAction: string | null;
+};
+
+function toQueueRunView(
+  row: {
+    run_id: string;
+    status: string;
+    mode: string;
+    summary: unknown;
+    created_at?: string | null;
+    started_at?: string | null;
+    ended_at?: string | null;
+  },
+  nowMs: number,
+  workerStatus: string,
+): QueueRunView {
+  const summary =
+    row.summary && typeof row.summary === "object"
+      ? (row.summary as Record<string, unknown>)
+      : {};
+  const createdAt =
+    typeof row.created_at === "string"
+      ? row.created_at
+      : typeof row.started_at === "string"
+        ? row.started_at
+        : null;
+  const createdMs = createdAt ? Date.parse(createdAt) : NaN;
+  const lockExpiresAt =
+    typeof summary.lockExpiresAt === "string" ? summary.lockExpiresAt : null;
+  const stale =
+    row.status === "running" &&
+    (isLockExpired(summary, nowMs) || workerStatus === "stale" || workerStatus === "offline");
+  return {
+    runId: row.run_id,
+    agentSlug: typeof summary.agentSlug === "string" ? summary.agentSlug : null,
+    workType: typeof summary.workType === "string" ? summary.workType : null,
+    trigger: typeof summary.trigger === "string" ? summary.trigger : null,
+    status: row.status,
+    mode: row.mode,
+    createdAt,
+    startedAt: typeof row.started_at === "string" ? row.started_at : null,
+    lockExpiresAt,
+    stale,
+    cancelRequested: summary.cancelRequested === true,
+    ageMs: Number.isFinite(createdMs) ? Math.max(0, nowMs - createdMs) : null,
+    suggestedAction: stale
+      ? "Run cleanup-stale dry-run on worker, or request cancel / mark failed via owner action. No auto-delete."
+      : summary.cancelRequested === true
+        ? "Cancel requested — worker will honor before next safe boundary."
+        : null,
+  };
+}
+
+/**
+ * Phase D-B — owner-gated staging worker queue dashboard payload.
+ * Same monitoring Vercel function. No service-role to browser.
+ */
+export async function handleMonitoringWorkerQueueRequest(
+  request: Request,
+): Promise<Response> {
+  const blocked = guardAgentOpsExecutionResponse(process.env);
+  if (blocked) return blocked;
+  if (request.method !== "GET") return methodNotAllowed();
+
+  const owner = await assertOwnerFromRequest(request);
+  if (!owner.ok) {
+    return jsonResponse({ ok: false, error: owner.error }, owner.status);
+  }
+
+  const client = createServiceClient();
+  if (!client) {
+    return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
+  }
+
+  const [, queryPart = ""] = request.url.split("?");
+  const params = new URLSearchParams(queryPart);
+  const agentSlug = params.get("agentSlug")?.trim().toLowerCase() ?? "";
+  const workType = params.get("workType")?.trim().toLowerCase() ?? "";
+  const trigger = params.get("trigger")?.trim().toLowerCase() ?? "";
+  const statusFilter = params.get("status")?.trim().toLowerCase() ?? "";
+
+  const snapshot = await loadWorkerSnapshot(client);
+  const nowMs = Date.now();
+  const workerStatus = classifyWorkerStatus(snapshot.health, nowMs);
+
+  const { data: activeRows, error: activeError } = await client
+    .from(MONITORING_TABLE)
+    .select("run_id, status, mode, summary, created_at, started_at, ended_at")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
+    .in("status", ["queued", "running"])
+    .order("created_at", { ascending: true })
+    .limit(80);
+  if (activeError) {
+    return jsonResponse({ ok: false, error: activeError.message }, 500);
+  }
+
+  const { data: recentTerminal, error: terminalError } = await client
+    .from(MONITORING_TABLE)
+    .select("run_id, status, mode, summary, created_at, started_at, ended_at")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
+    .in("status", ["completed", "failed", "canceled"])
+    .order("ended_at", { ascending: false })
+    .limit(40);
+  if (terminalError) {
+    return jsonResponse({ ok: false, error: terminalError.message }, 500);
+  }
+
+  const matchesFilters = (view: QueueRunView): boolean => {
+    if (agentSlug && view.agentSlug !== agentSlug) return false;
+    if (workType && view.workType !== workType) return false;
+    if (trigger && view.trigger !== trigger) return false;
+    if (statusFilter && view.status !== statusFilter) return false;
+    return true;
+  };
+
+  const activeViews = (activeRows || [])
+    .map((row) => toQueueRunView(row, nowMs, workerStatus))
+    .filter(matchesFilters);
+  const queued = activeViews.filter((r) => r.status === "queued").slice(0, 10);
+  const running = activeViews.filter((r) => r.status === "running");
+  const stale = activeViews.filter((r) => r.stale);
+  const oldestQueuedAgeMs = queued.reduce<number | null>((acc, row) => {
+    if (row.ageMs == null) return acc;
+    if (acc == null || row.ageMs > acc) return row.ageMs;
+    return acc;
+  }, null);
+
+  const terminalViews = (recentTerminal || [])
+    .map((row) => toQueueRunView(row, nowMs, workerStatus))
+    .filter(matchesFilters);
+  const lastCompleted =
+    terminalViews.find((r) => r.status === "completed") ?? null;
+  const lastFailed = terminalViews.find((r) => r.status === "failed") ?? null;
+  const lastCanceled = terminalViews.find((r) => r.status === "canceled") ?? null;
+
+  const ops = snapshot.health?.ops ?? null;
+  const activeFromHealth = snapshot.capability.activeRunId
+    ? running.find((r) => r.runId === snapshot.capability.activeRunId) ||
+      running[0] ||
+      null
+    : running[0] || null;
+
+  return jsonResponse({
+    ok: true,
+    environment: "staging",
+    capability: snapshot.capability,
+    queue: {
+      length: queued.length,
+      oldestQueuedAgeMs: ops?.oldestQueuedAgeMs ?? oldestQueuedAgeMs,
+      active: activeFromHealth
+        ? {
+            runId: activeFromHealth.runId,
+            agentSlug: activeFromHealth.agentSlug,
+            workType: activeFromHealth.workType,
+            trigger: activeFromHealth.trigger,
+            status: activeFromHealth.status,
+            cancelRequested: activeFromHealth.cancelRequested,
+            stale: activeFromHealth.stale,
+            lockExpiresAt: activeFromHealth.lockExpiresAt,
+          }
+        : null,
+      queued,
+      running,
+      stale,
+      recentTerminal: terminalViews.slice(0, 10),
+      lastCompletedRunId: lastCompleted?.runId ?? ops?.lastCompletedRunId ?? null,
+      lastFailedRunId: lastFailed?.runId ?? ops?.lastFailedRunId ?? null,
+      lastCanceledRunId: lastCanceled?.runId ?? null,
+      lastError: snapshot.capability.lastError ?? null,
+      workerHeartbeatAt: snapshot.capability.lastHeartbeatAt ?? null,
+      schedulerHeartbeatAt: snapshot.capability.lastSchedulerTickAt ?? null,
+      enginesReady: Boolean(snapshot.capability.enginesReady),
+      notes: [
+        "Staging worker queue only. No GitHub dispatch. No Playwright on Vercel.",
+        "Local worker artifacts are not uploaded to public storage.",
+        "Stale cleanup is dry-run by default on the worker host.",
+      ],
+    },
+  });
 }

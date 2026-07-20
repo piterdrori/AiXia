@@ -37,6 +37,9 @@ type AgentControlHeaderProps = {
   runInProgress: boolean;
   activeRunId: string | null;
   currentActivityLabel: string | null;
+  canCancelRun: boolean;
+  cancelRequested: boolean;
+  cancelBusy: boolean;
   onBack: () => void;
   onRefresh: () => void;
   onActivate: () => void;
@@ -45,6 +48,7 @@ type AgentControlHeaderProps = {
   onRunBrowserQa: () => void;
   onViewCurrentRun: () => void;
   onViewLatestRun: () => void;
+  onCancelRun: () => void;
 };
 
 export function AgentControlHeader({
@@ -79,6 +83,9 @@ export function AgentControlHeader({
   runInProgress,
   activeRunId,
   currentActivityLabel,
+  canCancelRun,
+  cancelRequested,
+  cancelBusy,
   onBack,
   onRefresh,
   onActivate,
@@ -87,6 +94,7 @@ export function AgentControlHeader({
   onRunBrowserQa,
   onViewCurrentRun,
   onViewLatestRun,
+  onCancelRun,
 }: AgentControlHeaderProps) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -187,6 +195,11 @@ export function AgentControlHeader({
               {runInProgress && currentActivityLabel !== "Queued for staging worker" ? "…" : ""}
             </p>
           ) : null}
+          {cancelRequested ? (
+            <p className="text-sm text-amber-200/85" data-testid="agentops-cancel-requested">
+              Cancel requested — worker will honor before the next safe boundary (not an instant kill).
+            </p>
+          ) : null}
         </div>
 
         <div className="relative flex flex-wrap items-center gap-2">
@@ -239,6 +252,21 @@ export function AgentControlHeader({
           {runInProgress && activeRunId ? (
             <AixiaButton variant="secondary" onClick={onViewCurrentRun}>
               View current run
+            </AixiaButton>
+          ) : null}
+          {canCancelRun ? (
+            <AixiaButton
+              variant="secondary"
+              disabled={cancelBusy || cancelRequested}
+              onClick={onCancelRun}
+              data-testid="agentops-cancel-run"
+              title={
+                cancelRequested
+                  ? "Cancel already requested"
+                  : "Cancel queued run or request cancel for a running run"
+              }
+            >
+              {cancelRequested ? "Cancel requested" : cancelBusy ? "Canceling…" : "Cancel run"}
             </AixiaButton>
           ) : null}
           <div className="relative">

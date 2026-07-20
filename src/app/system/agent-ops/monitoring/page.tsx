@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 
 import { AixiaButton } from "@/components/aixia";
@@ -10,6 +11,7 @@ import {
   useAgentOpsMonitoringStatus,
   useAgentOpsOwnerGate,
 } from "@/components/agentops/owner";
+import { StagingWorkerQueuePanel } from "@/components/agentops/owner/StagingWorkerQueuePanel";
 import { AgentScheduledMonitoringCard } from "@/app/system/agent-ops/agents/AgentScheduledMonitoringCard";
 import { AgentDaily12ReviewCard } from "@/app/system/agent-ops/agents/AgentDaily12ReviewCard";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -20,8 +22,12 @@ export default function AgentOpsMonitoringPage() {
   const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
     useAgentOpsOwnerGate();
   const { daily12, loading, error, refresh } = useAgentOpsMonitoringStatus(isOwner);
+  const [queueRefreshKey, setQueueRefreshKey] = useState(0);
 
-  const refreshAll = () => void Promise.all([refreshGate(), refresh()]);
+  const refreshAll = () => {
+    setQueueRefreshKey((n) => n + 1);
+    void Promise.all([refreshGate(), refresh()]);
+  };
 
   const dailyHealthy =
     (daily12?.agentsFailedToday ?? 0) === 0 &&
@@ -70,6 +76,8 @@ export default function AgentOpsMonitoringPage() {
             },
           ]}
         />
+
+        {isOwner ? <StagingWorkerQueuePanel refreshKey={queueRefreshKey} /> : null}
 
         <section className="grid gap-4 xl:grid-cols-3">
           <div className="xl:col-span-2">

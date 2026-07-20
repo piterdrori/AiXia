@@ -1,10 +1,14 @@
-# AgentOps Staging Worker Runbook (Phase D-A)
+# AgentOps Staging Worker Runbook (Phase D-A / D-B)
 
 Staging-only operations for the external worker that heartbeats, ticks the scheduler, and executes queued `website_audit` / `browser_qa` runs.
 
 **Alias:** https://ai-xia-staging.vercel.app  
 **Command:** `npm run agentops:staging-worker`  
+**Doctor:** `npm run agentops:staging-worker:doctor`  
+**Status:** `npm run agentops:staging-worker:status`  
 **Never:** production, main, GitHub dispatch, Vercel cron, Playwright on Vercel, auto-promote, auto-fix, PR, deploy.
+
+**Env template (placeholders only):** `qa-agent/reports/agentops-staging-worker.env.example`
 
 ---
 
@@ -202,3 +206,126 @@ node scripts/agentops-staging-manual-run-worker.mjs scheduler-cleanup-stale --mu
 | `staging-worker` / `ops` | yes (unless `--once`) | yes | yes | yes |
 
 \* Browser QA requires Playwright + valid storage state on the host.
+
+---
+
+## 14. Durable host supervisor (staging-only)
+
+The worker host must be a **staging-only** machine. Never point it at production URLs or production Supabase.
+
+Sanitized env file example: `qa-agent/reports/agentops-staging-worker.env.example`  
+Copy to a host-local path such as `/etc/aixia/staging-worker.env` or `~/aixia-staging-worker.env` — **never commit real values**.
+
+### A. PM2 example
+
+```bash
+# Install PM2 (host)
+npm i -g pm2
+
+# From repo root on the staging worker host
+# Load env from a host-local file (placeholders only in repo)
+set -a
+source /path/to/staging-worker.env
+set +a
+
+pm2 start npm --name aixia-staging-worker -- run agentops:staging-worker
+pm2 save
+pm2 startup   # follow printed instructions for boot persistence
+```
+
+Restart policy: PM2 restarts crashed processes by default (`autorestart: true`).
+
+Logs:
+
+```bash
+pm2 logs aixia-staging-worker
+# or
+~/.pm2/logs/aixia-staging-worker-out.log
+~/.pm2/logs/aixia-staging-worker-error.log
+```
+
+Status / stop:
+
+```bash
+pm2 status
+pm2 stop aixia-staging-worker
+pm2 delete aixia-staging-worker
+```
+
+### B. systemd example
+
+Service file template (`/etc/systemd/system/aixia-staging-worker.service`):
+
+```ini
+[Unit]
+Description=AiXia AgentOps staging worker (staging-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aixia
+WorkingDirectory=/opt/aixia/AiXia-github
+EnvironmentFile=/etc/aixia/staging-worker.env
+ExecStart=/usr/bin/npm run agentops:staging-worker
+Restart=always
+RestartSec=10
+# Staging safety: refuse if env file missing
+Environment=AGENTOPS_ENVIRONMENT=staging
+Environment=AGENTOPS_PRODUCTION_BLOCKED=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Commands:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now aixia-staging-worker
+sudo systemctl status aixia-staging-worker
+sudo systemctl restart aixia-staging-worker
+sudo systemctl stop aixia-staging-worker
+journalctl -u aixia-staging-worker -f
+```
+
+### C. tmux / manual fallback (temporary staging only)
+
+```bash
+tmux new -s aixia-staging-worker
+cd /path/to/AiXia-github
+set -a; source /path/to/staging-worker.env; set +a
+npm run agentops:staging-worker
+# Detach: Ctrl-b then d
+# Reattach: tmux attach -t aixia-staging-worker
+```
+
+Use tmux only for short staging experiments. Prefer PM2 or systemd for durable hosts.
+
+---
+
+## 15. Doctor and status
+
+```bash
+npm run agentops:staging-worker:doctor
+npm run agentops:staging-worker:status
+```
+
+Doctor checks staging env, staging URL, Supabase reachability, heartbeat writability, Playwright install, storage_state presence (if Browser QA expected). It does **not** run audits by default.
+
+---
+
+## 16. Owner cancel UX (D-B)
+
+- Agent Detail: **Cancel run** on the control header and run drawer (owner session, staging, queued/running only).
+- Queued → immediate `canceled` (duplicate lock released).
+- Running → `cancelRequested` (worker honors before next safe boundary; not an instant OS kill).
+- API: `POST /api/agentops/monitoring/manual-run/cancel`
+
+---
+
+## 17. Queue dashboard (D-B)
+
+- Monitoring page: full staging worker queue panel.
+- Agent Detail: compact agent-filtered queue panel.
+- API: `GET /api/agentops/monitoring/manual-run/queue` (owner-gated, same monitoring function).

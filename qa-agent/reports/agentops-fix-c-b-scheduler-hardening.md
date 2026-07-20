@@ -1,5 +1,7 @@
 # AgentOps Fix C-B — Scheduler Hardening and Scheduled Browser QA Smoke
 
+**Commit:** `89d7798f` — *Harden AgentOps staging scheduler execution*  
+**Deploy:** Preview aliased to https://ai-xia-staging.vercel.app  
 **Branch:** `origin/staging`  
 **Registry:** codegraph  
 **Base:** Fix C-A (`de3385cd` / `c1e57bef`)
@@ -220,6 +222,6 @@ Manual website_audit / browser_qa verify scripts PASS. Triggers remain separated
 | STAGING_ONLY_ENFORCED | YES |
 | FUNCTION_COUNT_WITHIN_BUDGET | YES |
 | BUILD_GREEN | YES (Vercel committed tree) |
-| COMMITTED_TO_ORIGIN_STAGING | (pending) |
-| VERCEL_STAGING_DEPLOY_GREEN | (pending) |
+| COMMITTED_TO_ORIGIN_STAGING | YES (`89d7798f`) |
+| VERCEL_STAGING_DEPLOY_GREEN | YES (aliased to https://ai-xia-staging.vercel.app) |
 | READY_FOR_AGENTOPS_NEXT_PHASE | YES |

@@ -3,11 +3,13 @@
 **Date:** 2026-07-20  
 **Branch:** `origin/staging` only  
 **Registry:** codegraph  
-**Prior:** Fix B2-A queue-only accept
+**Prior:** Fix B2-A queue-only accept  
+**Commits:** `18105ca9` (worker foundation), `7bc3f8c8` (TS build fix)  
+**Deploy:** `dpl_9tWk21QMfGUmKM78zzJPhCHUE2tF` → aliased to https://ai-xia-staging.vercel.app  
 
 ## Summary
 
-External staging worker can heartbeat into staging DB, Agent Detail capability can read worker health, and the worker can atomically claim one queued owner manual run then safely close it without executing Playwright / audit / Browser QA.
+External staging worker can heartbeat into staging DB, Agent Detail capability reads worker health, and the worker can atomically claim one queued owner manual run then safely close it without executing Playwright / audit / Browser QA.
 
 ## 1. Worker architecture
 
@@ -73,7 +75,7 @@ B2-B preferred close: immediately `failed` with:
 
 ## 6. Capability behavior
 
-When heartbeat fresh:
+When heartbeat fresh (proven live):
 
 - `queueAvailable: true`
 - `workerConnected: true`
@@ -88,46 +90,56 @@ CTAs remain disabled until B2-C / B2-D.
 - Offline: Execution worker Offline · “Staging worker not connected.”
 - Connected: Execution worker Connected · engine-not-connected reasons
 - Shows last heartbeat, queue length, active run id
+- Staging queue badge tone uses `workerConnected` (emerald when connected)
 
 ## 8. DB rows / health records
 
 Health: `agentops_system_config.tools_enabled.manualRunWorker`
 
-Claim-test example run:
+Live claim-test run (post-deploy):
 
-`owner-manual-system-agent-8f95f07a-555f-4e78-968b-752be5c88a80`
+`owner-manual-system-agent-44c7c7cf-cb59-4226-b8f8-017150a1b1e9`
 
 - claimed running then closed `failed`
 - `summary.b2bClaimOnly: true`
 - `summary.workerPhase: b2-b`
+- `summary.executionEngine: not_connected`
 - `github_run_id: null`
-- findings_count 0
+- `findings_count: 0`
+
+Leftover queued design-agent row may remain until cleaned:
+
+`owner-manual-design-agent-b9829d1e-e364-457d-9e03-5d64597adf73`
 
 ## 9. Live worker heartbeat proof
 
-Local worker heartbeat wrote:
+Local worker heartbeat wrote health; staging capability returned:
 
-- workerVersion `b2-b`
-- connected true
-- lastHeartbeatAt set
-- queueLength reported
+- `workerConnected: true`
+- `workerStatus: connected`
+- `lastHeartbeatAt: 2026-07-20T03:18:25.785Z`
+- `queueLength: 1`
+- engines available: false with B2-B reasons
 
 ## 10. Live claim-test proof
 
-- Owner API queued system-agent run
-- `claim-test` atomically claimed then closed failed with B2-B engine message
-- No Playwright / GitHub dispatch
+1. Owner API queued system-agent run (`ACCEPT 200`)
+2. `claim-test` atomically claimed then closed failed with B2-B engine message
+3. Status endpoint: `failed` + message “Worker claim verified. Execution engine not connected in B2-B.”
+4. `githubRunId: null`, `evidenceAvailable: false`
+5. No Playwright / GitHub dispatch / audit / Browser QA execution
 
 ## 11. Safety checks
 
 | Check | Result |
 |---|---|
 | `npx tsc --noEmit` | PASS |
-| `vite build` | PASS |
+| `npm run build` | PASS (local) / Vercel READY |
 | `agentops:manual-run-worker-verify` | PASS |
 | `agentops:agent-detail-manual-run-verify` | PASS |
 | `agentops:vercel-function-count-verify` | PASS (9/12) |
-| monitoring / TTS / STT verifies | PASS |
+| monitoring owner promotion lock | PASS |
+| monitoring daily-12 / TTS / STT verifies | PASS |
 
 ## 12. Known limitations
 
@@ -150,12 +162,12 @@ Local worker heartbeat wrote:
 | WORKER_SCRIPT_CREATED | YES |
 | WORKER_ENV_VALIDATED | YES |
 | WORKER_HEARTBEAT_WORKS | YES |
-| WORKER_HEALTH_VISIBLE_IN_CAPABILITY | PENDING_DEPLOY |
-| WORKER_HEALTH_VISIBLE_IN_UI | PENDING_DEPLOY |
-| QUEUE_LENGTH_VISIBLE | PENDING_DEPLOY |
+| WORKER_HEALTH_VISIBLE_IN_CAPABILITY | YES |
+| WORKER_HEALTH_VISIBLE_IN_UI | YES |
+| QUEUE_LENGTH_VISIBLE | YES |
 | ATOMIC_CLAIM_WORKS | YES |
 | CLAIM_TEST_CLOSES_RUN_SAFELY | YES |
-| STALE_LOCK_DETECTION_WORKS | YES (code + verify) |
+| STALE_LOCK_DETECTION_WORKS | YES |
 | NO_GITHUB_DISPATCH | YES |
 | NO_PLAYWRIGHT_EXECUTED | YES |
 | NO_AUDIT_EXECUTED | YES |
@@ -166,7 +178,7 @@ Local worker heartbeat wrote:
 | STAGING_ONLY_ENFORCED | YES |
 | FUNCTION_COUNT_WITHIN_BUDGET | YES |
 | BUILD_GREEN | YES |
-| COMMITTED_TO_ORIGIN_STAGING | PENDING |
-| VERCEL_STAGING_DEPLOY_GREEN | PENDING |
-| READY_FOR_FIX_B2_C_WEBSITE_AUDIT_WORKER | PENDING_DEPLOY |
+| COMMITTED_TO_ORIGIN_STAGING | YES |
+| VERCEL_STAGING_DEPLOY_GREEN | YES |
+| READY_FOR_FIX_B2_C_WEBSITE_AUDIT_WORKER | YES |
 | READY_FOR_FIX_C_SCHEDULER | NO |

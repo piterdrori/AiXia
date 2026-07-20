@@ -618,18 +618,35 @@ export default function AgentOpsAgentDetailPage() {
 
   const runInProgress = Boolean(activeManualRunId);
   const workerConnected = Boolean(manualCapability?.workerConnected);
+  const workerStatus = manualCapability?.workerStatus ?? "unknown";
+  const workerStatusLabel =
+    workerStatus === "connected"
+      ? AGENT_DETAIL_CC_COPY.workerOnline
+      : workerStatus === "stale"
+        ? AGENT_DETAIL_CC_COPY.workerStale
+        : AGENT_DETAIL_CC_COPY.workerOffline;
+  const workerHeartbeatLabel = manualCapability?.lastHeartbeatAt
+    ? new Date(manualCapability.lastHeartbeatAt).toLocaleString()
+    : null;
+  const queueLengthLabel =
+    typeof manualCapability?.queueLength === "number"
+      ? String(manualCapability.queueLength)
+      : null;
+  const workerActiveRunId = manualCapability?.activeRunId ?? null;
   const auditAvailable = Boolean(manualCapability?.websiteAudit.available);
   const browserQaAvailable = Boolean(manualCapability?.browserQa.available);
   const auditDisabledReason = auditAvailable
     ? null
     : manualCapability?.websiteAudit.reason ??
-      manualCapabilityError ??
-      AGENT_DETAIL_CC_COPY.runAuditNotConnected;
+      (workerConnected
+        ? AGENT_DETAIL_CC_COPY.runAuditEnginePending
+        : manualCapabilityError ?? AGENT_DETAIL_CC_COPY.runAuditNotConnected);
   const browserQaDisabledReason = browserQaAvailable
     ? null
     : manualCapability?.browserQa.reason ??
-      manualCapabilityError ??
-      AGENT_DETAIL_CC_COPY.runBrowserQaNotConnected;
+      (workerConnected
+        ? AGENT_DETAIL_CC_COPY.runBrowserQaEnginePending
+        : manualCapabilityError ?? AGENT_DETAIL_CC_COPY.runBrowserQaNotConnected);
 
   const statusStrip = buildAgentStatusStrip({
     ownerStatus,
@@ -669,7 +686,10 @@ export default function AgentOpsAgentDetailPage() {
         : "Schedule: Not configured",
       `Run audit now: ${auditAvailable ? "Available (staging queue)" : auditDisabledReason ?? "Unavailable"}`,
       `Run Browser QA now: ${browserQaAvailable ? "Available (staging queue)" : browserQaDisabledReason ?? "Unavailable"}`,
-      `Execution worker: ${workerConnected ? "Connected" : "Offline / Not connected"}`,
+      `Execution worker: ${workerStatusLabel}`,
+      typeof manualCapability?.queueLength === "number"
+        ? `Queue length: ${manualCapability.queueLength}`
+        : null,
       typeof errors === "number" ? `Errors reported: ${errors}` : null,
       typeof improvements === "number" ? `Improvements reported: ${improvements}` : null,
       typeof features === "number" ? `Feature ideas reported: ${features}` : null,
@@ -711,6 +731,8 @@ export default function AgentOpsAgentDetailPage() {
     browserQaAvailable,
     browserQaDisabledReason,
     workerConnected,
+    workerStatusLabel,
+    manualCapability?.queueLength,
   ]);
 
   const openFindingsLabel = findingsUnavailable
@@ -797,6 +819,10 @@ export default function AgentOpsAgentDetailPage() {
           auditDisabledReason={auditDisabledReason}
           browserQaDisabledReason={browserQaDisabledReason}
           workerConnected={workerConnected}
+          workerStatusLabel={workerStatusLabel}
+          workerHeartbeatLabel={workerHeartbeatLabel}
+          queueLengthLabel={queueLengthLabel}
+          workerActiveRunId={workerActiveRunId}
           runInProgress={runInProgress}
           activeRunId={activeManualRunId}
           currentActivityLabel={manualActivityLabel}

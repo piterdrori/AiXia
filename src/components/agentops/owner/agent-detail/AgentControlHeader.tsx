@@ -22,6 +22,10 @@ type AgentControlHeaderProps = {
   auditDisabledReason: string | null;
   browserQaDisabledReason: string | null;
   workerConnected: boolean;
+  workerStatusLabel: string;
+  workerHeartbeatLabel: string | null;
+  queueLengthLabel: string | null;
+  workerActiveRunId: string | null;
   runInProgress: boolean;
   activeRunId: string | null;
   currentActivityLabel: string | null;
@@ -52,6 +56,10 @@ export function AgentControlHeader({
   auditDisabledReason,
   browserQaDisabledReason,
   workerConnected,
+  workerStatusLabel,
+  workerHeartbeatLabel,
+  queueLengthLabel,
+  workerActiveRunId,
   runInProgress,
   activeRunId,
   currentActivityLabel,
@@ -104,11 +112,23 @@ export function AgentControlHeader({
             className="text-sm text-white/70"
             data-testid="agentops-execution-worker-status"
           >
-            {AGENT_DETAIL_CC_COPY.executionWorkerLabel}:{" "}
-            {workerConnected
-              ? AGENT_DETAIL_CC_COPY.workerOnline
-              : AGENT_DETAIL_CC_COPY.workerOffline}
+            {AGENT_DETAIL_CC_COPY.executionWorkerLabel}: {workerStatusLabel}
           </p>
+          {workerHeartbeatLabel ? (
+            <p className="text-xs text-white/45" data-testid="agentops-worker-heartbeat">
+              Last heartbeat: {workerHeartbeatLabel}
+            </p>
+          ) : null}
+          {queueLengthLabel ? (
+            <p className="text-xs text-white/45" data-testid="agentops-worker-queue-length">
+              Queue length: {queueLengthLabel}
+            </p>
+          ) : null}
+          {workerActiveRunId ? (
+            <p className="text-xs text-white/45" data-testid="agentops-worker-active-run">
+              Active run: {workerActiveRunId}
+            </p>
+          ) : null}
           {currentActivityLabel ? (
             <p className="text-sm text-cyan-200/90" data-testid="agentops-manual-run-activity">
               Current activity: {currentActivityLabel}

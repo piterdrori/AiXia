@@ -15,10 +15,13 @@ import type { OwnerFacingAgentStatus } from "@/lib/agentops/agents/agentRuntimeI
 export const AGENT_DETAIL_CC_COPY = {
   runAuditNotConnected: "Staging worker not connected.",
   runBrowserQaNotConnected: "Staging worker not connected.",
+  runAuditEnginePending: "Website audit engine not connected yet.",
+  runBrowserQaEnginePending: "Browser QA engine not connected yet.",
   runAuditConnected: "Owner-gated · Staging queue",
   runBrowserQaConnected: "Owner-gated · Staging queue",
   workerOffline: "Offline / Not connected",
   workerOnline: "Connected",
+  workerStale: "Stale heartbeat",
   executionWorkerLabel: "Execution worker",
   stagingQueueBadge: "Staging queue · Worker required · No GitHub dependency",
   schedulerPending:

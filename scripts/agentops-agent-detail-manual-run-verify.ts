@@ -133,15 +133,19 @@ function verifyWiring(): void {
   mustInclude("api/agentops/_lib/monitoringRoutes.ts", "manual-run/capability");
   mustInclude("api/agentops/_lib/monitoringRoutes.ts", "handleMonitoringManualRunStartRequest");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "owner_manual_single_agent");
-  mustInclude("api/agentops/_lib/monitoringManualRun.ts", "queueAvailable: true");
-  mustInclude("api/agentops/_lib/monitoringManualRun.ts", "workerConnected");
+  mustInclude("api/agentops/_lib/monitoringManualRun.ts", "buildCapabilityFromHealth");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "Run queued for staging worker.");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "This agent already has an active or queued run.");
-  mustInclude("api/agentops/_lib/monitoringManualRun.ts", "Staging worker not connected.");
+  mustInclude("api/agentops/_lib/monitoringManualRun.ts", "readManualRunWorkerHealth");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "queueAvailable: true");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Staging worker not connected.");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Website audit engine not connected");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "HEARTBEAT_FRESH_MS");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "aixia.app");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "schedulerConnection");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "queueVersion");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", 'status: "queued"');
+  mustInclude("scripts/agentops-staging-manual-run-worker.mjs", "claim-test");
 
   mustNotInclude(
     "api/agentops/_lib/monitoringManualRun.ts",

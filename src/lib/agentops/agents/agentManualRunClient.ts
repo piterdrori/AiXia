@@ -19,6 +19,12 @@ export type ManualRunCapability = {
   queueAvailable: boolean;
   workerConnected: boolean;
   workerStatus: string;
+  lastHeartbeatAt?: string | null;
+  queueLength?: number;
+  activeRunId?: string | null;
+  lastError?: string | null;
+  workerId?: string | null;
+  workerVersion?: string | null;
   websiteAudit: { available: boolean; reason: string | null; engine: string };
   browserQa: { available: boolean; reason: string | null; engine: string };
   notes: string[];

@@ -1,12 +1,22 @@
 /**
- * Fix B2-A — owner-gated per-agent manual run accept / status (staging only).
- * Accept path queues into agentops_monitoring_runs. No GitHub dispatch. No worker yet.
+ * Fix B2-B — owner-gated per-agent manual run accept / status (staging only).
+ * Accept queues into agentops_monitoring_runs. Worker heartbeats via agentops_system_config.
+ * No GitHub dispatch. No Playwright on Vercel.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 
 import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
+import {
+  B2B_CLAIM_CLOSE_MESSAGE,
+  buildCapabilityFromHealth,
+  classifyWorkerStatus,
+  countQueuedManualRuns,
+  isLockExpired,
+  readManualRunWorkerHealth,
+  type ManualRunWorkerHealth,
+} from "./manualRunWorkerHealth.js";
 import {
   createMonitoringReadClient,
   resolveMonitoringSupabaseUrl,
@@ -22,8 +32,7 @@ const MONITORING_TABLE = "agentops_monitoring_runs";
 const DAILY_EXECUTIONS_TABLE = "agentops_monitoring_daily_agent_executions";
 const AGENTS_TABLE = "agentops_agents";
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
-const QUEUE_VERSION = "b2-a";
-const WORKER_NOT_CONNECTED_REASON = "Staging worker not connected.";
+const QUEUE_VERSION = "b2-b";
 const DUPLICATE_LOCK_MESSAGE = "This agent already has an active or queued run.";
 
 function methodNotAllowed(): Response {
@@ -35,9 +44,22 @@ function createServiceClient(): SupabaseClient | null {
   return readClient.ok ? readClient.client : null;
 }
 
-/** B2-A: no worker heartbeat yet — always offline. */
-function readWorkerConnected(): boolean {
-  return false;
+async function loadWorkerSnapshot(client: SupabaseClient | null): Promise<{
+  health: ManualRunWorkerHealth | null;
+  capability: ReturnType<typeof buildCapabilityFromHealth>;
+}> {
+  if (!client) {
+    return {
+      health: null,
+      capability: buildCapabilityFromHealth(null, 0),
+    };
+  }
+  const health = await readManualRunWorkerHealth(client);
+  const queueLength = health?.queueLength ?? (await countQueuedManualRuns(client));
+  return {
+    health,
+    capability: buildCapabilityFromHealth(health, queueLength),
+  };
 }
 
 function isAllowedStagingTarget(url: string | undefined | null): { ok: true; url: string } | { ok: false; error: string } {
@@ -161,40 +183,31 @@ async function findActiveManualRun(
   return null;
 }
 
-function capabilityPayload(workerConnected: boolean) {
-  const engineReason = workerConnected ? null : WORKER_NOT_CONNECTED_REASON;
-  return {
-    queueAvailable: true,
-    workerConnected,
-    workerStatus: workerConnected ? "connected" : "not_connected",
-    websiteAudit: {
-      available: workerConnected,
-      reason: engineReason,
-      engine: "staging_worker + website_audit (pending B2-B)",
-    },
-    browserQa: {
-      available: workerConnected,
-      reason: engineReason,
-      engine: "staging_worker + browser_qa (pending B2-B)",
-    },
-    notes: [
-      "Staging queue accepts owner-gated runs into agentops_monitoring_runs.",
-      "No GitHub dispatch. No Playwright on Vercel.",
-      "A staging worker must claim queued runs (Fix B2-B).",
-      "Findings remain drafts; no auto-promotion, auto-fix, PR, or deploy.",
-    ],
-  };
-}
-
-function statusMessageForRow(status: string, workerConnected: boolean): string {
+function statusMessageForRow(input: {
+  status: string;
+  workerConnected: boolean;
+  stale: boolean;
+  summary: Record<string, unknown>;
+}): string {
+  const { status, workerConnected, stale, summary } = input;
   if (status === "queued") {
     return workerConnected
-      ? "Waiting for staging worker"
+      ? "Waiting for staging worker."
       : "Queued. Worker not connected.";
   }
-  if (status === "running") return "Manual run is in progress on the staging worker.";
+  if (status === "running") {
+    if (stale) return "Run is running but worker heartbeat is stale.";
+    return "Manual run is in progress on the staging worker.";
+  }
+  if (status === "failed") {
+    if (summary.b2bClaimOnly === true || summary.workerPhase === "b2-b") {
+      return typeof summary.failureReason === "string"
+        ? summary.failureReason
+        : B2B_CLAIM_CLOSE_MESSAGE;
+    }
+    return "Manual run failed.";
+  }
   if (status === "completed") return "Manual run completed.";
-  if (status === "failed") return "Manual run failed.";
   return `Manual run status: ${status}`;
 }
 
@@ -205,11 +218,12 @@ export async function handleMonitoringManualRunCapabilityRequest(
   if (blocked) return blocked;
   if (request.method !== "GET") return methodNotAllowed();
 
-  const workerConnected = readWorkerConnected();
+  const client = createServiceClient();
+  const snapshot = await loadWorkerSnapshot(client);
   return jsonResponse({
     ok: true,
     environment: "staging",
-    capability: capabilityPayload(workerConnected),
+    capability: snapshot.capability,
   });
 }
 
@@ -385,6 +399,8 @@ export async function handleMonitoringManualRunStartRequest(
     );
   }
 
+  const snapshot = await loadWorkerSnapshot(client);
+
   return jsonResponse({
     ok: true,
     accepted: true,
@@ -398,8 +414,8 @@ export async function handleMonitoringManualRunStartRequest(
     agentSlug: runRequest.agentSlug,
     evidenceAvailable: false,
     durationMs: null,
-    workerConnected: readWorkerConnected(),
-    capability: capabilityPayload(readWorkerConnected()),
+    workerConnected: snapshot.capability.workerConnected,
+    capability: snapshot.capability,
   });
 }
 
@@ -424,7 +440,8 @@ export async function handleMonitoringManualRunStatusRequest(
   const params = new URLSearchParams(queryPart);
   const runId = params.get("runId")?.trim() ?? "";
   const agentSlug = params.get("agentSlug")?.trim().toLowerCase() ?? "";
-  const workerConnected = readWorkerConnected();
+  const snapshot = await loadWorkerSnapshot(client);
+  const workerConnected = snapshot.capability.workerConnected;
 
   let row: Record<string, unknown> | null = null;
   if (runId) {
@@ -452,6 +469,7 @@ export async function handleMonitoringManualRunStatusRequest(
       active: false,
       result: null,
       workerConnected,
+      capability: snapshot.capability,
     });
   }
 
@@ -471,10 +489,13 @@ export async function handleMonitoringManualRunStatusRequest(
   let queuedFindings: number | null = null;
   let rawObservations: number | null = null;
   let evidenceAvailable = false;
+  const stale =
+    status === "running" &&
+    (isLockExpired(summary) || classifyWorkerStatus(snapshot.health) === "stale");
 
   // Only look for worker/execution evidence once a worker has claimed the run (running+).
-  // Queued-only runs must not invent duration or evidence.
-  if (status === "running" && slug && startedAt) {
+  // Queued-only / B2-B claim-test closures must not invent engine evidence.
+  if (status === "running" && slug && startedAt && summary.workerPhase !== "b2-b") {
     const { data: execution } = await client
       .from(DAILY_EXECUTIONS_TABLE)
       .select(
@@ -531,8 +552,10 @@ export async function handleMonitoringManualRunStatusRequest(
     }
   }
 
-  if (status === "queued") {
-    durationMs = null;
+  if (status === "queued" || (status === "failed" && summary.b2bClaimOnly === true)) {
+    if (status === "queued") {
+      durationMs = null;
+    }
     evidenceAvailable = false;
     routesChecked = [];
     queuedFindings = null;
@@ -543,11 +566,17 @@ export async function handleMonitoringManualRunStatusRequest(
     ok: true,
     active: ACTIVE_STATUSES.has(status),
     workerConnected,
+    capability: snapshot.capability,
     result: {
       accepted: true,
       runId: row.run_id,
       status,
-      message: statusMessageForRow(status, workerConnected),
+      message: statusMessageForRow({
+        status,
+        workerConnected,
+        stale,
+        summary,
+      }),
       startedAt,
       completedAt,
       evidenceAvailable,
@@ -559,6 +588,7 @@ export async function handleMonitoringManualRunStatusRequest(
       routesChecked,
       rawObservations,
       queuedFindings,
+      stale: status === "running" ? stale : false,
     },
   });
 }

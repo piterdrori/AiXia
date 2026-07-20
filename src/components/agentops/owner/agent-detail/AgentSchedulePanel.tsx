@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { AixiaBadge, AixiaButton, AixiaInfoBlock } from "@/components/aixia";
+import { AixiaButton, AixiaInfoBlock } from "@/components/aixia";
 import { AgentDetailPanelShell } from "@/components/agentops/owner/agent-detail/AgentDetailPanelShell";
 import {
   ALL_DETAIL_WORK_TYPES,
@@ -312,6 +312,12 @@ export function AgentSchedulePanel({
           <div>
             <p className="text-white/45">Last scheduled run</p>
             <p className="text-white/85">{lastScheduledRunId}</p>
+          </div>
+        ) : null}
+        {lastSchedulerTickAt ? (
+          <div>
+            <p className="text-white/45">Last scheduler tick</p>
+            <p className="text-white/85">{new Date(lastSchedulerTickAt).toLocaleString()}</p>
           </div>
         ) : null}
         {!hideSkippedReason && lastSkippedReason ? (

@@ -267,7 +267,9 @@ export function AgentControlHeader({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-white/50">
-        <AixiaBadge tone="neutral">{AGENT_DETAIL_CC_COPY.stagingQueueBadge}</AixiaBadge>
+        <AixiaBadge tone={workerConnected ? "emerald" : "neutral"}>
+          {AGENT_DETAIL_CC_COPY.stagingQueueBadge}
+        </AixiaBadge>
         <AixiaBadge tone={auditAvailable ? "emerald" : "neutral"}>
           Run audit:{" "}
           {auditAvailable

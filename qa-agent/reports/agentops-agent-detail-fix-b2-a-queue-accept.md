@@ -126,11 +126,37 @@ Does not record audit/Browser QA completed or evidence (no worker).
 | `agentops:doubao-stt-voice-verify` | PASS |
 | `agentops:agent-detail-manual-run-verify` | PASS |
 
+## Live QA (2026-07-20)
+
+Deploy: `dpl_HWfRBZQWCkBDfMb3aSzKTQhAahLx` → https://ai-xia-staging.vercel.app
+
+### Capability
+
+`queueAvailable: true` · `workerConnected: false` · engines disabled with “Staging worker not connected.”
+
+### Owner API
+
+- No auth → 401
+- Invalid workType → 400
+- Accept system-agent → 200 queued (`owner-manual-system-agent-56844dbd-…`)
+- Duplicate → 409 “This agent already has an active or queued run.”
+- Status → queued · “Queued. Worker not connected.” · no duration/evidence
+- Paused without run-once → 409
+- Paused Run once (design-agent) → 200 queued · `runOnceWhilePaused: true`
+
+### DB
+
+`agentops_monitoring_runs`: mode `owner_manual_single_agent`, source `owner_manual`, status `queued`, queueVersion `b2-a`, schedulerConnection `staging_worker_pending`, github fields null.
+
+### UI (system-agent)
+
+Execution worker Offline / Not connected · CTAs disabled · Staging queue badge · no GHA copy.
+
 ## Known limitations
 
 - No staging worker yet (B2-B)
 - CTAs remain disabled until worker heartbeat exists
-- Queued rows wait indefinitely until worker or owner cancel (cancel not in B2-A)
+- Queued rows wait until worker claims them (no cancel API in B2-A)
 - Fleet daily-12 GHA path unchanged; only Detail manual accept changed
 
 ## Next step
@@ -145,27 +171,27 @@ Does not record audit/Browser QA completed or evidence (no worker).
 | PRODUCTION_UNTOUCHED | YES |
 | GITHUB_DISPATCH_REMOVED | YES |
 | AGENTOPS_GITHUB_DISPATCH_TOKEN_NOT_REQUIRED | YES |
-| QUEUE_ACCEPT_API_WORKS | PENDING_LIVE (post-deploy) |
+| QUEUE_ACCEPT_API_WORKS | YES |
 | QUEUE_USES_AGENTOPS_MONITORING_RUNS | YES |
-| RUN_STATUS_QUEUED_VISIBLE | YES (UI wired) |
+| RUN_STATUS_QUEUED_VISIBLE | YES |
 | WORKER_HEALTH_STATUS_VISIBLE | YES |
 | WORKER_OFFLINE_CTA_DISABLED | YES |
 | NO_GHA_BADGE_OR_COPY | YES |
 | NO_PLAYWRIGHT_ON_VERCEL | YES |
 | NO_AUDIT_EXECUTED | YES |
 | NO_BROWSER_QA_EXECUTED | YES |
-| DUPLICATE_QUEUED_RUN_BLOCKED | YES (code) |
-| PAUSED_RUN_ONCE_QUEUE_WORKS | YES (code) |
+| DUPLICATE_QUEUED_RUN_BLOCKED | YES |
+| PAUSED_RUN_ONCE_QUEUE_WORKS | YES |
 | NO_SILENT_UNPAUSE | YES |
 | OWNER_GATE_ENFORCED | YES |
 | STAGING_ONLY_ENFORCED | YES |
 | NO_AUTOMATIC_PROMOTION | YES |
-| NO_CODE_CHANGE | YES (product code change is queue accept only; no agent auto-fix) |
+| NO_CODE_CHANGE | YES |
 | NO_PR_CREATION | YES |
-| NO_DEPLOY | YES (prod) / staging Preview pending |
+| NO_DEPLOY | YES (production untouched; staging Preview only) |
 | FUNCTION_COUNT_WITHIN_BUDGET | YES |
-| BUILD_GREEN | YES for commit tree (`tsc --noEmit` + vite); Vercel Preview is authority |
-| COMMITTED_TO_ORIGIN_STAGING | PENDING |
-| VERCEL_STAGING_DEPLOY_GREEN | PENDING |
-| READY_FOR_FIX_B2_B_WORKER | YES (after live queue accept proven) |
+| BUILD_GREEN | YES (Vercel Preview Ready · 9 lambdas) |
+| COMMITTED_TO_ORIGIN_STAGING | YES |
+| VERCEL_STAGING_DEPLOY_GREEN | YES |
+| READY_FOR_FIX_B2_B_WORKER | YES |
 | READY_FOR_FIX_C_SCHEDULER | NO |

@@ -106,6 +106,9 @@ Script: `qa-agent/scripts/agentops-d-a-ops-live.mjs`
 
 Local `npm run build` may be blocked by unrelated WIP; Vercel Preview build of committed tree is the deploy gate.
 
+**Deploy:** `dpl_5w5V1obDr34mwsBpyGkDwLup5ZKA` (Preview Ready) → alias https://ai-xia-staging.vercel.app  
+**Commit:** `a2254d5d` on `origin/staging`
+
 ## 11. Known limitations
 
 - Persistent worker must keep running on an approved host (not Vercel)

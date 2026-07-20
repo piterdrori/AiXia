@@ -21,7 +21,7 @@
  * No GitHub dispatch. No Vercel cron. No production.
  */
 import { createClient } from "@supabase/supabase-js";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -53,17 +53,25 @@ import {
 } from "./agentops-manual-run-scheduler-tick.mjs";
 import {
   OPS_VERSION,
+  buildCancelAcknowledgedSummary,
   buildCanceledSummary,
   buildOpsHealthPatch,
   buildRetrySummary,
   canRetryFailedRun,
+  deriveHealthAlerts,
   estimateNextSchedulerTickAt,
   isCancelRequested,
+  mergeAcknowledgedAlerts,
   oldestQueuedAgeMs,
   pickNextQueuedRun,
   resolveOpsIntervalMs,
   validatePersistentWorkerEnv,
 } from "./lib/agentops-staging-worker-ops-core.mjs";
+import {
+  isArtifactUploadEnabled,
+  resolveArtifactBucket,
+  uploadRunArtifacts,
+} from "./lib/agentops-staging-artifact-storage.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -190,26 +198,150 @@ function engineEnv(envConfig) {
   };
 }
 
-function spawnEngine(scriptPath, runId, envConfig) {
+/**
+ * Spawn engine as a known child PID. Poll cancelRequested; prefer engine checkpoints,
+ * then SIGTERM the owned child only (never arbitrary PIDs).
+ */
+function spawnEngine(scriptPath, runId, envConfig, client) {
   const tsxCli = path.join(REPO_ROOT, "node_modules", "tsx", "dist", "cli.mjs");
   const env = engineEnv(envConfig);
-  if (fs.existsSync(tsxCli)) {
-    return spawnSync(process.execPath, [tsxCli, scriptPath, "--run-id", runId], {
+  const useTsxCli = fs.existsSync(tsxCli);
+  const command = useTsxCli ? process.execPath : process.platform === "win32" ? "npx.cmd" : "npx";
+  const args = useTsxCli
+    ? [tsxCli, scriptPath, "--run-id", runId]
+    : ["tsx", scriptPath, "--run-id", runId];
+
+  return new Promise((resolve) => {
+    const child = spawn(command, args, {
       cwd: REPO_ROOT,
       env,
-      encoding: "utf8",
-      maxBuffer: 8 * 1024 * 1024,
       windowsHide: true,
+      stdio: ["ignore", "pipe", "pipe"],
     });
-  }
-  const npxCmd = process.platform === "win32" ? "npx.cmd" : "npx";
-  return spawnSync(npxCmd, ["tsx", scriptPath, "--run-id", runId], {
-    cwd: REPO_ROOT,
-    env,
-    encoding: "utf8",
-    maxBuffer: 8 * 1024 * 1024,
-    windowsHide: true,
+    let stdout = "";
+    let stderr = "";
+    let killAttempted = false;
+    let killResult = null;
+    let settled = false;
+
+    child.stdout.on("data", (chunk) => {
+      stdout += String(chunk);
+      if (stdout.length > 8 * 1024 * 1024) stdout = stdout.slice(-8 * 1024 * 1024);
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += String(chunk);
+      if (stderr.length > 8 * 1024 * 1024) stderr = stderr.slice(-8 * 1024 * 1024);
+    });
+
+    const finish = (status) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(pollTimer);
+      resolve({
+        status,
+        stdout,
+        stderr,
+        pid: child.pid ?? null,
+        killAttempted,
+        killResult,
+      });
+    };
+
+    const pollTimer = setInterval(async () => {
+      if (!client || killAttempted || settled) return;
+      try {
+        const { data } = await client
+          .from(MONITORING_TABLE)
+          .select("summary, status")
+          .eq("run_id", runId)
+          .maybeSingle();
+        if (!data || data.status !== "running") return;
+        if (!isCancelRequested(data.summary)) return;
+        killAttempted = true;
+        try {
+          child.kill("SIGTERM");
+          killResult = "sigterm_sent";
+          setTimeout(() => {
+            if (!settled && child.exitCode == null && child.pid) {
+              try {
+                child.kill("SIGKILL");
+                killResult = "sigkill_sent";
+              } catch {
+                killResult = "sigkill_failed";
+              }
+            }
+          }, 8_000);
+        } catch {
+          killResult = "sigterm_failed";
+        }
+      } catch {
+        // ignore poll errors
+      }
+    }, 2_500);
+
+    child.on("error", (error) => {
+      stderr += `\n${error instanceof Error ? error.message : String(error)}`;
+      finish(1);
+    });
+    child.on("close", (code) => {
+      finish(typeof code === "number" ? code : 1);
+    });
   });
+}
+
+async function maybeUploadArtifactsForRun(client, runId) {
+  const { data: row } = await client
+    .from(MONITORING_TABLE)
+    .select("run_id, status, summary")
+    .eq("run_id", runId)
+    .maybeSingle();
+  if (!row || !row.summary || typeof row.summary !== "object") {
+    return { artifactUploadStatus: "skipped", uploadedRefs: [] };
+  }
+  if (row.status !== "completed" && row.status !== "failed") {
+    return { artifactUploadStatus: "skipped", uploadedRefs: [] };
+  }
+  const summary = { ...row.summary };
+  const upload = await uploadRunArtifacts({
+    client,
+    runId,
+    agentSlug: summary.agentSlug,
+    workType: summary.workType,
+    trigger: summary.trigger,
+    summary,
+    env: process.env,
+    repoRoot: REPO_ROOT,
+  });
+
+  const nextSummary = {
+    ...summary,
+    artifactUploadStatus: upload.artifactUploadStatus,
+    artifactVisibility: upload.artifactVisibility,
+    artifactNote: upload.artifactNote,
+    uploadedArtifacts: upload.uploadedRefs,
+  };
+  if (upload.uploadedRefs.length > 0) {
+    const localArtifactRefs = Array.isArray(summary.artifactRefs) ? summary.artifactRefs : [];
+    const localScreenshotRefs = Array.isArray(summary.screenshotRefs)
+      ? summary.screenshotRefs
+      : [];
+    nextSummary.artifactRefs = [...upload.uploadedRefs, ...localArtifactRefs];
+    nextSummary.screenshotRefs = [
+      ...upload.uploadedRefs.filter((r) => r.artifactType === "screenshots"),
+      ...localScreenshotRefs,
+    ];
+  }
+  if (upload.errors?.length) {
+    nextSummary.artifactUploadErrors = upload.errors.slice(0, 5);
+  }
+
+  await client
+    .from(MONITORING_TABLE)
+    .update({ summary: nextSummary })
+    .eq("run_id", runId)
+    .in("status", ["completed", "failed"]);
+
+  return upload;
 }
 
 async function listQueuedManualRuns(client) {
@@ -498,7 +630,7 @@ async function failStuckRunning(client, runId, message, claimedAt, failurePhase)
   return data;
 }
 
-async function markRunCanceled(client, runId, reason) {
+async function markRunCanceled(client, runId, reason, phase = "owner_cancel", extras = {}) {
   const endedAt = new Date().toISOString();
   const { data: existing } = await client
     .from(MONITORING_TABLE)
@@ -507,7 +639,13 @@ async function markRunCanceled(client, runId, reason) {
     .maybeSingle();
   if (!existing) return null;
   if (existing.status !== "queued" && existing.status !== "running") return null;
-  const summary = buildCanceledSummary(existing.summary, reason, endedAt);
+  const summary =
+    phase === "queued"
+      ? buildCanceledSummary(existing.summary, reason, endedAt)
+      : buildCancelAcknowledgedSummary(existing.summary, phase, endedAt, {
+          cancelReason: reason || `Canceled at checkpoint: ${phase}`,
+          ...extras,
+        });
   const { data } = await client
     .from(MONITORING_TABLE)
     .update({
@@ -564,7 +702,12 @@ async function honorCancelBeforeSpawn(client, runId) {
     .maybeSingle();
   if (!data || data.status !== "running") return false;
   if (!isCancelRequested(data.summary)) return false;
-  await markRunCanceled(client, runId, "Canceled before engine spawn (cancel_requested).");
+  await markRunCanceled(
+    client,
+    runId,
+    "Canceled before engine spawn (cancel_requested).",
+    "before_engine_spawn",
+  );
   return true;
 }
 
@@ -618,10 +761,43 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
     return { ok: true, claimed: true, canceled: true, runId, engineExit: 0 };
   }
 
-  const engine = spawnEngine(WEBSITE_AUDIT_ENGINE_SCRIPT, runId, envConfig);
+  const engine = await spawnEngine(WEBSITE_AUDIT_ENGINE_SCRIPT, runId, envConfig, client);
   const enginePayload = parseEngineStdout(engine);
 
-  if (engine.status !== 0) {
+  if (engine.killAttempted) {
+    const { data: afterKill } = await client
+      .from(MONITORING_TABLE)
+      .select("status, summary")
+      .eq("run_id", runId)
+      .maybeSingle();
+    if (afterKill?.status === "running") {
+      await markRunCanceled(
+        client,
+        runId,
+        "Canceled after worker SIGTERM of owned engine child (cancel_requested).",
+        "worker_child_sigterm",
+        {
+          killAttempted: true,
+          killResult: engine.killResult,
+        },
+      );
+    } else if (afterKill?.status === "completed") {
+      // Engine finished before cancel took effect — keep completed honestly.
+    } else if (afterKill?.summary && typeof afterKill.summary === "object") {
+      await client
+        .from(MONITORING_TABLE)
+        .update({
+          summary: {
+            ...afterKill.summary,
+            killAttempted: true,
+            killResult: engine.killResult,
+          },
+        })
+        .eq("run_id", runId);
+    }
+  }
+
+  if (engine.status !== 0 && !engine.killAttempted) {
     const message =
       (engine.stderr || "").trim().slice(0, 500) ||
       (engine.stdout || "").trim().slice(0, 500) ||
@@ -635,6 +811,8 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
     );
   }
 
+  const upload = await maybeUploadArtifactsForRun(client, runId);
+
   await writeHeartbeat(client, {
     connected: true,
     lastHeartbeatAt: new Date().toISOString(),
@@ -643,7 +821,7 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
     activeRunId: null,
     lastClaimedRunId: runId,
     queueLength: (await listQueuedManualRuns(client)).length,
-    lastError: engine.status === 0 ? null : `Website audit engine failed for ${runId}`,
+    lastError: engine.status === 0 || engine.killAttempted ? null : `Website audit engine failed for ${runId}`,
   });
 
   const { data: finalRow } = await client
@@ -658,13 +836,18 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
   }
 
   return {
-    ok: engine.status === 0 && finalRow?.status === "completed",
+    ok:
+      finalRow?.status === "completed" ||
+      finalRow?.status === "canceled" ||
+      (engine.status === 0 && finalRow?.status === "completed"),
     claimed: true,
+    canceled: finalRow?.status === "canceled",
     runId,
     engineExit: engine.status,
     engine: enginePayload,
     final: finalRow,
     retry,
+    artifactUpload: upload,
   };
 }
 
@@ -714,10 +897,43 @@ async function browserQaOnce(client, workerId, envConfig, preferredRunId = null)
     return { ok: true, claimed: true, canceled: true, runId, engineExit: 0 };
   }
 
-  const engine = spawnEngine(BROWSER_QA_ENGINE_SCRIPT, runId, envConfig);
+  const engine = await spawnEngine(BROWSER_QA_ENGINE_SCRIPT, runId, envConfig, client);
   const enginePayload = parseEngineStdout(engine);
 
-  if (engine.status !== 0) {
+  if (engine.killAttempted) {
+    const { data: afterKill } = await client
+      .from(MONITORING_TABLE)
+      .select("status, summary")
+      .eq("run_id", runId)
+      .maybeSingle();
+    if (afterKill?.status === "running") {
+      await markRunCanceled(
+        client,
+        runId,
+        "Canceled after worker SIGTERM of owned engine child (cancel_requested).",
+        "worker_child_sigterm",
+        {
+          killAttempted: true,
+          killResult: engine.killResult,
+        },
+      );
+    } else if (afterKill?.status === "completed") {
+      // completed honestly
+    } else if (afterKill?.summary && typeof afterKill.summary === "object") {
+      await client
+        .from(MONITORING_TABLE)
+        .update({
+          summary: {
+            ...afterKill.summary,
+            killAttempted: true,
+            killResult: engine.killResult,
+          },
+        })
+        .eq("run_id", runId);
+    }
+  }
+
+  if (engine.status !== 0 && !engine.killAttempted) {
     const message =
       (engine.stderr || "").trim().slice(0, 500) ||
       (engine.stdout || "").trim().slice(0, 500) ||
@@ -731,6 +947,8 @@ async function browserQaOnce(client, workerId, envConfig, preferredRunId = null)
     );
   }
 
+  const upload = await maybeUploadArtifactsForRun(client, runId);
+
   await writeHeartbeat(client, {
     connected: true,
     lastHeartbeatAt: new Date().toISOString(),
@@ -739,7 +957,10 @@ async function browserQaOnce(client, workerId, envConfig, preferredRunId = null)
     activeRunId: null,
     lastClaimedRunId: runId,
     queueLength: (await listQueuedManualRuns(client)).length,
-    lastError: engine.status === 0 ? null : `Browser QA engine failed for ${runId}`,
+    lastError:
+      engine.status === 0 || engine.killAttempted
+        ? null
+        : `Browser QA engine failed for ${runId}`,
   });
 
   const { data: finalRow } = await client
@@ -755,20 +976,29 @@ async function browserQaOnce(client, workerId, envConfig, preferredRunId = null)
 
   return {
     ok:
-      engine.status === 0 &&
-      (finalRow?.status === "completed" || finalRow?.status === "failed"),
+      (engine.status === 0 || Boolean(engine.killAttempted)) &&
+      (finalRow?.status === "completed" ||
+        finalRow?.status === "failed" ||
+        finalRow?.status === "canceled"),
     claimed: true,
+    canceled: finalRow?.status === "canceled",
     runId,
     engineExit: engine.status,
     engine: enginePayload,
     final: finalRow,
     retry,
+    artifactUpload: upload,
   };
 }
 
 async function cancelQueuedIfRequested(client, row) {
   if (!row || !isCancelRequested(row.summary)) return null;
-  return markRunCanceled(client, row.run_id, "Canceled while queued (cancel_requested).");
+  return markRunCanceled(
+    client,
+    row.run_id,
+    "Canceled while queued (cancel_requested).",
+    "queued",
+  );
 }
 
 async function runOpsCycle(client, workerId, envConfig, intervalMs) {
@@ -827,6 +1057,29 @@ async function runOpsCycle(client, workerId, envConfig, intervalMs) {
         ? next.summary
         : {};
 
+  const runningNow = await listRunningManualRuns(client);
+  const staleRunning = runningNow.filter((row) => isLockExpired(row.summary));
+  const priorAlerts = Array.isArray(heartbeatResult.health?.ops?.alerts)
+    ? heartbeatResult.health.ops.alerts
+    : [];
+  const rawAlerts = deriveHealthAlerts({
+    lastHeartbeatAt: nowIso,
+    lastSchedulerTickAt: tickResult?.scheduler?.lastTickAt || nowIso,
+    queueLength: remainingQueued.length,
+    oldestQueuedAgeMs: oldestQueuedAgeMs(remainingQueued),
+    staleRunningCount: staleRunning.length + (staleReport.staleCount || 0),
+    staleRunId: staleRunning[0]?.run_id ?? null,
+    recentFailureCount: finalStatus === "failed" ? 1 : 0,
+    artifactUploadFailed: processResult?.artifactUpload?.artifactUploadStatus === "failed",
+    artifactUploadFailedRunId:
+      processResult?.artifactUpload?.artifactUploadStatus === "failed"
+        ? processResult?.runId ?? null
+        : null,
+    browserAuthStale: !resolveStorageStatePath(),
+    enginesReady,
+  });
+  const alerts = mergeAcknowledgedAlerts(priorAlerts, rawAlerts);
+
   const opsPatch = buildOpsHealthPatch({
     activeRunId: null,
     activeRunType: null,
@@ -842,6 +1095,10 @@ async function runOpsCycle(client, workerId, envConfig, intervalMs) {
       intervalMs,
     ),
     enginesReady,
+    alerts,
+    artifactUploadEnabled: isArtifactUploadEnabled(process.env),
+    artifactBucket: resolveArtifactBucket(process.env),
+    lastArtifactUploadStatus: processResult?.artifactUpload?.artifactUploadStatus ?? null,
   });
 
   // Keep last active metadata readable when a run is still mid-flight elsewhere.

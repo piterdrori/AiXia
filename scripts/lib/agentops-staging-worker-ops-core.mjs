@@ -3,16 +3,22 @@
  * Queue policy, retry classification, cancel/stale, evidence labels.
  */
 
-export const OPS_VERSION = "d-a";
+export const OPS_VERSION = "d-c";
 export const REQUIRED_STAGING_APP_URL = "https://ai-xia-staging.vercel.app";
 export const DEFAULT_OPS_INTERVAL_MS = 60_000;
 export const MIN_OPS_INTERVAL_MS = 30_000;
 export const SCHEDULED_STARVATION_MS = 10 * 60 * 1000;
 export const MAX_TRANSIENT_RETRIES = 1;
+export const WORKER_STALE_MS = 3 * 60 * 1000;
+export const SCHEDULER_STALE_MS = 5 * 60 * 1000;
+export const QUEUE_BACKLOG_WARN = 8;
+export const OLDEST_QUEUED_WARN_MS = 15 * 60 * 1000;
+export const REPEATED_FAILURES_WARN = 3;
 
 export const ARTIFACT_VISIBILITY = {
   localWorkerOnly: "local_worker_only",
   stagingReadable: "staging_readable",
+  privateStagingStorage: "private_staging_storage",
 };
 
 export function resolveOpsIntervalMs(env = process.env) {
@@ -177,6 +183,20 @@ export function buildCanceledSummary(summary, reason, nowIso = new Date().toISOS
   };
 }
 
+export function buildCancelAcknowledgedSummary(
+  summary,
+  phase,
+  nowIso = new Date().toISOString(),
+  extras = {},
+) {
+  return {
+    ...buildCanceledSummary(summary, `Canceled at checkpoint: ${phase}`, nowIso),
+    cancelAcknowledgedAt: nowIso,
+    cancelPhase: phase || "unknown",
+    ...extras,
+  };
+}
+
 export function labelEvidenceRef(ref, visibility = ARTIFACT_VISIBILITY.localWorkerOnly) {
   if (!ref || typeof ref !== "string") return null;
   const trimmed = ref.trim();
@@ -206,7 +226,182 @@ export function estimateNextSchedulerTickAt(lastTickAt, intervalMs = DEFAULT_OPS
   return new Date(ts + intervalMs).toISOString();
 }
 
+export function buildHealthAlert({
+  type,
+  level = "warning",
+  message,
+  relatedRunId = null,
+  recommendedAction = null,
+  detectedAt = new Date().toISOString(),
+  acknowledged = false,
+}) {
+  return {
+    type,
+    level,
+    message,
+    detectedAt,
+    relatedRunId,
+    recommendedAction,
+    acknowledged: Boolean(acknowledged),
+  };
+}
+
+/**
+ * Derive durable staging-only health alerts (no external notify).
+ * Keep noise low: one alert per type.
+ */
+export function deriveHealthAlerts(input, nowMs = Date.now()) {
+  const alerts = [];
+  const lastHb = input.lastHeartbeatAt ? Date.parse(input.lastHeartbeatAt) : NaN;
+  const lastSched = input.lastSchedulerTickAt ? Date.parse(input.lastSchedulerTickAt) : NaN;
+  const queueLength = typeof input.queueLength === "number" ? input.queueLength : 0;
+  const oldestQueuedAgeMs =
+    typeof input.oldestQueuedAgeMs === "number" ? input.oldestQueuedAgeMs : null;
+  const staleRunningCount =
+    typeof input.staleRunningCount === "number" ? input.staleRunningCount : 0;
+  const recentFailureCount =
+    typeof input.recentFailureCount === "number" ? input.recentFailureCount : 0;
+
+  if (Number.isFinite(lastHb) && nowMs - lastHb > WORKER_STALE_MS) {
+    alerts.push(
+      buildHealthAlert({
+        type: "worker_stale",
+        level: "critical",
+        message: "Worker heartbeat is stale.",
+        recommendedAction: "Restart staging worker (pm2/systemd) and run doctor.",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  if (Number.isFinite(lastSched) && nowMs - lastSched > SCHEDULER_STALE_MS) {
+    alerts.push(
+      buildHealthAlert({
+        type: "scheduler_stale",
+        level: "warning",
+        message: "Scheduler tick is stale.",
+        recommendedAction: "Confirm staging-worker loop is running (not :once).",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  if (queueLength >= QUEUE_BACKLOG_WARN) {
+    alerts.push(
+      buildHealthAlert({
+        type: "queue_backlog",
+        level: "warning",
+        message: `Queue backlog is ${queueLength} runs.`,
+        recommendedAction: "Let worker drain; pause new manuals if needed.",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  if (oldestQueuedAgeMs != null && oldestQueuedAgeMs >= OLDEST_QUEUED_WARN_MS) {
+    alerts.push(
+      buildHealthAlert({
+        type: "oldest_queued_too_old",
+        level: "warning",
+        message: "Oldest queued run is older than 15 minutes.",
+        recommendedAction: "Check worker connected + engines ready; cancel stuck queued if needed.",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  if (staleRunningCount > 0) {
+    alerts.push(
+      buildHealthAlert({
+        type: "running_lock_expired",
+        level: "critical",
+        message: `${staleRunningCount} running run(s) have expired locks.`,
+        relatedRunId: input.staleRunId ?? null,
+        recommendedAction: "Run cleanup-stale dry-run on worker, then owner cancel/mark failed.",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  if (recentFailureCount >= REPEATED_FAILURES_WARN) {
+    alerts.push(
+      buildHealthAlert({
+        type: "repeated_failures",
+        level: "warning",
+        message: `${recentFailureCount} recent failures detected.`,
+        recommendedAction: "Inspect lastError and engine readiness; run doctor.",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  if (input.artifactUploadFailed) {
+    alerts.push(
+      buildHealthAlert({
+        type: "artifact_upload_failed",
+        level: "warning",
+        message: "Artifact upload failed; local fallback retained.",
+        relatedRunId: input.artifactUploadFailedRunId ?? null,
+        recommendedAction: "Check AGENTOPS_ARTIFACT_UPLOAD_ENABLED + private bucket + service role.",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  if (input.browserAuthStale) {
+    alerts.push(
+      buildHealthAlert({
+        type: "browser_auth_stale",
+        level: "warning",
+        message: "Browser QA storage_state missing or stale.",
+        recommendedAction: "Recapture storage_state on the worker host (never commit it).",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  if (input.enginesReady === false) {
+    alerts.push(
+      buildHealthAlert({
+        type: "engine_unavailable",
+        level: "critical",
+        message: "One or more staging engines are not ready.",
+        recommendedAction: "Install Playwright browsers; verify website_audit + browser_qa engines.",
+        detectedAt: new Date(nowMs).toISOString(),
+      }),
+    );
+  }
+
+  // Deduplicate by type (keep first / highest severity order already set).
+  const byType = new Map();
+  for (const alert of alerts) {
+    if (!byType.has(alert.type)) byType.set(alert.type, alert);
+  }
+  return [...byType.values()];
+}
+
+export function mergeAcknowledgedAlerts(previousAlerts, nextAlerts) {
+  const prev = Array.isArray(previousAlerts) ? previousAlerts : [];
+  const ackMap = new Map(
+    prev.filter((a) => a && a.acknowledged && a.type).map((a) => [a.type, a]),
+  );
+  return (nextAlerts || []).map((alert) => {
+    const prior = ackMap.get(alert.type);
+    if (prior && prior.acknowledged && prior.message === alert.message) {
+      return { ...alert, acknowledged: true, acknowledgedAt: prior.acknowledgedAt ?? null };
+    }
+    return alert;
+  });
+}
+
+// Re-export artifact env helpers for worker convenience (implementation lives in artifact-storage).
+export { isArtifactUploadEnabled, resolveArtifactBucket } from "./agentops-staging-artifact-storage.mjs";
+
 export function buildOpsHealthPatch(input) {
+  const alerts =
+    Array.isArray(input.alerts) && input.alerts.length > 0
+      ? input.alerts
+      : deriveHealthAlerts(input);
   return {
     opsVersion: OPS_VERSION,
     activeRunId: input.activeRunId ?? null,
@@ -222,5 +417,10 @@ export function buildOpsHealthPatch(input) {
     nextSchedulerTickEstimate: input.nextSchedulerTickEstimate ?? null,
     enginesReady: Boolean(input.enginesReady),
     mode: "staging_worker_ops",
+    alerts,
+    alertCount: alerts.filter((a) => !a.acknowledged).length,
+    artifactUploadEnabled: Boolean(input.artifactUploadEnabled),
+    artifactBucket: input.artifactBucket ?? null,
+    lastArtifactUploadStatus: input.lastArtifactUploadStatus ?? null,
   };
 }

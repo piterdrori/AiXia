@@ -11,6 +11,12 @@ import {
   validatePersistentWorkerEnv,
 } from "./lib/agentops-staging-worker-ops-core.mjs";
 import { validateWorkerEnv, WORKER_VERSION } from "./lib/agentops-manual-run-worker-core.mjs";
+import {
+  DEFAULT_ARTIFACT_BUCKET,
+  isArtifactUploadEnabled,
+  probeArtifactBucket,
+  resolveArtifactBucket,
+} from "./lib/agentops-staging-artifact-storage.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -56,9 +62,11 @@ function resolveStorageStatePath() {
 }
 
 async function main() {
+  const uploadTest = process.argv.includes("--upload-test");
   const checks = [];
   const fail = (id, message) => checks.push({ id, ok: false, message });
   const pass = (id, message) => checks.push({ id, ok: true, message });
+  const warn = (id, message) => checks.push({ id, ok: true, warn: true, message });
 
   if (process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true") {
     fail("ci", "Doctor refuses CI environments for persistent-worker ops.");
@@ -146,6 +154,65 @@ async function main() {
       } else {
         fail("heartbeat_write", "No staging agentops_system_config row to probe.");
       }
+
+      const bucket = resolveArtifactBucket(process.env);
+      const uploadEnabled = isArtifactUploadEnabled(process.env);
+      if (uploadEnabled) {
+        pass("artifact_upload_flag", `Artifact upload enabled (bucket=${bucket}).`);
+      } else {
+        warn(
+          "artifact_upload_flag",
+          "AGENTOPS_ARTIFACT_UPLOAD_ENABLED is not true — uploads disabled (safe default).",
+        );
+      }
+      if (bucket !== DEFAULT_ARTIFACT_BUCKET && !String(bucket).includes("staging")) {
+        fail("artifact_bucket_name", `Bucket must be staging-only (got ${bucket}).`);
+      } else {
+        pass("artifact_bucket_name", `Artifact bucket name OK (${bucket}).`);
+      }
+
+      const probe = await probeArtifactBucket(client, bucket);
+      if (!probe.ok || !probe.exists) {
+        fail("artifact_bucket", probe.error || "Artifact bucket missing.");
+      } else if (probe.public) {
+        fail("artifact_bucket", "Artifact bucket must be private (public=true).");
+      } else {
+        pass("artifact_bucket", `Bucket ${bucket} exists and is private.`);
+      }
+
+      if (uploadTest) {
+        if (!uploadEnabled) {
+          fail("artifact_upload_test", "--upload-test requires AGENTOPS_ARTIFACT_UPLOAD_ENABLED=true.");
+        } else {
+          const testPath = `agentops/doctor-probe/evidence/doctor-${Date.now()}.txt`;
+          const body = Buffer.from("agentops-doctor-upload-test\n", "utf8");
+          const { error: upErr } = await client.storage.from(bucket).upload(testPath, body, {
+            contentType: "text/plain",
+            upsert: true,
+          });
+          if (upErr) {
+            fail("artifact_upload_test", upErr.message);
+          } else {
+            await client.storage.from(bucket).remove([testPath]);
+            pass("artifact_upload_test", "Upload test object succeeded and was removed.");
+          }
+        }
+      } else {
+        warn(
+          "artifact_upload_test",
+          "Skipped upload test (pass --upload-test to exercise private bucket write).",
+        );
+      }
+
+      const alerts = data?.[0]?.tools_enabled?.manualRunWorker?.ops?.alerts;
+      if (Array.isArray(alerts) && alerts.length > 0) {
+        warn(
+          "health_alerts",
+          `${alerts.length} health alert(s) present in worker ops (see queue dashboard).`,
+        );
+      } else {
+        pass("health_alerts", "No active health alerts stored on worker ops.");
+      }
     } catch (error) {
       fail("supabase", error instanceof Error ? error.message : String(error));
     }
@@ -154,7 +221,7 @@ async function main() {
   const ok = checks.every((c) => c.ok || c.id === "storage_state");
   // storage_state soft-fail for doctor overall if only BQ missing — still report.
   const hardOk = checks
-    .filter((c) => c.id !== "storage_state")
+    .filter((c) => c.id !== "storage_state" && !c.warn)
     .every((c) => c.ok);
 
   console.log(
@@ -163,8 +230,11 @@ async function main() {
         ok: hardOk,
         command: "staging-worker:doctor",
         workerVersion: WORKER_VERSION,
+        uploadTest,
+        artifactUploadEnabled: isArtifactUploadEnabled(process.env),
+        artifactBucket: resolveArtifactBucket(process.env),
         checks,
-        note: "Doctor does not run website_audit or browser_qa engines.",
+        note: "Doctor does not run website_audit or browser_qa engines. Use --upload-test for optional bucket write probe.",
       },
       null,
       2,

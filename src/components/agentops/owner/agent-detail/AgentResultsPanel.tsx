@@ -1,9 +1,14 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { AixiaButton, AixiaInfoBlock } from "@/components/aixia";
+import { AixiaBadge, AixiaButton, AixiaInfoBlock } from "@/components/aixia";
 import { AgentOpsEmptyState, AgentOpsFindingCard, type FindingType } from "@/components/agentops/owner";
 import { AgentDetailPanelShell } from "@/components/agentops/owner/agent-detail/AgentDetailPanelShell";
 import type { AgentOpsFinding } from "@/lib/agentops";
+import {
+  fetchArtifactSignedUrl,
+  type AgentopsStorageArtifactRef,
+} from "@/lib/agentops/agents/agentManualRunClient";
 import {
   mapFindingOwnerStatus,
   OWNER_FINDING_STATUS_LABEL,
@@ -46,8 +51,10 @@ export type AgentRunDrawerModel = {
   runId?: string | null;
   stale?: boolean;
   cancelRequested?: boolean;
+  cancelAcknowledged?: boolean;
   lockExpiresAt?: string | null;
   canCancel?: boolean;
+  storageArtifacts?: AgentopsStorageArtifactRef[];
 };
 
 type AgentResultsPanelProps = {
@@ -96,6 +103,28 @@ export function AgentResultsPanel({
   cancelBusy = false,
 }: AgentResultsPanelProps) {
   const navigate = useNavigate();
+  const [artifactBusyPath, setArtifactBusyPath] = useState<string | null>(null);
+  const [artifactError, setArtifactError] = useState<string | null>(null);
+
+  const openSignedArtifact = async (ref: AgentopsStorageArtifactRef) => {
+    if (!drawer.runId) {
+      setArtifactError("Run id missing for signed artifact link.");
+      return;
+    }
+    setArtifactBusyPath(ref.path);
+    setArtifactError(null);
+    const result = await fetchArtifactSignedUrl({
+      runId: drawer.runId,
+      artifactPath: ref.path,
+      bucket: ref.bucket,
+    });
+    setArtifactBusyPath(null);
+    if (!result.ok || !result.signedUrl) {
+      setArtifactError(result.error || "Signed link failed.");
+      return;
+    }
+    window.open(result.signedUrl, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <>
@@ -239,10 +268,45 @@ export function AgentResultsPanel({
                 or cancel / mark failed via owner action. No auto-delete.
               </p>
             ) : null}
-            {drawer.cancelRequested ? (
-              <p className="mb-3 text-sm text-amber-200/85" data-testid="agentops-drawer-cancel-requested">
-                Cancel requested — worker will honor before the next safe boundary.
+            {drawer.cancelAcknowledged || drawer.executionStatus === "canceled" ? (
+              <p className="mb-3 text-sm text-white/70" data-testid="agentops-drawer-canceled">
+                Canceled by owner.
               </p>
+            ) : drawer.cancelRequested ? (
+              <p className="mb-3 text-sm text-amber-200/85" data-testid="agentops-drawer-cancel-requested">
+                Cancel requested. The worker will stop at the next safe checkpoint. Current browser
+                step may finish first.
+              </p>
+            ) : null}
+            {(drawer.storageArtifacts?.length ?? 0) > 0 ? (
+              <div className="mb-3 space-y-2" data-testid="agentops-drawer-storage-artifacts">
+                <p className="text-sm text-white/70">Private staging artifacts</p>
+                <ul className="space-y-1">
+                  {drawer.storageArtifacts!.slice(0, 8).map((ref) => (
+                    <li
+                      key={ref.path}
+                      className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1 text-xs text-white/75"
+                    >
+                      <AixiaBadge tone="emerald">uploaded/private</AixiaBadge>
+                      <span>{ref.artifactType || "artifact"}</span>
+                      <AixiaButton
+                        variant="secondary"
+                        disabled={artifactBusyPath === ref.path}
+                        onClick={() => void openSignedArtifact(ref)}
+                        data-testid="agentops-open-signed-artifact"
+                      >
+                        {artifactBusyPath === ref.path ? "Signing…" : "Open signed link"}
+                      </AixiaButton>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-white/40">Signed link expires shortly.</p>
+                {artifactError ? (
+                  <p className="text-xs text-amber-200/80" role="status">
+                    {artifactError}
+                  </p>
+                ) : null}
+              </div>
             ) : null}
             <dl className="grid gap-3 text-sm">
               {(

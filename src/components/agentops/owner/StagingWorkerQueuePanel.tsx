@@ -142,6 +142,39 @@ export function StagingWorkerQueuePanel({
         </p>
       </div>
 
+      {(queue?.alerts?.length ?? 0) > 0 ? (
+        <div className="space-y-2" data-testid="agentops-worker-health-alerts">
+          <h3 className="text-sm font-medium text-white/80">Health alerts</h3>
+          <ul className="space-y-1 text-xs text-white/70">
+            {queue!.alerts!.slice(0, 8).map((alert) => (
+              <li
+                key={String(alert.type)}
+                className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1"
+              >
+                <AixiaBadge
+                  tone={
+                    alert.level === "critical"
+                      ? "rose"
+                      : alert.level === "warning"
+                        ? "amber"
+                        : "neutral"
+                  }
+                >
+                  {String(alert.level || "info")}
+                </AixiaBadge>
+                <span className="font-mono">{String(alert.type)}</span>
+                <span>{String(alert.message || "")}</span>
+                {alert.recommendedAction ? (
+                  <span className="basis-full text-amber-200/70">
+                    {String(alert.recommendedAction)}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {!compact ? (
         <div className="flex flex-wrap gap-2 text-xs">
           <label className="flex items-center gap-1 text-white/55">

@@ -15,6 +15,38 @@ import {
 export const MANUAL_RUN_CAPABILITY_URL = "/api/agentops/monitoring/manual-run/capability";
 export const MANUAL_RUN_URL = "/api/agentops/monitoring/manual-run";
 export const MANUAL_RUN_QUEUE_URL = "/api/agentops/monitoring/manual-run/queue";
+export const MANUAL_RUN_ARTIFACT_URL = "/api/agentops/monitoring/manual-run/artifact-url";
+export const MANUAL_RUN_HEALTH_ALERT_ACK_URL =
+  "/api/agentops/monitoring/manual-run/health-alert-ack";
+
+export type AgentopsStorageArtifactRef = {
+  provider: "supabase_storage";
+  bucket: string;
+  path: string;
+  localFallback?: string | null;
+  visibility?: string;
+  signedUrlAvailable?: boolean;
+  artifactType?: string;
+  contentType?: string;
+};
+
+export function isStorageArtifactRef(value: unknown): value is AgentopsStorageArtifactRef {
+  if (!value || typeof value !== "object") return false;
+  const rec = value as Record<string, unknown>;
+  return (
+    rec.provider === "supabase_storage" &&
+    typeof rec.bucket === "string" &&
+    typeof rec.path === "string" &&
+    rec.path.startsWith("agentops/")
+  );
+}
+
+export function listStorageArtifactRefs(
+  refs: unknown[] | undefined | null,
+): AgentopsStorageArtifactRef[] {
+  if (!Array.isArray(refs)) return [];
+  return refs.filter(isStorageArtifactRef);
+}
 
 export type WorkerQueueRunView = {
   runId: string;
@@ -56,6 +88,13 @@ export type WorkerQueueSnapshot = {
   workerHeartbeatAt: string | null;
   schedulerHeartbeatAt: string | null;
   enginesReady: boolean;
+  alerts?: Array<{
+    type: string;
+    level?: string;
+    message?: string;
+    recommendedAction?: string | null;
+    acknowledged?: boolean;
+  }>;
   notes: string[];
 };
 
@@ -287,8 +326,11 @@ export async function startOwnerManualRun(
     workerConnected: payload.workerConnected,
     stale: payload.stale,
     cancelRequested: payload.cancelRequested,
+    cancelAcknowledgedAt: payload.cancelAcknowledgedAt ?? null,
+    cancelPhase: payload.cancelPhase ?? null,
     artifactVisibility: payload.artifactVisibility ?? null,
     artifactNote: payload.artifactNote ?? null,
+    artifactUploadStatus: payload.artifactUploadStatus ?? null,
     lockExpiresAt: payload.lockExpiresAt ?? null,
   };
 }
@@ -377,22 +419,122 @@ export function formatLocalArtifactEvidence(
 ): string {
   if (!result.evidenceAvailable) return "No evidence linked";
   const parts: string[] = [];
+  const storageRefs = [
+    ...listStorageArtifactRefs(result.artifactRefs as unknown[]),
+    ...listStorageArtifactRefs(result.screenshotRefs as unknown[]),
+  ];
+  if (storageRefs.length > 0) {
+    parts.push(
+      `${storageRefs.length} private staging artifact(s) — Open signed link (expires shortly).`,
+    );
+  }
   if (result.screenshotRefs && result.screenshotRefs.length > 0) {
     const safe = result.screenshotRefs
-      .filter((ref) => typeof ref === "string" && !/storage[-_]?state|service[_-]?role|token=/i.test(ref))
+      .filter(
+        (ref) =>
+          typeof ref === "string" &&
+          !/storage[-_]?state|service[_-]?role|token=/i.test(ref),
+      )
       .slice(0, 3);
-    if (safe.length > 0) parts.push(`Screenshot ref(s): ${safe.join(", ")}`);
-    else parts.push(`${result.screenshotRefs.length} screenshot ref(s)`);
+    if (safe.length > 0) parts.push(`Local screenshot ref(s): ${safe.join(", ")}`);
+    else if (storageRefs.length === 0) {
+      parts.push(`${result.screenshotRefs.length} screenshot ref(s)`);
+    }
   }
-  if (result.artifactRefs && result.artifactRefs.length > 0) {
+  if (result.artifactRefs && result.artifactRefs.length > 0 && storageRefs.length === 0) {
     parts.push(`${result.artifactRefs.length} artifact ref(s)`);
   }
   const visibility = result.artifactVisibility || "local_worker_only";
   if (visibility === "local_worker_only") {
-    parts.push("Local worker artifact — available on the worker host, not uploaded to public storage.");
+    parts.push(
+      "Local worker artifact — available on the worker host, not uploaded to public storage.",
+    );
+  } else if (visibility === "private_staging_storage") {
+    parts.push("Uploaded/private — signed link required (owner only).");
+  }
+  if (
+    typeof (result as { artifactUploadStatus?: string }).artifactUploadStatus === "string" &&
+    (result as { artifactUploadStatus?: string }).artifactUploadStatus === "failed"
+  ) {
+    parts.push("Artifact upload failed; local fallback retained.");
   }
   if (result.artifactNote) parts.push(result.artifactNote);
   return parts.join(" · ") || "Evidence available in Monitoring";
+}
+
+export async function fetchArtifactSignedUrl(input: {
+  runId: string;
+  artifactPath: string;
+  bucket?: string;
+}): Promise<{
+  ok: boolean;
+  signedUrl: string | null;
+  expiresAt: string | null;
+  error: string | null;
+}> {
+  try {
+    const headers = await authHeaders();
+    const params = new URLSearchParams({
+      runId: input.runId,
+      artifactPath: input.artifactPath,
+    });
+    if (input.bucket) params.set("bucket", input.bucket);
+    const response = await fetch(`${MANUAL_RUN_ARTIFACT_URL}?${params.toString()}`, {
+      method: "GET",
+      headers,
+    });
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      signedUrl?: string;
+      expiresAt?: string;
+      error?: string;
+    };
+    if (!response.ok || payload.ok === false || !payload.signedUrl) {
+      return {
+        ok: false,
+        signedUrl: null,
+        expiresAt: null,
+        error: payload.error ?? "Could not create signed artifact URL.",
+      };
+    }
+    return {
+      ok: true,
+      signedUrl: payload.signedUrl,
+      expiresAt: payload.expiresAt ?? null,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      signedUrl: null,
+      expiresAt: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function acknowledgeWorkerHealthAlert(alertType: string): Promise<{
+  ok: boolean;
+  error: string | null;
+}> {
+  try {
+    const headers = await authHeaders();
+    const response = await fetch(MANUAL_RUN_HEALTH_ALERT_ACK_URL, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ alertType }),
+    });
+    const payload = (await response.json()) as { ok?: boolean; error?: string };
+    if (!response.ok || payload.ok === false) {
+      return { ok: false, error: payload.error ?? "Could not acknowledge alert." };
+    }
+    return { ok: true, error: null };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export function defaultScopeForWorkType(

@@ -197,7 +197,8 @@ export function AgentControlHeader({
           ) : null}
           {cancelRequested ? (
             <p className="text-sm text-amber-200/85" data-testid="agentops-cancel-requested">
-              Cancel requested — worker will honor before the next safe boundary (not an instant kill).
+              Cancel requested. The worker will stop at the next safe checkpoint. Current browser step
+              may finish first.
             </p>
           ) : null}
         </div>

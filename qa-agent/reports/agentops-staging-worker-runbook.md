@@ -311,21 +311,42 @@ npm run agentops:staging-worker:doctor
 npm run agentops:staging-worker:status
 ```
 
-Doctor checks staging env, staging URL, Supabase reachability, heartbeat writability, Playwright install, storage_state presence (if Browser QA expected). It does **not** run audits by default.
+Doctor checks staging env, staging URL, Supabase reachability, heartbeat writability, Playwright install, storage_state presence (if Browser QA expected), private artifact bucket (exists/private), and upload flag. It does **not** run audits by default.
+
+Optional bucket write probe (never default):
+
+```bash
+npm run agentops:staging-worker:doctor -- --upload-test
+```
+
+Requires `AGENTOPS_ARTIFACT_UPLOAD_ENABLED=true` on the host.
 
 ---
 
-## 16. Owner cancel UX (D-B)
+## 16. Owner cancel UX (D-B / D-C)
 
 - Agent Detail: **Cancel run** on the control header and run drawer (owner session, staging, queued/running only).
 - Queued → immediate `canceled` (duplicate lock released).
-- Running → `cancelRequested` (worker honors before next safe boundary; not an instant OS kill).
+- Running → `cancelRequested`; worker/engine stop at checkpoints (`before_engine_spawn`, `before_route_scan`, `before_browser_launch`, mid-phase). Owned child may receive SIGTERM after cancel poll.
+- UI copy: “Cancel requested. The worker will stop at the next safe checkpoint.”
+- After ack: “Canceled by owner.”
 - API: `POST /api/agentops/monitoring/manual-run/cancel`
 
 ---
 
-## 17. Queue dashboard (D-B)
+## 17. Queue dashboard (D-B / D-C)
 
-- Monitoring page: full staging worker queue panel.
+- Monitoring page: full staging worker queue panel (+ health alerts).
 - Agent Detail: compact agent-filtered queue panel.
 - API: `GET /api/agentops/monitoring/manual-run/queue` (owner-gated, same monitoring function).
+
+---
+
+## 18. Private staging artifacts (D-C)
+
+- Bucket: `agentops-artifacts-staging` (private). Service-role upload from worker only.
+- Enable on worker host: `AGENTOPS_ARTIFACT_UPLOAD_ENABLED=true`
+- Object path: `agentops/{runId}/{artifactType}/{safeFilename}`
+- Owner signed URL: `GET /api/agentops/monitoring/manual-run/artifact-url?runId=...&artifactPath=...`
+- Never upload `storage_state`, `.env`, cookies, or secrets.
+- Upload failure does not fail the run; local fallback retained.

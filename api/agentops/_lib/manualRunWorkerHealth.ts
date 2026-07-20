@@ -50,6 +50,11 @@ export type ManualRunWorkerOpsHealth = {
   nextSchedulerTickEstimate: string | null;
   enginesReady: boolean;
   mode: string | null;
+  alerts?: Array<Record<string, unknown>>;
+  alertCount?: number;
+  artifactUploadEnabled?: boolean;
+  artifactBucket?: string | null;
+  lastArtifactUploadStatus?: string | null;
 };
 
 export type ManualRunWorkerHealth = {
@@ -179,6 +184,16 @@ function normalizeOps(raw: unknown): ManualRunWorkerOpsHealth | null {
         : null,
     enginesReady: Boolean(ops.enginesReady),
     mode: typeof ops.mode === "string" ? ops.mode : "staging_worker_ops",
+    alerts: Array.isArray(ops.alerts)
+      ? (ops.alerts as Array<Record<string, unknown>>)
+      : [],
+    alertCount: typeof ops.alertCount === "number" ? ops.alertCount : 0,
+    artifactUploadEnabled: Boolean(ops.artifactUploadEnabled),
+    artifactBucket: typeof ops.artifactBucket === "string" ? ops.artifactBucket : null,
+    lastArtifactUploadStatus:
+      typeof ops.lastArtifactUploadStatus === "string"
+        ? ops.lastArtifactUploadStatus
+        : null,
   };
 }
 

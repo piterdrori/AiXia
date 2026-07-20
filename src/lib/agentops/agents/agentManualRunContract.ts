@@ -64,8 +64,8 @@ export type AgentManualRunResult = {
   findingsCount?: number | null;
   errorsCount?: number | null;
   scope?: AgentManualRunScope | null;
-  artifactRefs?: string[];
-  screenshotRefs?: string[];
+  artifactRefs?: unknown[];
+  screenshotRefs?: unknown[];
   consoleFindings?: unknown[];
   networkFindings?: unknown[];
   accessibilityFindings?: unknown[];
@@ -75,8 +75,11 @@ export type AgentManualRunResult = {
   workerConnected?: boolean;
   stale?: boolean;
   cancelRequested?: boolean;
+  cancelAcknowledgedAt?: string | null;
+  cancelPhase?: string | null;
   artifactVisibility?: string | null;
   artifactNote?: string | null;
+  artifactUploadStatus?: string | null;
   lockExpiresAt?: string | null;
 };
 

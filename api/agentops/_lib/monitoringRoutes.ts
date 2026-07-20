@@ -18,8 +18,10 @@ import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 import { applyMonitoringMemoryProposalViaApi } from "./monitoringMemoryApplication.js";
 import { createMonitoringReadClient, extractSupabaseProjectRef, resolveMonitoringSupabaseUrl } from "./monitoringReadClient.js";
 import {
+  handleMonitoringManualRunArtifactUrlRequest,
   handleMonitoringManualRunCancelRequest,
   handleMonitoringManualRunCapabilityRequest,
+  handleMonitoringManualRunHealthAlertAckRequest,
   handleMonitoringManualRunStartRequest,
   handleMonitoringManualRunStatusRequest,
   handleMonitoringWorkerQueueRequest,
@@ -1617,6 +1619,12 @@ export async function routeMonitoringRequest(request: Request): Promise<Response
   }
   if (pathname === "/api/agentops/monitoring/manual-run/queue") {
     return handleMonitoringWorkerQueueRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/manual-run/artifact-url") {
+    return handleMonitoringManualRunArtifactUrlRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/manual-run/health-alert-ack") {
+    return handleMonitoringManualRunHealthAlertAckRequest(request);
   }
   if (pathname === "/api/agentops/monitoring/manual-run") {
     if (request.method === "GET") return handleMonitoringManualRunStatusRequest(request);

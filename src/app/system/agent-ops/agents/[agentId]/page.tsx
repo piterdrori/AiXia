@@ -66,6 +66,7 @@ import {
   fetchManualRunStatus,
   formatLocalArtifactEvidence,
   formatManualRunResultBanner,
+  listStorageArtifactRefs,
   startOwnerManualRun,
   type ManualRunCapability,
 } from "@/lib/agentops/agents/agentManualRunClient";
@@ -199,8 +200,17 @@ function drawerFromManualResult(
     runId: result.runId ?? null,
     stale: Boolean(result.stale),
     cancelRequested: Boolean(result.cancelRequested),
+    cancelAcknowledged:
+      result.status === "canceled" ||
+      Boolean((result as { cancelAcknowledgedAt?: string | null }).cancelAcknowledgedAt),
     lockExpiresAt: result.lockExpiresAt ?? null,
     canCancel,
+    storageArtifacts: [
+      ...listStorageArtifactRefs(result.artifactRefs as unknown[]),
+      ...listStorageArtifactRefs(result.screenshotRefs as unknown[]),
+    ].filter(
+      (ref, index, all) => all.findIndex((other) => other.path === ref.path) === index,
+    ),
   };
 }
 

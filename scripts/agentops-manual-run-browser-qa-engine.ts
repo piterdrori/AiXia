@@ -246,6 +246,47 @@ async function main(): Promise<void> {
     typeof row.started_at === "string" ? row.started_at : new Date().toISOString();
   const scanStarted = Date.now();
 
+  const preLaunch = await client
+    .from(MONITORING_TABLE)
+    .select("summary, status")
+    .eq("run_id", runId)
+    .maybeSingle();
+  const preSummary =
+    preLaunch.data?.summary && typeof preLaunch.data.summary === "object"
+      ? (preLaunch.data.summary as Record<string, unknown>)
+      : summary;
+  if (preLaunch.data?.status === "running" && preSummary.cancelRequested === true) {
+    const endedAt = new Date().toISOString();
+    const canceledSummary = {
+      ...summary,
+      ...preSummary,
+      cancelRequested: false,
+      canceledAt: endedAt,
+      cancelAcknowledgedAt: endedAt,
+      cancelPhase: "before_browser_launch",
+      cancelReason: "Canceled at checkpoint: before_browser_launch",
+    };
+    await client
+      .from(MONITORING_TABLE)
+      .update({
+        status: "canceled",
+        ended_at: endedAt,
+        duration_ms: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)),
+        summary: canceledSummary,
+      })
+      .eq("run_id", runId)
+      .eq("status", "running");
+    console.log(
+      JSON.stringify({
+        ok: true,
+        canceled: true,
+        runId,
+        cancelPhase: "before_browser_launch",
+      }),
+    );
+    return;
+  }
+
   let failureReason: string | null = null;
   let failurePhase: string | null = null;
   let qaResult = await runPlaywrightBrowserQA({
@@ -253,6 +294,51 @@ async function main(): Promise<void> {
     agentId: runtimeAgentId,
     canonicalAgentId: agentSlug,
   });
+
+  const midCheck = await client
+    .from(MONITORING_TABLE)
+    .select("summary, status")
+    .eq("run_id", runId)
+    .maybeSingle();
+  const midSummary =
+    midCheck.data?.summary && typeof midCheck.data.summary === "object"
+      ? (midCheck.data.summary as Record<string, unknown>)
+      : {};
+  if (midCheck.data?.status === "running" && midSummary.cancelRequested === true) {
+    const endedAt = new Date().toISOString();
+    await client
+      .from(MONITORING_TABLE)
+      .update({
+        status: "canceled",
+        ended_at: endedAt,
+        duration_ms: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)),
+        summary: {
+          ...summary,
+          ...midSummary,
+          cancelRequested: false,
+          canceledAt: endedAt,
+          cancelAcknowledgedAt: endedAt,
+          cancelPhase: "after_browser_qa_before_analysis",
+          cancelReason:
+            "Canceled at checkpoint: after_browser_qa_before_analysis. Current browser step may have finished first.",
+          partialEvidence: {
+            screenshotPath: qaResult.evidence?.screenshotPath ?? null,
+            findingsCount: qaResult.findings?.length ?? 0,
+          },
+        },
+      })
+      .eq("run_id", runId)
+      .eq("status", "running");
+    console.log(
+      JSON.stringify({
+        ok: true,
+        canceled: true,
+        runId,
+        cancelPhase: "after_browser_qa_before_analysis",
+      }),
+    );
+    return;
+  }
 
   if (qaResult.auth?.redirectedToLogin || qaResult.error?.includes("redirected to login")) {
     failureReason = AUTH_MISSING;

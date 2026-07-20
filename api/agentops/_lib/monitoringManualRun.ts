@@ -27,6 +27,10 @@ import {
   validateAgentManualRunRequest,
   type AgentManualRunRequest,
 } from "./manualRunContract.js";
+import {
+  handleMonitoringArtifactUrlRequest,
+  handleMonitoringHealthAlertAckRequest,
+} from "./monitoringArtifactUrl.js";
 
 const MONITORING_TABLE = "agentops_monitoring_runs";
 const DAILY_EXECUTIONS_TABLE = "agentops_monitoring_daily_agent_executions";
@@ -694,9 +698,18 @@ export async function handleMonitoringManualRunStatusRequest(
         typeof summary.failurePhase === "string" ? summary.failurePhase : null,
       stale: status === "running" ? stale : false,
       cancelRequested: summary.cancelRequested === true,
+      cancelAcknowledgedAt:
+        typeof summary.cancelAcknowledgedAt === "string"
+          ? summary.cancelAcknowledgedAt
+          : null,
+      cancelPhase: typeof summary.cancelPhase === "string" ? summary.cancelPhase : null,
       artifactVisibility:
         typeof summary.artifactVisibility === "string" ? summary.artifactVisibility : null,
       artifactNote: typeof summary.artifactNote === "string" ? summary.artifactNote : null,
+      artifactUploadStatus:
+        typeof summary.artifactUploadStatus === "string"
+          ? summary.artifactUploadStatus
+          : null,
       lockExpiresAt: typeof summary.lockExpiresAt === "string" ? summary.lockExpiresAt : null,
     },
   });
@@ -1055,11 +1068,28 @@ export async function handleMonitoringWorkerQueueRequest(
       workerHeartbeatAt: snapshot.capability.lastHeartbeatAt ?? null,
       schedulerHeartbeatAt: snapshot.capability.lastSchedulerTickAt ?? null,
       enginesReady: Boolean(snapshot.capability.enginesReady),
+      alerts: Array.isArray((ops as { alerts?: unknown } | null)?.alerts)
+        ? (ops as { alerts: unknown[] }).alerts
+        : [],
       notes: [
         "Staging worker queue only. No GitHub dispatch. No Playwright on Vercel.",
-        "Local worker artifacts are not uploaded to public storage.",
+        "Private staging artifacts use short-lived signed links (owner only). Local-only refs stay host-local.",
         "Stale cleanup is dry-run by default on the worker host.",
       ],
     },
   });
+}
+
+/** Phase D-C — signed private artifact URL (owner + staging + path belongs to run). */
+export async function handleMonitoringManualRunArtifactUrlRequest(
+  request: Request,
+): Promise<Response> {
+  return handleMonitoringArtifactUrlRequest(request, { assertOwnerFromRequest });
+}
+
+/** Phase D-C — acknowledge a staging worker health alert. */
+export async function handleMonitoringManualRunHealthAlertAckRequest(
+  request: Request,
+): Promise<Response> {
+  return handleMonitoringHealthAlertAckRequest(request, { assertOwnerFromRequest });
 }

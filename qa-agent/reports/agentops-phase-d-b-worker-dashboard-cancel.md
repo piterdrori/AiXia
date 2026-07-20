@@ -2,14 +2,16 @@
 
 **Date:** 2026-07-20  
 **Branch:** `staging`  
+**Commit:** `817ce4a5` — Add AgentOps staging worker operations dashboard  
 **Registry:** codegraph  
-**Staging alias:** https://ai-xia-staging.vercel.app
+**Staging alias:** https://ai-xia-staging.vercel.app  
+**Preview deploy:** https://ai-mdefnirhu-piterdrori-gmailcoms-projects.vercel.app (`dpl_HfNtrje4MkqrEJwzSUaPN91nEYVD`, Ready, aliased)
 
 ---
 
 ## 1. Summary
 
-Phase D-B makes staging worker operations durable and operator-friendly: host supervisor docs, env template, owner cancel UX, queue dashboard, stale visibility, worker doctor/status commands, and honest local-artifact copy. Cancel required a staging DB constraint update to allow status `canceled`.
+Phase D-B makes staging worker operations durable and operator-friendly: host supervisor docs, env template, owner cancel UX, queue dashboard, stale visibility, worker doctor/status commands, and honest local-artifact copy. Cancel required a staging DB constraint update to allow status `canceled`. Deployed to git-connected Vercel Preview and aliased to staging (no `--prod`).
 
 ## 2. Durable host supervisor docs
 
@@ -150,7 +152,7 @@ D-C: optional signed artifact upload to staging storage + richer cancel-during-e
 | NO_PR_CREATION | YES |
 | NO_PRODUCTION_DEPLOY | YES |
 | FUNCTION_COUNT_WITHIN_BUDGET | YES |
-| BUILD_GREEN | PENDING (Vercel Preview) |
-| COMMITTED_TO_ORIGIN_STAGING | PENDING |
-| VERCEL_STAGING_DEPLOY_GREEN | PENDING |
-| READY_FOR_AGENTOPS_NEXT_PHASE | PENDING until deploy green |
+| BUILD_GREEN | YES |
+| COMMITTED_TO_ORIGIN_STAGING | YES (`817ce4a5`) |
+| VERCEL_STAGING_DEPLOY_GREEN | YES (Preview Ready + alias) |
+| READY_FOR_AGENTOPS_NEXT_PHASE | YES |

@@ -2,8 +2,10 @@
 
 **Date:** 2026-07-20  
 **Branch:** `staging`  
+**Commit:** `73b750f4` — Add AgentOps staging worker alerts and artifact retention  
 **Registry:** codegraph  
 **Staging alias:** https://ai-xia-staging.vercel.app  
+**Preview deploy:** https://ai-jpn62lbl1-piterdrori-gmailcoms-projects.vercel.app (Ready, aliased)  
 **Mode:** Staging-only implementation and QA
 
 ---
@@ -180,7 +182,7 @@ Optional flags (never default): `--upload-test`, `--alert-test`, `--cleanup-test
 | `npm run agentops:staging-worker-retention-verify` | PASS |
 | Live: `qa-agent/scripts/agentops-d-d-alerts-retention-live.mjs` | PASS |
 
-`npm run build` — run after commit on Vercel Preview (local tree may include unrelated untracked WIP).
+`npm run build` — Vercel Preview Ready (git tree). Local untracked WIP may still break a full local build.
 
 ## 15. Known limitations
 

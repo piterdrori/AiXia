@@ -300,11 +300,13 @@ async function claimWebsiteAudit(client, workerId, runId) {
 }
 
 function runWebsiteAuditEngine(runId, envConfig) {
-  const npxCmd = process.platform === "win32" ? "npx.cmd" : "npx";
-  const result = spawnSync(
-    npxCmd,
-    ["tsx", ENGINE_SCRIPT, "--run-id", runId],
-    {
+  const tsxCli = path.join(REPO_ROOT, "node_modules", "tsx", "dist", "cli.mjs");
+  const runner = fs.existsSync(tsxCli)
+    ? [process.execPath, tsxCli, ENGINE_SCRIPT, "--run-id", runId]
+    : null;
+  if (!runner) {
+    const npxCmd = process.platform === "win32" ? "npx.cmd" : "npx";
+    return spawnSync(npxCmd, ["tsx", ENGINE_SCRIPT, "--run-id", runId], {
       cwd: REPO_ROOT,
       env: {
         ...process.env,
@@ -317,10 +319,24 @@ function runWebsiteAuditEngine(runId, envConfig) {
       },
       encoding: "utf8",
       maxBuffer: 8 * 1024 * 1024,
-      shell: process.platform === "win32",
+      windowsHide: true,
+    });
+  }
+  return spawnSync(runner[0], runner.slice(1), {
+    cwd: REPO_ROOT,
+    env: {
+      ...process.env,
+      STAGING_SUPABASE_URL: envConfig.supabaseUrl,
+      STAGING_SUPABASE_SERVICE_ROLE_KEY: envConfig.serviceRoleKey,
+      STAGING_APP_URL: envConfig.appUrl,
+      AGENTOPS_ENVIRONMENT: "staging",
+      AGENTOPS_PRODUCTION_BLOCKED: "true",
+      AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING: "true",
     },
-  );
-  return result;
+    encoding: "utf8",
+    maxBuffer: 8 * 1024 * 1024,
+    windowsHide: true,
+  });
 }
 
 async function failStuckRunning(client, runId, message, claimedAt) {
@@ -380,7 +396,7 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
   let enginePayload = null;
   try {
     const stdout = (engine.stdout || "").trim();
-    const jsonStart = stdout.lastIndexOf("{");
+    const jsonStart = stdout.indexOf("{");
     if (jsonStart >= 0) enginePayload = JSON.parse(stdout.slice(jsonStart));
   } catch {
     enginePayload = null;

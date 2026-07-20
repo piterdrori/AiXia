@@ -15,6 +15,7 @@ import {
   mapFindingOwnerStatus,
   OWNER_FINDING_STATUS_LABEL,
 } from "@/lib/agentops/findings/findingsLifecycleModel";
+import { isFindingsPreviewEmpty } from "@/lib/agentops/agents/agentDetailOwnerReadability";
 
 export type { AgentRunDrawerModel };
 
@@ -82,6 +83,15 @@ export function AgentResultsPanel({
   const [artifactBusyPath, setArtifactBusyPath] = useState<string | null>(null);
   const [artifactError, setArtifactError] = useState<string | null>(null);
 
+  const previewEmpty =
+    !findingsLoading &&
+    !findingsUnavailable &&
+    isFindingsPreviewEmpty({
+      findingsCount: findings.length,
+      openFindingsCountLabel,
+      waitingApprovalLabel,
+    });
+
   const openSignedArtifact = async (ref: AgentDetailDrawerArtifactRef) => {
     if (!drawer.runId) {
       setArtifactError("Run id missing for signed artifact link.");
@@ -107,117 +117,151 @@ export function AgentResultsPanel({
       <AgentDetailPanelShell
         title="Findings and results"
         id="agent-results"
-        description="Compact view — full run evidence opens in the drawer."
+        description="Preview only — open Issues to review drafts."
         compact
         testId="agentops-agent-results-panel"
       >
-        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <p className="text-white/45">Latest run result</p>
-            <p className="text-white/85">{lastRunLabel}</p>
-          </div>
-          {lastRunAt ? (
-            <div>
-              <p className="text-white/45">Last run time</p>
-              <p className="text-white/85">{new Date(lastRunAt).toLocaleString()}</p>
+        {previewEmpty ? (
+          <div className="space-y-3" data-testid="agentops-findings-empty-compact">
+            <p className="text-sm text-white/75">No findings waiting for this agent.</p>
+            {lastRunLabel && lastRunLabel !== "Unavailable" && lastRunLabel !== "…" ? (
+              <p className="text-xs text-white/45">Latest run: {lastRunLabel}</p>
+            ) : null}
+            <p className="text-xs text-white/40" data-testid="agentops-issues-preview-only">
+              Preview only — no approve / reject / promote here.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <AixiaButton variant="secondary" onClick={onOpenLatestRun}>
+                View latest run
+              </AixiaButton>
+              <AixiaButton
+                variant="secondary"
+                onClick={() =>
+                  navigate(`/system/agent-ops/issues?agent=${encodeURIComponent(agentSlug)}`)
+                }
+                data-testid="agentops-view-all-issues"
+              >
+                Open Issues
+              </AixiaButton>
+              <AixiaButton
+                variant="secondary"
+                onClick={() => navigate("/system/agent-ops/monitoring")}
+              >
+                Open Monitoring
+              </AixiaButton>
             </div>
-          ) : null}
-          {durationLabel && durationLabel !== "Not recorded" ? (
-            <div>
-              <p className="text-white/45">Duration</p>
-              <p className="text-white/85" data-testid="agentops-run-duration">
-                {durationLabel}
-              </p>
-            </div>
-          ) : null}
-          <div>
-            <p className="text-white/45">Open draft issues</p>
-            <p className="text-white/85">{openFindingsCountLabel}</p>
-            <p className="text-xs text-white/40">{openFindingsScope}</p>
           </div>
-          <div>
-            <p className="text-white/45">Waiting for owner review</p>
-            <p className="text-white/85">{waitingApprovalLabel}</p>
-            <p className="text-xs text-white/40">{waitingApprovalScope}</p>
-          </div>
-          <div>
-            <p className="text-white/45">Verified / promoted</p>
-            <p className="text-white/85">{verifiedFixesLabel}</p>
-            <p className="text-xs text-white/40">{verifiedFixesScope}</p>
-          </div>
-          <div>
-            <p className="text-white/45">Failed runs</p>
-            <p className="text-white/85">{failedRunsLabel}</p>
-            <p className="text-xs text-white/40">{failedRunsScope}</p>
-          </div>
-        </div>
-
-        <p className="text-xs text-white/40" data-testid="agentops-issues-preview-only">
-          Preview only — open Issues to review drafts. No approve / reject / promote here.
-        </p>
-
-        <div className="flex flex-wrap gap-2">
-          <AixiaButton variant="secondary" onClick={onOpenLatestRun}>
-            View latest run
-          </AixiaButton>
-          <AixiaButton
-            variant="secondary"
-            onClick={() =>
-              navigate(`/system/agent-ops/issues?agent=${encodeURIComponent(agentSlug)}`)
-            }
-            data-testid="agentops-view-all-issues"
-          >
-            Open Issues
-          </AixiaButton>
-          <AixiaButton
-            variant="secondary"
-            onClick={() => navigate("/system/agent-ops/monitoring")}
-          >
-            Open Monitoring
-          </AixiaButton>
-        </div>
-
-        {findingsLoading ? (
-          <p className="text-sm text-white/50" role="status">
-            Loading findings…
-          </p>
-        ) : findingsUnavailable ? (
-          <AixiaInfoBlock tone="gold" title="Findings unavailable">
-            <p className="text-sm text-white/75">Findings could not be loaded for this agent.</p>
-          </AixiaInfoBlock>
-        ) : findings.length === 0 ? (
-          <AgentOpsEmptyState
-            title="No recent findings"
-            description="No active findings for this agent are in the current Active Top 10 set."
-          />
         ) : (
-          <div className="space-y-3">
-            {findings.slice(0, 5).map((finding) => {
-              const ownerStatusMapped = mapFindingOwnerStatus(finding.status);
-              return (
-                <AgentOpsFindingCard
-                  key={finding.id}
-                  type={findingTypeForIssue(finding)}
-                  title={finding.title}
-                  statusLabel={OWNER_FINDING_STATUS_LABEL[ownerStatusMapped]}
-                  route={finding.route ?? finding.module}
-                  priority={finding.severity}
-                  ageLabel={ageLabel(finding.created_at)}
-                  onOpen={() =>
-                    navigate(
-                      `/system/agent-ops/issues/${encodeURIComponent(finding.issue_code)}`,
-                    )
-                  }
-                />
-              );
-            })}
-          </div>
+          <>
+            <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <p className="text-white/45">Latest run result</p>
+                <p className="text-white/85">{lastRunLabel}</p>
+              </div>
+              {lastRunAt ? (
+                <div>
+                  <p className="text-white/45">Last run time</p>
+                  <p className="text-white/85">{new Date(lastRunAt).toLocaleString()}</p>
+                </div>
+              ) : null}
+              {durationLabel && durationLabel !== "Not recorded" ? (
+                <div>
+                  <p className="text-white/45">Duration</p>
+                  <p className="text-white/85" data-testid="agentops-run-duration">
+                    {durationLabel}
+                  </p>
+                </div>
+              ) : null}
+              <div>
+                <p className="text-white/45">Open draft issues</p>
+                <p className="text-white/85">{openFindingsCountLabel}</p>
+                <p className="text-xs text-white/40">{openFindingsScope}</p>
+              </div>
+              <div>
+                <p className="text-white/45">Waiting for owner review</p>
+                <p className="text-white/85">{waitingApprovalLabel}</p>
+                <p className="text-xs text-white/40">{waitingApprovalScope}</p>
+              </div>
+              <div>
+                <p className="text-white/45">Verified / promoted</p>
+                <p className="text-white/85">{verifiedFixesLabel}</p>
+                <p className="text-xs text-white/40">{verifiedFixesScope}</p>
+              </div>
+              <div>
+                <p className="text-white/45">Failed runs</p>
+                <p className="text-white/85">{failedRunsLabel}</p>
+                <p className="text-xs text-white/40">{failedRunsScope}</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-white/40" data-testid="agentops-issues-preview-only">
+              Preview only — open Issues to review drafts. No approve / reject / promote here.
+            </p>
+
+            <div className="flex flex-wrap gap-2">
+              <AixiaButton variant="secondary" onClick={onOpenLatestRun}>
+                View latest run
+              </AixiaButton>
+              <AixiaButton
+                variant="secondary"
+                onClick={() =>
+                  navigate(`/system/agent-ops/issues?agent=${encodeURIComponent(agentSlug)}`)
+                }
+                data-testid="agentops-view-all-issues"
+              >
+                Open Issues
+              </AixiaButton>
+              <AixiaButton
+                variant="secondary"
+                onClick={() => navigate("/system/agent-ops/monitoring")}
+              >
+                Open Monitoring
+              </AixiaButton>
+            </div>
+
+            {findingsLoading ? (
+              <p className="text-sm text-white/50" role="status">
+                Loading findings…
+              </p>
+            ) : findingsUnavailable ? (
+              <AixiaInfoBlock tone="gold" title="Findings unavailable">
+                <p className="text-sm text-white/75">Findings could not be loaded for this agent.</p>
+              </AixiaInfoBlock>
+            ) : findings.length === 0 ? (
+              <AgentOpsEmptyState
+                title="No recent findings"
+                description="No active findings for this agent are in the current Active Top 10 set."
+              />
+            ) : (
+              <div className="space-y-3">
+                {findings.slice(0, 5).map((finding) => {
+                  const ownerStatusMapped = mapFindingOwnerStatus(finding.status);
+                  return (
+                    <AgentOpsFindingCard
+                      key={finding.id}
+                      type={findingTypeForIssue(finding)}
+                      title={finding.title}
+                      statusLabel={OWNER_FINDING_STATUS_LABEL[ownerStatusMapped]}
+                      route={finding.route ?? finding.module}
+                      priority={finding.severity}
+                      ageLabel={ageLabel(finding.created_at)}
+                      onOpen={() =>
+                        navigate(
+                          `/system/agent-ops/issues/${encodeURIComponent(finding.issue_code)}`,
+                        )
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </AgentDetailPanelShell>
 
       {drawer.open ? (
         <div
-          className="fixed inset-0 z-50 flex justify-end bg-black/50 p-0 sm:p-4"
+          className="fixed inset-0 z-[110] flex justify-end bg-black/50 p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           data-testid="agentops-run-detail-drawer"

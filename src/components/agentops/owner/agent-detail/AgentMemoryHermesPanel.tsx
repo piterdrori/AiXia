@@ -544,7 +544,7 @@ export function AgentMemoryHermesPanel({
     <AgentDetailPanelShell
       title="Memory and Hermes"
       id="agent-memory-hermes"
-      description="Separates fleet Hermes transport, this agent’s Hermes connection, runtime memory, approved memory, pending drafts, shared/global memory, and diagnostic history."
+      description="What this agent remembers, and whether Hermes transport is available for the fleet vs this agent."
       testId="agentops-agent-memory-hermes-panel"
     >
       <div
@@ -552,35 +552,35 @@ export function AgentMemoryHermesPanel({
         data-testid="agentops-hermes-summary"
       >
         <SummaryCard
-          label="Fleet Hermes transport"
+          label="Fleet Hermes"
           value={fleetCardValue}
           testId="memory-summary-fleet-hermes"
         />
         <SummaryCard
-          label="Agent Hermes connection"
+          label="Agent Hermes"
           value={agentHermesCardValue}
           testId="memory-summary-agent-hermes"
         />
         <SummaryCard
-          label="Runtime memory records"
+          label="Runtime memory"
           value={
             loading
               ? "…"
               : runtimeError
                 ? "Unavailable"
-                : `${partition.counts.runtimeTotal} total · ${partition.counts.enabledRuntime} enabled`
+                : `${partition.counts.runtimeTotal} records, ${partition.counts.enabledRuntime} enabled`
           }
           testId="memory-summary-runtime"
         />
         <SummaryCard
-          label="Pending owner drafts"
+          label="Pending drafts"
           value={
             loading
               ? "…"
               : draftError
                 ? "Unavailable"
                 : pendingDrafts.length === 0
-                  ? AGENT_DETAIL_MEMORY_COPY.noPendingDrafts
+                  ? "None"
                   : String(pendingDrafts.length)
           }
           testId="memory-summary-pending"

@@ -185,7 +185,7 @@ function verifyLayoutAndCopy(): void {
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
-    "Agent Hermes connection",
+    "memory-summary-agent-hermes",
   );
   mustNotInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
@@ -205,6 +205,48 @@ function verifyLayoutAndCopy(): void {
     "Not recorded",
   );
   mustInclude("package.json", '"agentops:agent-detail-polish-verify"');
+
+  // D-E4 owner readability
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",
+    "Show global worker details",
+  );
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",
+    "agentops-owner-status-badges",
+  );
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailOwnerReadability.ts",
+    "ownerScheduleSummaryBanner",
+  );
+  mustInclude(
+    "src/components/agentops/owner/StagingWorkerQueuePanel.tsx",
+    "agentops-queue-empty-compact",
+  );
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentSchedulePanel.tsx",
+    "agentops-schedule-summary-banner",
+  );
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentResultsPanel.tsx",
+    "agentops-findings-empty-compact",
+  );
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailMemoryModel.ts",
+    "isPromptLikeRuntimeMemory",
+  );
+  mustNotInclude(
+    "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",
+    "Worker stale",
+  );
+  mustNotInclude(
+    "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",
+    "STAGING WORKER · NO GITHUB",
+  );
+  mustNotInclude(
+    "src/components/agentops/owner/agent-detail/AgentResultsPanel.tsx",
+    "Approve finding",
+  );
 }
 
 function main(): void {

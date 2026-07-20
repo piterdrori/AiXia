@@ -159,10 +159,15 @@ function verifyWiring(): void {
     "Browser QA run is running but worker heartbeat is stale.",
   );
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", 'workerPhase !== "b2-d"');
-  mustInclude("src/lib/agentops/agents/agentDetailControlCenter.ts", "Browser QA ready");
+  mustInclude("src/lib/agentops/agents/agentDetailControlCenter.ts", "browserQaReadyBadge");
+  mustInclude("src/lib/agentops/agents/agentDetailControlCenter.ts", "Audit tools ready");
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",
-    "browserQaReadyBadge",
+    "agentops-run-browser-qa-now",
+  );
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailOwnerReadability.ts",
+    "Audit tools ready",
   );
 
   mustNotInclude("api/agentops/_lib/monitoringManualRun.ts", "playwright");

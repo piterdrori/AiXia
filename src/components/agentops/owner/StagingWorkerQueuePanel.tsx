@@ -116,15 +116,68 @@ export function StagingWorkerQueuePanel({
     void load();
   }, [load, refreshKey]);
 
-  const workerLabel = capability?.workerConnected
-    ? "Worker connected"
-    : capability?.workerStatus === "stale"
-      ? "Worker stale"
+  const workerLabel =
+    capability?.workerConnected && capability?.workerStatus !== "stale"
+      ? "Worker online"
       : "Worker offline";
   const schedulerLabel = capability?.schedulerConnected
-    ? "Scheduler executable"
-    : "Scheduler not executable";
-  const enginesLabel = capability?.enginesReady ? "Engines ready" : "Engines not ready";
+    ? "Scheduler online"
+    : "Scheduler offline";
+  const enginesLabel = capability?.enginesReady
+    ? "Audit tools ready"
+    : "Audit tools unavailable";
+
+  const hasAgentWork =
+    Boolean(queue?.active) ||
+    (queue?.queued?.length ?? 0) > 0 ||
+    (queue?.running?.length ?? 0) > 0;
+
+  if (compact && scoped && !loading && !hasAgentWork) {
+    return (
+      <section
+        className="space-y-3 rounded-xl border border-white/10 bg-white/[0.02] p-4"
+        data-testid="agentops-staging-worker-queue-panel"
+        aria-labelledby="agentops-worker-queue-title"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 id="agentops-worker-queue-title" className="text-base font-semibold text-white">
+              This agent queue
+            </h2>
+            <p
+              className="mt-1 text-sm text-white/70"
+              data-testid="agentops-queue-empty-compact"
+            >
+              No active or queued work for this agent.
+            </p>
+            <p className="mt-1 text-xs text-white/45">
+              {workerLabel}
+              {!capability?.workerConnected || capability?.workerStatus === "stale"
+                ? " — queued work will start when the worker is running."
+                : "."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <AixiaButton
+              variant="secondary"
+              onClick={() => navigate("/system/agent-ops/monitoring")}
+              data-testid="agentops-queue-open-monitoring"
+            >
+              Open Monitoring
+            </AixiaButton>
+            <AixiaButton variant="secondary" onClick={() => void load()} disabled={loading}>
+              Refresh
+            </AixiaButton>
+          </div>
+        </div>
+        {error ? (
+          <p className="text-sm text-amber-200/80" role="status">
+            {error}
+          </p>
+        ) : null}
+      </section>
+    );
+  }
 
   return (
     <section
@@ -140,7 +193,7 @@ export function StagingWorkerQueuePanel({
           <p className="text-xs text-white/45">
             {compact
               ? scoped
-                ? "Compact this-agent queue — worker / scheduler / engines and relevant alerts."
+                ? "Active and queued work for this agent."
                 : "Compact staging queue."
               : "Owner-gated staging queue. No GitHub dispatch. No Playwright on Vercel."}
             {!compact && scoped ? " Metrics below are scoped to this agent." : null}
@@ -385,9 +438,9 @@ export function StagingWorkerQueuePanel({
                 <span className="text-white/40">age {ageLabel(row.ageMs)}</span>
                 <span className="text-amber-200/70">
                   {row.waitingReason ||
-                    (capability?.workerConnected
+                    (capability?.workerConnected && capability?.workerStatus !== "stale"
                       ? "Waiting for staging worker"
-                      : "Worker offline/stale")}
+                      : "Worker offline — this run will start when the worker is running")}
                 </span>
                 {(row.status === "queued" || row.status === "running") &&
                 (!agentSlug || !row.agentSlug || row.agentSlug === agentSlug) ? (

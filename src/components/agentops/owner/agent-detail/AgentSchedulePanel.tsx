@@ -2,14 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AixiaBadge, AixiaButton, AixiaInfoBlock } from "@/components/aixia";
 import { AgentDetailPanelShell } from "@/components/agentops/owner/agent-detail/AgentDetailPanelShell";
-import { AGENT_DETAIL_CC_COPY } from "@/lib/agentops/agents/agentDetailControlCenter";
 import {
   ALL_DETAIL_WORK_TYPES,
   computeNextExpectedRunAt,
-  nextRunDisplayLabel,
   normalizeDetailSchedule,
   parseDetailScheduleFromTools,
-  scheduleExecutionConnectionLabel,
   theoreticalNextDueLabel,
   validateAgentDetailSchedule,
   resolveAgentScheduleRuntimeStatus,
@@ -18,6 +15,7 @@ import {
   type AgentDetailScopeType,
   type AgentDetailWorkType,
 } from "@/lib/agentops/agents/agentDetailScheduleModel";
+import { ownerScheduleSummaryBanner } from "@/lib/agentops/agents/agentDetailOwnerReadability";
 import { mergeScheduleIntoTools } from "@/lib/agentops/agentScheduleConfig";
 import {
   fetchAgentByRouteParam,
@@ -132,15 +130,13 @@ export function AgentSchedulePanel({
     if (!config) return null;
     return nextDueAtFromScheduler || computeNextExpectedRunAt(config);
   }, [config, nextDueAtFromScheduler]);
-  const scheduleSummary = config ? nextRunDisplayLabel(config, nextAt) : "Unavailable";
   const theoreticalDue = hasQueuedScheduledRun
     ? "Next due after queued run"
     : !schedulerConnected
-      ? "Next due unknown — scheduler offline/stale"
+      ? "Next due when worker is online"
       : config
         ? theoreticalNextDueLabel(config, nextAt)
         : "Unavailable";
-  const connectionLabel = scheduleExecutionConnectionLabel(schedulerConnected);
   const runtimeStatus = config
     ? resolveAgentScheduleRuntimeStatus({
         config,
@@ -155,6 +151,24 @@ export function AgentSchedulePanel({
         lastSkippedReason,
       })
     : "Manual only";
+  const scheduleBanner = ownerScheduleSummaryBanner({
+    runtimeStatus,
+    isOwnerPaused: isPaused,
+    scheduleEnabled: Boolean(
+      config?.ownerEnabled && config.enableSchedule && config.frequencyType !== "manual",
+    ),
+    isManual: !config || !config.enableSchedule || config.frequencyType === "manual",
+    workerConnected,
+    schedulerConnected,
+    hasQueuedScheduledRun,
+  });
+  const hideSkippedReason =
+    hasQueuedScheduledRun ||
+    /Schedule disabled|Not due yet/i.test(lastSkippedReason || "");
+  const showCurrentActivity =
+    currentRunStatus &&
+    currentRunStatus !== "Idle" &&
+    !/^idle$/i.test(currentRunStatus);
 
   const patch = (partial: Partial<AgentDetailScheduleConfig>) => {
     setConfig((prev) => (prev ? normalizeDetailSchedule({ ...prev, ...partial }) : prev));
@@ -207,8 +221,8 @@ export function AgentSchedulePanel({
     setConfig(withLists);
     onScheduleChange?.(withLists, computeNextExpectedRunAt(withLists));
     const message = schedulerConnected
-      ? "Schedule preference saved. Execution connection: Saved · executable by staging worker."
-      : "Schedule preference saved. Execution connection: Saved · worker scheduler offline.";
+      ? "Schedule preference saved. It can run when the staging worker is online."
+      : "Schedule preference saved. It will run when the staging worker is online.";
     setFeedback(message);
     onScheduleSaved?.(message);
   };
@@ -264,19 +278,18 @@ export function AgentSchedulePanel({
     <AgentDetailPanelShell
       title="Schedule and work controls"
       id="agent-schedule"
-      description="Saved preference. Staging worker scheduler-tick enqueues due runs when connected. First enable with no next due enqueues once, then advances."
+      description="When and how this agent runs audits. Saved preference enqueues when the staging worker is online."
       testId="agentops-agent-schedule-panel"
     >
-      <AixiaInfoBlock tone="cyan" title="Execution connection">
-        <p className="text-sm text-white/75">{AGENT_DETAIL_CC_COPY.schedulerPending}</p>
-        <div className="mt-2">
-          <AixiaBadge tone={schedulerConnected ? "emerald" : "amber"}>{connectionLabel}</AixiaBadge>
-        </div>
-      </AixiaInfoBlock>
+      <div data-testid="agentops-schedule-summary-banner">
+        <AixiaInfoBlock tone={scheduleBanner.tone} title={scheduleBanner.title}>
+          <p className="text-sm text-white/75">{scheduleBanner.detail}</p>
+        </AixiaInfoBlock>
+      </div>
 
       <div className="grid gap-2 text-sm sm:grid-cols-2" data-testid="agentops-schedule-summary">
         <div>
-          <p className="text-white/45">Enabled / paused preference</p>
+          <p className="text-white/45">Preference</p>
           <p className="text-white/85">{preferenceLabel}</p>
         </div>
         <div>
@@ -292,42 +305,24 @@ export function AgentSchedulePanel({
           <p className="text-white/85">{SCOPE_LABELS[config.scopeType]}</p>
         </div>
         <div>
-          <p className="text-white/45">Schedule status</p>
-          <p className="text-white/85">{runtimeStatus}</p>
-        </div>
-        <div>
           <p className="text-white/45">Next due</p>
           <p className="text-white/85">{theoreticalDue}</p>
         </div>
-        <div>
-          <p className="text-white/45">Execution connection</p>
-          <p className="text-white/85">{connectionLabel}</p>
-        </div>
-        {lastSchedulerTickAt ? (
-          <div>
-            <p className="text-white/45">Last scheduler tick</p>
-            <p className="text-white/85">{new Date(lastSchedulerTickAt).toLocaleString()}</p>
-          </div>
-        ) : null}
         {lastScheduledRunId ? (
           <div>
             <p className="text-white/45">Last scheduled run</p>
             <p className="text-white/85">{lastScheduledRunId}</p>
           </div>
         ) : null}
-        {lastSkippedReason ? (
+        {!hideSkippedReason && lastSkippedReason ? (
           <div>
             <p className="text-white/45">Last skipped reason</p>
             <p className="text-white/85">{lastSkippedReason}</p>
           </div>
         ) : null}
-        <div>
-          <p className="text-white/45">Schedule configuration</p>
-          <p className="text-white/85">{scheduleSummary === "Manual only" ? "Manual" : "Saved"}</p>
-        </div>
         {lastRunAt ? (
           <div>
-            <p className="text-white/45">Last fleet run</p>
+            <p className="text-white/45">Last run</p>
             <p className="text-white/85">{new Date(lastRunAt).toLocaleString()}</p>
           </div>
         ) : null}
@@ -341,10 +336,12 @@ export function AgentSchedulePanel({
           <p className="text-white/45">Latest result</p>
           <p className="text-white/85">{lastResultLabel}</p>
         </div>
-        <div>
-          <p className="text-white/45">Current activity</p>
-          <p className="text-white/85">{currentRunStatus}</p>
-        </div>
+        {showCurrentActivity ? (
+          <div>
+            <p className="text-white/45">Current activity</p>
+            <p className="text-white/85">{currentRunStatus}</p>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap gap-2">

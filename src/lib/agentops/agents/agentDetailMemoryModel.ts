@@ -43,6 +43,9 @@ const DIAGNOSTIC_SOURCE_RE =
 const DIAGNOSTIC_TEXT_RE =
   /thread[-_]?marker|cross[-_]?agent marker|cycle scanned|scan marker|scheduled_cycle|work cycle|browser qa simulation|activation log|initializer returned|chat marker|diagnostic/i;
 
+const PROMPT_LIKE_RE =
+  /^(please |can you |could you |i need |help me |review |check |look at |audit |run |test )/i;
+
 /** Preview text from a runtime memory content payload. */
 export function runtimeMemoryPreview(
   content: AgentOpsRuntimeMemoryRow["content"],
@@ -65,9 +68,24 @@ export function runtimeMemoryPreview(
   return String(content);
 }
 
+/** Prompt-like / chat-user text — hide from owner-facing runtime list (Diagnostics). */
+export function isPromptLikeRuntimeMemory(row: AgentOpsRuntimeMemoryRow): boolean {
+  const preview = runtimeMemoryPreview(row.content).trim();
+  if (!preview) return false;
+  if (PROMPT_LIKE_RE.test(preview)) return true;
+  if (preview.length > 220 && /\?\s*$/.test(preview)) return true;
+  if (/^user[:\s]/i.test(preview) || /^human[:\s]/i.test(preview)) return true;
+  const source = String(row.source ?? "").toLowerCase();
+  if (source.includes("chat") || source.includes("prompt") || source.includes("user_message")) {
+    return true;
+  }
+  return false;
+}
+
 /** Noisy/diagnostic runtime history — keep, but do not treat as approved active memory. */
 export function isDiagnosticRuntimeMemory(row: AgentOpsRuntimeMemoryRow): boolean {
   const preview = runtimeMemoryPreview(row.content);
+  if (isPromptLikeRuntimeMemory(row)) return true;
   if (isSystemEventMemoryContent(preview)) return true;
   if (DIAGNOSTIC_TEXT_RE.test(preview)) return true;
   if (DIAGNOSTIC_SOURCE_RE.test(String(row.source ?? ""))) return true;

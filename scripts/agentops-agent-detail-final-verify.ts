@@ -210,7 +210,7 @@ function verifyMemoryCopy(): void {
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
-    "Agent Hermes connection",
+    "memory-summary-agent-hermes",
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
@@ -352,7 +352,11 @@ function verifySourceFiles(): void {
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
-    "Runtime memory records",
+    "memory-summary-runtime",
+  );
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
+    "Runtime memory",
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",

@@ -1012,6 +1012,21 @@
     background-color 300ms ease;
 }
 
+/* D-E4 — keep floating assistant clear of Agent Detail actions / drawer close */
+body:has([data-testid="agentops-agent-detail-page"]) button[aria-label="Open AI Assistant"] {
+  bottom: 5.5rem;
+  right: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  body:has([data-testid="agentops-agent-detail-page"]) button[aria-label="Open AI Assistant"] {
+    bottom: 6.25rem;
+    right: 0.85rem;
+    width: 3.25rem;
+    height: 3.25rem;
+  }
+}
+
 .aixia-floating-ai-trigger:hover {
   transform: scale(1.05);
   background: rgb(103, 232, 249);

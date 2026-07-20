@@ -1,9 +1,17 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { ArrowLeft, MoreHorizontal, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 import { AixiaBadge, AixiaButton } from "@/components/aixia";
 import { AGENT_DETAIL_CC_COPY } from "@/lib/agentops/agents/agentDetailControlCenter";
+import {
+  OWNER_SCHEDULE_BADGE,
+  OWNER_TOOLS_BADGE,
+  OWNER_WORKER_COPY,
+  ownerScheduleBadge,
+  ownerToolsBadge,
+  ownerWorkerLabel,
+} from "@/lib/agentops/agents/agentDetailOwnerReadability";
 
 type AgentControlHeaderProps = {
   displayName: string;
@@ -34,6 +42,10 @@ type AgentControlHeaderProps = {
   schedulerStatusLabel: string | null;
   nextSchedulerTickLabel: string | null;
   enginesReadyLabel: string | null;
+  /** True when agent schedule preference is enabled (not manual-only). */
+  scheduleEnabled?: boolean;
+  scheduleManualOnly?: boolean;
+  schedulerConnected?: boolean;
   runInProgress: boolean;
   activeRunId: string | null;
   currentActivityLabel: string | null;
@@ -80,6 +92,9 @@ export function AgentControlHeader({
   schedulerStatusLabel,
   nextSchedulerTickLabel,
   enginesReadyLabel,
+  scheduleEnabled = false,
+  scheduleManualOnly = true,
+  schedulerConnected = false,
   runInProgress,
   activeRunId,
   currentActivityLabel,
@@ -108,6 +123,19 @@ export function AgentControlHeader({
     setMenuOpen(false);
   };
 
+  const workerOnline =
+    workerConnected && !/offline|stale/i.test(workerStatusLabel || "");
+  const displayWorker = ownerWorkerLabel({
+    workerConnected: workerOnline,
+    workerStatus: workerOnline ? "connected" : "offline",
+  });
+  const scheduleBadge = ownerScheduleBadge({
+    scheduleEnabled,
+    schedulerConnected,
+    isManual: scheduleManualOnly,
+  });
+  const toolsBadge = ownerToolsBadge({ auditAvailable, browserQaAvailable });
+
   return (
     <header className="space-y-4" data-testid="agentops-agent-control-header">
       <div className="flex flex-wrap items-center gap-3">
@@ -122,33 +150,29 @@ export function AgentControlHeader({
       </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 space-y-1">
+        <div className="min-w-0 max-w-3xl space-y-1">
           <h1 className="text-2xl font-semibold text-white">{displayName}</h1>
           <p className="text-sm text-white/60">
             {username} · {jobTitle}
           </p>
-          <p className="max-w-3xl text-sm text-white/80">{responsibility}</p>
+          <p className="text-sm text-white/80">{responsibility}</p>
           <p className="text-sm text-white/70" data-testid="agentops-owner-work-status">
-            Owner work status: {ownerStatusLabel}
+            Owner status: {isPaused ? "Paused" : ownerStatusLabel}
           </p>
-          <p className="max-w-3xl text-xs text-white/45">{AGENT_DETAIL_CC_COPY.ownerStatusHelper}</p>
           <p
             className="text-sm text-white/70"
             data-testid="agentops-execution-worker-status"
+            title={
+              workerOnline
+                ? undefined
+                : OWNER_WORKER_COPY.offlineDetail
+            }
           >
-            {AGENT_DETAIL_CC_COPY.executionWorkerLabel}: {workerStatusLabel}
+            {AGENT_DETAIL_CC_COPY.executionWorkerLabel}: {displayWorker}
           </p>
-          {schedulerStatusLabel ? (
-            <p className="text-xs text-white/45" data-testid="agentops-scheduler-status">
-              {schedulerStatusLabel}
-            </p>
-          ) : null}
-          {enginesReadyLabel ? (
-            <p className="text-xs text-white/45" data-testid="agentops-engines-ready">
-              {enginesReadyLabel}
-            </p>
-          ) : null}
-          {currentActivityLabel ? (
+          {currentActivityLabel &&
+          currentActivityLabel !== "Idle" &&
+          !/^idle$/i.test(currentActivityLabel) ? (
             <p className="text-sm text-cyan-200/90" data-testid="agentops-manual-run-activity">
               Current activity: {currentActivityLabel}
               {runInProgress && currentActivityLabel !== "Queued for staging worker" ? "…" : ""}
@@ -156,8 +180,7 @@ export function AgentControlHeader({
           ) : null}
           {cancelRequested ? (
             <p className="text-sm text-amber-200/85" data-testid="agentops-cancel-requested">
-              Cancel requested. The worker will stop at the next safe checkpoint. Current browser step
-              may finish first.
+              Cancel requested. The worker will stop at the next safe checkpoint.
             </p>
           ) : null}
           <details
@@ -165,9 +188,22 @@ export function AgentControlHeader({
             data-testid="agentops-global-worker-details"
           >
             <summary className="cursor-pointer text-xs text-white/55">
-              Global staging worker details (fleet-wide — not this agent only)
+              Show global worker details
             </summary>
             <div className="mt-2 space-y-1">
+              <p className="text-xs text-white/40">
+                Fleet-wide diagnostics — not specific to this agent.
+              </p>
+              {schedulerStatusLabel ? (
+                <p className="text-xs text-white/45" data-testid="agentops-scheduler-status">
+                  {schedulerStatusLabel}
+                </p>
+              ) : null}
+              {enginesReadyLabel ? (
+                <p className="text-xs text-white/45" data-testid="agentops-engines-ready">
+                  {enginesReadyLabel}
+                </p>
+              ) : null}
               {workerHeartbeatLabel ? (
                 <p className="text-xs text-white/45" data-testid="agentops-worker-heartbeat">
                   Last heartbeat: {workerHeartbeatLabel}
@@ -207,7 +243,7 @@ export function AgentControlHeader({
               {nextSchedulerTickLabel ? (
                 <p className="text-xs text-white/45" data-testid="agentops-next-scheduler-tick">
                   {nextSchedulerTickLabel.startsWith("Next tick unknown")
-                    ? nextSchedulerTickLabel
+                    ? "Next tick unknown — scheduler offline"
                     : `Next scheduler tick (est.): ${nextSchedulerTickLabel}`}
                 </p>
               ) : null}
@@ -337,7 +373,7 @@ export function AgentControlHeader({
                     navigate(`/system/agent-ops/issues?agent=${encodeURIComponent(agentSlug)}`);
                   }}
                 >
-                  View all findings
+                  Open Issues
                 </button>
                 <button
                   type="button"
@@ -347,7 +383,9 @@ export function AgentControlHeader({
                   onClick={() => {
                     if (!runtimeAgentId) return;
                     setMenuOpen(false);
-                    navigate(`/system/agent-ops/agents/runtime?agent=${encodeURIComponent(runtimeAgentId)}`);
+                    navigate(
+                      `/system/agent-ops/agents/runtime?agent=${encodeURIComponent(runtimeAgentId)}`,
+                    );
                   }}
                 >
                   View runtime record
@@ -366,20 +404,37 @@ export function AgentControlHeader({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 text-xs text-white/50">
-        <AixiaBadge tone={workerConnected ? "emerald" : "neutral"}>
-          {AGENT_DETAIL_CC_COPY.stagingQueueBadge}
-        </AixiaBadge>
-        <AixiaBadge tone={auditAvailable ? "emerald" : "neutral"}>
-          {auditAvailable
-            ? AGENT_DETAIL_CC_COPY.websiteAuditReadyBadge
-            : `Run audit: ${auditDisabledReason ?? AGENT_DETAIL_CC_COPY.runAuditNotConnected}`}
-        </AixiaBadge>
-        <AixiaBadge tone={browserQaAvailable ? "emerald" : "neutral"}>
-          {browserQaAvailable
-            ? AGENT_DETAIL_CC_COPY.browserQaReadyBadge
-            : AGENT_DETAIL_CC_COPY.browserQaPendingBadge}
-        </AixiaBadge>
+      <div
+        className="flex flex-wrap gap-2 text-xs"
+        data-testid="agentops-owner-status-badges"
+      >
+        <span
+          title={
+            workerOnline
+              ? "Staging worker is running"
+              : OWNER_WORKER_COPY.offlineDetail
+          }
+        >
+          <AixiaBadge tone={workerOnline ? "emerald" : "neutral"}>{displayWorker}</AixiaBadge>
+        </span>
+        <span title={schedulerStatusLabel ?? undefined}>
+          <AixiaBadge
+            tone={scheduleBadge === OWNER_SCHEDULE_BADGE.executable ? "emerald" : "neutral"}
+          >
+            {scheduleBadge}
+          </AixiaBadge>
+        </span>
+        <span
+          title={
+            toolsBadge === OWNER_TOOLS_BADGE.ready
+              ? undefined
+              : auditDisabledReason || browserQaDisabledReason || OWNER_TOOLS_BADGE.unavailable
+          }
+        >
+          <AixiaBadge tone={toolsBadge === OWNER_TOOLS_BADGE.ready ? "emerald" : "neutral"}>
+            {toolsBadge}
+          </AixiaBadge>
+        </span>
       </div>
     </header>
   );

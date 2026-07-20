@@ -147,14 +147,14 @@ function main(): void {
   );
 
   const scheduleStrip = buildScheduleStripLabel({ configured: true, manualOnly: false });
-  assert(scheduleStrip.label === "Saved · worker scheduler offline", "strip schedule honesty offline");
+  assert(scheduleStrip.label === "Scheduler offline", "strip schedule honesty offline");
   const scheduleStripOnline = buildScheduleStripLabel({
     configured: true,
     manualOnly: false,
     schedulerConnected: true,
   });
   assert(
-    scheduleStripOnline.label === "Saved · executable by staging worker",
+    scheduleStripOnline.label === "Schedule executable",
     "strip schedule honesty online",
   );
 
@@ -173,7 +173,7 @@ function main(): void {
   });
   assert(strip.agentStatus === "Paused", "owner paused on strip");
   assert(strip.hermes === "Fleet available", "fleet hermes on strip");
-  assert(strip.scheduleLabel === "Saved · worker scheduler offline", "schedule strip");
+  assert(strip.scheduleLabel === "Scheduler offline", "schedule strip");
   assert(mapOwnerFacingToStripStatus("Unknown", "not_run") === "Unknown", "unknown strip");
 
   const page = read("src/app/system/agent-ops/agents/[agentId]/page.tsx");
@@ -193,7 +193,12 @@ function main(): void {
   const schedule = read("src/components/agentops/owner/agent-detail/AgentSchedulePanel.tsx");
   assert(schedule.includes("Edit schedule"), "schedule progressive disclosure");
   assert(schedule.includes("Next due"), "next due label");
-  assert(schedule.includes("worker scheduler offline") || schedule.includes("executable by staging worker"), "execution connection honesty");
+  assert(
+    schedule.includes("agentops-schedule-summary-banner") ||
+      schedule.includes("will run when the staging worker is online") ||
+      schedule.includes("Schedule ready"),
+    "execution connection honesty",
+  );
 
   const stripUi = read("src/components/agentops/owner/agent-detail/AgentStatusStrip.tsx");
   assert(stripUi.includes("Owner status"), "owner status cell");

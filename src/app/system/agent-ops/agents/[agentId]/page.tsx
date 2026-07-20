@@ -972,7 +972,7 @@ export default function AgentOpsAgentDetailPage() {
 
   return (
     <AgentOpsOwnerPageShell loading={gateLoading} error={gateError} onRetry={refreshAll}>
-      <div className="space-y-6" data-testid="agentops-agent-detail-page">
+      <div className="space-y-6 pb-28 sm:pb-24" data-testid="agentops-agent-detail-page">
         {loading ? (
           <p className="text-sm text-white/50" role="status">
             Loading agent details…
@@ -1008,6 +1008,17 @@ export default function AgentOpsAgentDetailPage() {
           schedulerStatusLabel={schedulerStatusLabel}
           nextSchedulerTickLabel={nextSchedulerTickLabel}
           enginesReadyLabel={enginesReadyLabel}
+          scheduleEnabled={Boolean(
+            scheduleConfig?.ownerEnabled &&
+              scheduleConfig.enableSchedule &&
+              scheduleConfig.frequencyType !== "manual",
+          )}
+          scheduleManualOnly={
+            !scheduleConfig ||
+            !scheduleConfig.enableSchedule ||
+            scheduleConfig.frequencyType === "manual"
+          }
+          schedulerConnected={Boolean(manualCapability?.schedulerConnected)}
           runInProgress={runInProgress}
           activeRunId={activeManualRunId}
           currentActivityLabel={manualActivityLabel}

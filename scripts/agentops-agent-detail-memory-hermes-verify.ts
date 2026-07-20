@@ -226,10 +226,13 @@ function verifyStripLabels(): void {
 
 function verifySourceFiles(): void {
   const panel = "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx";
-  mustInclude(panel, "Fleet Hermes transport");
-  mustInclude(panel, "Agent Hermes connection");
-  mustInclude(panel, "Runtime memory records");
-  mustInclude(panel, "Pending owner drafts");
+  mustInclude(panel, "Fleet Hermes");
+  mustInclude(panel, "memory-summary-fleet-hermes");
+  mustInclude(panel, "memory-summary-agent-hermes");
+  mustInclude(panel, "Agent Hermes");
+  mustInclude(panel, "memory-summary-runtime");
+  mustInclude(panel, "Runtime memory");
+  mustInclude(panel, "Pending drafts");
   mustInclude(panel, "AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner");
   mustInclude(
     "src/lib/agentops/agents/agentDetailMemoryModel.ts",

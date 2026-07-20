@@ -14,28 +14,29 @@ import type { OwnerFacingAgentStatus } from "@/lib/agentops/agents/agentRuntimeI
 import { mapMemoryPartitionToStripStatus } from "@/lib/agentops/agents/agentDetailMemoryModel";
 
 export const AGENT_DETAIL_CC_COPY = {
-  runAuditNotConnected: "Staging worker not connected.",
-  runBrowserQaNotConnected: "Staging worker not connected.",
-  runAuditEnginePending: "Website audit engine not connected yet.",
-  runBrowserQaEnginePending: "Browser QA engine not connected.",
-  runAuditConnected: "Website audit ready",
-  runBrowserQaConnected: "Browser QA ready",
+  runAuditNotConnected: "Staging worker offline.",
+  runBrowserQaNotConnected: "Staging worker offline.",
+  runAuditEnginePending: "Audit tools unavailable until worker is running.",
+  runBrowserQaEnginePending: "Audit tools unavailable until worker is running.",
+  runAuditConnected: "Audit tools ready",
+  runBrowserQaConnected: "Audit tools ready",
   workerOffline: "Worker offline",
-  workerOnline: "Worker connected",
-  workerStale: "Worker stale",
-  schedulerExecutable: "Scheduler executable",
-  schedulerNotExecutable: "Scheduler not executable",
-  enginesReady: "Engines ready",
-  enginesNotReady: "Engines not ready",
-  executionWorkerLabel: "Execution worker",
-  stagingQueueBadge: "Staging worker · No GitHub dependency",
-  websiteAuditReadyBadge: "Website audit ready",
-  browserQaReadyBadge: "Browser QA ready",
-  browserQaPendingBadge: "Browser QA not ready",
+  workerOnline: "Worker online",
+  /** Owner copy — stale is presented as offline, not a broken page. */
+  workerStale: "Worker offline",
+  schedulerExecutable: "Schedule executable",
+  schedulerNotExecutable: "Scheduler offline",
+  enginesReady: "Audit tools ready",
+  enginesNotReady: "Audit tools unavailable until worker is running",
+  executionWorkerLabel: "Staging worker",
+  stagingQueueBadge: "Worker online",
+  websiteAuditReadyBadge: "Audit tools ready",
+  browserQaReadyBadge: "Audit tools ready",
+  browserQaPendingBadge: "Audit tools unavailable",
   schedulerPending:
-    "This time is calculated from the saved preference. Staging worker scheduler-tick enqueues due runs when connected.",
-  scheduleExecutionNotConnected: "Saved · worker scheduler offline",
-  scheduleExecutionConnected: "Saved · executable by staging worker",
+    "Saved schedule preference. Runs enqueue when the staging worker is online.",
+  scheduleExecutionNotConnected: "Schedule saved · worker offline",
+  scheduleExecutionConnected: "Schedule saved · can run when due",
   hermesNotYetMeasurable: "Not measurable",
   hermesFleetAvailable:
     "Hermes transport is available. This agent does not yet have a dedicated connection record.",
@@ -45,7 +46,7 @@ export const AGENT_DETAIL_CC_COPY = {
   fileMemoryPending:
     "File memory uses secure storage plus a pending memory record. Owner approval is required before permanent Hermes use.",
   ownerStatusHelper:
-    "This controls the owner-facing agent state. It does not yet exclude the agent from fleet monitoring runs.",
+    "Owner work status for this agent. Fleet monitoring may still include this agent until paused/excluded separately.",
 } as const;
 
 export type StripAgentStatus = "Active" | "Paused" | "Blocked" | "Error" | "Unknown";
@@ -206,13 +207,13 @@ export function buildScheduleStripLabel(input: {
   }
   if (input.schedulerConnected) {
     return {
-      label: "Saved · executable by staging worker",
+      label: "Schedule executable",
       detail: AGENT_DETAIL_CC_COPY.schedulerPending,
     };
   }
   return {
-    label: "Saved · worker scheduler offline",
-    detail: AGENT_DETAIL_CC_COPY.schedulerPending,
+    label: "Scheduler offline",
+    detail: "Schedule saved. It will run when the staging worker is online.",
   };
 }
 

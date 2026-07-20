@@ -255,7 +255,7 @@ export function AgentSchedulePanel({
     <AgentDetailPanelShell
       title="Schedule and work controls"
       id="agent-schedule"
-      description="Saved preference. Staging worker scheduler-tick enqueues due runs when connected."
+      description="Saved preference. Staging worker scheduler-tick enqueues due runs when connected. First enable with no next due enqueues once, then advances."
       testId="agentops-agent-schedule-panel"
     >
       <AixiaInfoBlock tone="cyan" title="Execution connection">

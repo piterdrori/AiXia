@@ -1,12 +1,28 @@
 /**
- * Fix C-A — pure helpers for staging worker scheduler tick.
- * Queue-only: never runs Playwright / audit / Browser QA engines.
+ * Fix C-B — staging worker scheduler helpers (queue-only).
+ * Never runs Playwright / audit / Browser QA engines.
  */
 
-export const SCHEDULER_VERSION = "fix-c-a";
+export const SCHEDULER_VERSION = "fix-c-b";
 export const SCHEDULER_MODE = "staging_worker_scheduler";
 export const SCHEDULER_FRESH_MS = 15 * 60 * 1000;
-export const QUEUE_VERSION = "fix-c-a";
+export const QUEUE_VERSION = "fix-c-b";
+
+/**
+ * First-due policy (Fix C-B):
+ * If schedule is enabled/non-manual and agent state has no nextDueAt,
+ * the next scheduler tick may enqueue once (bootstrap). After enqueue
+ * (or active-run skip), nextDueAt always advances. Manual/disabled never enqueue.
+ */
+export const FIRST_DUE_POLICY = "enqueue_once_on_first_tick_then_advance";
+
+/**
+ * Timezone policy:
+ * Interval cadences use absolute UTC ms offsets (timezone-independent).
+ * days_and_time uses Intl IANA timezone when schedule.timezone is a valid IANA id;
+ * invalid timezone falls back to UTC with timezoneMode "utc_fallback".
+ */
+export const TIMEZONE_POLICY = "intl_iana_days_and_time_utc_intervals";
 
 export const SKIP_AGENT_PAUSED = "Agent paused";
 export const SKIP_EXISTING_RUN = "Existing active or queued run";
@@ -15,6 +31,7 @@ export const SKIP_ENGINE_UNAVAILABLE = "Engine not connected";
 export const SKIP_NOT_DUE = "Not due yet";
 export const SKIP_SCHEDULE_DISABLED = "Schedule disabled";
 export const SKIP_UNSUPPORTED_WORK = "Work type not supported by staging scheduler";
+export const SKIP_UNSUPPORTED_SCOPE = "Scope not supported by staging scheduler yet.";
 export const SKIP_NOT_CANONICAL = "Agent is not canonical";
 
 export const CANONICAL_AGENT_SLUGS = [
@@ -33,6 +50,22 @@ export const CANONICAL_AGENT_SLUGS = [
 ];
 
 export const EXECUTABLE_WORK_TYPES = ["website_audit", "browser_qa"];
+
+/** Staging path prefixes allowlisted for scheduled routes. */
+export const ALLOWED_ROUTE_PREFIXES = [
+  "/system/agent-ops",
+  "/system/",
+  "/finance/",
+  "/hub",
+  "/login",
+];
+
+export const BLOCKED_HOST_SNIPPETS = [
+  "ai-xia.vercel.app",
+  "aixia.com",
+  "localhost:3000",
+  "127.0.0.1",
+];
 
 export function isCanonicalAgentSlug(slug) {
   return CANONICAL_AGENT_SLUGS.includes(slug);
@@ -127,6 +160,62 @@ export function intervalMinutesFromSchedule(schedule) {
   return 60;
 }
 
+export function isValidIanaTimeZone(timeZone) {
+  if (!timeZone || typeof timeZone !== "string") return false;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function resolveScheduleTimeZone(schedule) {
+  const raw = typeof schedule?.timezone === "string" ? schedule.timezone.trim() : "UTC";
+  if (isValidIanaTimeZone(raw)) {
+    return { timeZone: raw, mode: "iana" };
+  }
+  return { timeZone: "UTC", mode: "utc_fallback" };
+}
+
+const WEEKDAY_MAP = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+export function zonedParts(date, timeZone) {
+  const resolved = isValidIanaTimeZone(timeZone) ? timeZone : "UTC";
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone: resolved,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+    weekday: "short",
+  });
+  const parts = Object.fromEntries(
+    dtf.formatToParts(date).filter((p) => p.type !== "literal").map((p) => [p.type, p.value]),
+  );
+  return {
+    timeZone: resolved,
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: Number(parts.hour === "24" ? "0" : parts.hour),
+    minute: Number(parts.minute),
+    second: Number(parts.second),
+    weekday: WEEKDAY_MAP[parts.weekday] ?? date.getUTCDay(),
+  };
+}
+
 /**
  * Compute next due after `from` (exclusive). Returns ISO string or null.
  */
@@ -151,12 +240,14 @@ export function computeNextDueAt(schedule, from = new Date()) {
     if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
     const days = [...(schedule.daysOfWeek || [])].sort((a, b) => a - b);
     if (days.length === 0) return null;
-    for (let offset = 0; offset < 14; offset += 1) {
-      const candidate = new Date(from);
-      candidate.setDate(from.getDate() + offset);
-      candidate.setHours(hh, mm, 0, 0);
-      if (candidate.getTime() <= from.getTime()) continue;
-      if (days.includes(candidate.getDay())) {
+    const { timeZone } = resolveScheduleTimeZone(schedule);
+    // Scan 1-minute steps for up to 14 days in the target IANA timezone.
+    const start = from.getTime() + 60_000;
+    for (let step = 0; step < 14 * 24 * 60; step += 1) {
+      const candidate = new Date(start + step * 60_000);
+      const z = zonedParts(candidate, timeZone);
+      if (!days.includes(z.weekday)) continue;
+      if (z.hour === hh && z.minute === mm) {
         return candidate.toISOString();
       }
     }
@@ -173,7 +264,13 @@ export function isScheduleDue(schedule, agentState, now = new Date()) {
     !schedule.enableSchedule ||
     schedule.frequencyType === "manual"
   ) {
-    return { due: false, reason: SKIP_SCHEDULE_DISABLED, dueAt: null, nextDueAt: null };
+    return {
+      due: false,
+      reason: SKIP_SCHEDULE_DISABLED,
+      dueAt: null,
+      nextDueAt: null,
+      firstDue: false,
+    };
   }
   if (
     schedule.frequencyType !== "every_hours" &&
@@ -181,7 +278,13 @@ export function isScheduleDue(schedule, agentState, now = new Date()) {
     schedule.frequencyType !== "every_weeks" &&
     schedule.frequencyType !== "days_and_time"
   ) {
-    return { due: false, reason: SKIP_SCHEDULE_DISABLED, dueAt: null, nextDueAt: null };
+    return {
+      due: false,
+      reason: SKIP_SCHEDULE_DISABLED,
+      dueAt: null,
+      nextDueAt: null,
+      firstDue: false,
+    };
   }
 
   const nowMs = now.getTime();
@@ -194,59 +297,156 @@ export function isScheduleDue(schedule, agentState, now = new Date()) {
     if (storedNext <= nowMs) {
       const dueAt = new Date(storedNext).toISOString();
       const nextDueAt = computeNextDueAt(schedule, now);
-      return { due: true, reason: null, dueAt, nextDueAt };
+      return { due: true, reason: null, dueAt, nextDueAt, firstDue: false };
     }
     return {
       due: false,
       reason: SKIP_NOT_DUE,
       dueAt: null,
       nextDueAt: new Date(storedNext).toISOString(),
+      firstDue: false,
     };
   }
 
-  // First tick after enable: due immediately, then advance.
+  // First-due policy: enqueue once on first tick after enable, then advance.
   const dueAt = now.toISOString();
   const nextDueAt = computeNextDueAt(schedule, now);
-  return { due: true, reason: null, dueAt, nextDueAt };
+  return { due: true, reason: null, dueAt, nextDueAt, firstDue: true };
 }
 
-export function dueWindowKey(dueAtIso, workType) {
+export function dueWindowKey(dueAtIso) {
   const ts = Date.parse(dueAtIso);
-  if (!Number.isFinite(ts)) return `invalid-${workType}`;
-  // Hour bucket avoids duplicate enqueue within the same due hour.
+  if (!Number.isFinite(ts)) return "invalid";
   const hour = new Date(ts);
-  hour.setMinutes(0, 0, 0);
+  hour.setUTCMinutes(0, 0, 0);
   return `${hour.toISOString()}`;
 }
 
 export function buildIdempotencyKey(agentSlug, workType, dueAtIso) {
-  return `scheduled-${agentSlug}-${workType}-${dueWindowKey(dueAtIso, workType)}`;
+  return `scheduled-${agentSlug}-${workType}-${dueWindowKey(dueAtIso)}`;
 }
 
-export function resolveScheduledRoutes(schedule, agentSlug) {
-  if (
-    schedule.scopeType === "selected_routes" &&
-    Array.isArray(schedule.selectedRoutes) &&
-    schedule.selectedRoutes.length > 0
-  ) {
-    return schedule.selectedRoutes
-      .filter((r) => typeof r === "string" && r.trim())
-      .map((r) => (r.startsWith("/") ? r : `/${r}`))
-      .slice(0, 3);
+export function defaultAgentDetailRoute(agentSlug) {
+  return `/system/agent-ops/agents/${agentSlug}`;
+}
+
+/**
+ * Normalize a route candidate to a staging-relative path, or null if rejected.
+ */
+export function normalizeStagingRoute(raw, agentSlug) {
+  if (typeof raw !== "string") return null;
+  let value = raw.trim();
+  if (!value) return null;
+  if (/^[a-z]+:/i.test(value) || value.includes("://") || value.startsWith("//")) {
+    const lower = value.toLowerCase();
+    if (BLOCKED_HOST_SNIPPETS.some((host) => lower.includes(host))) return null;
+    if (lower.includes("ai-xia-staging.vercel.app")) {
+      try {
+        const url = new URL(value.startsWith("//") ? `https:${value}` : value);
+        value = url.pathname || "/";
+      } catch {
+        return null;
+      }
+    } else {
+      return null;
+    }
   }
-  // Conservative default for C-A: one Agent Detail route (never entire_staging expansion).
-  return [`/system/agent-ops/agents/${agentSlug}`];
+  if (!value.startsWith("/")) value = `/${value}`;
+  if (value.includes("..")) return null;
+  if (value.length > 200) return null;
+  const allowed =
+    ALLOWED_ROUTE_PREFIXES.some((prefix) => value === prefix || value.startsWith(prefix)) ||
+    value === defaultAgentDetailRoute(agentSlug);
+  if (!allowed) return null;
+  return value;
+}
+
+/**
+ * Resolve scheduled scope with honest unsupported skips.
+ * @returns {{ ok: boolean, reason: string|null, routes: string[], modules: string[], scopeType: string, mapping: string }}
+ */
+export function resolveScheduledScopeResult(schedule, agentSlug) {
+  const scopeType = schedule.scopeType || "assigned_modules";
+
+  if (scopeType === "entire_staging") {
+    return {
+      ok: false,
+      reason: SKIP_UNSUPPORTED_SCOPE,
+      routes: [],
+      modules: [],
+      scopeType,
+      mapping: "rejected_entire_staging",
+    };
+  }
+
+  if (scopeType === "selected_routes") {
+    const routes = [];
+    for (const raw of schedule.selectedRoutes || []) {
+      const normalized = normalizeStagingRoute(raw, agentSlug);
+      if (normalized && !routes.includes(normalized)) routes.push(normalized);
+      if (routes.length >= 3) break;
+    }
+    if (routes.length === 0) {
+      return {
+        ok: false,
+        reason: SKIP_UNSUPPORTED_SCOPE,
+        routes: [],
+        modules: [],
+        scopeType,
+        mapping: "selected_routes_empty_or_rejected",
+      };
+    }
+    return {
+      ok: true,
+      reason: null,
+      routes,
+      modules: [],
+      scopeType: "selected_routes",
+      mapping: "selected_routes",
+    };
+  }
+
+  // assigned_modules / selected_modules: conservative map to Agent Detail route only.
+  if (scopeType === "assigned_modules" || scopeType === "selected_modules") {
+    return {
+      ok: true,
+      reason: null,
+      routes: [defaultAgentDetailRoute(agentSlug)],
+      modules:
+        scopeType === "selected_modules" && Array.isArray(schedule.selectedModules)
+          ? schedule.selectedModules.slice(0, 20)
+          : [],
+      scopeType: "selected_routes",
+      mapping: "modules_to_agent_detail_route",
+    };
+  }
+
+  return {
+    ok: false,
+    reason: SKIP_UNSUPPORTED_SCOPE,
+    routes: [],
+    modules: [],
+    scopeType,
+    mapping: "unknown_scope",
+  };
+}
+
+/** @deprecated use resolveScheduledScopeResult — kept for callers that expect routes array */
+export function resolveScheduledRoutes(schedule, agentSlug) {
+  const result = resolveScheduledScopeResult(schedule, agentSlug);
+  if (!result.ok) return [defaultAgentDetailRoute(agentSlug)];
+  return result.routes;
 }
 
 export function resolveScheduledScope(schedule, agentSlug) {
-  const routes = resolveScheduledRoutes(schedule, agentSlug);
+  const result = resolveScheduledScopeResult(schedule, agentSlug);
   return {
-    type: "selected_routes",
-    routes,
-    modules:
-      schedule.scopeType === "selected_modules" && Array.isArray(schedule.selectedModules)
-        ? schedule.selectedModules.slice(0, 20)
-        : [],
+    type: result.ok ? "selected_routes" : result.scopeType,
+    routes: result.routes,
+    modules: result.modules,
+    mapping: result.mapping,
+    unsupported: !result.ok,
+    reason: result.reason,
   };
 }
 
@@ -270,6 +470,10 @@ export function buildScheduledRunSummary(input) {
     scheduleTickId: input.scheduleTickId,
     ownerStatusAtQueue: input.ownerStatusAtQueue,
     engineAvailabilityAtQueue: input.engineAvailabilityAtQueue,
+    firstDue: Boolean(input.firstDue),
+    firstDuePolicy: FIRST_DUE_POLICY,
+    timezonePolicy: TIMEZONE_POLICY,
+    scopeMapping: input.scopeMapping || null,
     autoPromoteBlocked: true,
     autoFixBlocked: true,
     autoMemoryApplyBlocked: true,
@@ -318,10 +522,40 @@ export function resolveCanonicalSlugFromAgent(agent) {
       return tool.slice("canonical:".length);
     }
   }
-  if (typeof agent?.name === "string") {
-    const normalized = agent.name.trim().toLowerCase().replace(/\s+/g, "-");
-    if (isCanonicalAgentSlug(normalized)) return normalized;
-    if (normalized.endsWith("-agent") && isCanonicalAgentSlug(normalized)) return normalized;
+  return null;
+}
+
+/**
+ * Detect stale scheduled/manual worker runs (report-only helper).
+ * Running with lockExpiresAt in the past, or queued older than maxQueuedAgeMs.
+ */
+export function classifyStaleMonitoringRun(row, nowMs = Date.now(), maxQueuedAgeMs = 6 * 60 * 60 * 1000) {
+  if (!row || typeof row !== "object") return null;
+  const summary = row.summary && typeof row.summary === "object" ? row.summary : {};
+  const status = row.status;
+  if (status === "running") {
+    const lock = typeof summary.lockExpiresAt === "string" ? Date.parse(summary.lockExpiresAt) : NaN;
+    if (Number.isFinite(lock) && lock < nowMs) {
+      return {
+        runId: row.run_id,
+        reason: "lock_expired",
+        agentSlug: summary.agentSlug || null,
+        status,
+        lockExpiresAt: summary.lockExpiresAt,
+      };
+    }
+  }
+  if (status === "queued") {
+    const created = Date.parse(row.created_at || row.started_at || "");
+    if (Number.isFinite(created) && nowMs - created > maxQueuedAgeMs) {
+      return {
+        runId: row.run_id,
+        reason: "queued_too_long",
+        agentSlug: summary.agentSlug || null,
+        status,
+        ageMs: nowMs - created,
+      };
+    }
   }
   return null;
 }

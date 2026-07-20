@@ -3,7 +3,7 @@
  * Used by worker CLI + verify scripts (no Supabase imports).
  */
 
-export const WORKER_VERSION = "c-a";
+export const WORKER_VERSION = "c-b";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
 export const LOCK_TTL_MS = 5 * 60 * 1000;

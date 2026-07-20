@@ -1,5 +1,5 @@
 /**
- * Fix C-A — staging worker scheduler tick (queue due runs only).
+ * Fix C-B — staging worker scheduler tick (queue due runs only).
  * Invoked by: node scripts/agentops-staging-manual-run-worker.mjs scheduler-tick
  */
 import { randomUUID } from "node:crypto";
@@ -7,27 +7,28 @@ import { randomUUID } from "node:crypto";
 import {
   buildIdempotencyKey,
   buildScheduledRunSummary,
+  classifyStaleMonitoringRun,
   computeNextDueAt,
   expandExecutableWorkTypes,
+  FIRST_DUE_POLICY,
   isCanonicalAgentSlug,
   isScheduleDue,
   normalizeSchedulerHealth,
   parseScheduleFromTools,
   resolveCanonicalSlugFromAgent,
-  resolveScheduledRoutes,
-  resolveScheduledScope,
+  resolveScheduledScopeResult,
   SCHEDULER_MODE,
   SCHEDULER_VERSION,
   SKIP_AGENT_PAUSED,
   SKIP_ENGINE_UNAVAILABLE,
   SKIP_EXISTING_RUN,
-  SKIP_NOT_CANONICAL,
   SKIP_SCHEDULE_DISABLED,
+  SKIP_UNSUPPORTED_SCOPE,
   SKIP_UNSUPPORTED_WORK,
   SKIP_WORKER_OFFLINE,
+  TIMEZONE_POLICY,
 } from "./lib/agentops-manual-run-scheduler-core.mjs";
 import {
-  isClaimableQueuedSummary,
   mergeWorkerHealthIntoTools,
   parseWorkerHealth,
   WORKER_VERSION,
@@ -171,7 +172,8 @@ function engineAvailableForWork(health, workType) {
   return false;
 }
 
-export async function runSchedulerTick(client, workerId, envConfig) {
+export async function runSchedulerTick(client, workerId, envConfig, options = {}) {
+  const dryRun = Boolean(options.dryRun);
   const tickId = `sched-${randomUUID().slice(0, 8)}`;
   const now = new Date();
   const nowIso = now.toISOString();
@@ -180,20 +182,22 @@ export async function runSchedulerTick(client, workerId, envConfig) {
     "",
   );
 
-  // Task 9: heartbeat first — scheduler-tick runs on the staging worker host.
-  await writeSchedulerHealth(
-    client,
-    workerId,
-    {
-      lastTickAt: nowIso,
-      lastTickId: tickId,
-      lastDueCount: 0,
-      lastEnqueuedCount: 0,
-      lastSkippedCount: 0,
-      lastError: null,
-    },
-    { queueLength: 0, lastError: null },
-  );
+  // Heartbeat first (light) — preserve engine connectivity; never execute engines here.
+  if (!dryRun) {
+    await writeSchedulerHealth(
+      client,
+      workerId,
+      {
+        lastTickAt: nowIso,
+        lastTickId: tickId,
+        lastDueCount: 0,
+        lastEnqueuedCount: 0,
+        lastSkippedCount: 0,
+        lastError: null,
+      },
+      { queueLength: 0, lastError: null },
+    );
+  }
 
   const configRow = await loadConfigRow(client);
   const workerHealth = parseWorkerHealth(configRow?.tools_enabled);
@@ -210,22 +214,36 @@ export async function runSchedulerTick(client, workerId, envConfig) {
 
   if (!workerHealth || !workerHealth.connected) {
     skipped.push({ agentSlug: "*", reason: SKIP_WORKER_OFFLINE });
-    const scheduler = await writeSchedulerHealth(
-      client,
-      workerId,
-      {
-        lastTickAt: nowIso,
-        lastTickId: tickId,
-        lastDueCount: 0,
-        lastEnqueuedCount: 0,
-        lastSkippedCount: skipped.length,
-        lastError: SKIP_WORKER_OFFLINE,
-        agents: agentStates,
-      },
-      { queueLength: 0, lastError: SKIP_WORKER_OFFLINE },
-    );
+    const scheduler = dryRun
+      ? {
+          connected: false,
+          lastTickAt: nowIso,
+          lastTickId: tickId,
+          lastDueCount: 0,
+          lastEnqueuedCount: 0,
+          lastSkippedCount: skipped.length,
+          lastError: SKIP_WORKER_OFFLINE,
+          mode: SCHEDULER_MODE,
+          agents: agentStates,
+          dryRun: true,
+        }
+      : await writeSchedulerHealth(
+          client,
+          workerId,
+          {
+            lastTickAt: nowIso,
+            lastTickId: tickId,
+            lastDueCount: 0,
+            lastEnqueuedCount: 0,
+            lastSkippedCount: skipped.length,
+            lastError: SKIP_WORKER_OFFLINE,
+            agents: agentStates,
+          },
+          { queueLength: 0, lastError: SKIP_WORKER_OFFLINE },
+        );
     return {
       ok: true,
+      dryRun,
       tickId,
       dueCount: 0,
       enqueuedCount: 0,
@@ -234,6 +252,8 @@ export async function runSchedulerTick(client, workerId, envConfig) {
       enqueued,
       skipped,
       scheduler,
+      firstDuePolicy: FIRST_DUE_POLICY,
+      timezonePolicy: TIMEZONE_POLICY,
     };
   }
 
@@ -291,7 +311,24 @@ export async function runSchedulerTick(client, workerId, envConfig) {
       continue;
     }
 
-    due.push({ agentSlug: slug, dueAt: dueInfo.dueAt, workTypes });
+    const scopeResult = resolveScheduledScopeResult(schedule, slug);
+    if (!scopeResult.ok) {
+      skipped.push({
+        agentSlug: slug,
+        reason: scopeResult.reason || SKIP_UNSUPPORTED_SCOPE,
+      });
+      agentStates[slug].lastSkippedReason = scopeResult.reason || SKIP_UNSUPPORTED_SCOPE;
+      agentStates[slug].nextDueAt = dueInfo.nextDueAt;
+      continue;
+    }
+
+    due.push({
+      agentSlug: slug,
+      dueAt: dueInfo.dueAt,
+      workTypes,
+      firstDue: Boolean(dueInfo.firstDue),
+      routes: scopeResult.routes,
+    });
 
     const hasActive = activeRuns.some((row) => {
       const summary =
@@ -331,8 +368,13 @@ export async function runSchedulerTick(client, workerId, envConfig) {
         continue;
       }
 
-      const scope = resolveScheduledScope(schedule, slug);
-      const selectedRoutes = resolveScheduledRoutes(schedule, slug);
+      const selectedRoutes = scopeResult.routes;
+      const scope = {
+        type: "selected_routes",
+        routes: selectedRoutes,
+        modules: scopeResult.modules || [],
+        mapping: scopeResult.mapping,
+      };
       const maxDuration = Math.min(
         30,
         Math.max(5, Number(schedule.maxDurationMinutes) || 15),
@@ -351,11 +393,34 @@ export async function runSchedulerTick(client, workerId, envConfig) {
         idempotencyKey,
         scheduleTickId: tickId,
         ownerStatusAtQueue: ownerStatus,
+        firstDue: Boolean(dueInfo.firstDue),
+        scopeMapping: scopeResult.mapping,
         engineAvailabilityAtQueue: {
           websiteAudit: Boolean(workerHealth.websiteAuditEngine?.connected),
           browserQa: Boolean(workerHealth.browserQaEngine?.connected),
         },
       });
+
+      if (dryRun) {
+        enqueued.push({
+          agentSlug: slug,
+          workType,
+          runId,
+          idempotencyKey,
+          dryRun: true,
+          selectedRoutes,
+        });
+        agentStates[slug] = {
+          ...agentStates[slug],
+          lastDueAt: dueInfo.dueAt,
+          nextDueAt: dueInfo.nextDueAt || computeNextDueAt(schedule, now),
+          lastEnqueuedRunId: runId,
+          lastSkippedReason: null,
+          lastWorkType: workType,
+          scheduleVersion: SCHEDULER_VERSION,
+        };
+        continue;
+      }
 
       const insertRow = {
         run_id: runId,
@@ -401,7 +466,7 @@ export async function runSchedulerTick(client, workerId, envConfig) {
         continue;
       }
 
-      enqueued.push({ agentSlug: slug, workType, runId, idempotencyKey });
+      enqueued.push({ agentSlug: slug, workType, runId, idempotencyKey, selectedRoutes });
       activeRuns.push({
         run_id: runId,
         status: "queued",
@@ -420,26 +485,40 @@ export async function runSchedulerTick(client, workerId, envConfig) {
     }
   }
 
-  const scheduler = await writeSchedulerHealth(
-    client,
-    workerId,
-    {
-      lastTickAt: nowIso,
-      lastTickId: tickId,
-      lastDueCount: due.length,
-      lastEnqueuedCount: enqueued.length,
-      lastSkippedCount: skipped.length,
-      lastError: null,
-      agents: agentStates,
-    },
-    {
-      queueLength: activeRuns.filter((r) => r.status === "queued").length,
-      lastError: null,
-    },
-  );
+  const scheduler = dryRun
+    ? {
+        connected: true,
+        lastTickAt: nowIso,
+        lastTickId: tickId,
+        lastDueCount: due.length,
+        lastEnqueuedCount: enqueued.length,
+        lastSkippedCount: skipped.length,
+        lastError: null,
+        mode: SCHEDULER_MODE,
+        agents: agentStates,
+        dryRun: true,
+      }
+    : await writeSchedulerHealth(
+        client,
+        workerId,
+        {
+          lastTickAt: nowIso,
+          lastTickId: tickId,
+          lastDueCount: due.length,
+          lastEnqueuedCount: enqueued.length,
+          lastSkippedCount: skipped.length,
+          lastError: null,
+          agents: agentStates,
+        },
+        {
+          queueLength: activeRuns.filter((r) => r.status === "queued").length,
+          lastError: null,
+        },
+      );
 
   return {
     ok: true,
+    dryRun,
     tickId,
     schedulerVersion: SCHEDULER_VERSION,
     dueCount: due.length,
@@ -449,9 +528,35 @@ export async function runSchedulerTick(client, workerId, envConfig) {
     enqueued,
     skipped,
     scheduler,
+    firstDuePolicy: FIRST_DUE_POLICY,
+    timezonePolicy: TIMEZONE_POLICY,
   };
 }
 
-// silence unused in some import graphs
-void SKIP_NOT_CANONICAL;
-void isClaimableQueuedSummary;
+export async function reportStaleSchedulerRuns(client, options = {}) {
+  const dryRun = options.dryRun !== false;
+  const nowMs = Date.now();
+  const { data, error } = await client
+    .from(MONITORING_TABLE)
+    .select("run_id, status, mode, summary, created_at, started_at")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
+    .in("status", ["queued", "running"])
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  const stale = [];
+  for (const row of data || []) {
+    const hit = classifyStaleMonitoringRun(row, nowMs);
+    if (hit) stale.push(hit);
+  }
+  return {
+    ok: true,
+    dryRun,
+    command: "scheduler-cleanup-stale",
+    staleCount: stale.length,
+    stale,
+    note: dryRun
+      ? "Report-only. No rows deleted or mutated. Owner can inspect stuck runs in Agent Detail / monitoring."
+      : "Destructive cleanup is not enabled in Fix C-B.",
+  };
+}

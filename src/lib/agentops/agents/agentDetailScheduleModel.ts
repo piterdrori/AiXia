@@ -248,7 +248,9 @@ export type AgentScheduleRuntimeStatus =
   | "Engine unavailable"
   | "Duplicate active run"
   | "Not due yet"
-  | "Manual only";
+  | "Manual only"
+  | "Unsupported scope"
+  | "Unsupported work type";
 
 export function resolveAgentScheduleRuntimeStatus(input: {
   config: AgentDetailScheduleConfig;
@@ -264,6 +266,22 @@ export function resolveAgentScheduleRuntimeStatus(input: {
   const { config } = input;
   if (!config.ownerEnabled || input.isOwnerPaused) return "Paused";
   if (!config.enableSchedule || config.frequencyType === "manual") return "Manual only";
+  if (
+    input.lastSkippedReason === "Scope not supported by staging scheduler yet." ||
+    config.scopeType === "entire_staging"
+  ) {
+    return "Unsupported scope";
+  }
+  const executableTypes = config.workTypes.filter(
+    (type) =>
+      type === "website_audit" || type === "browser_qa" || type === "audit_and_browser_qa",
+  );
+  if (
+    executableTypes.length === 0 ||
+    input.lastSkippedReason === "Work type not supported by staging scheduler"
+  ) {
+    return "Unsupported work type";
+  }
   if (!input.workerConnected || !input.schedulerConnected) return "Worker offline";
   if (input.hasActiveRun || input.lastSkippedReason === "Existing active or queued run") {
     return "Duplicate active run";

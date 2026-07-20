@@ -43,7 +43,10 @@ import {
   parseWorkerHealth,
   validateWorkerEnv,
 } from "./lib/agentops-manual-run-worker-core.mjs";
-import { runSchedulerTick } from "./agentops-manual-run-scheduler-tick.mjs";
+import {
+  reportStaleSchedulerRuns,
+  runSchedulerTick,
+} from "./agentops-manual-run-scheduler-tick.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -83,7 +86,12 @@ loadEnvFile(path.join(REPO_ROOT, ".env.local"));
 loadEnvFile(path.join(REPO_ROOT, "qa-agent", "browser-qa", ".env.owner.local"));
 
 function parseArgs(argv) {
-  const args = { command: "once", runId: null, intervalMs: 15_000 };
+  const args = {
+    command: "once",
+    runId: null,
+    intervalMs: 60_000,
+    dryRun: false,
+  };
   const positional = [];
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
@@ -94,8 +102,13 @@ function parseArgs(argv) {
     }
     if (token === "--interval-ms") {
       const n = Number(argv[i + 1]);
-      if (Number.isFinite(n) && n >= 5_000) args.intervalMs = Math.floor(n);
+      // Scheduler-dev: min 30s to avoid thrashing; default 60s.
+      if (Number.isFinite(n) && n >= 30_000) args.intervalMs = Math.floor(n);
       i += 1;
+      continue;
+    }
+    if (token === "--dry-run") {
+      args.dryRun = true;
       continue;
     }
     if (token.startsWith("--")) continue;
@@ -760,10 +773,28 @@ async function main() {
   if (args.command === "scheduler-tick") {
     // Do not force engine connectivity via writeHeartbeat — tick heartbeats lightly
     // and preserves existing engine availability (honest Engine not connected skips).
-    const result = await runSchedulerTick(client, workerId, validated.config);
+    const result = await runSchedulerTick(client, workerId, validated.config, {
+      dryRun: args.dryRun,
+    });
     console.log(
-      JSON.stringify({ ok: true, command: "scheduler-tick", workerId, ...result }, null, 2),
+      JSON.stringify(
+        {
+          ok: true,
+          command: "scheduler-tick",
+          workerId,
+          dryRun: Boolean(args.dryRun),
+          ...result,
+        },
+        null,
+        2,
+      ),
     );
+    return;
+  }
+
+  if (args.command === "scheduler-cleanup-stale") {
+    const result = await reportStaleSchedulerRuns(client, { dryRun: true });
+    console.log(JSON.stringify({ ok: true, workerId, ...result }, null, 2));
     return;
   }
 
@@ -772,11 +803,37 @@ async function main() {
       console.error("scheduler-dev must not run in CI.");
       process.exit(2);
     }
-    console.error(`[manual-run-worker] scheduler-dev loop interval=${args.intervalMs}ms`);
+    if (process.env.AGENTOPS_ENVIRONMENT !== "staging") {
+      console.error("scheduler-dev requires AGENTOPS_ENVIRONMENT=staging.");
+      process.exit(2);
+    }
+    const appUrl = (validated.config.appUrl || "").toLowerCase();
+    if (appUrl.includes("ai-xia.vercel.app") && !appUrl.includes("staging")) {
+      console.error("scheduler-dev refuses production URL.");
+      process.exit(2);
+    }
+    console.error(
+      `[manual-run-worker] scheduler-dev loop interval=${args.intervalMs}ms dryRun=${args.dryRun}`,
+    );
     for (;;) {
       try {
-        const result = await runSchedulerTick(client, workerId, validated.config);
-        console.log(JSON.stringify({ at: new Date().toISOString(), ...result }, null, 2));
+        const result = await runSchedulerTick(client, workerId, validated.config, {
+          dryRun: args.dryRun,
+        });
+        console.log(
+          JSON.stringify(
+            {
+              at: new Date().toISOString(),
+              tickId: result.tickId,
+              dueCount: result.dueCount,
+              enqueuedCount: result.enqueuedCount,
+              skippedCount: result.skippedCount,
+              dryRun: Boolean(result.dryRun),
+            },
+            null,
+            2,
+          ),
+        );
       } catch (error) {
         console.error(
           "[manual-run-worker] scheduler-dev tick failed:",
@@ -788,7 +845,7 @@ async function main() {
   }
 
   console.error(
-    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev | scheduler-tick | scheduler-dev",
+    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev | scheduler-tick [--dry-run] | scheduler-dev | scheduler-cleanup-stale --dry-run",
   );
   process.exit(2);
 }

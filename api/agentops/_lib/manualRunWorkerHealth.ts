@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const WORKER_VERSION = "c-a";
+export const WORKER_VERSION = "c-b";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const SCHEDULER_HEALTH_KEY = "manualRunScheduler";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;

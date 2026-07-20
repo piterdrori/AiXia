@@ -5,7 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const WORKER_VERSION = "c-b";
+export const WORKER_VERSION = "d-a";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const SCHEDULER_HEALTH_KEY = "manualRunScheduler";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
@@ -39,6 +39,19 @@ export type ManualRunSchedulerHealth = {
   agents?: Record<string, unknown>;
 };
 
+export type ManualRunWorkerOpsHealth = {
+  opsVersion: string | null;
+  activeRunType: string | null;
+  activeRunTrigger: string | null;
+  oldestQueuedAgeMs: number | null;
+  lastCompletedRunId: string | null;
+  lastFailedRunId: string | null;
+  lastOpsCycleAt: string | null;
+  nextSchedulerTickEstimate: string | null;
+  enginesReady: boolean;
+  mode: string | null;
+};
+
 export type ManualRunWorkerHealth = {
   connected: boolean;
   lastHeartbeatAt: string | null;
@@ -52,6 +65,7 @@ export type ManualRunWorkerHealth = {
   websiteAuditEngine: ManualRunEngineHealth;
   browserQaEngine: ManualRunEngineHealth;
   scheduler: ManualRunSchedulerHealth | null;
+  ops: ManualRunWorkerOpsHealth | null;
 };
 
 export type ManualRunWorkerStatus = "connected" | "offline" | "stale" | "unknown";
@@ -142,6 +156,29 @@ export function parseWorkerHealth(
     websiteAuditEngine: normalizeEngine(health.websiteAuditEngine, ENGINE_NOT_CONNECTED_WEBSITE),
     browserQaEngine: normalizeEngine(health.browserQaEngine, ENGINE_NOT_CONNECTED_BROWSER),
     scheduler: normalizeScheduler(tools[SCHEDULER_HEALTH_KEY], health.scheduler, nowMs),
+    ops: normalizeOps(health.ops),
+  };
+}
+
+function normalizeOps(raw: unknown): ManualRunWorkerOpsHealth | null {
+  if (!raw || typeof raw !== "object") return null;
+  const ops = raw as Record<string, unknown>;
+  return {
+    opsVersion: typeof ops.opsVersion === "string" ? ops.opsVersion : null,
+    activeRunType: typeof ops.activeRunType === "string" ? ops.activeRunType : null,
+    activeRunTrigger: typeof ops.activeRunTrigger === "string" ? ops.activeRunTrigger : null,
+    oldestQueuedAgeMs:
+      typeof ops.oldestQueuedAgeMs === "number" ? ops.oldestQueuedAgeMs : null,
+    lastCompletedRunId:
+      typeof ops.lastCompletedRunId === "string" ? ops.lastCompletedRunId : null,
+    lastFailedRunId: typeof ops.lastFailedRunId === "string" ? ops.lastFailedRunId : null,
+    lastOpsCycleAt: typeof ops.lastOpsCycleAt === "string" ? ops.lastOpsCycleAt : null,
+    nextSchedulerTickEstimate:
+      typeof ops.nextSchedulerTickEstimate === "string"
+        ? ops.nextSchedulerTickEstimate
+        : null,
+    enginesReady: Boolean(ops.enginesReady),
+    mode: typeof ops.mode === "string" ? ops.mode : "staging_worker_ops",
   };
 }
 
@@ -214,6 +251,14 @@ export function buildCapabilityFromHealth(
     workerConnected && Boolean(health?.browserQaEngine?.connected);
   const scheduler = health?.scheduler ?? null;
   const schedulerConnected = workerConnected && Boolean(scheduler?.connected);
+  const ops = health?.ops ?? null;
+  const enginesReady =
+    workerConnected &&
+    websiteAuditEngineConnected &&
+    browserQaEngineConnected &&
+    (ops?.enginesReady === true ||
+      (Boolean(health?.websiteAuditEngine?.connected) &&
+        Boolean(health?.browserQaEngine?.connected)));
 
   return {
     queueAvailable: true,
@@ -222,9 +267,16 @@ export function buildCapabilityFromHealth(
     lastHeartbeatAt: health?.lastHeartbeatAt ?? null,
     queueLength: health?.queueLength ?? queueLength,
     activeRunId: health?.activeRunId ?? null,
+    activeRunType: ops?.activeRunType ?? null,
+    activeRunTrigger: ops?.activeRunTrigger ?? null,
+    oldestQueuedAgeMs: ops?.oldestQueuedAgeMs ?? null,
+    lastCompletedRunId: ops?.lastCompletedRunId ?? null,
+    lastFailedRunId: ops?.lastFailedRunId ?? null,
     lastError: health?.lastError ?? null,
     workerId: health?.workerId ?? null,
     workerVersion: health?.workerVersion ?? null,
+    nextSchedulerTickEstimate: ops?.nextSchedulerTickEstimate ?? null,
+    enginesReady,
     schedulerConnected,
     lastSchedulerTickAt: scheduler?.lastTickAt ?? null,
     dueAgents: scheduler?.lastDueCount ?? 0,
@@ -269,9 +321,12 @@ export function buildCapabilityFromHealth(
       "No GitHub dispatch. No Vercel cron. No Playwright on Vercel.",
       workerConnected
         ? schedulerConnected
-          ? "Staging worker connected. Scheduler tick is fresh. Engines follow heartbeat."
-          : "Staging worker connected. Run scheduler-tick to enqueue due schedules."
-        : "A staging worker must heartbeat and claim queued runs.",
+          ? "Worker connected (fresh heartbeat). Scheduler executable (fresh tick)."
+          : "Worker connected (fresh heartbeat). Scheduler tick not fresh — not executable yet."
+        : "Worker offline or heartbeat stale — do not show Worker connected.",
+      enginesReady
+        ? "Engines ready: website_audit and browser_qa checks both pass on the worker."
+        : "Engines ready only when both engine checks pass; otherwise show pending reasons.",
       "Findings remain drafts; no auto-promotion, auto-fix, PR, or deploy.",
     ],
   };

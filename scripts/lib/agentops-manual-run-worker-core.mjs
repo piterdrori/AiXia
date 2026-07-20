@@ -3,7 +3,7 @@
  * Used by worker CLI + verify scripts (no Supabase imports).
  */
 
-export const WORKER_VERSION = "c-b";
+export const WORKER_VERSION = "d-a";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
 export const LOCK_TTL_MS = 5 * 60 * 1000;
@@ -196,6 +196,32 @@ export function parseWorkerHealth(toolsEnabled) {
                 : "staging_worker_scheduler",
           }
         : null,
+    ops:
+      raw.ops && typeof raw.ops === "object"
+        ? {
+            opsVersion: typeof raw.ops.opsVersion === "string" ? raw.ops.opsVersion : null,
+            activeRunType:
+              typeof raw.ops.activeRunType === "string" ? raw.ops.activeRunType : null,
+            activeRunTrigger:
+              typeof raw.ops.activeRunTrigger === "string" ? raw.ops.activeRunTrigger : null,
+            oldestQueuedAgeMs:
+              typeof raw.ops.oldestQueuedAgeMs === "number" ? raw.ops.oldestQueuedAgeMs : null,
+            lastCompletedRunId:
+              typeof raw.ops.lastCompletedRunId === "string"
+                ? raw.ops.lastCompletedRunId
+                : null,
+            lastFailedRunId:
+              typeof raw.ops.lastFailedRunId === "string" ? raw.ops.lastFailedRunId : null,
+            lastOpsCycleAt:
+              typeof raw.ops.lastOpsCycleAt === "string" ? raw.ops.lastOpsCycleAt : null,
+            nextSchedulerTickEstimate:
+              typeof raw.ops.nextSchedulerTickEstimate === "string"
+                ? raw.ops.nextSchedulerTickEstimate
+                : null,
+            enginesReady: Boolean(raw.ops.enginesReady),
+            mode: typeof raw.ops.mode === "string" ? raw.ops.mode : "staging_worker_ops",
+          }
+        : null,
   };
 }
 
@@ -271,6 +297,12 @@ export function mergeWorkerHealthIntoTools(toolsEnabled, healthPatch) {
     toolsEnabled && typeof toolsEnabled === "object" ? { ...toolsEnabled } : {};
   const prev = parseWorkerHealth(tools) || {};
   const nowIso = new Date().toISOString();
+  const nextOps =
+    healthPatch.ops !== undefined
+      ? healthPatch.ops && typeof healthPatch.ops === "object"
+        ? { ...(prev.ops || {}), ...healthPatch.ops }
+        : null
+      : prev.ops ?? null;
   tools[WORKER_HEALTH_KEY] = {
     ...prev,
     ...healthPatch,
@@ -285,6 +317,7 @@ export function mergeWorkerHealthIntoTools(toolsEnabled, healthPatch) {
       healthPatch.browserQaEngine !== undefined
         ? normalizeBrowserQaEngine(healthPatch.browserQaEngine)
         : prev.browserQaEngine ?? buildDisconnectedBrowserQaEngine(),
+    ops: nextOps,
   };
   return tools;
 }

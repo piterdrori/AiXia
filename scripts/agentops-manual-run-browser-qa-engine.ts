@@ -267,9 +267,12 @@ async function main(): Promise<void> {
   const findings = qaResult.findings ?? [];
   const qualifying = failureReason ? [] : qualifyingFindings(findings);
   const errorsCount = findings.filter((f) => severityRank(f.severity) >= 3).length;
-  const screenshotRefs = qaResult.evidence?.screenshotPath
-    ? [qaResult.evidence.screenshotPath]
-    : [];
+  const screenshotPath = qaResult.evidence?.screenshotPath;
+  const screenshotLooksSensitive =
+    typeof screenshotPath === "string" &&
+    /storage[-_]?state|service[_-]?role|password|token=/i.test(screenshotPath);
+  const screenshotRefs =
+    screenshotPath && !screenshotLooksSensitive ? [screenshotPath] : [];
   const artifactRefs = [...screenshotRefs];
 
   let draftsCreated = 0;
@@ -324,6 +327,9 @@ async function main(): Promise<void> {
     },
     artifactRefs,
     screenshotRefs,
+    artifactVisibility: "local_worker_only",
+    artifactNote:
+      "Screenshot/artifact paths are local-worker-only and may not be reachable from the browser.",
     consoleFindings: qaResult.evidence?.consoleErrors ?? [],
     networkFindings: qaResult.evidence?.failedRequests ?? [],
     accessibilityFindings: findings

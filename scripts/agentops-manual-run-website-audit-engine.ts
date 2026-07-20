@@ -315,6 +315,9 @@ async function main(): Promise<void> {
       stagingUrl: guard.normalizedUrl,
     },
     artifactRefs,
+    artifactVisibility: "local_worker_only",
+    artifactNote:
+      "Artifact refs are local-worker-only and may not be reachable from the browser.",
     rawObservations: findings.map((f) => ({
       page_url: f.page_url,
       issue: f.issue,

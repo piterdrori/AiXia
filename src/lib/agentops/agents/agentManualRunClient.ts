@@ -22,9 +22,16 @@ export type ManualRunCapability = {
   lastHeartbeatAt?: string | null;
   queueLength?: number;
   activeRunId?: string | null;
+  activeRunType?: string | null;
+  activeRunTrigger?: string | null;
+  oldestQueuedAgeMs?: number | null;
+  lastCompletedRunId?: string | null;
+  lastFailedRunId?: string | null;
   lastError?: string | null;
   workerId?: string | null;
   workerVersion?: string | null;
+  nextSchedulerTickEstimate?: string | null;
+  enginesReady?: boolean;
   schedulerConnected?: boolean;
   lastSchedulerTickAt?: string | null;
   dueAgents?: number;
@@ -90,6 +97,35 @@ export async function fetchManualRunCapability(): Promise<{
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+export async function cancelOwnerManualRun(runId: string): Promise<{
+  ok: boolean;
+  canceled: boolean;
+  cancelRequested?: boolean;
+  status?: string;
+  message: string;
+}> {
+  const headers = await authHeaders();
+  const response = await fetch(`${MANUAL_RUN_URL}/cancel`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ runId }),
+  });
+  const payload = (await response.json()) as {
+    ok?: boolean;
+    canceled?: boolean;
+    cancelRequested?: boolean;
+    status?: string;
+    message?: string;
+  };
+  return {
+    ok: Boolean(payload.ok),
+    canceled: Boolean(payload.canceled),
+    cancelRequested: Boolean(payload.cancelRequested),
+    status: payload.status,
+    message: payload.message ?? (response.ok ? "Cancel processed." : "Cancel failed."),
+  };
 }
 
 export async function startOwnerManualRun(

@@ -26,6 +26,14 @@ type AgentControlHeaderProps = {
   workerHeartbeatLabel: string | null;
   queueLengthLabel: string | null;
   workerActiveRunId: string | null;
+  workerActiveRunMetaLabel: string | null;
+  oldestQueuedAgeLabel: string | null;
+  lastCompletedRunLabel: string | null;
+  lastFailedRunLabel: string | null;
+  lastErrorLabel: string | null;
+  schedulerStatusLabel: string | null;
+  nextSchedulerTickLabel: string | null;
+  enginesReadyLabel: string | null;
   runInProgress: boolean;
   activeRunId: string | null;
   currentActivityLabel: string | null;
@@ -60,6 +68,14 @@ export function AgentControlHeader({
   workerHeartbeatLabel,
   queueLengthLabel,
   workerActiveRunId,
+  workerActiveRunMetaLabel,
+  oldestQueuedAgeLabel,
+  lastCompletedRunLabel,
+  lastFailedRunLabel,
+  lastErrorLabel,
+  schedulerStatusLabel,
+  nextSchedulerTickLabel,
+  enginesReadyLabel,
   runInProgress,
   activeRunId,
   currentActivityLabel,
@@ -119,14 +135,50 @@ export function AgentControlHeader({
               Last heartbeat: {workerHeartbeatLabel}
             </p>
           ) : null}
+          {schedulerStatusLabel ? (
+            <p className="text-xs text-white/45" data-testid="agentops-scheduler-status">
+              {schedulerStatusLabel}
+            </p>
+          ) : null}
+          {enginesReadyLabel ? (
+            <p className="text-xs text-white/45" data-testid="agentops-engines-ready">
+              {enginesReadyLabel}
+            </p>
+          ) : null}
           {queueLengthLabel ? (
             <p className="text-xs text-white/45" data-testid="agentops-worker-queue-length">
               Queue length: {queueLengthLabel}
             </p>
           ) : null}
+          {oldestQueuedAgeLabel ? (
+            <p className="text-xs text-white/45" data-testid="agentops-oldest-queued-age">
+              Oldest queued age: {oldestQueuedAgeLabel}
+            </p>
+          ) : null}
           {workerActiveRunId ? (
             <p className="text-xs text-white/45" data-testid="agentops-worker-active-run">
               Active run: {workerActiveRunId}
+              {workerActiveRunMetaLabel ? ` · ${workerActiveRunMetaLabel}` : ""}
+            </p>
+          ) : null}
+          {lastCompletedRunLabel ? (
+            <p className="text-xs text-white/45" data-testid="agentops-last-completed-run">
+              Last completed: {lastCompletedRunLabel}
+            </p>
+          ) : null}
+          {lastFailedRunLabel ? (
+            <p className="text-xs text-white/45" data-testid="agentops-last-failed-run">
+              Last failed: {lastFailedRunLabel}
+            </p>
+          ) : null}
+          {lastErrorLabel ? (
+            <p className="text-xs text-amber-200/70" data-testid="agentops-worker-last-error">
+              Last error: {lastErrorLabel}
+            </p>
+          ) : null}
+          {nextSchedulerTickLabel ? (
+            <p className="text-xs text-white/45" data-testid="agentops-next-scheduler-tick">
+              Next scheduler tick (est.): {nextSchedulerTickLabel}
             </p>
           ) : null}
           {currentActivityLabel ? (

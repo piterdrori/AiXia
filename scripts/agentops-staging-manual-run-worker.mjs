@@ -1,5 +1,5 @@
 /**
- * Fix B2-D — staging manual-run worker (heartbeat + claim-test + website audit + Browser QA).
+ * Staging manual-run worker (B2 + C + D-A ops).
  *
  * Usage:
  *   node scripts/agentops-staging-manual-run-worker.mjs heartbeat
@@ -12,9 +12,13 @@
  *   node scripts/agentops-staging-manual-run-worker.mjs scheduler-tick
  *   node scripts/agentops-staging-manual-run-worker.mjs scheduler-dev
  *   node scripts/agentops-staging-manual-run-worker.mjs queue-status
+ *   node scripts/agentops-staging-manual-run-worker.mjs ops [--once]
+ *   node scripts/agentops-staging-manual-run-worker.mjs staging-worker [--once]
+ *   node scripts/agentops-staging-manual-run-worker.mjs scheduler-cleanup-stale [--dry-run|--mutate]
  *
  * Playwright runs only via spawned engines (off Vercel). Scheduler only enqueues.
- * No GitHub dispatch. No Vercel cron.
+ * Persistent ops loop: heartbeat → scheduler tick → one claim/execute → health.
+ * No GitHub dispatch. No Vercel cron. No production.
  */
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
@@ -47,6 +51,19 @@ import {
   reportStaleSchedulerRuns,
   runSchedulerTick,
 } from "./agentops-manual-run-scheduler-tick.mjs";
+import {
+  OPS_VERSION,
+  buildCanceledSummary,
+  buildOpsHealthPatch,
+  buildRetrySummary,
+  canRetryFailedRun,
+  estimateNextSchedulerTickAt,
+  isCancelRequested,
+  oldestQueuedAgeMs,
+  pickNextQueuedRun,
+  resolveOpsIntervalMs,
+  validatePersistentWorkerEnv,
+} from "./lib/agentops-staging-worker-ops-core.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -91,6 +108,8 @@ function parseArgs(argv) {
     runId: null,
     intervalMs: 60_000,
     dryRun: false,
+    once: false,
+    mutate: false,
   };
   const positional = [];
   for (let i = 0; i < argv.length; i += 1) {
@@ -102,13 +121,23 @@ function parseArgs(argv) {
     }
     if (token === "--interval-ms") {
       const n = Number(argv[i + 1]);
-      // Scheduler-dev: min 30s to avoid thrashing; default 60s.
+      // Ops / scheduler-dev: min 30s to avoid thrashing; default 60s.
       if (Number.isFinite(n) && n >= 30_000) args.intervalMs = Math.floor(n);
       i += 1;
       continue;
     }
     if (token === "--dry-run") {
       args.dryRun = true;
+      args.mutate = false;
+      continue;
+    }
+    if (token === "--mutate") {
+      args.mutate = true;
+      args.dryRun = false;
+      continue;
+    }
+    if (token === "--once") {
+      args.once = true;
       continue;
     }
     if (token.startsWith("--")) continue;
@@ -118,6 +147,7 @@ function parseArgs(argv) {
   if (args.command === "claim-test" && !args.runId && positional[1]) {
     args.runId = positional[1];
   }
+  if (args.command === "staging-worker") args.command = "ops";
   return args;
 }
 
@@ -361,7 +391,10 @@ async function claimWebsiteAudit(client, workerId, runId) {
     throw new Error(`Run ${runId} is not queued (status=${existing.status}).`);
   }
   if (!isWebsiteAuditQueuedSummary(existing.summary)) {
-    throw new Error(`Run ${runId} is not a queued website_audit owner_manual row.`);
+    throw new Error(`Run ${runId} is not a claimable queued website_audit row.`);
+  }
+  if (isCancelRequested(existing.summary)) {
+    throw new Error(`Run ${runId} has cancelRequested; refusing claim.`);
   }
 
   const claimedAt = new Date().toISOString();
@@ -403,7 +436,10 @@ async function claimBrowserQa(client, workerId, runId) {
     throw new Error(`Run ${runId} is not queued (status=${existing.status}).`);
   }
   if (!isBrowserQaQueuedSummary(existing.summary)) {
-    throw new Error(`Run ${runId} is not a queued browser_qa owner_manual row.`);
+    throw new Error(`Run ${runId} is not a claimable queued browser_qa row.`);
+  }
+  if (isCancelRequested(existing.summary)) {
+    throw new Error(`Run ${runId} has cancelRequested; refusing claim.`);
   }
 
   const claimedAt = new Date().toISOString();
@@ -462,6 +498,76 @@ async function failStuckRunning(client, runId, message, claimedAt, failurePhase)
   return data;
 }
 
+async function markRunCanceled(client, runId, reason) {
+  const endedAt = new Date().toISOString();
+  const { data: existing } = await client
+    .from(MONITORING_TABLE)
+    .select("summary, status, started_at")
+    .eq("run_id", runId)
+    .maybeSingle();
+  if (!existing) return null;
+  if (existing.status !== "queued" && existing.status !== "running") return null;
+  const summary = buildCanceledSummary(existing.summary, reason, endedAt);
+  const { data } = await client
+    .from(MONITORING_TABLE)
+    .update({
+      status: "canceled",
+      ended_at: endedAt,
+      duration_ms: existing.started_at
+        ? Math.max(0, Date.parse(endedAt) - Date.parse(existing.started_at))
+        : null,
+      summary,
+    })
+    .eq("run_id", runId)
+    .in("status", ["queued", "running"])
+    .select("run_id, status, summary")
+    .maybeSingle();
+  return data;
+}
+
+async function maybeRequeueTransientFailure(client, runId) {
+  const { data: row } = await client
+    .from(MONITORING_TABLE)
+    .select("run_id, status, summary")
+    .eq("run_id", runId)
+    .maybeSingle();
+  if (!row || row.status !== "failed") return { retried: false };
+  const summary =
+    row.summary && typeof row.summary === "object" ? row.summary : {};
+  const err =
+    (typeof summary.failureReason === "string" && summary.failureReason) ||
+    (typeof summary.error === "string" && summary.error) ||
+    "";
+  const decision = canRetryFailedRun(summary, err);
+  if (!decision.ok) return { retried: false, reason: decision.reason };
+  const nextSummary = buildRetrySummary(summary, decision.reason);
+  const { data } = await client
+    .from(MONITORING_TABLE)
+    .update({
+      status: "queued",
+      ended_at: null,
+      duration_ms: null,
+      summary: nextSummary,
+    })
+    .eq("run_id", runId)
+    .eq("status", "failed")
+    .select("run_id, status, summary")
+    .maybeSingle();
+  return { retried: Boolean(data), reason: decision.reason, runId };
+}
+
+async function honorCancelBeforeSpawn(client, runId) {
+  const { data } = await client
+    .from(MONITORING_TABLE)
+    .select("summary, status")
+    .eq("run_id", runId)
+    .maybeSingle();
+  if (!data || data.status !== "running") return false;
+  if (!isCancelRequested(data.summary)) return false;
+  await markRunCanceled(client, runId, "Canceled before engine spawn (cancel_requested).");
+  return true;
+}
+
 function parseEngineStdout(engine) {
   let enginePayload = null;
   try {
@@ -498,6 +604,20 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
     lastError: null,
   });
 
+  if (await honorCancelBeforeSpawn(client, runId)) {
+    await writeHeartbeat(client, {
+      connected: true,
+      lastHeartbeatAt: new Date().toISOString(),
+      workerId,
+      workerVersion: WORKER_VERSION,
+      activeRunId: null,
+      lastClaimedRunId: runId,
+      queueLength: (await listQueuedManualRuns(client)).length,
+      lastError: null,
+    });
+    return { ok: true, claimed: true, canceled: true, runId, engineExit: 0 };
+  }
+
   const engine = spawnEngine(WEBSITE_AUDIT_ENGINE_SCRIPT, runId, envConfig);
   const enginePayload = parseEngineStdout(engine);
 
@@ -532,6 +652,11 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
     .eq("run_id", runId)
     .maybeSingle();
 
+  let retry = { retried: false };
+  if (finalRow?.status === "failed") {
+    retry = await maybeRequeueTransientFailure(client, runId);
+  }
+
   return {
     ok: engine.status === 0 && finalRow?.status === "completed",
     claimed: true,
@@ -539,6 +664,7 @@ async function websiteAuditOnce(client, workerId, envConfig, preferredRunId = nu
     engineExit: engine.status,
     engine: enginePayload,
     final: finalRow,
+    retry,
   };
 }
 
@@ -574,6 +700,20 @@ async function browserQaOnce(client, workerId, envConfig, preferredRunId = null)
     lastError: null,
   });
 
+  if (await honorCancelBeforeSpawn(client, runId)) {
+    await writeHeartbeat(client, {
+      connected: true,
+      lastHeartbeatAt: new Date().toISOString(),
+      workerId,
+      workerVersion: WORKER_VERSION,
+      activeRunId: null,
+      lastClaimedRunId: runId,
+      queueLength: (await listQueuedManualRuns(client)).length,
+      lastError: null,
+    });
+    return { ok: true, claimed: true, canceled: true, runId, engineExit: 0 };
+  }
+
   const engine = spawnEngine(BROWSER_QA_ENGINE_SCRIPT, runId, envConfig);
   const enginePayload = parseEngineStdout(engine);
 
@@ -608,6 +748,11 @@ async function browserQaOnce(client, workerId, envConfig, preferredRunId = null)
     .eq("run_id", runId)
     .maybeSingle();
 
+  let retry = { retried: false };
+  if (finalRow?.status === "failed") {
+    retry = await maybeRequeueTransientFailure(client, runId);
+  }
+
   return {
     ok:
       engine.status === 0 &&
@@ -617,6 +762,129 @@ async function browserQaOnce(client, workerId, envConfig, preferredRunId = null)
     engineExit: engine.status,
     engine: enginePayload,
     final: finalRow,
+    retry,
+  };
+}
+
+async function cancelQueuedIfRequested(client, row) {
+  if (!row || !isCancelRequested(row.summary)) return null;
+  return markRunCanceled(client, row.run_id, "Canceled while queued (cancel_requested).");
+}
+
+async function runOpsCycle(client, workerId, envConfig, intervalMs) {
+  const nowIso = new Date().toISOString();
+  const heartbeatResult = await heartbeat(client, workerId);
+
+  let tickResult = null;
+  let tickError = null;
+  try {
+    tickResult = await runSchedulerTick(client, workerId, envConfig, { dryRun: false });
+  } catch (error) {
+    tickError = error instanceof Error ? error.message : String(error);
+  }
+
+  const queued = await listQueuedManualRuns(client);
+  const next = pickNextQueuedRun(queued);
+  let processResult = null;
+  let canceledWhileQueued = null;
+
+  if (next) {
+    canceledWhileQueued = await cancelQueuedIfRequested(client, next);
+    if (!canceledWhileQueued) {
+      const workType = next.summary?.workType;
+      if (workType === "website_audit") {
+        processResult = await websiteAuditOnce(client, workerId, envConfig, next.run_id);
+      } else if (workType === "browser_qa") {
+        processResult = await browserQaOnce(client, workerId, envConfig, next.run_id);
+      } else {
+        processResult = {
+          ok: false,
+          claimed: false,
+          message: `Unsupported workType for ops: ${workType}`,
+          runId: next.run_id,
+        };
+      }
+    }
+  }
+
+  const staleReport = await reportStaleSchedulerRuns(client, { dryRun: true });
+  const remainingQueued = await listQueuedManualRuns(client);
+  const browserEngine = resolveBrowserQaEngineHealth(nowIso);
+  const enginesReady = Boolean(browserEngine.connected);
+  const finalStatus = processResult?.final?.status ?? null;
+  const lastCompletedRunId =
+    finalStatus === "completed"
+      ? processResult?.runId ?? null
+      : heartbeatResult.health?.ops?.lastCompletedRunId ?? null;
+  const lastFailedRunId =
+    finalStatus === "failed"
+      ? processResult?.runId ?? null
+      : heartbeatResult.health?.ops?.lastFailedRunId ?? null;
+  const activeSummary =
+    processResult?.final?.summary && typeof processResult.final.summary === "object"
+      ? processResult.final.summary
+      : next?.summary && typeof next.summary === "object"
+        ? next.summary
+        : {};
+
+  const opsPatch = buildOpsHealthPatch({
+    activeRunId: null,
+    activeRunType: null,
+    activeRunTrigger: null,
+    queueLength: remainingQueued.length,
+    oldestQueuedAgeMs: oldestQueuedAgeMs(remainingQueued),
+    lastCompletedRunId,
+    lastFailedRunId,
+    lastError: tickError || processResult?.final?.summary?.failureReason || null,
+    lastOpsCycleAt: nowIso,
+    nextSchedulerTickEstimate: estimateNextSchedulerTickAt(
+      tickResult?.scheduler?.lastTickAt || nowIso,
+      intervalMs,
+    ),
+    enginesReady,
+  });
+
+  // Keep last active metadata readable when a run is still mid-flight elsewhere.
+  if (processResult?.claimed && processResult?.final?.status === "running") {
+    opsPatch.activeRunId = processResult.runId;
+    opsPatch.activeRunType = activeSummary.workType ?? null;
+    opsPatch.activeRunTrigger = activeSummary.trigger ?? null;
+  }
+
+  const health = await writeHeartbeat(client, {
+    connected: true,
+    lastHeartbeatAt: new Date().toISOString(),
+    workerId,
+    workerVersion: WORKER_VERSION,
+    activeRunId: opsPatch.activeRunId,
+    lastClaimedRunId: processResult?.runId ?? heartbeatResult.health?.lastClaimedRunId ?? null,
+    queueLength: remainingQueued.length,
+    lastError:
+      typeof opsPatch.lastError === "string" ? opsPatch.lastError : null,
+    ops: opsPatch,
+  });
+
+  return {
+    ok: true,
+    opsVersion: OPS_VERSION,
+    workerId,
+    queueLength: remainingQueued.length,
+    oldestQueuedAgeMs: opsPatch.oldestQueuedAgeMs,
+    pickedRunId: next?.run_id ?? null,
+    processed: processResult,
+    canceledWhileQueued: canceledWhileQueued?.run_id ?? null,
+    tick: tickResult
+      ? {
+          tickId: tickResult.tickId,
+          dueCount: tickResult.dueCount,
+          enqueuedCount: tickResult.enqueuedCount,
+          skippedCount: tickResult.skippedCount,
+        }
+      : null,
+    tickError,
+    staleCount: staleReport.staleCount,
+    enginesReady,
+    health,
   };
 }
 
@@ -793,9 +1061,48 @@ async function main() {
   }
 
   if (args.command === "scheduler-cleanup-stale") {
-    const result = await reportStaleSchedulerRuns(client, { dryRun: true });
+    const result = await reportStaleSchedulerRuns(client, {
+      dryRun: !args.mutate,
+      mutate: Boolean(args.mutate),
+    });
     console.log(JSON.stringify({ ok: true, workerId, ...result }, null, 2));
     return;
+  }
+
+  if (args.command === "ops") {
+    const opsEnv = validatePersistentWorkerEnv(process.env);
+    if (!opsEnv.ok) {
+      console.error("[staging-worker] persistent ops env validation failed:");
+      for (const err of opsEnv.errors) console.error(` - ${err}`);
+      process.exit(2);
+    }
+    const intervalMs = args.intervalMs || resolveOpsIntervalMs(process.env);
+    console.error(
+      `[staging-worker] ops loop version=${OPS_VERSION} interval=${intervalMs}ms once=${args.once}`,
+    );
+    for (;;) {
+      try {
+        const result = await runOpsCycle(client, workerId, validated.config, intervalMs);
+        console.log(
+          JSON.stringify(
+            {
+              at: new Date().toISOString(),
+              command: "ops",
+              ...result,
+            },
+            null,
+            2,
+          ),
+        );
+      } catch (error) {
+        console.error(
+          "[staging-worker] ops cycle failed:",
+          error instanceof Error ? error.message : error,
+        );
+      }
+      if (args.once) return;
+      await sleep(intervalMs);
+    }
   }
 
   if (args.command === "scheduler-dev") {
@@ -845,7 +1152,7 @@ async function main() {
   }
 
   console.error(
-    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev | scheduler-tick [--dry-run] | scheduler-dev | scheduler-cleanup-stale --dry-run",
+    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev | scheduler-tick [--dry-run] | scheduler-dev | scheduler-cleanup-stale [--dry-run|--mutate] | ops|staging-worker [--once]",
   );
   process.exit(2);
 }

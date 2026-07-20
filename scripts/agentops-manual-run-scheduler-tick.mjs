@@ -534,7 +534,8 @@ export async function runSchedulerTick(client, workerId, envConfig, options = {}
 }
 
 export async function reportStaleSchedulerRuns(client, options = {}) {
-  const dryRun = options.dryRun !== false;
+  const mutate = options.mutate === true;
+  const dryRun = mutate ? false : options.dryRun !== false;
   const nowMs = Date.now();
   const { data, error } = await client
     .from(MONITORING_TABLE)
@@ -549,14 +550,55 @@ export async function reportStaleSchedulerRuns(client, options = {}) {
     const hit = classifyStaleMonitoringRun(row, nowMs);
     if (hit) stale.push(hit);
   }
+
+  const mutated = [];
+  if (mutate && !dryRun) {
+    const endedAt = new Date().toISOString();
+    for (const hit of stale) {
+      if (hit.status !== "running") continue;
+      const { data: row } = await client
+        .from(MONITORING_TABLE)
+        .select("summary, status, started_at")
+        .eq("run_id", hit.runId)
+        .maybeSingle();
+      if (!row || row.status !== "running") continue;
+      const summary =
+        row.summary && typeof row.summary === "object" ? { ...row.summary } : {};
+      summary.staleMarkedAt = endedAt;
+      summary.failureReason =
+        hit.reason || "Marked stale by staging worker cleanup (--mutate).";
+      summary.failurePhase = "stale_cleanup";
+      summary.closedAt = endedAt;
+      const { data: updated } = await client
+        .from(MONITORING_TABLE)
+        .update({
+          status: "failed",
+          ended_at: endedAt,
+          duration_ms: row.started_at
+            ? Math.max(0, Date.parse(endedAt) - Date.parse(row.started_at))
+            : null,
+          summary,
+        })
+        .eq("run_id", hit.runId)
+        .eq("status", "running")
+        .select("run_id, status")
+        .maybeSingle();
+      if (updated) mutated.push(updated.run_id);
+    }
+  }
+
   return {
     ok: true,
     dryRun,
+    mutate,
     command: "scheduler-cleanup-stale",
     staleCount: stale.length,
     stale,
+    mutatedRunIds: mutated,
     note: dryRun
-      ? "Report-only. No rows deleted or mutated. Owner can inspect stuck runs in Agent Detail / monitoring."
-      : "Destructive cleanup is not enabled in Fix C-B.",
+      ? "Report-only. No rows deleted or mutated. Pass --mutate to mark stale running rows failed (no deletion)."
+      : mutate
+        ? `Marked ${mutated.length} stale running run(s) as failed. No automatic deletion.`
+        : "No mutation performed.",
   };
 }

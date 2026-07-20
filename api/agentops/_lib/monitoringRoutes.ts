@@ -18,6 +18,7 @@ import { guardAgentOpsExecutionResponse } from "./agentopsStagingGuard.js";
 import { applyMonitoringMemoryProposalViaApi } from "./monitoringMemoryApplication.js";
 import { createMonitoringReadClient, extractSupabaseProjectRef, resolveMonitoringSupabaseUrl } from "./monitoringReadClient.js";
 import {
+  handleMonitoringManualRunCancelRequest,
   handleMonitoringManualRunCapabilityRequest,
   handleMonitoringManualRunStartRequest,
   handleMonitoringManualRunStatusRequest,
@@ -1609,6 +1610,9 @@ export async function routeMonitoringRequest(request: Request): Promise<Response
   }
   if (pathname === "/api/agentops/monitoring/manual-run/capability") {
     return handleMonitoringManualRunCapabilityRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/manual-run/cancel") {
+    return handleMonitoringManualRunCancelRequest(request);
   }
   if (pathname === "/api/agentops/monitoring/manual-run") {
     if (request.method === "GET") return handleMonitoringManualRunStatusRequest(request);

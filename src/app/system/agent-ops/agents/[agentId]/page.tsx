@@ -665,6 +665,36 @@ export default function AgentOpsAgentDetailPage() {
       ? String(manualCapability.queueLength)
       : null;
   const workerActiveRunId = manualCapability?.activeRunId ?? null;
+  const workerActiveRunMetaLabel =
+    workerActiveRunId &&
+    (manualCapability?.activeRunType || manualCapability?.activeRunTrigger)
+      ? [
+          manualCapability?.activeRunType ?? null,
+          manualCapability?.activeRunTrigger ?? null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : null;
+  const oldestQueuedAgeLabel =
+    typeof manualCapability?.oldestQueuedAgeMs === "number"
+      ? `${Math.max(0, Math.round(manualCapability.oldestQueuedAgeMs / 1000))}s`
+      : null;
+  const lastCompletedRunLabel = manualCapability?.lastCompletedRunId ?? null;
+  const lastFailedRunLabel = manualCapability?.lastFailedRunId ?? null;
+  const lastErrorLabel = manualCapability?.lastError ?? null;
+  const schedulerStatusLabel = manualCapability
+    ? manualCapability.schedulerConnected
+      ? AGENT_DETAIL_CC_COPY.schedulerExecutable
+      : AGENT_DETAIL_CC_COPY.schedulerNotExecutable
+    : null;
+  const nextSchedulerTickLabel = manualCapability?.nextSchedulerTickEstimate
+    ? new Date(manualCapability.nextSchedulerTickEstimate).toLocaleString()
+    : null;
+  const enginesReadyLabel = manualCapability
+    ? manualCapability.enginesReady
+      ? AGENT_DETAIL_CC_COPY.enginesReady
+      : AGENT_DETAIL_CC_COPY.enginesNotReady
+    : null;
   const auditAvailable = Boolean(manualCapability?.websiteAudit.available);
   const browserQaAvailable = Boolean(manualCapability?.browserQa.available);
   const auditDisabledReason = auditAvailable
@@ -855,6 +885,14 @@ export default function AgentOpsAgentDetailPage() {
           workerHeartbeatLabel={workerHeartbeatLabel}
           queueLengthLabel={queueLengthLabel}
           workerActiveRunId={workerActiveRunId}
+          workerActiveRunMetaLabel={workerActiveRunMetaLabel}
+          oldestQueuedAgeLabel={oldestQueuedAgeLabel}
+          lastCompletedRunLabel={lastCompletedRunLabel}
+          lastFailedRunLabel={lastFailedRunLabel}
+          lastErrorLabel={lastErrorLabel}
+          schedulerStatusLabel={schedulerStatusLabel}
+          nextSchedulerTickLabel={nextSchedulerTickLabel}
+          enginesReadyLabel={enginesReadyLabel}
           runInProgress={runInProgress}
           activeRunId={activeManualRunId}
           currentActivityLabel={manualActivityLabel}

@@ -213,6 +213,11 @@ function statusMessageForRow(input: {
       ? "Website audit running on staging worker."
       : "Manual run is in progress on the staging worker.";
   }
+  if (status === "canceled") {
+    return typeof summary.cancelReason === "string" && summary.cancelReason.trim()
+      ? summary.cancelReason
+      : "Run canceled by owner.";
+  }
   if (status === "failed") {
     if (summary.b2bClaimOnly === true || summary.workerPhase === "b2-b") {
       return typeof summary.failureReason === "string"
@@ -688,6 +693,161 @@ export async function handleMonitoringManualRunStatusRequest(
       failurePhase:
         typeof summary.failurePhase === "string" ? summary.failurePhase : null,
       stale: status === "running" ? stale : false,
+      cancelRequested: summary.cancelRequested === true,
     },
   });
+}
+
+/**
+ * Phase D-A — owner-gated cancel for queued / cancel_requested for running.
+ * Staging only. No new Vercel function (same monitoring router).
+ */
+export async function handleMonitoringManualRunCancelRequest(
+  request: Request,
+): Promise<Response> {
+  const blocked = guardAgentOpsExecutionResponse(process.env);
+  if (blocked) return blocked;
+  if (request.method !== "POST") return methodNotAllowed();
+
+  const owner = await assertOwnerFromRequest(request);
+  if (!owner.ok) {
+    return jsonResponse({ ok: false, canceled: false, message: owner.error }, owner.status);
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse(
+      { ok: false, canceled: false, message: "Invalid JSON body." },
+      400,
+    );
+  }
+
+  const record = body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+  const runId = typeof record.runId === "string" ? record.runId.trim() : "";
+  if (!runId) {
+    return jsonResponse(
+      { ok: false, canceled: false, message: "runId is required." },
+      400,
+    );
+  }
+
+  const client = createServiceClient();
+  if (!client) {
+    return jsonResponse(
+      { ok: false, canceled: false, message: "Staging Supabase service role is not configured." },
+      503,
+    );
+  }
+
+  const { data: existing, error: readError } = await client
+    .from(MONITORING_TABLE)
+    .select("run_id, status, mode, summary, started_at")
+    .eq("run_id", runId)
+    .maybeSingle();
+  if (readError) {
+    return jsonResponse({ ok: false, canceled: false, message: readError.message }, 500);
+  }
+  if (!existing) {
+    return jsonResponse({ ok: false, canceled: false, message: `Run not found: ${runId}` }, 404);
+  }
+  if (
+    existing.mode !== "owner_manual_single_agent" &&
+    existing.mode !== "scheduled_single_agent"
+  ) {
+    return jsonResponse(
+      { ok: false, canceled: false, message: "Only owner_manual / scheduled runs can be canceled." },
+      400,
+    );
+  }
+
+  const nowIso = new Date().toISOString();
+  const summary =
+    existing.summary && typeof existing.summary === "object"
+      ? { ...(existing.summary as Record<string, unknown>) }
+      : {};
+  const ownerRef = owner.userId || "owner";
+
+  if (existing.status === "queued") {
+    const nextSummary = {
+      ...summary,
+      cancelRequested: false,
+      canceledAt: nowIso,
+      cancelReason: "Canceled by owner while queued.",
+      cancelRequestedBy: ownerRef,
+    };
+    const { data: updated, error: updateError } = await client
+      .from(MONITORING_TABLE)
+      .update({
+        status: "canceled",
+        ended_at: nowIso,
+        summary: nextSummary,
+      })
+      .eq("run_id", runId)
+      .eq("status", "queued")
+      .select("run_id, status, summary")
+      .maybeSingle();
+    if (updateError) {
+      return jsonResponse({ ok: false, canceled: false, message: updateError.message }, 500);
+    }
+    if (!updated) {
+      return jsonResponse(
+        { ok: false, canceled: false, message: "Cancel raced; run is no longer queued." },
+        409,
+      );
+    }
+    return jsonResponse({
+      ok: true,
+      canceled: true,
+      status: "canceled",
+      runId,
+      message: "Queued run canceled.",
+    });
+  }
+
+  if (existing.status === "running") {
+    const nextSummary = {
+      ...summary,
+      cancelRequested: true,
+      cancelRequestedAt: nowIso,
+      cancelRequestedBy: ownerRef,
+      cancelReason: "Cancel requested by owner; worker will honor between steps.",
+    };
+    const { data: updated, error: updateError } = await client
+      .from(MONITORING_TABLE)
+      .update({ summary: nextSummary })
+      .eq("run_id", runId)
+      .eq("status", "running")
+      .select("run_id, status, summary")
+      .maybeSingle();
+    if (updateError) {
+      return jsonResponse({ ok: false, canceled: false, message: updateError.message }, 500);
+    }
+    if (!updated) {
+      return jsonResponse(
+        { ok: false, canceled: false, message: "Cancel raced; run is no longer running." },
+        409,
+      );
+    }
+    return jsonResponse({
+      ok: true,
+      canceled: false,
+      cancelRequested: true,
+      status: "running",
+      runId,
+      message: "Cancel requested. Worker will mark canceled between steps when safe.",
+    });
+  }
+
+  return jsonResponse(
+    {
+      ok: false,
+      canceled: false,
+      message: `Cannot cancel run in status=${existing.status}.`,
+      status: existing.status,
+      runId,
+    },
+    409,
+  );
 }

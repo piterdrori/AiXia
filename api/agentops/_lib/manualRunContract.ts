@@ -48,9 +48,6 @@ export const CANONICAL_AGENT_SLUGS = [
 ] as const;
 
 export const ABSOLUTE_MANUAL_MAX_DURATION_MINUTES = 30;
-export const DAILY12_WORKFLOW_FILE = "agentops-daily-12-agent-review.yml";
-export const GITHUB_REPO = "piterdrori/AiXia";
-export const GITHUB_REF = "staging";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*-agent$/;
 

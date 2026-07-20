@@ -1,6 +1,6 @@
 /**
- * Fix B — owner Detail client for manual website audit / Browser QA.
- * Playwright executes on GitHub Actions; this client only accept/status/capability.
+ * Fix B2-A — owner Detail client for manual website audit / Browser QA.
+ * Queues into staging DB; worker claims later. No GitHub dispatch.
  */
 
 import { supabase } from "@/lib/supabase";
@@ -16,6 +16,9 @@ export const MANUAL_RUN_CAPABILITY_URL = "/api/agentops/monitoring/manual-run/ca
 export const MANUAL_RUN_URL = "/api/agentops/monitoring/manual-run";
 
 export type ManualRunCapability = {
+  queueAvailable: boolean;
+  workerConnected: boolean;
+  workerStatus: string;
   websiteAudit: { available: boolean; reason: string | null; engine: string };
   browserQa: { available: boolean; reason: string | null; engine: string };
   notes: string[];
@@ -96,12 +99,12 @@ export async function startOwnerManualRun(
     accepted: Boolean(payload.accepted),
     runId: payload.runId,
     status: payload.status ?? "rejected",
-    message: payload.message || AGENT_MANUAL_RUN_COPY.ghaUnavailable,
+    message: payload.message || AGENT_MANUAL_RUN_COPY.workerNotConnected,
     startedAt: payload.startedAt,
     completedAt: payload.completedAt,
     evidenceAvailable: payload.evidenceAvailable,
-    githubRunId: payload.githubRunId,
-    githubRunUrl: payload.githubRunUrl,
+    githubRunId: payload.githubRunId ?? null,
+    githubRunUrl: payload.githubRunUrl ?? null,
     workType: payload.workType ?? input.workType,
     agentSlug: payload.agentSlug ?? input.agentSlug,
     durationMs: payload.durationMs,
@@ -109,6 +112,7 @@ export async function startOwnerManualRun(
     rawObservations: payload.rawObservations,
     queuedFindings: payload.queuedFindings,
     existingRunId: payload.existingRunId,
+    workerConnected: payload.workerConnected,
   };
 }
 
@@ -120,6 +124,7 @@ export async function fetchManualRunStatus(input: {
   active: boolean;
   result: AgentManualRunResult | null;
   error: string | null;
+  workerConnected?: boolean;
 }> {
   try {
     const headers = await authHeaders();
@@ -135,6 +140,7 @@ export async function fetchManualRunStatus(input: {
       active?: boolean;
       result?: AgentManualRunResult | null;
       error?: string;
+      workerConnected?: boolean;
     };
     if (!response.ok || payload.ok === false) {
       return {
@@ -142,6 +148,7 @@ export async function fetchManualRunStatus(input: {
         active: false,
         result: null,
         error: payload.error ?? "Could not load manual run status.",
+        workerConnected: payload.workerConnected,
       };
     }
     return {
@@ -149,6 +156,7 @@ export async function fetchManualRunStatus(input: {
       active: Boolean(payload.active),
       result: payload.result ?? null,
       error: null,
+      workerConnected: payload.workerConnected,
     };
   } catch (error) {
     return {
@@ -163,9 +171,17 @@ export async function fetchManualRunStatus(input: {
 export function activityLabelForManualRun(
   status: string | null | undefined,
   workType: AgentManualWorkType | null | undefined,
-): "Preparing" | "Auditing" | "Running Browser QA" | "Processing evidence" | "Completed" | "Failed" | "Idle" {
+):
+  | "Queued for staging worker"
+  | "Preparing"
+  | "Auditing"
+  | "Running Browser QA"
+  | "Processing evidence"
+  | "Completed"
+  | "Failed"
+  | "Idle" {
   const s = (status ?? "").toLowerCase();
-  if (s === "queued") return "Preparing";
+  if (s === "queued") return "Queued for staging worker";
   if (s === "running") {
     return workType === "browser_qa" ? "Running Browser QA" : "Auditing";
   }
@@ -182,6 +198,9 @@ export function defaultScopeForWorkType(workType: AgentManualWorkType): AgentMan
 }
 
 export function formatManualRunResultBanner(result: AgentManualRunResult): string {
+  if (result.status === "queued") {
+    return result.message || AGENT_MANUAL_RUN_COPY.queuedWorkerOffline;
+  }
   const parts = [
     result.status === "completed" ? "Completed" : result.status === "failed" ? "Failed" : result.status,
     result.durationMs != null ? `${Math.round(result.durationMs / 1000)}s` : null,

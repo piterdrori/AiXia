@@ -21,6 +21,7 @@ type AgentControlHeaderProps = {
   browserQaAvailable: boolean;
   auditDisabledReason: string | null;
   browserQaDisabledReason: string | null;
+  workerConnected: boolean;
   runInProgress: boolean;
   activeRunId: string | null;
   currentActivityLabel: string | null;
@@ -50,6 +51,7 @@ export function AgentControlHeader({
   browserQaAvailable,
   auditDisabledReason,
   browserQaDisabledReason,
+  workerConnected,
   runInProgress,
   activeRunId,
   currentActivityLabel,
@@ -98,10 +100,19 @@ export function AgentControlHeader({
             Owner work status: {ownerStatusLabel}
           </p>
           <p className="max-w-3xl text-xs text-white/45">{AGENT_DETAIL_CC_COPY.ownerStatusHelper}</p>
+          <p
+            className="text-sm text-white/70"
+            data-testid="agentops-execution-worker-status"
+          >
+            {AGENT_DETAIL_CC_COPY.executionWorkerLabel}:{" "}
+            {workerConnected
+              ? AGENT_DETAIL_CC_COPY.workerOnline
+              : AGENT_DETAIL_CC_COPY.workerOffline}
+          </p>
           {currentActivityLabel ? (
             <p className="text-sm text-cyan-200/90" data-testid="agentops-manual-run-activity">
               Current activity: {currentActivityLabel}
-              {runInProgress ? "…" : ""}
+              {runInProgress && currentActivityLabel !== "Queued for staging worker" ? "…" : ""}
             </p>
           ) : null}
         </div>
@@ -133,25 +144,25 @@ export function AgentControlHeader({
             disabled={!auditAvailable || runInProgress || isBlocked}
             title={
               runInProgress
-                ? "A run is already in progress"
+                ? "A run is already queued or active"
                 : auditDisabledReason ?? undefined
             }
             onClick={onRunAudit}
             data-testid="agentops-run-audit-now"
           >
-            {runInProgress ? "Running…" : "Run audit now"}
+            {runInProgress ? "Queued…" : "Run audit now"}
           </AixiaButton>
           <AixiaButton
             disabled={!browserQaAvailable || runInProgress || isBlocked}
             title={
               runInProgress
-                ? "A run is already in progress"
+                ? "A run is already queued or active"
                 : browserQaDisabledReason ?? undefined
             }
             onClick={onRunBrowserQa}
             data-testid="agentops-run-browser-qa-now"
           >
-            {runInProgress ? "Running…" : "Run Browser QA now"}
+            {runInProgress ? "Queued…" : "Run Browser QA now"}
           </AixiaButton>
           {runInProgress && activeRunId ? (
             <AixiaButton variant="secondary" onClick={onViewCurrentRun}>
@@ -236,6 +247,7 @@ export function AgentControlHeader({
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs text-white/50">
+        <AixiaBadge tone="neutral">{AGENT_DETAIL_CC_COPY.stagingQueueBadge}</AixiaBadge>
         <AixiaBadge tone={auditAvailable ? "emerald" : "neutral"}>
           Run audit:{" "}
           {auditAvailable

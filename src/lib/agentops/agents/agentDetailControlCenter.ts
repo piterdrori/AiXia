@@ -13,10 +13,14 @@ import {
 import type { OwnerFacingAgentStatus } from "@/lib/agentops/agents/agentRuntimeIdentityModel";
 
 export const AGENT_DETAIL_CC_COPY = {
-  runAuditNotConnected: "Not connected yet",
-  runBrowserQaNotConnected: "Not connected yet",
-  runAuditConnected: "Owner-gated · GHA Playwright",
-  runBrowserQaConnected: "Owner-gated · GHA Playwright",
+  runAuditNotConnected: "Staging worker not connected.",
+  runBrowserQaNotConnected: "Staging worker not connected.",
+  runAuditConnected: "Owner-gated · Staging queue",
+  runBrowserQaConnected: "Owner-gated · Staging queue",
+  workerOffline: "Offline / Not connected",
+  workerOnline: "Connected",
+  executionWorkerLabel: "Execution worker",
+  stagingQueueBadge: "Staging queue · Worker required · No GitHub dependency",
   schedulerPending:
     "This time is calculated from the saved preference. No scheduler currently executes this agent-specific schedule.",
   scheduleExecutionNotConnected: "Not connected",
@@ -29,7 +33,7 @@ export const AGENT_DETAIL_CC_COPY = {
   fileMemoryPending:
     "File memory uses secure storage plus a pending memory record. Owner approval is required before permanent Hermes use.",
   ownerStatusHelper:
-    "This controls the owner-facing agent state. It does not yet exclude the agent from fleet GitHub Actions runs.",
+    "This controls the owner-facing agent state. It does not yet exclude the agent from fleet monitoring runs.",
 } as const;
 
 export type StripAgentStatus = "Active" | "Paused" | "Blocked" | "Error" | "Unknown";

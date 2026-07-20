@@ -128,31 +128,43 @@ function drawerFromManualResult(
     trigger: "owner_manual",
     startedAt: result.startedAt ?? null,
     endedAt: result.completedAt ?? null,
-    duration: formatDurationMs(result.durationMs ?? null),
+    duration:
+      result.status === "queued"
+        ? "Not started"
+        : formatDurationMs(result.durationMs ?? null),
     reviewDepth: result.workType === "browser_qa" ? "Limited routes (Browser QA)" : "Assigned modules",
-    authenticationDepth: "Staging Playwright (GitHub Actions)",
+    authenticationDepth: "Staging worker (pending claim)",
     routesModules:
       result.routesChecked && result.routesChecked.length > 0
         ? result.routesChecked.join(", ")
-        : "Awaiting execution evidence",
-    browserToolUsage: "playwrightStagingScanner via daily-12 GHA",
+        : result.status === "queued"
+          ? "Queued — waiting for staging worker"
+          : "Awaiting execution evidence",
+    browserToolUsage: "Staging worker Playwright (not on Vercel)",
     rawObservations:
-      result.rawObservations != null ? String(result.rawObservations) : "Not yet available",
+      result.status === "queued"
+        ? "None yet — run is queued only"
+        : result.rawObservations != null
+          ? String(result.rawObservations)
+          : "Not yet available",
     filteredObservations: "Owner drafts only — no auto-promotion",
     queuedFindings:
-      result.queuedFindings != null
-        ? result.queuedFindings > 0
-          ? String(result.queuedFindings)
-          : AGENT_MANUAL_RUN_COPY.zeroFindings
-        : "Not yet available",
+      result.status === "queued"
+        ? "None yet — run is queued only"
+        : result.queuedFindings != null
+          ? result.queuedFindings > 0
+            ? String(result.queuedFindings)
+            : AGENT_MANUAL_RUN_COPY.zeroFindings
+          : "Not yet available",
     duplicates: "Tracked in Monitoring drafts",
-    evidence: result.evidenceAvailable
-      ? result.githubRunUrl
-        ? `Evidence linked · ${result.githubRunUrl}`
-        : "Evidence available in Monitoring / GHA artifacts"
-      : "Evidence pending while run is active",
+    evidence:
+      result.status === "queued"
+        ? "No evidence yet — waiting for staging worker"
+        : result.evidenceAvailable
+          ? "Evidence available in Monitoring"
+          : "Evidence pending while run is active",
     limitations:
-      "Dry-run / drafts only. No code changes, PRs, deploys, or automatic memory apply.",
+      "Dry-run / drafts only. Staging queue accept. No GitHub dispatch. No code changes, PRs, deploys, or automatic memory apply.",
     failureReason:
       result.status === "failed" || result.status === "rejected"
         ? result.message
@@ -343,14 +355,40 @@ export default function AgentOpsAgentDetailPage() {
   useEffect(() => {
     if (!isOwner || !activeManualRunId) return;
     let cancelled = false;
-    const poll = async () => {
+    let pollCount = 0;
+    let timer: number | null = null;
+    const startedAt = Date.now();
+    const MAX_QUEUED_POLL_MS = 5 * 60_000;
+    const intervalMs = manualCapability?.workerConnected === true ? 12_000 : 60_000;
+
+    const poll = async (): Promise<"continue" | "stop"> => {
       const status = await fetchManualRunStatus({
         runId: activeManualRunId,
         agentSlug: resolvedSlug,
       });
-      if (cancelled) return;
-      if (!status.ok || !status.result) return;
+      if (cancelled) return "stop";
+      if (!status.ok || !status.result) return "continue";
       setManualRunResult(status.result);
+      const runStatus = status.result.status;
+      const workerConnected = status.workerConnected === true;
+
+      if (runStatus === "queued") {
+        setActionFeedback(
+          workerConnected
+            ? AGENT_MANUAL_RUN_COPY.queuedWaiting
+            : AGENT_MANUAL_RUN_COPY.queuedWorkerOffline,
+        );
+        setManualResultBanner(formatManualRunResultBanner(status.result));
+        // Worker offline: one status read is enough — no forever polling.
+        if (!workerConnected) {
+          return "stop";
+        }
+        if (Date.now() - startedAt > MAX_QUEUED_POLL_MS) {
+          return "stop";
+        }
+        return "continue";
+      }
+
       if (!status.active) {
         setActiveManualRunId(null);
         setManualResultBanner(formatManualRunResultBanner(status.result));
@@ -369,15 +407,38 @@ export default function AgentOpsAgentDetailPage() {
           status: "logged",
         });
         void loadDetail();
+        return "stop";
       }
+      return "continue";
     };
-    void poll();
-    const timer = window.setInterval(() => void poll(), 12_000);
+
+    void (async () => {
+      const first = await poll();
+      if (cancelled || first === "stop") return;
+      timer = window.setInterval(() => {
+        void (async () => {
+          pollCount += 1;
+          const next = await poll();
+          if (next === "stop" && timer != null) {
+            window.clearInterval(timer);
+            timer = null;
+          }
+        })();
+      }, intervalMs);
+    })();
+
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (timer != null) window.clearInterval(timer);
     };
-  }, [activeManualRunId, isOwner, loadDetail, pushLocalActivity, resolvedSlug]);
+  }, [
+    activeManualRunId,
+    isOwner,
+    loadDetail,
+    manualCapability?.workerConnected,
+    pushLocalActivity,
+    resolvedSlug,
+  ]);
 
   const refreshAll = () => void Promise.all([refreshGate(), refreshMonitoring(), loadDetail()]);
 
@@ -477,18 +538,25 @@ export default function AgentOpsAgentDetailPage() {
       setActiveManualRunId(result.runId ?? null);
       setActiveManualWorkType(confirmWorkType);
       setManualRunResult(result);
-      setManualResultBanner(null);
+      setManualResultBanner(
+        result.status === "queued" ? formatManualRunResultBanner(result) : null,
+      );
       setDrawer(drawerFromManualResult(result, false));
       setActionFeedback(result.message);
       pushLocalActivity({
         agentId: canonical.id,
         eventType: "verification_request",
-        title: "Owner manual run started",
-        summary: `${confirmWorkType} · ${result.runId ?? "queued"}`,
+        title: "Owner manual run queued",
+        summary: `${confirmWorkType} · ${result.runId ?? "queued"} · scope=${confirmScope.type} · requestedBy=owner`,
         source: "piter",
         priority: "medium",
         createdAt: new Date().toISOString(),
-        metadata: { runId: result.runId, workType: confirmWorkType },
+        metadata: {
+          runId: result.runId,
+          workType: confirmWorkType,
+          scope: confirmScope,
+          status: result.status,
+        },
         relatedPath: null,
         relatedIssueCode: null,
         status: "logged",
@@ -532,20 +600,24 @@ export default function AgentOpsAgentDetailPage() {
         );
 
   const manualActivityLabel = activeManualRunId
-    ? activityLabelForManualRun(manualRunResult?.status ?? "running", activeManualWorkType)
+    ? activityLabelForManualRun(manualRunResult?.status ?? "queued", activeManualWorkType)
     : null;
   const manualStripActivity: StripCurrentActivity | null =
+    manualActivityLabel === "Queued for staging worker" ||
     manualActivityLabel === "Preparing" ||
     manualActivityLabel === "Auditing" ||
     manualActivityLabel === "Running Browser QA" ||
     manualActivityLabel === "Processing evidence" ||
     manualActivityLabel === "Failed"
-      ? manualActivityLabel
+      ? manualActivityLabel === "Queued for staging worker"
+        ? "Preparing"
+        : manualActivityLabel
       : manualActivityLabel === "Completed"
         ? "Idle"
         : null;
 
   const runInProgress = Boolean(activeManualRunId);
+  const workerConnected = Boolean(manualCapability?.workerConnected);
   const auditAvailable = Boolean(manualCapability?.websiteAudit.available);
   const browserQaAvailable = Boolean(manualCapability?.browserQa.available);
   const auditDisabledReason = auditAvailable
@@ -595,8 +667,9 @@ export default function AgentOpsAgentDetailPage() {
       scheduleConfig
         ? `Schedule: ${scheduleStrip.label}`
         : "Schedule: Not configured",
-      `Run audit now: ${auditAvailable ? "Available (owner-gated GHA)" : auditDisabledReason ?? "Unavailable"}`,
-      `Run Browser QA now: ${browserQaAvailable ? "Available (owner-gated GHA)" : browserQaDisabledReason ?? "Unavailable"}`,
+      `Run audit now: ${auditAvailable ? "Available (staging queue)" : auditDisabledReason ?? "Unavailable"}`,
+      `Run Browser QA now: ${browserQaAvailable ? "Available (staging queue)" : browserQaDisabledReason ?? "Unavailable"}`,
+      `Execution worker: ${workerConnected ? "Connected" : "Offline / Not connected"}`,
       typeof errors === "number" ? `Errors reported: ${errors}` : null,
       typeof improvements === "number" ? `Improvements reported: ${improvements}` : null,
       typeof features === "number" ? `Feature ideas reported: ${features}` : null,
@@ -637,6 +710,7 @@ export default function AgentOpsAgentDetailPage() {
     auditDisabledReason,
     browserQaAvailable,
     browserQaDisabledReason,
+    workerConnected,
   ]);
 
   const openFindingsLabel = findingsUnavailable
@@ -722,6 +796,7 @@ export default function AgentOpsAgentDetailPage() {
           browserQaAvailable={browserQaAvailable}
           auditDisabledReason={auditDisabledReason}
           browserQaDisabledReason={browserQaDisabledReason}
+          workerConnected={workerConnected}
           runInProgress={runInProgress}
           activeRunId={activeManualRunId}
           currentActivityLabel={manualActivityLabel}
@@ -756,7 +831,7 @@ export default function AgentOpsAgentDetailPage() {
                   ? "Latest review reported failed / needs attention"
                   : "Not recorded"),
               limitations:
-                "Latest fleet/daily execution. Owner manual runs use View latest run after dispatch.",
+                "Latest fleet/daily execution. Owner manual runs queue for the staging worker.",
             });
           }}
         />

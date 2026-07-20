@@ -1,6 +1,6 @@
 /**
- * Fix B — shared per-agent manual run contract (pure helpers).
- * Execution is GHA Playwright (daily-12 path); Vercel only accepts/queues/locks.
+ * Fix B2-A — shared per-agent manual run contract (pure helpers).
+ * Accept path queues into staging DB; worker claims later (B2-B). No GitHub dispatch.
  */
 
 export const AGENT_MANUAL_WORK_TYPES = ["website_audit", "browser_qa"] as const;
@@ -61,17 +61,20 @@ export type AgentManualRunResult = {
   rawObservations?: number | null;
   queuedFindings?: number | null;
   existingRunId?: string;
+  workerConnected?: boolean;
 };
 
 export const AGENT_MANUAL_RUN_COPY = {
   confirmSideEffects:
     "This run may create finding drafts for owner review. It cannot modify code or deploy.",
   pausedConfirm: "This agent is paused. Run once without activating it?",
-  duplicateActive: "This agent already has an active run.",
-  ghaUnavailable:
-    "Manual run dispatch is not configured (missing GitHub dispatch token on staging).",
+  duplicateActive: "This agent already has an active or queued run.",
+  workerNotConnected: "Staging worker not connected.",
+  queueAcceptMessage: "Run queued for staging worker.",
+  queuedWaiting: "Waiting for staging worker",
+  queuedWorkerOffline: "Queued. Worker not connected.",
   vercelCannotScan:
-    "Playwright runs on GitHub Actions (staging). Vercel accepts and tracks the owner-gated request only.",
+    "Vercel accepts and queues owner-gated runs only. A staging worker must claim and execute them. No GitHub dependency.",
   zeroFindings: "No qualifying findings were produced by this run.",
 } as const;
 

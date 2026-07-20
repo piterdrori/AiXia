@@ -1,6 +1,6 @@
 /**
- * Fix B — owner-gated per-agent manual run accept / status (staging only).
- * Playwright executes on GitHub Actions daily-12 workflow with agent_scope.
+ * Fix B2-A — owner-gated per-agent manual run accept / status (staging only).
+ * Accept path queues into agentops_monitoring_runs. No GitHub dispatch. No worker yet.
  */
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -14,9 +14,6 @@ import {
 import { jsonResponse } from "./ollamaProxy.js";
 import {
   buildManualRunSummary,
-  DAILY12_WORKFLOW_FILE,
-  GITHUB_REF,
-  GITHUB_REPO,
   validateAgentManualRunRequest,
   type AgentManualRunRequest,
 } from "./manualRunContract.js";
@@ -25,6 +22,9 @@ const MONITORING_TABLE = "agentops_monitoring_runs";
 const DAILY_EXECUTIONS_TABLE = "agentops_monitoring_daily_agent_executions";
 const AGENTS_TABLE = "agentops_agents";
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
+const QUEUE_VERSION = "b2-a";
+const WORKER_NOT_CONNECTED_REASON = "Staging worker not connected.";
+const DUPLICATE_LOCK_MESSAGE = "This agent already has an active or queued run.";
 
 function methodNotAllowed(): Response {
   return jsonResponse({ ok: false, error: "Method not allowed" }, 405);
@@ -35,13 +35,9 @@ function createServiceClient(): SupabaseClient | null {
   return readClient.ok ? readClient.client : null;
 }
 
-function readDispatchToken(): string | null {
-  const token =
-    process.env.AGENTOPS_GITHUB_DISPATCH_TOKEN?.trim() ||
-    process.env.GITHUB_TOKEN?.trim() ||
-    process.env.GH_TOKEN?.trim() ||
-    "";
-  return token || null;
+/** B2-A: no worker heartbeat yet — always offline. */
+function readWorkerConnected(): boolean {
+  return false;
 }
 
 function isAllowedStagingTarget(url: string | undefined | null): { ok: true; url: string } | { ok: false; error: string } {
@@ -165,114 +161,41 @@ async function findActiveManualRun(
   return null;
 }
 
-async function dispatchDaily12Workflow(input: {
-  agentSlug: string;
-  workType: string;
-  ownerManualRunId: string;
-  selectedRoutes: string[];
-  maxDurationMinutes: number;
-}): Promise<{ ok: true; githubRunUrl: string | null } | { ok: false; error: string }> {
-  const token = readDispatchToken();
-  if (!token) {
-    return {
-      ok: false,
-      error:
-        "Manual run dispatch is not configured (missing AGENTOPS_GITHUB_DISPATCH_TOKEN on staging).",
-    };
-  }
-
-  const response = await fetch(
-    `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${DAILY12_WORKFLOW_FILE}/dispatches`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${token}`,
-        "X-GitHub-Api-Version": "2022-11-28",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        ref: GITHUB_REF,
-        inputs: {
-          agent_scope: input.agentSlug,
-          force_retry: "true",
-          work_type: input.workType,
-          owner_manual_run_id: input.ownerManualRunId,
-          selected_routes: input.selectedRoutes.join(","),
-          max_duration_minutes: String(input.maxDurationMinutes),
-        },
-      }),
-    },
-  );
-
-  if (response.status !== 204 && !response.ok) {
-    const text = await response.text();
-    return {
-      ok: false,
-      error: `GitHub workflow dispatch failed (${response.status}): ${text.slice(0, 300)}`,
-    };
-  }
-
+function capabilityPayload(workerConnected: boolean) {
+  const engineReason = workerConnected ? null : WORKER_NOT_CONNECTED_REASON;
   return {
-    ok: true,
-    githubRunUrl: `https://github.com/${GITHUB_REPO}/actions/workflows/${DAILY12_WORKFLOW_FILE}`,
-  };
-}
-
-async function maybeResolveGithubRunId(
-  token: string,
-  startedAfterIso: string,
-): Promise<{ githubRunId: string | null; githubRunUrl: string | null }> {
-  try {
-    const response = await fetch(
-      `https://api.github.com/repos/${GITHUB_REPO}/actions/workflows/${DAILY12_WORKFLOW_FILE}/runs?event=workflow_dispatch&per_page=5`,
-      {
-        headers: {
-          Accept: "application/vnd.github+json",
-          Authorization: `Bearer ${token}`,
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      },
-    );
-    if (!response.ok) return { githubRunId: null, githubRunUrl: null };
-    const payload = (await response.json()) as {
-      workflow_runs?: Array<{ id: number; html_url: string; created_at: string; status: string }>;
-    };
-    const startedAfter = Date.parse(startedAfterIso);
-    const match = (payload.workflow_runs ?? []).find(
-      (run) => Date.parse(run.created_at) >= startedAfter - 15_000,
-    );
-    if (!match) return { githubRunId: null, githubRunUrl: null };
-    return {
-      githubRunId: String(match.id),
-      githubRunUrl: match.html_url,
-    };
-  } catch {
-    return { githubRunId: null, githubRunUrl: null };
-  }
-}
-
-function capabilityPayload(dispatchConfigured: boolean) {
-  return {
+    queueAvailable: true,
+    workerConnected,
+    workerStatus: workerConnected ? "connected" : "not_connected",
     websiteAudit: {
-      available: dispatchConfigured,
-      reason: dispatchConfigured
-        ? null
-        : "Missing AGENTOPS_GITHUB_DISPATCH_TOKEN — Website audit dispatches Daily-12 GHA.",
-      engine: "daily_12_agent_review + playwrightStagingScanner",
+      available: workerConnected,
+      reason: engineReason,
+      engine: "staging_worker + website_audit (pending B2-B)",
     },
     browserQa: {
-      available: dispatchConfigured,
-      reason: dispatchConfigured
-        ? null
-        : "Missing AGENTOPS_GITHUB_DISPATCH_TOKEN — Browser QA uses same GHA engine with limited scope.",
-      engine: "daily_12_agent_review + playwrightStagingScanner (limited routes)",
+      available: workerConnected,
+      reason: engineReason,
+      engine: "staging_worker + browser_qa (pending B2-B)",
     },
     notes: [
-      "Vercel does not run Playwright. Manual runs are accepted here and executed on GitHub Actions.",
+      "Staging queue accepts owner-gated runs into agentops_monitoring_runs.",
+      "No GitHub dispatch. No Playwright on Vercel.",
+      "A staging worker must claim queued runs (Fix B2-B).",
       "Findings remain drafts; no auto-promotion, auto-fix, PR, or deploy.",
     ],
   };
+}
+
+function statusMessageForRow(status: string, workerConnected: boolean): string {
+  if (status === "queued") {
+    return workerConnected
+      ? "Waiting for staging worker"
+      : "Queued. Worker not connected.";
+  }
+  if (status === "running") return "Manual run is in progress on the staging worker.";
+  if (status === "completed") return "Manual run completed.";
+  if (status === "failed") return "Manual run failed.";
+  return `Manual run status: ${status}`;
 }
 
 export async function handleMonitoringManualRunCapabilityRequest(
@@ -282,11 +205,11 @@ export async function handleMonitoringManualRunCapabilityRequest(
   if (blocked) return blocked;
   if (request.method !== "GET") return methodNotAllowed();
 
-  const dispatchConfigured = Boolean(readDispatchToken());
+  const workerConnected = readWorkerConnected();
   return jsonResponse({
     ok: true,
     environment: "staging",
-    capability: capabilityPayload(dispatchConfigured),
+    capability: capabilityPayload(workerConnected),
   });
 }
 
@@ -373,31 +296,26 @@ export async function handleMonitoringManualRunStartRequest(
           ok: false,
           accepted: false,
           status: "rejected",
-          message: "This agent already has an active run.",
+          message: DUPLICATE_LOCK_MESSAGE,
           existingRunId: active.run_id,
           runId: active.run_id,
+          existingStatus: active.status,
         },
         409,
       );
     }
   }
 
-  if (!readDispatchToken()) {
-    return jsonResponse(
-      {
-        ok: false,
-        accepted: false,
-        status: "rejected",
-        message:
-          "Manual run dispatch is not configured (missing AGENTOPS_GITHUB_DISPATCH_TOKEN on staging).",
-        capability: capabilityPayload(false),
-      },
-      503,
-    );
-  }
-
   const runId = `owner-manual-${runRequest.agentSlug}-${randomUUID()}`;
   const startedAt = new Date().toISOString();
+  const selectedRoutes =
+    runRequest.scope.routes && runRequest.scope.routes.length > 0
+      ? runRequest.scope.routes
+      : runRequest.workType === "browser_qa"
+        ? ["/system/agent-ops"]
+        : [];
+  const selectedModules = runRequest.scope.modules ?? [];
+
   const summary = buildManualRunSummary({
     agentSlug: runRequest.agentSlug,
     runtimeAgentId,
@@ -408,6 +326,18 @@ export async function handleMonitoringManualRunStartRequest(
   });
   summary.runOnceWhilePaused = Boolean(runRequest.runOnceWhilePaused);
   summary.activateAndRun = Boolean(runRequest.activateAndRun);
+  summary.selectedRoutes = selectedRoutes;
+  summary.selectedModules = selectedModules;
+  summary.createdByAgentDetail = true;
+  summary.queueVersion = QUEUE_VERSION;
+  summary.schedulerConnection = "staging_worker_pending";
+  summary.activity = {
+    event: "manual_run_queued",
+    agentSlug: runRequest.agentSlug,
+    workType: runRequest.workType,
+    scope: runRequest.scope,
+    requestedBy: owner.userId,
+  };
 
   const insertRow = {
     run_id: runId,
@@ -455,74 +385,21 @@ export async function handleMonitoringManualRunStartRequest(
     );
   }
 
-  const routes =
-    runRequest.scope.routes && runRequest.scope.routes.length > 0
-      ? runRequest.scope.routes
-      : runRequest.workType === "browser_qa"
-        ? ["/system/agent-ops"]
-        : [];
-
-  const dispatch = await dispatchDaily12Workflow({
-    agentSlug: runRequest.agentSlug,
-    workType: runRequest.workType,
-    ownerManualRunId: runId,
-    selectedRoutes: routes,
-    maxDurationMinutes: runRequest.maxDurationMinutes,
-  });
-
-  if (!dispatch.ok) {
-    await client
-      .from(MONITORING_TABLE)
-      .update({
-        status: "failed",
-        ended_at: new Date().toISOString(),
-        summary: { ...summary, dispatchError: dispatch.error },
-        errors_count: 1,
-      })
-      .eq("run_id", runId);
-
-    return jsonResponse(
-      {
-        ok: false,
-        accepted: false,
-        status: "failed",
-        runId,
-        message: dispatch.error,
-      },
-      503,
-    );
-  }
-
-  const token = readDispatchToken()!;
-  const github = await maybeResolveGithubRunId(token, startedAt);
-
-  await client
-    .from(MONITORING_TABLE)
-    .update({
-      status: "running",
-      agents_run: 1,
-      github_run_id: github.githubRunId,
-      github_run_url: github.githubRunUrl ?? dispatch.githubRunUrl,
-      summary: {
-        ...summary,
-        dispatchAccepted: true,
-        githubWorkflow: DAILY12_WORKFLOW_FILE,
-      },
-    })
-    .eq("run_id", runId);
-
   return jsonResponse({
     ok: true,
     accepted: true,
     runId,
-    status: "running",
-    message: "Owner manual run accepted. Playwright execution started on GitHub Actions.",
+    status: "queued",
+    message: "Run queued for staging worker.",
     startedAt,
-    githubRunId: github.githubRunId,
-    githubRunUrl: github.githubRunUrl ?? dispatch.githubRunUrl,
+    githubRunId: null,
+    githubRunUrl: null,
     workType: runRequest.workType,
     agentSlug: runRequest.agentSlug,
     evidenceAvailable: false,
+    durationMs: null,
+    workerConnected: readWorkerConnected(),
+    capability: capabilityPayload(readWorkerConnected()),
   });
 }
 
@@ -547,6 +424,7 @@ export async function handleMonitoringManualRunStatusRequest(
   const params = new URLSearchParams(queryPart);
   const runId = params.get("runId")?.trim() ?? "";
   const agentSlug = params.get("agentSlug")?.trim().toLowerCase() ?? "";
+  const workerConnected = readWorkerConnected();
 
   let row: Record<string, unknown> | null = null;
   if (runId) {
@@ -573,6 +451,7 @@ export async function handleMonitoringManualRunStatusRequest(
       ok: true,
       active: false,
       result: null,
+      workerConnected,
     });
   }
 
@@ -593,7 +472,9 @@ export async function handleMonitoringManualRunStatusRequest(
   let rawObservations: number | null = null;
   let evidenceAvailable = false;
 
-  if (ACTIVE_STATUSES.has(status) && slug && startedAt) {
+  // Only look for worker/execution evidence once a worker has claimed the run (running+).
+  // Queued-only runs must not invent duration or evidence.
+  if (status === "running" && slug && startedAt) {
     const { data: execution } = await client
       .from(DAILY_EXECUTIONS_TABLE)
       .select(
@@ -650,26 +531,28 @@ export async function handleMonitoringManualRunStatusRequest(
     }
   }
 
+  if (status === "queued") {
+    durationMs = null;
+    evidenceAvailable = false;
+    routesChecked = [];
+    queuedFindings = null;
+    rawObservations = null;
+  }
+
   return jsonResponse({
     ok: true,
     active: ACTIVE_STATUSES.has(status),
+    workerConnected,
     result: {
       accepted: true,
       runId: row.run_id,
       status,
-      message:
-        status === "running"
-          ? "Manual run is in progress on GitHub Actions."
-          : status === "completed"
-            ? "Manual run completed."
-            : status === "failed"
-              ? "Manual run failed."
-              : `Manual run status: ${status}`,
+      message: statusMessageForRow(status, workerConnected),
       startedAt,
       completedAt,
       evidenceAvailable,
-      githubRunId: row.github_run_id ?? null,
-      githubRunUrl: row.github_run_url ?? null,
+      githubRunId: null,
+      githubRunUrl: null,
       workType: summary.workType ?? null,
       agentSlug: slug || null,
       durationMs,

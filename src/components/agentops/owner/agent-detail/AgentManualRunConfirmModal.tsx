@@ -80,7 +80,10 @@ export function AgentManualRunConfirmModal({
           </div>
           <div>
             <dt className="text-white/45">Maximum duration</dt>
-            <dd>{maxDurationMinutes} minutes (soft limit; Playwright runs on GitHub Actions)</dd>
+            <dd>
+              {maxDurationMinutes} minutes (soft limit; queued for staging worker — not executed on
+              Vercel)
+            </dd>
           </div>
           <div>
             <dt className="text-white/45">Expected side effects</dt>

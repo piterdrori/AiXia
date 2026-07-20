@@ -155,9 +155,15 @@ export function resolveAgentHermesConnectionLabel(input: {
   agentSpecificRecordExists: boolean;
   runtimeAgentId: string | null;
   retrievalError?: string | null;
+  /** False while parent is still resolving agentops_agents UUID. */
+  identityReady?: boolean;
 }): AgentHermesConnectionLabel {
-  if (input.retrievalError && !input.runtimeAgentId) return "Error";
+  if (input.identityReady === false) return "Unknown";
+  // Identity missing is Unknown — not a Hermes connection Error.
   if (!input.runtimeAgentId) return "Unknown";
+  if (input.retrievalError && /hermes|transport|health/i.test(input.retrievalError)) {
+    return "Error";
+  }
   if (input.agentSpecificRecordExists) return "Connected";
   return "Not configured";
 }

@@ -1173,6 +1173,7 @@ export default function AgentOpsAgentDetailPage() {
             agentSlug={resolvedSlug}
             runtimeAgentId={identity?.runtimeAgentId ?? null}
             ownerDraftAgentId={resolvedSlug}
+            identityReady={!loading && identity != null}
             onMemoryStats={(stats) => {
               const mapped = mapMemoryCountsToStripStatus({
                 loaded: stats.error == null && stats.assigned != null,

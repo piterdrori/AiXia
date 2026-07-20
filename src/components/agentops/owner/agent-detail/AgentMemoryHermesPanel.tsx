@@ -64,6 +64,11 @@ type AgentMemoryHermesPanelProps = {
   runtimeAgentId: string | null;
   /** Canonical slug — used for owner-draft writes to agentops_agent_memory. */
   ownerDraftAgentId: string;
+  /**
+   * False while Agent Detail is still resolving runtime identity.
+   * Prevents a false “identity missing” flash before the UUID arrives.
+   */
+  identityReady?: boolean;
   onMemoryStats?: (stats: {
     assigned: number | null;
     enabled: number | null;
@@ -172,6 +177,7 @@ export function AgentMemoryHermesPanel({
   agentSlug,
   runtimeAgentId,
   ownerDraftAgentId,
+  identityReady = true,
   onMemoryStats,
   onHermesTestEvent,
 }: AgentMemoryHermesPanelProps) {
@@ -198,14 +204,34 @@ export function AgentMemoryHermesPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const onMemoryStatsRef = useRef(onMemoryStats);
   onMemoryStatsRef.current = onMemoryStats;
+  const loadGenerationRef = useRef(0);
 
   const agentHermesLabel = resolveAgentHermesConnectionLabel({
     agentSpecificRecordExists: false,
     runtimeAgentId,
     retrievalError: runtimeError,
+    identityReady,
   });
 
   const load = useCallback(async () => {
+    if (!identityReady) {
+      setLoading(true);
+      setRuntimeError(null);
+      setTimedOut(false);
+      onMemoryStatsRef.current?.({
+        assigned: null,
+        enabled: null,
+        pending: null,
+        diagnostic: null,
+        timedOut: false,
+        error: null,
+        hermesStatus: "Unknown",
+        hermesDetail: "Waiting for runtime agent identity…",
+      });
+      return;
+    }
+
+    const generation = ++loadGenerationRef.current;
     setLoading(true);
     setRuntimeError(null);
     setDraftError(null);
@@ -235,6 +261,8 @@ export function AgentMemoryHermesPanel({
       MEMORY_LOAD_TIMEOUT_MS,
       AGENT_DETAIL_MEMORY_COPY.memoryLoadSlow,
     );
+
+    if (generation !== loadGenerationRef.current) return;
 
     if (!raced.ok) {
       setAgentRuntimeRows([]);
@@ -323,7 +351,7 @@ export function AgentMemoryHermesPanel({
       hermesDetail: stripHermes.detail,
     });
     setLoading(false);
-  }, [draftAgentId, runtimeAgentId]);
+  }, [draftAgentId, identityReady, runtimeAgentId]);
 
   useEffect(() => {
     void load();
@@ -356,7 +384,10 @@ export function AgentMemoryHermesPanel({
   );
 
   const showFleetBanner =
-    fleetTransportLabel === "Available" && agentHermesLabel === "Not configured";
+    identityReady &&
+    fleetTransportLabel === "Available" &&
+    (agentHermesLabel === "Not configured" ||
+      (agentHermesLabel === "Unknown" && !runtimeAgentId));
 
   const saveDraft = async (approve: boolean) => {
     setFeedback(null);
@@ -613,7 +644,13 @@ export function AgentMemoryHermesPanel({
         ))}
       </div>
 
-      {loading && !timedOut ? (
+      {!identityReady ? (
+        <p className="text-sm text-white/50" role="status" data-testid="agentops-memory-waiting-identity">
+          Waiting for runtime agent identity…
+        </p>
+      ) : null}
+
+      {identityReady && loading && !timedOut ? (
         <p className="text-sm text-white/50" role="status" data-testid="agentops-memory-loading">
           Loading memory sections…
         </p>

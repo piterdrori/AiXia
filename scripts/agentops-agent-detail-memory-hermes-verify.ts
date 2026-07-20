@@ -244,12 +244,18 @@ function verifySourceFiles(): void {
   mustInclude(panel, "Refresh memory");
   mustInclude(panel, "Test Hermes connection");
   mustInclude(panel, "Load more");
+  mustInclude(panel, "identityReady");
+  mustInclude(panel, "Waiting for runtime agent identity");
   mustNotInclude(panel, "Agent Hermes connected");
   mustNotInclude(panel, "120 ASSIGNED");
 
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentStatusStrip.tsx",
     "Fleet Hermes",
+  );
+  mustInclude(
+    "src/app/system/agent-ops/agents/[agentId]/page.tsx",
+    "identityReady={!loading && identity != null}",
   );
 
   mustInclude("src/lib/agentops/agents/agentDetailMemoryModel.ts", "isDiagnosticRuntimeMemory");

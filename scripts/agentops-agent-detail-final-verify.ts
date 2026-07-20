@@ -335,6 +335,14 @@ function verifySourceFiles(): void {
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentResultsPanel.tsx",
+    "drawerFieldSections",
+  );
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailLatestRun.ts",
+    "drawerFieldSections",
+  );
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailLatestRun.ts",
     "drawerFieldRows",
   );
 

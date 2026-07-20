@@ -21,6 +21,7 @@ import {
   AgentRunCancelConfirmModal,
   AgentSchedulePanel,
   AgentStatusStrip,
+  DeferredVisibleMount,
   type AgentRunDrawerModel,
 } from "@/components/agentops/owner/agent-detail";
 import { StagingWorkerQueuePanel } from "@/components/agentops/owner/StagingWorkerQueuePanel";
@@ -1100,111 +1101,131 @@ export default function AgentOpsAgentDetailPage() {
         <AgentChatWorkspace enabled={isOwner && !gateLoading} identity={chatIdentity} />
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <AgentSchedulePanel
-            agentSlug={resolvedSlug}
-            isPaused={isPaused}
-            lastRunAt={
-              latestExecution?.startedAt ??
-              latestExecution?.completedAt ??
-              rosterRow?.lastDailyRunAt ??
-              null
+          <DeferredVisibleMount
+            idleMountMs={200}
+            testId="agentops-deferred-schedule"
+            fallback={
+              <p className="text-sm text-white/45" role="status">
+                Loading schedule…
+              </p>
             }
-            lastResultLabel={
-              monitoringResolving
-                ? "…"
-                : monitoringUnavailable && !rosterRow
-                  ? "Unavailable"
-                  : reviewStatusLabel(reviewStatus)
+          >
+            <AgentSchedulePanel
+              agentSlug={resolvedSlug}
+              isPaused={isPaused}
+              lastRunAt={
+                latestExecution?.startedAt ??
+                latestExecution?.completedAt ??
+                rosterRow?.lastDailyRunAt ??
+                null
+              }
+              lastResultLabel={
+                monitoringResolving
+                  ? "…"
+                  : monitoringUnavailable && !rosterRow
+                    ? "Unavailable"
+                    : reviewStatusLabel(reviewStatus)
+              }
+              currentRunStatus={statusStrip.currentActivity}
+              lastDurationLabel={durationLabel}
+              schedulerConnected={Boolean(manualCapability?.schedulerConnected)}
+              workerConnected={Boolean(manualCapability?.workerConnected)}
+              websiteAuditAvailable={Boolean(manualCapability?.websiteAudit?.available)}
+              browserQaAvailable={Boolean(manualCapability?.browserQa?.available)}
+              hasActiveRun={agentHasQueuedOrRunning}
+              hasQueuedScheduledRun={agentHasQueuedScheduled}
+              lastSchedulerTickAt={manualCapability?.lastSchedulerTickAt ?? null}
+              lastScheduledRunId={
+                agentScopedQueue?.queued?.find((row) => row.trigger === "schedule")?.runId ??
+                (
+                  manualCapability?.scheduler?.agents?.[resolvedSlug] as
+                    | { lastEnqueuedRunId?: string }
+                    | undefined
+                )?.lastEnqueuedRunId ??
+                null
+              }
+              lastSkippedReason={
+                agentHasQueuedScheduled
+                  ? null
+                  : (
+                      manualCapability?.scheduler?.agents?.[resolvedSlug] as
+                        | { lastSkippedReason?: string }
+                        | undefined
+                    )?.lastSkippedReason ?? null
+              }
+              nextDueAtFromScheduler={
+                (
+                  manualCapability?.scheduler?.agents?.[resolvedSlug] as
+                    | { nextDueAt?: string }
+                    | undefined
+                )?.nextDueAt ?? null
+              }
+              onScheduleChange={(config) => {
+                setScheduleConfig(config);
+              }}
+              onScheduleSaved={(summary) =>
+                pushLocalActivity({
+                  agentId: resolvedSlug,
+                  eventType: "scheduler_decision",
+                  title: "Schedule preference saved",
+                  summary,
+                  source: "piter",
+                  priority: "medium",
+                  createdAt: new Date().toISOString(),
+                  metadata: {},
+                  relatedPath: null,
+                  relatedIssueCode: null,
+                  status: "logged",
+                })
+              }
+            />
+          </DeferredVisibleMount>
+          <DeferredVisibleMount
+            idleMountMs={450}
+            testId="agentops-deferred-memory"
+            fallback={
+              <p className="text-sm text-white/45" role="status">
+                Loading Memory and Hermes…
+              </p>
             }
-            currentRunStatus={statusStrip.currentActivity}
-            lastDurationLabel={durationLabel}
-            schedulerConnected={Boolean(manualCapability?.schedulerConnected)}
-            workerConnected={Boolean(manualCapability?.workerConnected)}
-            websiteAuditAvailable={Boolean(manualCapability?.websiteAudit?.available)}
-            browserQaAvailable={Boolean(manualCapability?.browserQa?.available)}
-            hasActiveRun={agentHasQueuedOrRunning}
-            hasQueuedScheduledRun={agentHasQueuedScheduled}
-            lastSchedulerTickAt={manualCapability?.lastSchedulerTickAt ?? null}
-            lastScheduledRunId={
-              agentScopedQueue?.queued?.find((row) => row.trigger === "schedule")?.runId ??
-              (
-                manualCapability?.scheduler?.agents?.[resolvedSlug] as
-                  | { lastEnqueuedRunId?: string }
-                  | undefined
-              )?.lastEnqueuedRunId ??
-              null
-            }
-            lastSkippedReason={
-              agentHasQueuedScheduled
-                ? null
-                : (
-                    manualCapability?.scheduler?.agents?.[resolvedSlug] as
-                      | { lastSkippedReason?: string }
-                      | undefined
-                  )?.lastSkippedReason ?? null
-            }
-            nextDueAtFromScheduler={
-              (
-                manualCapability?.scheduler?.agents?.[resolvedSlug] as
-                  | { nextDueAt?: string }
-                  | undefined
-              )?.nextDueAt ?? null
-            }
-            onScheduleChange={(config) => {
-              setScheduleConfig(config);
-            }}
-            onScheduleSaved={(summary) =>
-              pushLocalActivity({
-                agentId: resolvedSlug,
-                eventType: "scheduler_decision",
-                title: "Schedule preference saved",
-                summary,
-                source: "piter",
-                priority: "medium",
-                createdAt: new Date().toISOString(),
-                metadata: {},
-                relatedPath: null,
-                relatedIssueCode: null,
-                status: "logged",
-              })
-            }
-          />
-          <AgentMemoryHermesPanel
-            agentSlug={resolvedSlug}
-            runtimeAgentId={identity?.runtimeAgentId ?? null}
-            ownerDraftAgentId={resolvedSlug}
-            identityReady={!loading && identity != null}
-            onMemoryStats={(stats) => {
-              const mapped = mapMemoryCountsToStripStatus({
-                loaded: stats.error == null && stats.assigned != null,
-                error: stats.error,
-                assignedCount: stats.assigned,
-                enabledCount: stats.enabled,
-                pendingDrafts: stats.pending,
-                diagnosticCount: stats.diagnostic,
-                timedOut: stats.timedOut,
-              });
-              setMemoryLabel(mapped.status);
-              setMemoryDetail(mapped.detail);
-              setHermesStatus(stats.hermesStatus as StripHermesStatus);
-              setHermesDetail(stats.hermesDetail);
-            }}
-            onHermesTestEvent={(summary) =>
-              pushLocalActivity({
-                agentId: resolvedSlug,
-                eventType: "interaction_note",
-                title: "Hermes test",
-                summary,
-                source: "piter",
-                priority: "low",
-                createdAt: new Date().toISOString(),
-                metadata: { action: "hermes_connection_test" },
-                relatedPath: null,
-                relatedIssueCode: null,
-                status: "logged",
-              })
-            }
-          />
+          >
+            <AgentMemoryHermesPanel
+              agentSlug={resolvedSlug}
+              runtimeAgentId={identity?.runtimeAgentId ?? null}
+              ownerDraftAgentId={resolvedSlug}
+              identityReady={!loading && identity != null}
+              onMemoryStats={(stats) => {
+                const mapped = mapMemoryCountsToStripStatus({
+                  loaded: stats.error == null && stats.assigned != null,
+                  error: stats.error,
+                  assignedCount: stats.assigned,
+                  enabledCount: stats.enabled,
+                  pendingDrafts: stats.pending,
+                  diagnosticCount: stats.diagnostic,
+                  timedOut: stats.timedOut,
+                });
+                setMemoryLabel(mapped.status);
+                setMemoryDetail(mapped.detail);
+                setHermesStatus(stats.hermesStatus as StripHermesStatus);
+                setHermesDetail(stats.hermesDetail);
+              }}
+              onHermesTestEvent={(summary) =>
+                pushLocalActivity({
+                  agentId: resolvedSlug,
+                  eventType: "interaction_note",
+                  title: "Hermes test",
+                  summary,
+                  source: "piter",
+                  priority: "low",
+                  createdAt: new Date().toISOString(),
+                  metadata: { action: "hermes_connection_test" },
+                  relatedPath: null,
+                  relatedIssueCode: null,
+                  status: "logged",
+                })
+              }
+            />
+          </DeferredVisibleMount>
         </div>
 
         <AgentResultsPanel
@@ -1243,14 +1264,24 @@ export default function AgentOpsAgentDetailPage() {
           cancelBusy={cancelBusy}
         />
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <AgentPermissionsPanel />
-          <AgentActivityPanel
-            timeline={mergedTimeline}
-            unavailable={timelineUnavailable && localActivity.length === 0}
-            loading={loading}
-          />
-        </div>
+        <DeferredVisibleMount
+          idleMountMs={800}
+          testId="agentops-deferred-advanced"
+          fallback={
+            <p className="text-sm text-white/45" role="status">
+              Loading permissions and activity…
+            </p>
+          }
+        >
+          <div className="grid gap-6 lg:grid-cols-2">
+            <AgentPermissionsPanel />
+            <AgentActivityPanel
+              timeline={mergedTimeline}
+              unavailable={timelineUnavailable && localActivity.length === 0}
+              loading={loading}
+            />
+          </div>
+        </DeferredVisibleMount>
 
         <AgentManualRunConfirmModal
           open={confirmWorkType != null && confirmScope != null}

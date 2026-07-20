@@ -66,7 +66,7 @@ export function AgentSchedulePanel({
   lastRunAt,
   lastResultLabel,
   currentRunStatus,
-  lastDurationLabel = "Not recorded",
+  lastDurationLabel = "Unavailable",
   schedulerConnected = false,
   workerConnected = false,
   websiteAuditAvailable = false,
@@ -303,34 +303,40 @@ export function AgentSchedulePanel({
           <p className="text-white/45">Execution connection</p>
           <p className="text-white/85">{connectionLabel}</p>
         </div>
-        <div>
-          <p className="text-white/45">Last scheduler tick</p>
-          <p className="text-white/85">
-            {lastSchedulerTickAt ? new Date(lastSchedulerTickAt).toLocaleString() : "Not recorded"}
-          </p>
-        </div>
-        <div>
-          <p className="text-white/45">Last scheduled run</p>
-          <p className="text-white/85">{lastScheduledRunId ?? "Not recorded"}</p>
-        </div>
-        <div>
-          <p className="text-white/45">Last skipped reason</p>
-          <p className="text-white/85">{lastSkippedReason ?? "None"}</p>
-        </div>
+        {lastSchedulerTickAt ? (
+          <div>
+            <p className="text-white/45">Last scheduler tick</p>
+            <p className="text-white/85">{new Date(lastSchedulerTickAt).toLocaleString()}</p>
+          </div>
+        ) : null}
+        {lastScheduledRunId ? (
+          <div>
+            <p className="text-white/45">Last scheduled run</p>
+            <p className="text-white/85">{lastScheduledRunId}</p>
+          </div>
+        ) : null}
+        {lastSkippedReason ? (
+          <div>
+            <p className="text-white/45">Last skipped reason</p>
+            <p className="text-white/85">{lastSkippedReason}</p>
+          </div>
+        ) : null}
         <div>
           <p className="text-white/45">Schedule configuration</p>
           <p className="text-white/85">{scheduleSummary === "Manual only" ? "Manual" : "Saved"}</p>
         </div>
-        <div>
-          <p className="text-white/45">Last fleet run</p>
-          <p className="text-white/85">
-            {lastRunAt ? new Date(lastRunAt).toLocaleString() : "Not recorded"}
-          </p>
-        </div>
-        <div>
-          <p className="text-white/45">Last duration</p>
-          <p className="text-white/85">{lastDurationLabel}</p>
-        </div>
+        {lastRunAt ? (
+          <div>
+            <p className="text-white/45">Last fleet run</p>
+            <p className="text-white/85">{new Date(lastRunAt).toLocaleString()}</p>
+          </div>
+        ) : null}
+        {lastDurationLabel && lastDurationLabel !== "Unavailable" ? (
+          <div>
+            <p className="text-white/45">Last duration</p>
+            <p className="text-white/85">{lastDurationLabel}</p>
+          </div>
+        ) : null}
         <div>
           <p className="text-white/45">Latest result</p>
           <p className="text-white/85">{lastResultLabel}</p>

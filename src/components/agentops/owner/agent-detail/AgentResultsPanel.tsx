@@ -7,7 +7,7 @@ import { AgentDetailPanelShell } from "@/components/agentops/owner/agent-detail/
 import type { AgentOpsFinding } from "@/lib/agentops";
 import { fetchArtifactSignedUrl } from "@/lib/agentops/agents/agentManualRunClient";
 import {
-  drawerFieldRows,
+  drawerFieldSections,
   type AgentDetailDrawerArtifactRef,
   type AgentRunDrawerModel,
 } from "@/lib/agentops/agents/agentDetailLatestRun";
@@ -111,35 +111,37 @@ export function AgentResultsPanel({
         compact
         testId="agentops-agent-results-panel"
       >
-        <div className="grid gap-2 text-sm sm:grid-cols-3">
+        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <p className="text-white/45">Latest run result</p>
             <p className="text-white/85">{lastRunLabel}</p>
           </div>
+          {lastRunAt ? (
+            <div>
+              <p className="text-white/45">Last run time</p>
+              <p className="text-white/85">{new Date(lastRunAt).toLocaleString()}</p>
+            </div>
+          ) : null}
+          {durationLabel && durationLabel !== "Not recorded" ? (
+            <div>
+              <p className="text-white/45">Duration</p>
+              <p className="text-white/85" data-testid="agentops-run-duration">
+                {durationLabel}
+              </p>
+            </div>
+          ) : null}
           <div>
-            <p className="text-white/45">Last run time</p>
-            <p className="text-white/85">
-              {lastRunAt ? new Date(lastRunAt).toLocaleString() : "Not recorded"}
-            </p>
-          </div>
-          <div>
-            <p className="text-white/45">Duration</p>
-            <p className="text-white/85" data-testid="agentops-run-duration">
-              {durationLabel}
-            </p>
-          </div>
-          <div>
-            <p className="text-white/45">Open findings</p>
+            <p className="text-white/45">Open draft issues</p>
             <p className="text-white/85">{openFindingsCountLabel}</p>
             <p className="text-xs text-white/40">{openFindingsScope}</p>
           </div>
           <div>
-            <p className="text-white/45">Waiting for owner approval</p>
+            <p className="text-white/45">Waiting for owner review</p>
             <p className="text-white/85">{waitingApprovalLabel}</p>
             <p className="text-xs text-white/40">{waitingApprovalScope}</p>
           </div>
           <div>
-            <p className="text-white/45">Verified fixes</p>
+            <p className="text-white/45">Verified / promoted</p>
             <p className="text-white/85">{verifiedFixesLabel}</p>
             <p className="text-xs text-white/40">{verifiedFixesScope}</p>
           </div>
@@ -150,6 +152,10 @@ export function AgentResultsPanel({
           </div>
         </div>
 
+        <p className="text-xs text-white/40" data-testid="agentops-issues-preview-only">
+          Preview only — open Issues to review drafts. No approve / reject / promote here.
+        </p>
+
         <div className="flex flex-wrap gap-2">
           <AixiaButton variant="secondary" onClick={onOpenLatestRun}>
             View latest run
@@ -159,8 +165,9 @@ export function AgentResultsPanel({
             onClick={() =>
               navigate(`/system/agent-ops/issues?agent=${encodeURIComponent(agentSlug)}`)
             }
+            data-testid="agentops-view-all-issues"
           >
-            View all findings
+            Open Issues
           </AixiaButton>
           <AixiaButton
             variant="secondary"
@@ -210,15 +217,15 @@ export function AgentResultsPanel({
 
       {drawer.open ? (
         <div
-          className="fixed inset-0 z-40 flex justify-end bg-black/50 p-0 sm:p-4"
+          className="fixed inset-0 z-50 flex justify-end bg-black/50 p-0 sm:p-4"
           role="dialog"
           aria-modal="true"
           data-testid="agentops-run-detail-drawer"
         >
-          <div className="flex h-full w-full max-w-lg flex-col overflow-y-auto border-l border-white/10 bg-[#0b1220] p-5 shadow-xl sm:rounded-xl sm:border">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex h-full w-full max-w-full flex-col border-l border-white/10 bg-[#0b1220] shadow-xl sm:max-w-xl sm:rounded-xl sm:border md:max-w-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-white/10 bg-[#0b1220]/95 px-4 py-3 backdrop-blur sm:px-5">
               <h3 className="text-lg font-semibold text-white">Latest run</h3>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 {drawer.canCancel && onCancelRun ? (
                   <AixiaButton
                     variant="secondary"
@@ -233,103 +240,128 @@ export function AgentResultsPanel({
                         : "Cancel run"}
                   </AixiaButton>
                 ) : null}
-                <AixiaButton variant="secondary" onClick={onCloseDrawer}>
+                <AixiaButton
+                  variant="secondary"
+                  onClick={onCloseDrawer}
+                  data-testid="agentops-drawer-close"
+                >
                   Close
                 </AixiaButton>
               </div>
             </div>
-            {drawer.isFleetFallback || drawer.banner ? (
-              <p
-                className="mb-3 text-sm text-amber-100/90"
-                data-testid="agentops-drawer-fleet-fallback"
-              >
-                {drawer.banner ||
-                  "Fleet daily review fallback — no newer staging-worker run exists for this agent."}
-              </p>
-            ) : null}
-            {drawer.stale ? (
-              <p className="mb-3 text-sm text-amber-200/85" data-testid="agentops-drawer-stale-badge">
-                Stale run — lock may have expired. Suggested: run cleanup-stale dry-run on the worker,
-                or cancel / mark failed via owner action. No auto-delete.
-              </p>
-            ) : null}
-            {drawer.cancelAcknowledged || drawer.executionStatus === "canceled" ? (
-              <p className="mb-3 text-sm text-white/70" data-testid="agentops-drawer-canceled">
-                Canceled by owner.
-              </p>
-            ) : drawer.cancelRequested ? (
-              <p className="mb-3 text-sm text-amber-200/85" data-testid="agentops-drawer-cancel-requested">
-                Cancel requested. The worker will stop at the next safe checkpoint. Current browser
-                step may finish first.
-              </p>
-            ) : null}
-            {(drawer.storageArtifacts?.length ?? 0) > 0 ? (
-              <div className="mb-3 space-y-2" data-testid="agentops-drawer-storage-artifacts">
-                <p className="text-sm text-white/70">Private staging artifacts</p>
-                <ul className="space-y-1">
-                  {drawer.storageArtifacts!.slice(0, 8).map((ref) => {
-                    const cleaned = Boolean(
-                      (ref as { cleaned?: boolean }).cleaned,
-                    );
-                    const expiresAt = (ref as { expiresAt?: string }).expiresAt;
-                    const retentionClass = (ref as { retentionClass?: string }).retentionClass;
-                    const cleanupEligible = Boolean(
-                      (ref as { cleanupEligible?: boolean }).cleanupEligible,
-                    );
-                    return (
-                      <li
-                        key={ref.path}
-                        className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1 text-xs text-white/75"
-                      >
-                        <AixiaBadge tone={cleaned ? "neutral" : "emerald"}>
-                          {cleaned ? "cleaned" : "uploaded/private"}
-                        </AixiaBadge>
-                        <span>{ref.artifactType || "artifact"}</span>
-                        {retentionClass ? (
-                          <span className="text-white/40">{retentionClass}</span>
-                        ) : null}
-                        {expiresAt ? (
-                          <span className="text-white/40">
-                            expires {new Date(expiresAt).toLocaleDateString()}
-                          </span>
-                        ) : null}
-                        {cleanupEligible && !cleaned ? (
-                          <span className="text-amber-200/70">cleanup eligible</span>
-                        ) : null}
-                        {cleaned ? (
-                          <span data-testid="agentops-artifact-cleaned">
-                            Artifact expired or cleaned from staging storage.
-                          </span>
-                        ) : (
-                          <AixiaButton
-                            variant="secondary"
-                            disabled={artifactBusyPath === ref.path}
-                            onClick={() => void openSignedArtifact(ref)}
-                            data-testid="agentops-open-signed-artifact"
-                          >
-                            {artifactBusyPath === ref.path ? "Signing…" : "Open signed link"}
-                          </AixiaButton>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <p className="text-xs text-white/40">Signed link expires shortly.</p>
-                {artifactError ? (
-                  <p className="text-xs text-amber-200/80" role="status">
-                    {artifactError}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-            <dl className="grid gap-3 text-sm">
-              {drawerFieldRows(drawer).map(([label, value]) => (
-                <div key={label}>
-                  <dt className="text-white/45">{label}</dt>
-                  <dd className="text-white/85">{value}</dd>
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
+              {drawer.isFleetFallback || drawer.banner ? (
+                <p
+                  className="mb-3 text-sm text-amber-100/90"
+                  data-testid="agentops-drawer-fleet-fallback"
+                >
+                  {drawer.banner ||
+                    "Fleet daily review fallback — no newer staging-worker run exists for this agent."}
+                </p>
+              ) : null}
+              {drawer.stale ? (
+                <p className="mb-3 text-sm text-amber-200/85" data-testid="agentops-drawer-stale-badge">
+                  Stale run — lock may have expired. Suggested: run cleanup-stale dry-run on the worker,
+                  or cancel / mark failed via owner action. No auto-delete.
+                </p>
+              ) : null}
+              {drawer.cancelAcknowledged || drawer.executionStatus === "canceled" ? (
+                <p className="mb-3 text-sm text-white/70" data-testid="agentops-drawer-canceled">
+                  Canceled by owner.
+                </p>
+              ) : drawer.cancelRequested ? (
+                <p
+                  className="mb-3 text-sm text-amber-200/85"
+                  data-testid="agentops-drawer-cancel-requested"
+                >
+                  Cancel requested. The worker will stop at the next safe checkpoint. Current browser
+                  step may finish first.
+                </p>
+              ) : null}
+              {(drawer.storageArtifacts?.length ?? 0) > 0 ? (
+                <div className="mb-4 space-y-2" data-testid="agentops-drawer-storage-artifacts">
+                  <p className="text-sm font-medium text-white/80">Evidence / artifacts</p>
+                  <ul className="space-y-1">
+                    {drawer.storageArtifacts!.slice(0, 8).map((ref) => {
+                      const cleaned = Boolean((ref as { cleaned?: boolean }).cleaned);
+                      const expiresAt = (ref as { expiresAt?: string }).expiresAt;
+                      const retentionClass = (ref as { retentionClass?: string }).retentionClass;
+                      const cleanupEligible = Boolean(
+                        (ref as { cleanupEligible?: boolean }).cleanupEligible,
+                      );
+                      const localFallback = Boolean(
+                        (ref as { localFallback?: boolean }).localFallback,
+                      );
+                      return (
+                        <li
+                          key={ref.path}
+                          className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1 text-xs text-white/75"
+                        >
+                          <AixiaBadge tone={cleaned ? "neutral" : "emerald"}>
+                            {cleaned
+                              ? "cleaned"
+                              : localFallback
+                                ? "Local worker artifact"
+                                : "uploaded/private"}
+                          </AixiaBadge>
+                          <span>{ref.artifactType || "artifact"}</span>
+                          {retentionClass ? (
+                            <span className="text-white/40">{retentionClass}</span>
+                          ) : null}
+                          {expiresAt ? (
+                            <span className="text-white/40">
+                              expires {new Date(expiresAt).toLocaleDateString()}
+                            </span>
+                          ) : null}
+                          {cleanupEligible && !cleaned ? (
+                            <span className="text-amber-200/70">cleanup eligible</span>
+                          ) : null}
+                          {cleaned ? (
+                            <span data-testid="agentops-artifact-cleaned">
+                              Artifact expired or cleaned from staging storage.
+                            </span>
+                          ) : localFallback ? (
+                            <span className="text-white/50">
+                              Local worker artifact — signed staging link unavailable.
+                            </span>
+                          ) : (
+                            <AixiaButton
+                              variant="secondary"
+                              disabled={artifactBusyPath === ref.path}
+                              onClick={() => void openSignedArtifact(ref)}
+                              data-testid="agentops-open-signed-artifact"
+                            >
+                              {artifactBusyPath === ref.path ? "Signing…" : "Open signed link"}
+                            </AixiaButton>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="text-xs text-white/40">Signed link expires shortly.</p>
+                  {artifactError ? (
+                    <p className="text-xs text-amber-200/80" role="status">
+                      {artifactError}
+                    </p>
+                  ) : null}
                 </div>
-              ))}
-            </dl>
+              ) : null}
+              <div className="space-y-4" data-testid="agentops-drawer-field-sections">
+                {drawerFieldSections(drawer).map((section) => (
+                  <section key={section.id} data-testid={`agentops-drawer-section-${section.id}`}>
+                    <h4 className="mb-2 text-sm font-medium text-white/80">{section.title}</h4>
+                    <dl className="grid gap-2 text-sm">
+                      {section.rows.map(([label, value]) => (
+                        <div key={label}>
+                          <dt className="text-white/45">{label}</dt>
+                          <dd className="break-words text-white/85">{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </section>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       ) : null}

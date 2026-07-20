@@ -322,48 +322,108 @@ export function buildFleetFallbackDrawer(input: {
   };
 }
 
+function isPresentDrawerValue(value: string | null | undefined): value is string {
+  if (value == null) return false;
+  const trimmed = String(value).trim();
+  if (!trimmed) return false;
+  if (trimmed === "Not recorded") return false;
+  return true;
+}
+
+export type DrawerFieldSection = {
+  id: string;
+  title: string;
+  rows: Array<[string, string]>;
+};
+
+/** Grouped drawer fields for D-E3 polish — empty / Not recorded rows omitted. */
+export function drawerFieldSections(drawer: AgentRunDrawerModel): DrawerFieldSection[] {
+  const sectionDefs: Array<{
+    id: string;
+    title: string;
+    alwaysShow?: Set<string>;
+    fields: Array<[string, string | null | undefined]>;
+  }> = [
+    {
+      id: "identity",
+      title: "Run identity",
+      alwaysShow: new Set(["Work type", "Trigger"]),
+      fields: [
+        ["Run id", drawer.runId],
+        ["Work type", drawer.workType],
+        ["Trigger", drawer.trigger],
+        ["Execution engine", drawer.executionEngine],
+      ],
+    },
+    {
+      id: "execution",
+      title: "Execution",
+      alwaysShow: new Set(["Execution status"]),
+      fields: [
+        ["Execution status", drawer.executionStatus],
+        [
+          "Started",
+          drawer.startedAt ? new Date(drawer.startedAt).toLocaleString() : null,
+        ],
+        ["Ended", drawer.endedAt ? new Date(drawer.endedAt).toLocaleString() : null],
+        ["Duration", drawer.duration],
+        [
+          "Lock expires",
+          drawer.lockExpiresAt ? new Date(drawer.lockExpiresAt).toLocaleString() : null,
+        ],
+        ["Worker phase", drawer.workerPhase],
+      ],
+    },
+    {
+      id: "scope",
+      title: "Scope",
+      fields: [
+        ["Review depth", drawer.reviewDepth],
+        ["Authentication depth", drawer.authenticationDepth],
+        ["Routes / modules", drawer.routesModules],
+        ["Browser / tool usage", drawer.browserToolUsage],
+      ],
+    },
+    {
+      id: "evidence",
+      title: "Evidence / artifacts",
+      fields: [
+        ["Evidence", drawer.evidence],
+        ["Limitations", drawer.limitations],
+      ],
+    },
+    {
+      id: "findings",
+      title: "Findings / observations",
+      fields: [
+        ["Queued findings", drawer.queuedFindings],
+        ["Duplicates", drawer.duplicates],
+        ["Filtered observations", drawer.filteredObservations],
+        ["Raw observations", drawer.rawObservations],
+      ],
+    },
+    {
+      id: "failure",
+      title: "Cancel / failure",
+      fields: [["Failure reason", drawer.failureReason]],
+    },
+  ];
+
+  return sectionDefs
+    .map((section) => {
+      const rows = section.fields
+        .filter(([label, value]) => {
+          if (section.alwaysShow?.has(label)) return Boolean(value && String(value).trim());
+          return isPresentDrawerValue(value);
+        })
+        .map(([label, value]) => [label, String(value)] as [string, string]);
+      return { id: section.id, title: section.title, rows };
+    })
+    .filter((section) => section.rows.length > 0);
+}
+
 export function drawerFieldRows(
   drawer: AgentRunDrawerModel,
 ): Array<[string, string]> {
-  const rows: Array<[string, string | null | undefined]> = [
-    ["Execution status", drawer.executionStatus],
-    ["Run id", drawer.runId],
-    ["Work type", drawer.workType],
-    ["Trigger", drawer.trigger],
-    [
-      "Started",
-      drawer.startedAt ? new Date(drawer.startedAt).toLocaleString() : null,
-    ],
-    ["Ended", drawer.endedAt ? new Date(drawer.endedAt).toLocaleString() : null],
-    ["Duration", drawer.duration],
-    [
-      "Lock expires",
-      drawer.lockExpiresAt ? new Date(drawer.lockExpiresAt).toLocaleString() : null,
-    ],
-    ["Worker phase", drawer.workerPhase],
-    ["Execution engine", drawer.executionEngine],
-    ["Review depth", drawer.reviewDepth],
-    ["Authentication depth", drawer.authenticationDepth],
-    ["Routes / modules", drawer.routesModules],
-    ["Browser / tool usage", drawer.browserToolUsage],
-    ["Raw observations", drawer.rawObservations],
-    ["Filtered observations", drawer.filteredObservations],
-    ["Queued findings", drawer.queuedFindings],
-    ["Duplicates", drawer.duplicates],
-    ["Evidence", drawer.evidence],
-    ["Limitations", drawer.limitations],
-    ["Failure reason", drawer.failureReason],
-  ];
-
-  const alwaysShow = new Set(["Execution status", "Work type", "Trigger"]);
-  return rows
-    .filter(([label, value]) => {
-      if (alwaysShow.has(label)) return Boolean(value);
-      if (value == null) return false;
-      const trimmed = String(value).trim();
-      if (!trimmed) return false;
-      if (trimmed === "Not recorded") return false;
-      return true;
-    })
-    .map(([label, value]) => [label, String(value)]);
+  return drawerFieldSections(drawer).flatMap((section) => section.rows);
 }

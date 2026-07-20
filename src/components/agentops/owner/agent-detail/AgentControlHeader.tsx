@@ -138,11 +138,6 @@ export function AgentControlHeader({
           >
             {AGENT_DETAIL_CC_COPY.executionWorkerLabel}: {workerStatusLabel}
           </p>
-          {workerHeartbeatLabel ? (
-            <p className="text-xs text-white/45" data-testid="agentops-worker-heartbeat">
-              Last heartbeat: {workerHeartbeatLabel}
-            </p>
-          ) : null}
           {schedulerStatusLabel ? (
             <p className="text-xs text-white/45" data-testid="agentops-scheduler-status">
               {schedulerStatusLabel}
@@ -151,44 +146,6 @@ export function AgentControlHeader({
           {enginesReadyLabel ? (
             <p className="text-xs text-white/45" data-testid="agentops-engines-ready">
               {enginesReadyLabel}
-            </p>
-          ) : null}
-          {queueLengthLabel ? (
-            <p className="text-xs text-white/45" data-testid="agentops-worker-queue-length">
-              Global queue: {queueLengthLabel}
-            </p>
-          ) : null}
-          {oldestQueuedAgeLabel ? (
-            <p className="text-xs text-white/45" data-testid="agentops-oldest-queued-age">
-              Global oldest queued: {oldestQueuedAgeLabel}
-            </p>
-          ) : null}
-          {workerActiveRunId ? (
-            <p className="text-xs text-white/45" data-testid="agentops-worker-active-run">
-              Active global run: {workerActiveRunId}
-              {workerActiveRunMetaLabel ? ` · ${workerActiveRunMetaLabel}` : ""}
-            </p>
-          ) : null}
-          {lastCompletedRunLabel ? (
-            <p className="text-xs text-white/45" data-testid="agentops-last-completed-run">
-              Latest global completed: {lastCompletedRunLabel}
-            </p>
-          ) : null}
-          {lastFailedRunLabel ? (
-            <p className="text-xs text-white/45" data-testid="agentops-last-failed-run">
-              Latest global failed: {lastFailedRunLabel}
-            </p>
-          ) : null}
-          {lastErrorLabel ? (
-            <p className="text-xs text-amber-200/70" data-testid="agentops-worker-last-error">
-              Last global error: {lastErrorLabel}
-            </p>
-          ) : null}
-          {nextSchedulerTickLabel ? (
-            <p className="text-xs text-white/45" data-testid="agentops-next-scheduler-tick">
-              {nextSchedulerTickLabel.startsWith("Next tick unknown")
-                ? nextSchedulerTickLabel
-                : `Next scheduler tick (est.): ${nextSchedulerTickLabel}`}
             </p>
           ) : null}
           {currentActivityLabel ? (
@@ -203,9 +160,69 @@ export function AgentControlHeader({
               may finish first.
             </p>
           ) : null}
+          <details
+            className="mt-2 max-w-3xl rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2"
+            data-testid="agentops-global-worker-details"
+          >
+            <summary className="cursor-pointer text-xs text-white/55">
+              Global staging worker details (fleet-wide — not this agent only)
+            </summary>
+            <div className="mt-2 space-y-1">
+              {workerHeartbeatLabel ? (
+                <p className="text-xs text-white/45" data-testid="agentops-worker-heartbeat">
+                  Last heartbeat: {workerHeartbeatLabel}
+                </p>
+              ) : null}
+              {queueLengthLabel ? (
+                <p className="text-xs text-white/45" data-testid="agentops-worker-queue-length">
+                  Global queue: {queueLengthLabel}
+                </p>
+              ) : null}
+              {oldestQueuedAgeLabel ? (
+                <p className="text-xs text-white/45" data-testid="agentops-oldest-queued-age">
+                  Global oldest queued: {oldestQueuedAgeLabel}
+                </p>
+              ) : null}
+              {workerActiveRunId ? (
+                <p className="text-xs text-white/45" data-testid="agentops-worker-active-run">
+                  Active global run: {workerActiveRunId}
+                  {workerActiveRunMetaLabel ? ` · ${workerActiveRunMetaLabel}` : ""}
+                </p>
+              ) : null}
+              {lastCompletedRunLabel ? (
+                <p className="text-xs text-white/45" data-testid="agentops-last-completed-run">
+                  Latest global completed: {lastCompletedRunLabel}
+                </p>
+              ) : null}
+              {lastFailedRunLabel ? (
+                <p className="text-xs text-white/45" data-testid="agentops-last-failed-run">
+                  Latest global failed: {lastFailedRunLabel}
+                </p>
+              ) : null}
+              {lastErrorLabel ? (
+                <p className="text-xs text-amber-200/70" data-testid="agentops-worker-last-error">
+                  Last global error: {lastErrorLabel}
+                </p>
+              ) : null}
+              {nextSchedulerTickLabel ? (
+                <p className="text-xs text-white/45" data-testid="agentops-next-scheduler-tick">
+                  {nextSchedulerTickLabel.startsWith("Next tick unknown")
+                    ? nextSchedulerTickLabel
+                    : `Next scheduler tick (est.): ${nextSchedulerTickLabel}`}
+                </p>
+              ) : null}
+              <button
+                type="button"
+                className="mt-1 text-xs text-cyan-200/80 underline-offset-2 hover:underline"
+                onClick={() => navigate("/system/agent-ops/monitoring")}
+              >
+                Open Monitoring for full global queue
+              </button>
+            </div>
+          </details>
         </div>
 
-        <div className="relative flex flex-wrap items-center gap-2">
+        <div className="relative flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
           {isPaused ? (
             <AixiaButton
               variant="secondary"

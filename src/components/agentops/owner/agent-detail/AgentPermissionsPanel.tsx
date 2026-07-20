@@ -14,7 +14,7 @@ const DEFAULT_PERMISSIONS: PermissionRow[] = [
   { id: "browser_qa", label: "Run Browser QA", allowed: true, mode: "read-only" },
   { id: "screenshots", label: "Capture screenshots", allowed: true, mode: "read-only" },
   { id: "console", label: "Read console/network results", allowed: true, mode: "read-only" },
-  { id: "memory_read", label: "Read assigned memory", allowed: true, mode: "read-only" },
+  { id: "memory_read", label: "Read runtime memory records", allowed: true, mode: "read-only" },
   { id: "finding_drafts", label: "Create finding drafts", allowed: true, mode: "read-only" },
   { id: "propose_memory", label: "Propose memory", allowed: true, mode: "read-only" },
   { id: "verify_fixes", label: "Verify fixes", allowed: true, mode: "read-only" },

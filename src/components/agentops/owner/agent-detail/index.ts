@@ -8,5 +8,6 @@ export type { AgentRunDrawerModel } from "./AgentResultsPanel";
 export { AgentPermissionsPanel } from "./AgentPermissionsPanel";
 export { AgentActivityPanel } from "./AgentActivityPanel";
 export { AgentDetailPanelShell } from "./AgentDetailPanelShell";
+export { DeferredVisibleMount } from "./DeferredVisibleMount";
 export { AgentManualRunConfirmModal } from "./AgentManualRunConfirmModal";
 export { AgentRunCancelConfirmModal } from "./AgentRunCancelConfirmModal";

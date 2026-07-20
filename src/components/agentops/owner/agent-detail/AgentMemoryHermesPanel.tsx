@@ -50,6 +50,9 @@ const OWNER_TYPES: AgentOpsMemoryOwnerFacingType[] = [
   "reference_file",
 ];
 
+/** D-E3 — first-paint agent memory page size (Shared/global loads on tab open). */
+const INITIAL_RUNTIME_MEMORY_LIMIT = 120;
+
 type TabId =
   | "runtime"
   | "approved"
@@ -195,6 +198,8 @@ export function AgentMemoryHermesPanel({
   const [testing, setTesting] = useState(false);
   const [fleetTransportLabel, setFleetTransportLabel] = useState("Unknown");
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [globalLoaded, setGlobalLoaded] = useState(false);
+  const [globalLoading, setGlobalLoading] = useState(false);
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -237,23 +242,16 @@ export function AgentMemoryHermesPanel({
     setDraftError(null);
     setTimedOut(false);
 
+    // D-E3: defer shared/global fetch until Shared tab — keep first paint lighter.
     const loadWork = Promise.all([
       getAgentOpsHermesRuntimeHealth(),
       getAgentOpsAgentMemory(draftAgentId),
       runtimeAgentId
-        ? fetchAgentScopedMemory(runtimeAgentId, 500)
+        ? fetchAgentScopedMemory(runtimeAgentId, INITIAL_RUNTIME_MEMORY_LIMIT)
         : Promise.resolve({
             data: [] as AgentOpsRuntimeMemoryRow[],
             error: "Agent runtime identity missing",
           }),
-      supabase
-        .from(AGENTOPS_RUNTIME_TABLES.memory)
-        .select("*")
-        .eq("environment", AGENTOPS_RUNTIME_ENVIRONMENT)
-        .eq("scope", "global")
-        .eq("approved", true)
-        .order("created_at", { ascending: false })
-        .limit(50),
     ]);
 
     const raced = await withTimeout(
@@ -266,7 +264,6 @@ export function AgentMemoryHermesPanel({
 
     if (!raced.ok) {
       setAgentRuntimeRows([]);
-      setGlobalRows([]);
       setDraftItems([]);
       setRuntimeError(raced.error);
       setTimedOut(raced.timedOut);
@@ -285,7 +282,7 @@ export function AgentMemoryHermesPanel({
       return;
     }
 
-    const [healthResult, draftResult, runtimeResult, globalResult] = raced.value;
+    const [healthResult, draftResult, runtimeResult] = raced.value;
 
     const fleetLabel = resolveFleetHermesTransportLabel({
       loaded: true,
@@ -302,13 +299,6 @@ export function AgentMemoryHermesPanel({
       setAgentRuntimeRows(runtimeResult.data ?? []);
     }
 
-    if (globalResult.error) {
-      setGlobalRows([]);
-      setRuntimeError((prev) => prev ?? `Global memory: ${globalResult.error.message}`);
-    } else {
-      setGlobalRows((globalResult.data ?? []) as AgentOpsRuntimeMemoryRow[]);
-    }
-
     if (draftResult.error) {
       setDraftItems([]);
       setDraftError(draftResult.error);
@@ -321,7 +311,7 @@ export function AgentMemoryHermesPanel({
     const assigned = runtimeResult.error ? null : partitioned.counts.runtimeTotal;
     const enabled = runtimeResult.error ? null : partitioned.counts.enabledRuntime;
     const diagnostic = runtimeResult.error ? null : partitioned.counts.diagnostic;
-    const pendingDrafts = draftResult.error
+    const pendingDraftCount = draftResult.error
       ? null
       : (draftResult.data ?? []).filter((row) => row.approvalStatus === "pending_approval").length;
 
@@ -331,7 +321,7 @@ export function AgentMemoryHermesPanel({
       healthError: null,
       assignedMemoryCount: assigned,
       enabledMemoryCount: enabled,
-      pendingApprovalCount: pendingDrafts,
+      pendingApprovalCount: pendingDraftCount,
       retrievalError: runtimeResult.error,
       lastSuccessfulRetrievalAt: runtimeResult.error ? null : new Date().toISOString(),
       tested: true,
@@ -343,7 +333,7 @@ export function AgentMemoryHermesPanel({
     onMemoryStatsRef.current?.({
       assigned,
       enabled,
-      pending: pendingDrafts,
+      pending: pendingDraftCount,
       diagnostic,
       timedOut: false,
       error: runtimeResult.error,
@@ -353,9 +343,42 @@ export function AgentMemoryHermesPanel({
     setLoading(false);
   }, [draftAgentId, identityReady, runtimeAgentId]);
 
+  const loadSharedGlobal = useCallback(async () => {
+    if (globalLoaded || globalLoading) return;
+    setGlobalLoading(true);
+    const globalResult = await supabase
+      .from(AGENTOPS_RUNTIME_TABLES.memory)
+      .select("*")
+      .eq("environment", AGENTOPS_RUNTIME_ENVIRONMENT)
+      .eq("scope", "global")
+      .eq("approved", true)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (globalResult.error) {
+      setGlobalRows([]);
+      setRuntimeError((prev) => prev ?? `Global memory: ${globalResult.error.message}`);
+    } else {
+      setGlobalRows((globalResult.data ?? []) as AgentOpsRuntimeMemoryRow[]);
+    }
+    setGlobalLoaded(true);
+    setGlobalLoading(false);
+  }, [globalLoaded, globalLoading]);
+
+  useEffect(() => {
+    setGlobalRows([]);
+    setGlobalLoaded(false);
+    setGlobalLoading(false);
+  }, [draftAgentId, runtimeAgentId]);
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tab === "shared") {
+      void loadSharedGlobal();
+    }
+  }, [tab, loadSharedGlobal]);
 
   const partition = useMemo(
     () => partitionRuntimeMemory(agentRuntimeRows, globalRows),
@@ -626,11 +649,17 @@ export function AgentMemoryHermesPanel({
       <div className="flex flex-wrap gap-2" data-testid="agentops-memory-tabs">
         {(
           [
-            ["runtime", `Agent runtime memory (${partition.counts.runtimeTotal})`],
-            ["approved", `Approved memory (${partition.counts.approvedUseful + approvedOwnerMemory.length})`],
-            ["shared", `Shared/global (${partition.counts.globalApproved})`],
-            ["pending", `Pending owner drafts (${pendingDrafts.length})`],
-            ["files", `Files/drafts (${fileDrafts.length})`],
+            ["runtime", `Runtime (${partition.counts.runtimeTotal})`],
+            [
+              "approved",
+              `Approved (${partition.counts.approvedUseful + approvedOwnerMemory.length})`,
+            ],
+            [
+              "shared",
+              `Shared (${globalLoaded ? partition.counts.globalApproved : "…"})`,
+            ],
+            ["pending", `Pending (${pendingDrafts.length})`],
+            ["files", `Files (${fileDrafts.length})`],
             ["diagnostics", `Diagnostics (${partition.counts.diagnostic})`],
           ] as const
         ).map(([id, label]) => (
@@ -721,13 +750,19 @@ export function AgentMemoryHermesPanel({
       {!loading && tab === "shared" ? (
         <div data-testid="agentops-memory-tab-shared">
           <p className="mb-2 text-xs text-white/45">
-            {AGENT_DETAIL_MEMORY_COPY.sharedGlobalLabel} — not agent-specific.
+            {AGENT_DETAIL_MEMORY_COPY.sharedGlobalLabel} — not agent-specific. Loaded on demand.
           </p>
-          <RuntimeMemoryList
-            rows={partition.globalRows}
-            emptyLabel="No shared/global approved memory loaded."
-            badgeFor={() => ({ label: "Shared/global", tone: "neutral" })}
-          />
+          {globalLoading && !globalLoaded ? (
+            <p className="text-sm text-white/50" role="status">
+              Loading shared/global memory…
+            </p>
+          ) : (
+            <RuntimeMemoryList
+              rows={partition.globalRows}
+              emptyLabel="No shared/global approved memory loaded."
+              badgeFor={() => ({ label: "Shared/global", tone: "neutral" })}
+            />
+          )}
         </div>
       ) : null}
 

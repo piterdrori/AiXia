@@ -30,6 +30,7 @@ import {
 } from "@/lib/agentops/browserQa/browserQaSpaReadiness";
 import type { BrowserQaReadinessEvidence } from "@/lib/agentops/browserQa/browserQaRunResult";
 import { honorCancelCheckpoint } from "@/lib/agentops/runtime/agentOpsCancelCheckpoint";
+import { filterBrowserQaFailedRequests } from "@/lib/agentops/browserQa/browserQaShellNoise";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
 const ARTIFACT_DIR = join(REPO_ROOT, "qa-agent", "browser-qa-artifacts");
@@ -543,13 +544,15 @@ async function scanSinglePage(
       suggestions.push("Open DevTools console and resolve JavaScript errors.");
     }
 
-    if (failedRequests.length > 0) {
+    const networkFilter = filterBrowserQaFailedRequests(input.targetUrl, failedRequests);
+    // Keep evidence list truthful but do not draft findings from known AgentOps shell probes.
+    if (networkFilter.kept.length > 0) {
       findings.push({
         severity: "medium",
         type: "failed_requests",
         title: "Failed or errored network requests",
-        description: `${failedRequests.length} failed or HTTP-error network request(s) were captured.`,
-        evidence: failedRequests.slice(0, 3).join(" | "),
+        description: `${networkFilter.kept.length} failed or HTTP-error network request(s) were captured.`,
+        evidence: networkFilter.kept.slice(0, 3).join(" | "),
       });
       suggestions.push("Inspect network tab for failing API or asset requests.");
     }

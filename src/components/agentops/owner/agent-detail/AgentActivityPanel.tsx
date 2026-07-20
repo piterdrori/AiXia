@@ -65,9 +65,9 @@ export function AgentActivityPanel({ timeline, unavailable, loading }: AgentActi
                 <p className="font-medium text-white/90">{operationalActivityLabel(item)}</p>
                 <p className="text-white/55">{item.summary || item.title}</p>
               </div>
-              <time className="text-white/45">
-                {item.createdAt ? new Date(item.createdAt).toLocaleString() : "Not recorded"}
-              </time>
+              {item.createdAt ? (
+                <time className="text-white/45">{new Date(item.createdAt).toLocaleString()}</time>
+              ) : null}
             </li>
           ))}
         </ul>

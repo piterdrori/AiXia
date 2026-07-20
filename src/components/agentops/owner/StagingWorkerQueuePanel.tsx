@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { AixiaBadge, AixiaButton } from "@/components/aixia";
 import {
@@ -9,6 +10,8 @@ import {
   type WorkerQueueRunView,
   type WorkerQueueSnapshot,
 } from "@/lib/agentops/agents/agentManualRunClient";
+
+const COMPACT_QUEUED_MAX = 3;
 
 type StagingWorkerQueuePanelProps = {
   agentSlug?: string;
@@ -49,8 +52,11 @@ export function StagingWorkerQueuePanel({
   const [statusFilter, setStatusFilter] = useState("");
   const [ackBusyType, setAckBusyType] = useState<string | null>(null);
   const [cancelBusyId, setCancelBusyId] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const scoped = Boolean(agentSlug);
+  const queuedLimit = compact ? COMPACT_QUEUED_MAX : 10;
+  const queuedRows = (queue?.queued ?? []).slice(0, queuedLimit);
   // Literal labels kept for D-E1 truthfulness / verify (global vs this-agent scope).
   const scopePrefix = scoped ? "This agent" : "Global";
   const queueLengthLabel = scoped ? "This agent queue:" : "Global queue:";
@@ -129,16 +135,32 @@ export function StagingWorkerQueuePanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id="agentops-worker-queue-title" className="text-base font-semibold text-white">
-            Staging worker queue
+            {compact && scoped ? "This agent queue" : "Staging worker queue"}
           </h2>
           <p className="text-xs text-white/45">
-            Owner-gated staging queue. No GitHub dispatch. No Playwright on Vercel.
-            {scoped ? " Metrics below are scoped to this agent." : " Metrics below are global."}
+            {compact
+              ? scoped
+                ? "Compact this-agent queue — worker / scheduler / engines and relevant alerts."
+                : "Compact staging queue."
+              : "Owner-gated staging queue. No GitHub dispatch. No Playwright on Vercel."}
+            {!compact && scoped ? " Metrics below are scoped to this agent." : null}
+            {!compact && !scoped ? " Metrics below are global." : null}
           </p>
         </div>
-        <AixiaButton variant="secondary" onClick={() => void load()} disabled={loading}>
-          Refresh queue
-        </AixiaButton>
+        <div className="flex flex-wrap gap-2">
+          {compact ? (
+            <AixiaButton
+              variant="secondary"
+              onClick={() => navigate("/system/agent-ops/monitoring")}
+              data-testid="agentops-queue-open-monitoring"
+            >
+              Open Monitoring
+            </AixiaButton>
+          ) : null}
+          <AixiaButton variant="secondary" onClick={() => void load()} disabled={loading}>
+            Refresh queue
+          </AixiaButton>
+        </div>
       </div>
 
       {error ? (
@@ -173,25 +195,29 @@ export function StagingWorkerQueuePanel({
         </p>
         <p data-testid="agentops-queue-oldest-age">
           {oldestQueuedLabel} {ageLabel(queue?.oldestQueuedAgeMs)}
-          {queue?.opsOldestQueuedAgeStale && queue.opsOldestQueuedAgeMs != null ? (
+          {!compact && queue?.opsOldestQueuedAgeStale && queue.opsOldestQueuedAgeMs != null ? (
             <span className="text-white/35">
               {" "}
               (ops diagnostic {ageLabel(queue.opsOldestQueuedAgeMs)} · stale)
             </span>
           ) : null}
         </p>
-        <p>
-          Heartbeat:{" "}
-          {queue?.workerHeartbeatAt
-            ? new Date(queue.workerHeartbeatAt).toLocaleString()
-            : "—"}
-        </p>
-        <p>
-          Scheduler tick:{" "}
-          {queue?.schedulerHeartbeatAt
-            ? new Date(queue.schedulerHeartbeatAt).toLocaleString()
-            : "—"}
-        </p>
+        {!compact ? (
+          <>
+            <p>
+              Heartbeat:{" "}
+              {queue?.workerHeartbeatAt
+                ? new Date(queue.workerHeartbeatAt).toLocaleString()
+                : "—"}
+            </p>
+            <p>
+              Scheduler tick:{" "}
+              {queue?.schedulerHeartbeatAt
+                ? new Date(queue.schedulerHeartbeatAt).toLocaleString()
+                : "—"}
+            </p>
+          </>
+        ) : null}
         <p data-testid="agentops-queue-last-completed">
           {scoped ? "Latest completed for this agent" : "Latest global completed"}:{" "}
           {queue?.lastCompletedRunId ?? "—"}
@@ -200,18 +226,19 @@ export function StagingWorkerQueuePanel({
           {scoped ? "Latest failed for this agent" : "Latest global failed"}:{" "}
           {queue?.lastFailedRunId ?? "—"}
         </p>
-        <p className="sm:col-span-2 lg:col-span-3">
-          Last error:{" "}
-          <span className="text-amber-200/70">{queue?.lastError ?? "None"}</span>
-        </p>
+        {queue?.lastError ? (
+          <p className="sm:col-span-2 lg:col-span-3">
+            Last error: <span className="text-amber-200/70">{queue.lastError}</span>
+          </p>
+        ) : null}
       </div>
 
-      {(queue?.alerts?.length ?? 0) > 0 || queue?.alertFanout ? (
+      {(queue?.alerts?.length ?? 0) > 0 || (!compact && queue?.alertFanout) ? (
         <div className="space-y-2" data-testid="agentops-worker-health-alerts">
           <h3 className="text-sm font-medium text-white/80">
             {scoped ? "Health alerts (global worker)" : "Health alerts"}
           </h3>
-          {queue?.alertFanout ? (
+          {!compact && queue?.alertFanout ? (
             <p className="text-xs text-white/45" data-testid="agentops-alert-fanout-status">
               Fanout: {queue.alertFanout.enabled === false ? "disabled" : queue.alertFanout.lastFanoutChannel || "—"}
               {queue.alertFanout.lastFanoutAt
@@ -225,7 +252,7 @@ export function StagingWorkerQueuePanel({
           <ul className="space-y-1 text-xs text-white/70">
             {queue!
               .alerts!.filter((a) => !a.acknowledged)
-              .slice(0, 8)
+              .slice(0, compact ? 3 : 8)
               .map((alert) => (
                 <li
                   key={String(alert.id || alert.type)}
@@ -263,27 +290,28 @@ export function StagingWorkerQueuePanel({
                 </li>
               ))}
           </ul>
-          {(queue!.alerts!.filter((a) => a.acknowledged).length > 0 ||
-            (queue?.alertHistory?.length ?? 0) > 0) && (
-            <details className="text-xs text-white/50">
-              <summary>Acknowledged / history</summary>
-              <ul className="mt-1 space-y-1">
-                {queue!
-                  .alerts!.filter((a) => a.acknowledged)
-                  .slice(0, 5)
-                  .map((alert) => (
-                    <li key={`ack-${alert.id || alert.type}`}>
-                      {String(alert.type)} — {String(alert.message || "")}
+          {!compact &&
+            (queue!.alerts!.filter((a) => a.acknowledged).length > 0 ||
+              (queue?.alertHistory?.length ?? 0) > 0) && (
+              <details className="text-xs text-white/50">
+                <summary>Acknowledged / history</summary>
+                <ul className="mt-1 space-y-1">
+                  {queue!
+                    .alerts!.filter((a) => a.acknowledged)
+                    .slice(0, 5)
+                    .map((alert) => (
+                      <li key={`ack-${alert.id || alert.type}`}>
+                        {String(alert.type)} — {String(alert.message || "")}
+                      </li>
+                    ))}
+                  {(queue?.alertHistory || []).slice(0, 5).map((h, i) => (
+                    <li key={`hist-${i}`}>
+                      {String(h.type || "")} @ {String(h.acknowledgedAt || "")}
                     </li>
                   ))}
-                {(queue?.alertHistory || []).slice(0, 5).map((h, i) => (
-                  <li key={`hist-${i}`}>
-                    {String(h.type || "")} @ {String(h.acknowledgedAt || "")}
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
+                </ul>
+              </details>
+            )}
         </div>
       ) : null}
 
@@ -333,13 +361,13 @@ export function StagingWorkerQueuePanel({
 
       <div className="space-y-2">
         <h3 className="text-sm font-medium text-white/80">
-          Queued (next 10){scoped ? " · this agent" : ""}
+          Queued (max {queuedLimit}){scoped ? " · this agent" : ""}
         </h3>
-        {(queue?.queued?.length ?? 0) === 0 ? (
+        {queuedRows.length === 0 ? (
           <p className="text-xs text-white/45">No queued runs.</p>
         ) : (
           <ul className="space-y-1 text-xs text-white/70">
-            {queue!.queued.map((row) => (
+            {queuedRows.map((row) => (
               <li
                 key={row.runId}
                 className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1"

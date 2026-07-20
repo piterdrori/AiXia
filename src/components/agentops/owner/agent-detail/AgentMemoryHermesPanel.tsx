@@ -6,11 +6,20 @@ import { AGENT_DETAIL_CC_COPY } from "@/lib/agentops/agents/agentDetailControlCe
 import {
   buildHermesConnectionModel,
   evaluateHermesSafeConnectionTest,
+  hermesStatusForStrip,
   type HermesTestResult,
 } from "@/lib/agentops/agents/agentDetailHermesConnection";
 import {
-  fetchAgentScopedMemory,
-} from "@/app/system/agent-ops/agents/agentIntelligenceClient";
+  AGENT_DETAIL_MEMORY_COPY,
+  MEMORY_LIST_PAGE_SIZE,
+  MEMORY_LOAD_TIMEOUT_MS,
+  partitionRuntimeMemory,
+  resolveAgentHermesConnectionLabel,
+  resolveFleetHermesTransportLabel,
+  runtimeMemoryPreview,
+  withTimeout,
+} from "@/lib/agentops/agents/agentDetailMemoryModel";
+import { fetchAgentScopedMemory } from "@/app/system/agent-ops/agents/agentIntelligenceClient";
 import type { AgentOpsRuntimeMemoryRow } from "@/lib/agentops/db/agentOpsRuntimeTypes";
 import {
   AGENTOPS_RUNTIME_ENVIRONMENT,
@@ -41,7 +50,13 @@ const OWNER_TYPES: AgentOpsMemoryOwnerFacingType[] = [
   "reference_file",
 ];
 
-type TabId = "runtime" | "shared" | "pending" | "files";
+type TabId =
+  | "runtime"
+  | "approved"
+  | "shared"
+  | "pending"
+  | "files"
+  | "diagnostics";
 
 type AgentMemoryHermesPanelProps = {
   agentSlug: string;
@@ -53,6 +68,8 @@ type AgentMemoryHermesPanelProps = {
     assigned: number | null;
     enabled: number | null;
     pending: number | null;
+    diagnostic: number | null;
+    timedOut: boolean;
     error: string | null;
     hermesStatus: string;
     hermesDetail: string;
@@ -69,22 +86,86 @@ function mapOwnerTypeToInput(
   return "instruction";
 }
 
-function runtimeContentPreview(content: AgentOpsRuntimeMemoryRow["content"]): string {
-  if (content == null) return "(empty)";
-  if (typeof content === "string") return content;
-  if (typeof content === "number" || typeof content === "boolean") return String(content);
-  if (typeof content === "object") {
-    const record = content as Record<string, unknown>;
-    if (typeof record.title === "string") return record.title;
-    if (typeof record.text === "string") return record.text;
-    if (typeof record.summary === "string") return record.summary;
-    try {
-      return JSON.stringify(content).slice(0, 160);
-    } catch {
-      return "(object)";
-    }
+function SummaryCard({
+  label,
+  value,
+  testId,
+}: {
+  label: string;
+  value: string;
+  testId?: string;
+}) {
+  return (
+    <div
+      className="rounded-lg border border-white/10 bg-white/[0.02] p-3"
+      data-testid={testId}
+    >
+      <p className="text-[11px] uppercase tracking-wide text-white/40">{label}</p>
+      <p className="mt-1 text-sm text-white/85">{value}</p>
+    </div>
+  );
+}
+
+function RuntimeMemoryList({
+  rows,
+  emptyLabel,
+  badgeFor,
+}: {
+  rows: AgentOpsRuntimeMemoryRow[];
+  emptyLabel: string;
+  badgeFor?: (row: AgentOpsRuntimeMemoryRow) => { label: string; tone: "emerald" | "amber" | "neutral" };
+}) {
+  const [visible, setVisible] = useState(MEMORY_LIST_PAGE_SIZE);
+  useEffect(() => {
+    setVisible(MEMORY_LIST_PAGE_SIZE);
+  }, [rows]);
+
+  if (rows.length === 0) {
+    return <p className="text-sm text-white/60">{emptyLabel}</p>;
   }
-  return String(content);
+
+  const slice = rows.slice(0, visible);
+  return (
+    <div className="space-y-2">
+      <ul className="divide-y divide-white/10">
+        {slice.map((item) => {
+          const badge = badgeFor?.(item);
+          return (
+            <li key={item.id} className="space-y-2 py-3 text-sm">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="mb-1 flex flex-wrap gap-2">
+                    <AixiaBadge tone="neutral">
+                      {item.scope === "global" ? "Shared/global" : "Runtime memory"}
+                    </AixiaBadge>
+                    <AixiaBadge tone={item.approved ? "emerald" : "amber"}>
+                      {item.approved ? "Enabled" : "Inactive"}
+                    </AixiaBadge>
+                    {badge ? <AixiaBadge tone={badge.tone}>{badge.label}</AixiaBadge> : null}
+                  </div>
+                  <p className="font-medium text-white/90 line-clamp-2">
+                    {runtimeMemoryPreview(item.content)}
+                  </p>
+                  <p className="mt-1 text-xs text-white/45">
+                    source: {item.source} · {new Date(item.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <AixiaBadge tone="neutral">Read-only</AixiaBadge>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      {rows.length > visible ? (
+        <AixiaButton variant="secondary" onClick={() => setVisible((n) => n + MEMORY_LIST_PAGE_SIZE)}>
+          Load more ({rows.length - visible} remaining)
+        </AixiaButton>
+      ) : null}
+      {rows.length > MEMORY_LIST_PAGE_SIZE && visible >= rows.length ? (
+        <p className="text-xs text-white/40">Showing all {rows.length} records</p>
+      ) : null}
+    </div>
+  );
 }
 
 export function AgentMemoryHermesPanel({
@@ -96,14 +177,18 @@ export function AgentMemoryHermesPanel({
 }: AgentMemoryHermesPanelProps) {
   const draftAgentId = ownerDraftAgentId || agentSlug;
   const [tab, setTab] = useState<TabId>("runtime");
-  const [runtimeItems, setRuntimeItems] = useState<AgentOpsRuntimeMemoryRow[]>([]);
+  const [agentRuntimeRows, setAgentRuntimeRows] = useState<AgentOpsRuntimeMemoryRow[]>([]);
+  const [globalRows, setGlobalRows] = useState<AgentOpsRuntimeMemoryRow[]>([]);
   const [draftItems, setDraftItems] = useState<AgentOpsManagedAgentMemoryItem[]>([]);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<HermesTestResult | null>(null);
   const [testing, setTesting] = useState(false);
+  const [fleetTransportLabel, setFleetTransportLabel] = useState("Unknown");
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -114,12 +199,19 @@ export function AgentMemoryHermesPanel({
   const onMemoryStatsRef = useRef(onMemoryStats);
   onMemoryStatsRef.current = onMemoryStats;
 
+  const agentHermesLabel = resolveAgentHermesConnectionLabel({
+    agentSpecificRecordExists: false,
+    runtimeAgentId,
+    retrievalError: runtimeError,
+  });
+
   const load = useCallback(async () => {
     setLoading(true);
     setRuntimeError(null);
     setDraftError(null);
+    setTimedOut(false);
 
-    const [healthResult, draftResult, runtimeResult, globalResult] = await Promise.all([
+    const loadWork = Promise.all([
       getAgentOpsHermesRuntimeHealth(),
       getAgentOpsAgentMemory(draftAgentId),
       runtimeAgentId
@@ -138,18 +230,55 @@ export function AgentMemoryHermesPanel({
         .limit(50),
     ]);
 
+    const raced = await withTimeout(
+      loadWork,
+      MEMORY_LOAD_TIMEOUT_MS,
+      AGENT_DETAIL_MEMORY_COPY.memoryLoadSlow,
+    );
+
+    if (!raced.ok) {
+      setAgentRuntimeRows([]);
+      setGlobalRows([]);
+      setDraftItems([]);
+      setRuntimeError(raced.error);
+      setTimedOut(raced.timedOut);
+      setFleetTransportLabel("Unknown");
+      onMemoryStatsRef.current?.({
+        assigned: null,
+        enabled: null,
+        pending: null,
+        diagnostic: null,
+        timedOut: raced.timedOut,
+        error: raced.error,
+        hermesStatus: "Unknown",
+        hermesDetail: "Hermes status not loaded (memory load timed out or failed).",
+      });
+      setLoading(false);
+      return;
+    }
+
+    const [healthResult, draftResult, runtimeResult, globalResult] = raced.value;
+
+    const fleetLabel = resolveFleetHermesTransportLabel({
+      loaded: true,
+      ok: healthResult?.ok,
+      transportReachable: healthResult?.transportReachable,
+      error: healthResult?.loadError ?? null,
+    });
+    setFleetTransportLabel(fleetLabel);
+
     if (runtimeResult.error) {
-      setRuntimeItems([]);
+      setAgentRuntimeRows([]);
       setRuntimeError(runtimeResult.error);
     } else {
-      const agentRows = runtimeResult.data ?? [];
-      const globalRows = globalResult.error
-        ? []
-        : ((globalResult.data ?? []) as AgentOpsRuntimeMemoryRow[]);
-      setRuntimeItems([...agentRows, ...globalRows]);
-      if (globalResult.error) {
-        setRuntimeError((prev) => prev ?? `Global memory: ${globalResult.error.message}`);
-      }
+      setAgentRuntimeRows(runtimeResult.data ?? []);
+    }
+
+    if (globalResult.error) {
+      setGlobalRows([]);
+      setRuntimeError((prev) => prev ?? `Global memory: ${globalResult.error.message}`);
+    } else {
+      setGlobalRows((globalResult.data ?? []) as AgentOpsRuntimeMemoryRow[]);
     }
 
     if (draftResult.error) {
@@ -160,10 +289,10 @@ export function AgentMemoryHermesPanel({
     }
 
     const agentRowsOnly = runtimeResult.error ? [] : (runtimeResult.data ?? []);
-    const assigned = runtimeResult.error ? null : agentRowsOnly.length;
-    const enabled = runtimeResult.error
-      ? null
-      : agentRowsOnly.filter((row) => row.approved).length;
+    const partitioned = partitionRuntimeMemory(agentRowsOnly, []);
+    const assigned = runtimeResult.error ? null : partitioned.counts.runtimeTotal;
+    const enabled = runtimeResult.error ? null : partitioned.counts.enabledRuntime;
+    const diagnostic = runtimeResult.error ? null : partitioned.counts.diagnostic;
     const pendingDrafts = draftResult.error
       ? null
       : (draftResult.data ?? []).filter((row) => row.approvalStatus === "pending_approval").length;
@@ -178,15 +307,20 @@ export function AgentMemoryHermesPanel({
       retrievalError: runtimeResult.error,
       lastSuccessfulRetrievalAt: runtimeResult.error ? null : new Date().toISOString(),
       tested: true,
+      agentSpecificRecordExists: false,
+      runtimeAgentId,
     });
+    const stripHermes = hermesStatusForStrip(model);
 
     onMemoryStatsRef.current?.({
       assigned,
       enabled,
       pending: pendingDrafts,
+      diagnostic,
+      timedOut: false,
       error: runtimeResult.error,
-      hermesStatus: model.fleetStatus,
-      hermesDetail: model.notes[0] ?? "",
+      hermesStatus: stripHermes.status,
+      hermesDetail: stripHermes.detail,
     });
     setLoading(false);
   }, [draftAgentId, runtimeAgentId]);
@@ -195,37 +329,34 @@ export function AgentMemoryHermesPanel({
     void load();
   }, [load]);
 
-  const filteredRuntime = useMemo(() => {
-    if (tab === "shared") {
-      return runtimeItems.filter((item) => item.scope === "global");
-    }
-    return runtimeItems.filter((item) => item.scope === "agent");
-  }, [runtimeItems, tab]);
+  const partition = useMemo(
+    () => partitionRuntimeMemory(agentRuntimeRows, globalRows),
+    [agentRuntimeRows, globalRows],
+  );
 
-  const filteredDrafts = useMemo(() => {
-    if (tab === "pending") {
-      return draftItems.filter((item) => item.approvalStatus === "pending_approval");
-    }
-    if (tab === "files") {
-      return draftItems.filter(
+  const pendingDrafts = useMemo(
+    () => draftItems.filter((item) => item.approvalStatus === "pending_approval"),
+    [draftItems],
+  );
+
+  const fileDrafts = useMemo(
+    () =>
+      draftItems.filter(
         (item) => Boolean(item.fileStoragePath) || item.ownerFacingType === "reference_file",
-      );
-    }
-    return [];
-  }, [draftItems, tab]);
+      ),
+    [draftItems],
+  );
 
-  const summary = useMemo(() => {
-    const pending = draftItems.filter((item) => item.approvalStatus === "pending_approval").length;
-    const agentOnly = runtimeItems.filter((item) => item.scope === "agent");
-    const approved = agentOnly.filter((item) => item.approved).length;
-    return {
-      assigned: agentOnly.length,
-      enabled: approved,
-      pending,
-      runtimeError,
-      draftError,
-    };
-  }, [draftItems, draftError, runtimeError, runtimeItems]);
+  const approvedOwnerMemory = useMemo(
+    () =>
+      draftItems.filter(
+        (item) => item.approvalStatus === "active" || (item.active && item.approvalStatus !== "pending_approval"),
+      ),
+    [draftItems],
+  );
+
+  const showFleetBanner =
+    fleetTransportLabel === "Available" && agentHermesLabel === "Not configured";
 
   const saveDraft = async (approve: boolean) => {
     setFeedback(null);
@@ -331,64 +462,112 @@ export function AgentMemoryHermesPanel({
       memoryQueryOk: !memoryResult.error,
       memoryError: memoryResult.error,
       assignedMemoryCount: memoryResult.data?.length ?? 0,
+      agentSpecificRecordExists: false,
     });
     setTestResult(result);
     onHermesTestEvent?.(result.detail);
     setTesting(false);
   };
 
-  const showRuntimeList = tab === "runtime" || tab === "shared";
-  const showDraftList = tab === "pending" || tab === "files";
+  const fleetCardValue = loading
+    ? "…"
+    : fleetTransportLabel === "Available"
+      ? "Available"
+      : fleetTransportLabel === "Unavailable"
+        ? "Unavailable"
+        : "Unknown";
+
+  const agentHermesCardValue =
+    agentHermesLabel === "Connected"
+      ? "Connected"
+      : agentHermesLabel === "Error"
+        ? "Error"
+        : agentHermesLabel === "Unknown"
+          ? "Unknown"
+          : "Not configured";
 
   return (
     <AgentDetailPanelShell
       title="Memory and Hermes"
       id="agent-memory-hermes"
-      description="Runtime/Hermes memory from agentops_memory. Owner drafts stay in agentops_agent_memory until promoted."
+      description="Separates fleet Hermes transport, this agent’s Hermes connection, runtime memory, approved memory, pending drafts, shared/global memory, and diagnostic history."
       testId="agentops-agent-memory-hermes-panel"
     >
-      <div className="grid gap-2 text-sm sm:grid-cols-2" data-testid="agentops-hermes-summary">
-        <div>
-          <p className="text-white/45">Fleet Hermes</p>
-          <p className="text-white/85">See status strip · transport health</p>
-        </div>
-        <div>
-          <p className="text-white/45">Runtime memory records</p>
-          <p className="text-white/85">
-            {loading ? "…" : runtimeError ? "Unavailable" : summary.assigned}
-          </p>
-        </div>
-        <div>
-          <p className="text-white/45">Enabled runtime memory</p>
-          <p className="text-white/85">
-            {loading ? "…" : runtimeError ? "Unavailable" : summary.enabled}
-          </p>
-        </div>
-        <div>
-          <p className="text-white/45">Pending owner drafts</p>
-          <p className="text-white/85">
-            {loading ? "…" : draftError ? "Unavailable" : summary.pending}
-          </p>
-        </div>
+      <div
+        className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4"
+        data-testid="agentops-hermes-summary"
+      >
+        <SummaryCard
+          label="Fleet Hermes transport"
+          value={fleetCardValue}
+          testId="memory-summary-fleet-hermes"
+        />
+        <SummaryCard
+          label="Agent Hermes connection"
+          value={agentHermesCardValue}
+          testId="memory-summary-agent-hermes"
+        />
+        <SummaryCard
+          label="Runtime memory records"
+          value={
+            loading
+              ? "…"
+              : runtimeError
+                ? "Unavailable"
+                : `${partition.counts.runtimeTotal} total · ${partition.counts.enabledRuntime} enabled`
+          }
+          testId="memory-summary-runtime"
+        />
+        <SummaryCard
+          label="Pending owner drafts"
+          value={
+            loading
+              ? "…"
+              : draftError
+                ? "Unavailable"
+                : pendingDrafts.length === 0
+                  ? AGENT_DETAIL_MEMORY_COPY.noPendingDrafts
+                  : String(pendingDrafts.length)
+          }
+          testId="memory-summary-pending"
+        />
       </div>
 
-      <AixiaInfoBlock tone="cyan" title="Hermes connection model">
-        <p className="text-sm text-white/75">{AGENT_DETAIL_CC_COPY.hermesFleetAvailable}</p>
-        <p className="mt-2 text-xs text-white/50">
-          Per-agent retrieval: {runtimeAgentId ? "queryable via runtime UUID" : "Not measurable (runtime identity missing)"}
-        </p>
-      </AixiaInfoBlock>
+      {showFleetBanner ? (
+        <AixiaInfoBlock tone="cyan" title="Fleet transport ≠ agent connection">
+          <p className="text-sm text-white/75" data-testid="agentops-hermes-no-per-agent-banner">
+            {AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner}
+          </p>
+        </AixiaInfoBlock>
+      ) : null}
+
+      {(timedOut || (runtimeError && !loading)) && (
+        <AixiaInfoBlock tone="gold" title="Memory load issue">
+          <p className="text-sm text-white/75" data-testid="agentops-memory-load-error">
+            {timedOut ? AGENT_DETAIL_MEMORY_COPY.memoryLoadSlow : runtimeError}
+          </p>
+          <div className="mt-2">
+            <AixiaButton variant="secondary" onClick={() => void load()}>
+              Refresh memory
+            </AixiaButton>
+          </div>
+        </AixiaInfoBlock>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <AixiaButton disabled={testing} onClick={() => void testHermes()}>
           {testing ? "Testing…" : "Test Hermes connection"}
         </AixiaButton>
-        <AixiaButton variant="secondary" onClick={() => void load()}>
-          Refresh memory
+        <AixiaButton variant="secondary" disabled={loading} onClick={() => void load()}>
+          {loading ? "Refreshing…" : "Refresh memory"}
         </AixiaButton>
       </div>
+
       {testResult ? (
-        <div className="rounded-lg border border-white/10 p-3 text-sm" data-testid="agentops-hermes-test-result">
+        <div
+          className="rounded-lg border border-white/10 p-3 text-sm"
+          data-testid="agentops-hermes-test-result"
+        >
           <AixiaBadge
             tone={
               testResult.status.includes("failed") ||
@@ -402,19 +581,26 @@ export function AgentMemoryHermesPanel({
           </AixiaBadge>
           <p className="mt-2 text-white/75">{testResult.detail}</p>
           <p className="mt-1 text-xs text-white/45">
+            Agent Hermes: {testResult.agentHermesLabel}
+            {" · "}
+            Fleet transport: {testResult.fleetTransportAvailable ? "Available" : "Unavailable"}
+          </p>
+          <p className="mt-1 text-xs text-white/45">
             {new Date(testResult.checkedAt).toLocaleString()}
             {testResult.error ? ` · ${testResult.error}` : ""}
           </p>
         </div>
       ) : null}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" data-testid="agentops-memory-tabs">
         {(
           [
-            ["runtime", "Agent runtime memory"],
-            ["shared", "Shared/global memory"],
-            ["pending", "Pending owner approval"],
-            ["files", "Files/drafts"],
+            ["runtime", `Agent runtime memory (${partition.counts.runtimeTotal})`],
+            ["approved", `Approved memory (${partition.counts.approvedUseful + approvedOwnerMemory.length})`],
+            ["shared", `Shared/global (${partition.counts.globalApproved})`],
+            ["pending", `Pending owner drafts (${pendingDrafts.length})`],
+            ["files", `Files/drafts (${fileDrafts.length})`],
+            ["diagnostics", `Diagnostics (${partition.counts.diagnostic})`],
           ] as const
         ).map(([id, label]) => (
           <AixiaButton
@@ -427,98 +613,131 @@ export function AgentMemoryHermesPanel({
         ))}
       </div>
 
-      {showRuntimeList ? (
-        runtimeError ? (
-          <AixiaInfoBlock tone="gold" title="Runtime memory unavailable">
-            <p className="text-sm text-white/75">{runtimeError}</p>
-          </AixiaInfoBlock>
-        ) : loading ? (
-          <p className="text-sm text-white/50" role="status">
-            Loading runtime memory…
-          </p>
-        ) : filteredRuntime.length === 0 ? (
-          <p className="text-sm text-white/60">No runtime memory in this view.</p>
-        ) : (
-          <ul className="divide-y divide-white/10">
-            {filteredRuntime.map((item) => (
-              <li key={item.id} className="space-y-2 py-3 text-sm">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="mb-1 flex flex-wrap gap-2">
-                      <AixiaBadge tone="neutral">
-                        {item.scope === "global" ? "Global" : "Runtime memory"}
-                      </AixiaBadge>
-                      <AixiaBadge tone={item.approved ? "emerald" : "amber"}>
-                        {item.approved ? "Approved" : "Pending / inactive"}
-                      </AixiaBadge>
-                    </div>
-                    <p className="font-medium text-white/90 line-clamp-2">
-                      {runtimeContentPreview(item.content)}
-                    </p>
-                    <p className="mt-1 text-xs text-white/45">
-                      source: {item.source} · {new Date(item.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <AixiaBadge tone="neutral">Read-only</AixiaBadge>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )
+      {loading && !timedOut ? (
+        <p className="text-sm text-white/50" role="status" data-testid="agentops-memory-loading">
+          Loading memory sections…
+        </p>
       ) : null}
 
-      {showDraftList ? (
-        draftError ? (
-          <AixiaInfoBlock tone="gold" title="Owner drafts unavailable">
-            <p className="text-sm text-white/75">{draftError}</p>
-          </AixiaInfoBlock>
-        ) : loading ? (
-          <p className="text-sm text-white/50" role="status">
-            Loading owner drafts…
+      {!loading && tab === "runtime" ? (
+        <div data-testid="agentops-memory-tab-runtime">
+          <p className="mb-2 text-xs text-white/45">
+            Records in agentops_memory for this runtime UUID. Enabled ≠ owner-approved active memory.
+            {partition.lastRuntimeUpdateAt
+              ? ` Last runtime memory update: ${new Date(partition.lastRuntimeUpdateAt).toLocaleString()}.`
+              : ""}
           </p>
-        ) : filteredDrafts.length === 0 ? (
-          <p className="text-sm text-white/60">No owner drafts in this view.</p>
-        ) : (
-          <ul className="divide-y divide-white/10">
-            {filteredDrafts.map((item) => (
-              <li key={item.id} className="space-y-2 py-3 text-sm">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <div className="mb-1 flex flex-wrap gap-2">
-                      <AixiaBadge tone="neutral">Owner draft</AixiaBadge>
-                      {item.scope === "global" ? (
-                        <AixiaBadge tone="neutral">Global</AixiaBadge>
-                      ) : item.scope === "shared" ? (
-                        <AixiaBadge tone="neutral">Shared</AixiaBadge>
-                      ) : null}
-                    </div>
+          {runtimeError ? (
+            <AixiaInfoBlock tone="gold" title={AGENT_DETAIL_MEMORY_COPY.runtimeUnavailable}>
+              <p className="text-sm text-white/75">{runtimeError}</p>
+            </AixiaInfoBlock>
+          ) : (
+            <RuntimeMemoryList
+              rows={partition.usefulAgentRows}
+              emptyLabel={AGENT_DETAIL_MEMORY_COPY.noRuntimeMemory}
+            />
+          )}
+          {partition.counts.diagnostic > 0 ? (
+            <p className="mt-2 text-xs text-white/40">
+              {partition.counts.diagnostic} diagnostic/noisy records are under Diagnostics (collapsed by
+              default).
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {!loading && tab === "approved" ? (
+        <div data-testid="agentops-memory-tab-approved" className="space-y-4">
+          <div>
+            <p className="mb-2 text-xs text-white/45">
+              Useful runtime rows marked enabled/approved (excludes diagnostic markers).
+            </p>
+            <RuntimeMemoryList
+              rows={partition.approvedUsefulRows}
+              emptyLabel={AGENT_DETAIL_MEMORY_COPY.noApprovedMemory}
+              badgeFor={() => ({ label: "Approved runtime", tone: "emerald" })}
+            />
+          </div>
+          <div>
+            <p className="mb-2 text-xs text-white/45">
+              Owner-approved drafts in agentops_agent_memory (active).
+            </p>
+            {approvedOwnerMemory.length === 0 ? (
+              <p className="text-sm text-white/60">No active owner-approved drafts for this agent.</p>
+            ) : (
+              <ul className="divide-y divide-white/10">
+                {approvedOwnerMemory.slice(0, MEMORY_LIST_PAGE_SIZE).map((item) => (
+                  <li key={item.id} className="space-y-1 py-3 text-sm">
+                    <AixiaBadge tone="emerald">Owner approved</AixiaBadge>
                     <p className="font-medium text-white/90">
                       {item.title || item.note || item.memoryType}
                     </p>
                     <p className="text-white/55 line-clamp-2">{item.memoryText}</p>
-                    <p className="mt-1 text-xs text-white/45">
-                      {item.ownerFacingType ?? item.inputMemoryType ?? item.memoryType} ·{" "}
-                      {item.approvalStatus ?? (item.active ? "active" : "disabled")} ·{" "}
-                      {new Date(item.createdAt).toLocaleString()}
-                    </p>
-                    {item.fileName ? (
-                      <p className="text-xs text-white/45">File: {item.fileName} (path stored securely)</p>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <AixiaButton
-                      variant="secondary"
-                      onClick={() => {
-                        setEditingId(item.id);
-                        setTitle(item.title ?? "");
-                        setContent(item.memoryText);
-                        setOwnerFacingType(item.ownerFacingType ?? "instruction");
-                        setScope(item.scope ?? "private");
-                      }}
-                    >
-                      Edit
-                    </AixiaButton>
-                    {item.approvalStatus === "pending_approval" ? (
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      {!loading && tab === "shared" ? (
+        <div data-testid="agentops-memory-tab-shared">
+          <p className="mb-2 text-xs text-white/45">
+            {AGENT_DETAIL_MEMORY_COPY.sharedGlobalLabel} — not agent-specific.
+          </p>
+          <RuntimeMemoryList
+            rows={partition.globalRows}
+            emptyLabel="No shared/global approved memory loaded."
+            badgeFor={() => ({ label: "Shared/global", tone: "neutral" })}
+          />
+        </div>
+      ) : null}
+
+      {!loading && tab === "pending" ? (
+        <div data-testid="agentops-memory-tab-pending">
+          {draftError ? (
+            <AixiaInfoBlock tone="gold" title="Owner drafts unavailable">
+              <p className="text-sm text-white/75">{draftError}</p>
+            </AixiaInfoBlock>
+          ) : pendingDrafts.length === 0 ? (
+            <p className="text-sm text-white/60">{AGENT_DETAIL_MEMORY_COPY.noPendingDrafts}</p>
+          ) : (
+            <ul className="divide-y divide-white/10">
+              {pendingDrafts.map((item) => (
+                <li key={item.id} className="space-y-2 py-3 text-sm">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="mb-1 flex flex-wrap gap-2">
+                        <AixiaBadge tone="amber">Pending owner draft</AixiaBadge>
+                        {item.scope === "global" ? (
+                          <AixiaBadge tone="neutral">Global</AixiaBadge>
+                        ) : item.scope === "shared" ? (
+                          <AixiaBadge tone="neutral">Shared</AixiaBadge>
+                        ) : null}
+                      </div>
+                      <p className="font-medium text-white/90">
+                        {item.title || item.note || item.memoryType}
+                      </p>
+                      <p className="text-white/55 line-clamp-2">{item.memoryText}</p>
+                      <p className="mt-1 text-xs text-white/45">
+                        {item.ownerFacingType ?? item.inputMemoryType ?? item.memoryType} ·{" "}
+                        {new Date(item.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <AixiaButton
+                        variant="secondary"
+                        onClick={() => {
+                          setEditingId(item.id);
+                          setTitle(item.title ?? "");
+                          setContent(item.memoryText);
+                          setOwnerFacingType(item.ownerFacingType ?? "instruction");
+                          setScope(item.scope ?? "private");
+                        }}
+                      >
+                        Edit
+                      </AixiaButton>
                       <AixiaButton
                         onClick={() =>
                           void updateAgentOpsAgentMemory({
@@ -534,29 +753,81 @@ export function AgentMemoryHermesPanel({
                       >
                         Approve
                       </AixiaButton>
-                    ) : null}
-                    <AixiaButton
-                      variant="secondary"
-                      onClick={() =>
-                        void setAgentOpsAgentMemoryActive({
-                          memoryId: item.id,
-                          agentId: draftAgentId,
-                          active: !item.active,
-                          approvalStatus: item.active ? "disabled" : "active",
-                        }).then(async (result) => {
-                          setFeedback(result.error ?? (item.active ? "Disabled." : "Enabled."));
-                          await load();
-                        })
-                      }
-                    >
-                      {item.active ? "Disable" : "Enable"}
-                    </AixiaButton>
+                      <AixiaButton
+                        variant="secondary"
+                        onClick={() =>
+                          void setAgentOpsAgentMemoryActive({
+                            memoryId: item.id,
+                            agentId: draftAgentId,
+                            active: !item.active,
+                            approvalStatus: item.active ? "disabled" : "active",
+                          }).then(async (result) => {
+                            setFeedback(result.error ?? (item.active ? "Disabled." : "Enabled."));
+                            await load();
+                          })
+                        }
+                      >
+                        {item.active ? "Disable" : "Enable"}
+                      </AixiaButton>
+                    </div>
                   </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+
+      {!loading && tab === "files" ? (
+        <div data-testid="agentops-memory-tab-files">
+          {fileDrafts.length === 0 ? (
+            <p className="text-sm text-white/60">No files/drafts for this agent.</p>
+          ) : (
+            <ul className="divide-y divide-white/10">
+              {fileDrafts.map((item) => (
+                <li key={item.id} className="space-y-1 py-3 text-sm">
+                  <AixiaBadge tone="neutral">
+                    {item.approvalStatus === "pending_approval" ? "Owner draft" : "File/draft"}
+                  </AixiaBadge>
+                  <p className="font-medium text-white/90">
+                    {item.title || item.fileName || item.memoryType}
+                  </p>
+                  {item.fileName ? (
+                    <p className="text-xs text-white/45">
+                      File: {item.fileName} (path stored securely)
+                    </p>
+                  ) : null}
+                  <p className="text-white/55 line-clamp-2">{item.memoryText}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+
+      {!loading && tab === "diagnostics" ? (
+        <div data-testid="agentops-memory-tab-diagnostics">
+          <button
+            type="button"
+            className="mb-2 text-left text-sm text-white/70 underline-offset-2 hover:underline"
+            onClick={() => setDiagnosticsOpen((open) => !open)}
+            data-testid="agentops-diagnostics-toggle"
+          >
+            {diagnosticsOpen ? "Collapse" : "Expand"} {AGENT_DETAIL_MEMORY_COPY.diagnosticsCollapsed} (
+            {partition.counts.diagnostic})
+          </button>
+          {!diagnosticsOpen ? (
+            <p className="text-sm text-white/55">
+              Diagnostic/noisy runtime history is collapsed. These are not active approved memory.
+            </p>
+          ) : (
+            <RuntimeMemoryList
+              rows={partition.diagnosticAgentRows}
+              emptyLabel="No diagnostic runtime history for this agent."
+              badgeFor={() => ({ label: "Diagnostic", tone: "amber" })}
+            />
+          )}
+        </div>
       ) : null}
 
       <div className="space-y-2 rounded-lg border border-white/10 p-3">
@@ -564,7 +835,8 @@ export function AgentMemoryHermesPanel({
           {editingId ? "Edit owner draft" : "Create owner draft"}
         </p>
         <p className="text-xs text-white/45">
-          Writes to agentops_agent_memory only. Does not migrate or dual-write agentops_memory.
+          Writes to agentops_agent_memory only. Does not auto-promote or apply into Hermes runtime
+          memory.
         </p>
         <input
           className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white"

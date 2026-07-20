@@ -63,7 +63,10 @@ function main(): void {
     assignedCount: 0,
     enabledCount: 0,
   });
-  assert(memoryEmpty.status === "No assigned memory", "empty memory honesty");
+  assert(
+    /0 runtime memory records/i.test(memoryEmpty.status),
+    "empty memory honesty (runtime memory records)",
+  );
 
   const strip = buildAgentStatusStrip({
     ownerStatus: "Active",

@@ -1179,13 +1179,12 @@ export default function AgentOpsAgentDetailPage() {
                 error: stats.error,
                 assignedCount: stats.assigned,
                 enabledCount: stats.enabled,
+                pendingDrafts: stats.pending,
+                diagnosticCount: stats.diagnostic,
+                timedOut: stats.timedOut,
               });
               setMemoryLabel(mapped.status);
-              setMemoryDetail(
-                stats.pending != null && stats.pending > 0
-                  ? `${mapped.detail} · ${stats.pending} pending owner drafts`
-                  : mapped.detail,
-              );
+              setMemoryDetail(mapped.detail);
               setHermesStatus(stats.hermesStatus as StripHermesStatus);
               setHermesDetail(stats.hermesDetail);
             }}

@@ -10,6 +10,12 @@ import {
   type AgentHermesRetrievalStatus,
   type StripHermesStatus,
 } from "@/lib/agentops/agents/agentDetailControlCenter";
+import {
+  AGENT_DETAIL_MEMORY_COPY,
+  formatAgentHermesStripDetail,
+  resolveAgentHermesConnectionLabel,
+  type AgentHermesConnectionLabel,
+} from "@/lib/agentops/agents/agentDetailMemoryModel";
 import type { AgentOpsHermesRuntimeHealth } from "@/lib/agentops/types";
 
 export type HermesTestResult = {
@@ -23,7 +29,13 @@ export type HermesTestResult = {
   checkedAt: string;
   error: string | null;
   detail: string;
+  /** Never "Connected" unless a dedicated per-agent record exists. */
+  agentHermesLabel: AgentHermesConnectionLabel;
+  fleetTransportAvailable: boolean;
 };
+
+const AGENT_HERMES_NOT_CONNECTED_NOTE =
+  "Agent Hermes: Not configured — no dedicated per-agent Hermes connection record.";
 
 export function buildHermesConnectionModel(input: {
   agentId: string;
@@ -35,6 +47,9 @@ export function buildHermesConnectionModel(input: {
   retrievalError: string | null;
   lastSuccessfulRetrievalAt: string | null;
   tested?: boolean;
+  /** Future: true only when a real per-agent Hermes connection row exists. */
+  agentSpecificRecordExists?: boolean;
+  runtimeAgentId?: string | null;
 }): AgentHermesConnectionModel {
   const mapped = mapHermesRuntimeToStripStatus({
     loaded: Boolean(input.health) || Boolean(input.healthError),
@@ -58,7 +73,19 @@ export function buildHermesConnectionModel(input: {
     retrievalStatus = "Retrieval verified";
   }
 
-  const notes = [AGENT_DETAIL_CC_COPY.hermesFleetAvailable, mapped.detail];
+  const agentSpecificRecordExists = input.agentSpecificRecordExists === true;
+  const agentHermesLabel = resolveAgentHermesConnectionLabel({
+    agentSpecificRecordExists,
+    runtimeAgentId: input.runtimeAgentId ?? input.agentId,
+    retrievalError: input.retrievalError,
+  });
+
+  const notes = [
+    mapped.status === "Fleet available"
+      ? AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner
+      : mapped.detail,
+    formatAgentHermesStripDetail(agentHermesLabel),
+  ];
 
   return {
     agentId: input.agentId,
@@ -71,7 +98,7 @@ export function buildHermesConnectionModel(input: {
     pendingApprovalCount: input.pendingApprovalCount,
     retrievalStatus,
     lastError: input.healthError ?? input.retrievalError ?? input.health?.loadError ?? null,
-    agentSpecificRecordExists: false,
+    agentSpecificRecordExists,
     notes,
   };
 }
@@ -83,15 +110,23 @@ export function evaluateHermesSafeConnectionTest(input: {
   memoryQueryOk: boolean;
   memoryError: string | null;
   assignedMemoryCount: number;
+  agentSpecificRecordExists?: boolean;
 }): HermesTestResult {
   const checkedAt = new Date().toISOString();
+  const agentHermesLabel = resolveAgentHermesConnectionLabel({
+    agentSpecificRecordExists: input.agentSpecificRecordExists === true,
+    runtimeAgentId: input.runtimeAgentId,
+    retrievalError: null,
+  });
 
   if (!input.runtimeAgentId) {
     return {
       status: "Agent runtime identity missing",
       checkedAt,
       error: "No agentops_agents UUID for this canonical agent.",
-      detail: "Cannot query living memory without a runtime UUID.",
+      detail: `Cannot query living memory without a runtime UUID. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+      agentHermesLabel: "Unknown",
+      fleetTransportAvailable: false,
     };
   }
 
@@ -100,7 +135,9 @@ export function evaluateHermesSafeConnectionTest(input: {
       status: "Fleet unavailable",
       checkedAt,
       error: input.healthError ?? "Hermes health unavailable",
-      detail: "Could not reach Hermes health endpoint.",
+      detail: `Could not reach Hermes health endpoint. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+      agentHermesLabel,
+      fleetTransportAvailable: false,
     };
   }
 
@@ -109,7 +146,9 @@ export function evaluateHermesSafeConnectionTest(input: {
       status: "Fleet unavailable",
       checkedAt,
       error: input.health.message,
-      detail: "Hermes transport not fully reachable.",
+      detail: `Hermes transport not fully reachable. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+      agentHermesLabel,
+      fleetTransportAvailable: false,
     };
   }
 
@@ -118,7 +157,9 @@ export function evaluateHermesSafeConnectionTest(input: {
       status: "Fleet available · memory query failed",
       checkedAt,
       error: input.memoryError ?? "Memory retrieval failed",
-      detail: "Fleet Hermes available, but agentops_memory query failed.",
+      detail: `Fleet Hermes transport available. Memory query failed. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+      agentHermesLabel,
+      fleetTransportAvailable: true,
     };
   }
 
@@ -127,7 +168,9 @@ export function evaluateHermesSafeConnectionTest(input: {
       status: "Fleet available · no memory assigned",
       checkedAt,
       error: null,
-      detail: `Fleet available · no memory assigned (runtime ${input.runtimeAgentId.slice(0, 8)}…)`,
+      detail: `Fleet Hermes transport available · 0 runtime memory records (runtime ${input.runtimeAgentId.slice(0, 8)}…). ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+      agentHermesLabel,
+      fleetTransportAvailable: true,
     };
   }
 
@@ -135,7 +178,9 @@ export function evaluateHermesSafeConnectionTest(input: {
     status: "Fleet available · memory found",
     checkedAt,
     error: null,
-    detail: `Fleet available · ${input.assignedMemoryCount} memory records found`,
+    detail: `Fleet Hermes transport available · ${input.assignedMemoryCount} runtime memory records found. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+    agentHermesLabel,
+    fleetTransportAvailable: true,
   };
 }
 
@@ -146,8 +191,19 @@ export function hermesStatusForStrip(model: AgentHermesConnectionModel | null): 
   if (!model) {
     return { status: "Unknown", detail: "Hermes status not loaded." };
   }
+  const agentNote =
+    model.notes.find((note) => note.startsWith("Agent Hermes")) ??
+    formatAgentHermesStripDetail(
+      resolveAgentHermesConnectionLabel({
+        agentSpecificRecordExists: model.agentSpecificRecordExists,
+        runtimeAgentId: model.agentId,
+      }),
+    );
   return {
     status: model.fleetStatus,
-    detail: model.notes[0] ?? model.lastError ?? "",
+    detail:
+      model.fleetStatus === "Fleet available"
+        ? `${AGENT_DETAIL_CC_COPY.hermesFleetAvailable} · ${agentNote}`
+        : `${model.notes[0] ?? model.lastError ?? ""} · ${agentNote}`,
   };
 }

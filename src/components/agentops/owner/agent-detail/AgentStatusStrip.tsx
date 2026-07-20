@@ -19,7 +19,8 @@ function toneFor(value: string): "emerald" | "amber" | "neutral" {
     value === "Blocked" ||
     value === "Needs attention" ||
     value === "Unavailable" ||
-    value === "Memory unavailable"
+    value === "Memory unavailable" ||
+    value === "Memory load slow"
   ) {
     return "amber";
   }
@@ -59,7 +60,7 @@ export function AgentStatusStrip({ model }: AgentStatusStripProps) {
     >
       <Cell label="Owner status" value={model.agentStatus} testId="strip-agent-status" />
       <Cell
-        label="Hermes"
+        label="Fleet Hermes"
         value={model.hermes}
         detail={model.hermesDetail}
         testId="strip-hermes-status"

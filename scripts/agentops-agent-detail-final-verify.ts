@@ -191,13 +191,32 @@ function verifyMemoryCopy(): void {
     error: null,
     assignedCount: 120,
     enabledCount: 10,
+    pendingDrafts: 0,
+    diagnosticCount: 80,
   });
-  if (!/runtime memory records/i.test(mapped.status)) {
-    fail("memory strip must label runtime memory records");
+  if (!/120 runtime memory records · 10 enabled/i.test(mapped.status)) {
+    fail(`memory strip must label runtime/enabled counts clearly, got ${mapped.status}`);
   }
   if (/Agent Hermes connected/i.test(mapped.status + mapped.detail)) {
     fail("memory/hermes copy must not claim Agent Hermes connected");
   }
+  if (/ASSIGNED/i.test(mapped.status)) {
+    fail("memory strip must not use ASSIGNED wording");
+  }
+
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailMemoryModel.ts",
+    "isDiagnosticRuntimeMemory",
+  );
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
+    "Agent Hermes connection",
+  );
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
+    "MEMORY_LOAD_TIMEOUT_MS",
+  );
+  mustInclude("package.json", '"agentops:agent-detail-memory-hermes-verify"');
 }
 
 function verifySourceFiles(): void {

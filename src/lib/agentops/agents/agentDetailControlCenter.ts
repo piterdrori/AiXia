@@ -11,6 +11,7 @@ import {
   type AgentDetailReviewStatus,
 } from "@/lib/agentops/agents/agentDetailPhaseB1Semantics";
 import type { OwnerFacingAgentStatus } from "@/lib/agentops/agents/agentRuntimeIdentityModel";
+import { mapMemoryPartitionToStripStatus } from "@/lib/agentops/agents/agentDetailMemoryModel";
 
 export const AGENT_DETAIL_CC_COPY = {
   runAuditNotConnected: "Staging worker not connected.",
@@ -320,26 +321,20 @@ export function mapMemoryCountsToStripStatus(input: {
   error: string | null;
   assignedCount: number | null;
   enabledCount: number | null;
+  pendingDrafts?: number | null;
+  diagnosticCount?: number | null;
+  timedOut?: boolean;
 }): { status: string; detail: string } {
-  if (input.error) {
-    return { status: "Memory unavailable", detail: input.error };
-  }
-  if (!input.loaded || input.assignedCount == null) {
-    return { status: "Unknown", detail: "Memory status not loaded." };
-  }
-  if (input.assignedCount === 0) {
-    return { status: "No assigned memory", detail: "No runtime memory rows for this agent." };
-  }
-  if (input.enabledCount != null) {
-    return {
-      status: `${input.assignedCount} runtime memory records · ${input.enabledCount} enabled`,
-      detail: "Runtime memory records (agentops_memory) — not all are active/approved current memory.",
-    };
-  }
-  return {
-    status: `${input.assignedCount} runtime memory records`,
-    detail: "Runtime memory records (agentops_memory) — not all are active/approved current memory.",
-  };
+  // Phase D-E2: clear "runtime memory records · enabled" wording — not "ASSIGNED · ACTIVE".
+  return mapMemoryPartitionToStripStatus({
+    loaded: input.loaded,
+    error: input.error,
+    timedOut: input.timedOut,
+    runtimeTotal: input.assignedCount,
+    enabledRuntime: input.enabledCount,
+    pendingDrafts: input.pendingDrafts ?? null,
+    diagnosticCount: input.diagnosticCount ?? null,
+  });
 }
 
 export function reviewLabelForStrip(result: StripLastScanResult): string {

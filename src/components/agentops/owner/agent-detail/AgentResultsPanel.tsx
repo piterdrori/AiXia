@@ -8,6 +8,7 @@ import type { AgentOpsFinding } from "@/lib/agentops";
 import { fetchArtifactSignedUrl } from "@/lib/agentops/agents/agentManualRunClient";
 import {
   drawerFieldRows,
+  type AgentDetailDrawerArtifactRef,
   type AgentRunDrawerModel,
 } from "@/lib/agentops/agents/agentDetailLatestRun";
 import {
@@ -81,7 +82,7 @@ export function AgentResultsPanel({
   const [artifactBusyPath, setArtifactBusyPath] = useState<string | null>(null);
   const [artifactError, setArtifactError] = useState<string | null>(null);
 
-  const openSignedArtifact = async (ref: AgentopsStorageArtifactRef) => {
+  const openSignedArtifact = async (ref: AgentDetailDrawerArtifactRef) => {
     if (!drawer.runId) {
       setArtifactError("Run id missing for signed artifact link.");
       return;

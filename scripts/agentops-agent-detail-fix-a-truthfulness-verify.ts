@@ -140,14 +140,23 @@ function main(): void {
     intervalValue: 6,
     ownerEnabled: true,
   });
-  assert(nextRunDisplayLabel(scheduled, "2026-07-16T04:52:00.000Z") === "Saved · not executable", "next due non-executable");
+  assert(nextRunDisplayLabel(scheduled, "2026-07-16T04:52:00.000Z") === "Saved · worker scheduler offline", "next due offline when scheduler disconnected");
   assert(
     theoreticalNextDueLabel(scheduled, "2026-07-16T04:52:00.000Z").includes("2026"),
     "theoretical due shown separately",
   );
 
   const scheduleStrip = buildScheduleStripLabel({ configured: true, manualOnly: false });
-  assert(scheduleStrip.label === "Saved · not executable", "strip schedule honesty");
+  assert(scheduleStrip.label === "Saved · worker scheduler offline", "strip schedule honesty offline");
+  const scheduleStripOnline = buildScheduleStripLabel({
+    configured: true,
+    manualOnly: false,
+    schedulerConnected: true,
+  });
+  assert(
+    scheduleStripOnline.label === "Saved · executable by staging worker",
+    "strip schedule honesty online",
+  );
 
   const strip = buildAgentStatusStrip({
     ownerStatus: "Paused",
@@ -164,7 +173,7 @@ function main(): void {
   });
   assert(strip.agentStatus === "Paused", "owner paused on strip");
   assert(strip.hermes === "Fleet available", "fleet hermes on strip");
-  assert(strip.scheduleLabel === "Saved · not executable", "schedule strip");
+  assert(strip.scheduleLabel === "Saved · worker scheduler offline", "schedule strip");
   assert(mapOwnerFacingToStripStatus("Unknown", "not_run") === "Unknown", "unknown strip");
 
   const page = read("src/app/system/agent-ops/agents/[agentId]/page.tsx");
@@ -183,8 +192,8 @@ function main(): void {
 
   const schedule = read("src/components/agentops/owner/agent-detail/AgentSchedulePanel.tsx");
   assert(schedule.includes("Edit schedule"), "schedule progressive disclosure");
-  assert(schedule.includes("Theoretical next due"), "theoretical next due label");
-  assert(schedule.includes("Not connected"), "execution not connected");
+  assert(schedule.includes("Next due"), "next due label");
+  assert(schedule.includes("worker scheduler offline") || schedule.includes("executable by staging worker"), "execution connection honesty");
 
   const stripUi = read("src/components/agentops/owner/agent-detail/AgentStatusStrip.tsx");
   assert(stripUi.includes("Owner status"), "owner status cell");

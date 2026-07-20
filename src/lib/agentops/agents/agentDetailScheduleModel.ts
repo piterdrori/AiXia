@@ -1,7 +1,7 @@
 /**
  * Per-agent audit/QA schedule model for Agent Detail Control Center.
  * Persists in agentops_agents.tools via aixia:schedule:<json> (compatible with legacy parse).
- * Execution requires a future hourly tick — UI must stay honest.
+ * Execution uses staging worker scheduler tick (Fix C-A) — UI stays honest about connection.
  */
 
 import {
@@ -52,7 +52,8 @@ export type AgentDetailScheduleConfig = AgentScheduleConfig & {
   notifyOnFailure: boolean;
   maxDurationMinutes: number | null;
   requiresOwnerApproval: boolean;
-  schedulerExecutionConnected: false;
+  /** True when staging worker scheduler tick is fresh (capability-driven). */
+  schedulerExecutionConnected: boolean;
 };
 
 export const ALL_DETAIL_WORK_TYPES: AgentDetailWorkType[] = [
@@ -216,13 +217,13 @@ export function nextRunDisplayLabel(config: AgentDetailScheduleConfig, nextAt: s
   if (!config.ownerEnabled) return "Manual only";
   if (!config.enableSchedule || config.frequencyType === "manual") return "Manual only";
   if (!config.schedulerExecutionConnected) {
-    return "Saved · not executable";
+    return "Saved · worker scheduler offline";
   }
   if (!nextAt) return "Not scheduled";
   return new Date(nextAt).toLocaleString();
 }
 
-/** Theoretical next-due label — must not imply execution. */
+/** Theoretical next-due label — must not imply execution when scheduler is offline. */
 export function theoreticalNextDueLabel(
   config: AgentDetailScheduleConfig,
   nextAt: string | null,
@@ -234,8 +235,54 @@ export function theoreticalNextDueLabel(
   return new Date(nextAt).toLocaleString();
 }
 
-export function scheduleExecutionConnectionLabel(): string {
-  return "Not connected";
+export function scheduleExecutionConnectionLabel(schedulerConnected = false): string {
+  return schedulerConnected
+    ? "Saved · executable by staging worker"
+    : "Saved · worker scheduler offline";
+}
+
+export type AgentScheduleRuntimeStatus =
+  | "Active"
+  | "Paused"
+  | "Worker offline"
+  | "Engine unavailable"
+  | "Duplicate active run"
+  | "Not due yet"
+  | "Manual only";
+
+export function resolveAgentScheduleRuntimeStatus(input: {
+  config: AgentDetailScheduleConfig;
+  isOwnerPaused: boolean;
+  workerConnected: boolean;
+  schedulerConnected: boolean;
+  websiteAuditAvailable: boolean;
+  browserQaAvailable: boolean;
+  hasActiveRun: boolean;
+  nextAt: string | null;
+  lastSkippedReason?: string | null;
+}): AgentScheduleRuntimeStatus {
+  const { config } = input;
+  if (!config.ownerEnabled || input.isOwnerPaused) return "Paused";
+  if (!config.enableSchedule || config.frequencyType === "manual") return "Manual only";
+  if (!input.workerConnected || !input.schedulerConnected) return "Worker offline";
+  if (input.hasActiveRun || input.lastSkippedReason === "Existing active or queued run") {
+    return "Duplicate active run";
+  }
+  const wantsAudit =
+    config.workTypes.includes("website_audit") ||
+    config.workTypes.includes("audit_and_browser_qa");
+  const wantsBrowser =
+    config.workTypes.includes("browser_qa") ||
+    config.workTypes.includes("audit_and_browser_qa");
+  if (
+    (wantsAudit && !input.websiteAuditAvailable) ||
+    (wantsBrowser && !input.browserQaAvailable)
+  ) {
+    return "Engine unavailable";
+  }
+  if (input.lastSkippedReason === "Not due yet") return "Not due yet";
+  if (input.nextAt && Date.parse(input.nextAt) > Date.now()) return "Not due yet";
+  return "Active";
 }
 
 export function detailWorkTypesToLegacy(workTypes: AgentDetailWorkType[]): AgentWorkType[] {
@@ -320,7 +367,7 @@ export function normalizeDetailSchedule(
     maxDurationMinutes:
       typeof asAny.maxDurationMinutes === "number" ? asAny.maxDurationMinutes : base.maxDurationMinutes,
     requiresOwnerApproval: asAny.requiresOwnerApproval !== false,
-    schedulerExecutionConnected: false,
+    schedulerExecutionConnected: Boolean(asAny.schedulerExecutionConnected),
   };
 }
 

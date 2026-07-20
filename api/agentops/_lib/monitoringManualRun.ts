@@ -162,7 +162,7 @@ async function findActiveManualRun(
   const { data, error } = await client
     .from(MONITORING_TABLE)
     .select("id, run_id, status, summary, started_at, created_at")
-    .eq("mode", "owner_manual_single_agent")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
     .order("created_at", { ascending: false })
     .limit(40);
   if (error || !data) return null;

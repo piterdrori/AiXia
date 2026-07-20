@@ -28,8 +28,9 @@ export const AGENT_DETAIL_CC_COPY = {
   browserQaReadyBadge: "Browser QA ready",
   browserQaPendingBadge: "Browser QA not ready",
   schedulerPending:
-    "This time is calculated from the saved preference. No scheduler currently executes this agent-specific schedule.",
-  scheduleExecutionNotConnected: "Not connected",
+    "This time is calculated from the saved preference. Staging worker scheduler-tick enqueues due runs when connected.",
+  scheduleExecutionNotConnected: "Saved · worker scheduler offline",
+  scheduleExecutionConnected: "Saved · executable by staging worker",
   hermesNotYetMeasurable: "Not measurable",
   hermesFleetAvailable:
     "Hermes transport is available. This agent does not yet have a dedicated connection record.",
@@ -78,6 +79,8 @@ export type StripCurrentActivity =
 
 export type StripScheduleLabel =
   | "Saved · not executable"
+  | "Saved · worker scheduler offline"
+  | "Saved · executable by staging worker"
   | "Manual only"
   | "Not configured"
   | "Unavailable";
@@ -182,6 +185,7 @@ export function buildScheduleStripLabel(input: {
   configured: boolean;
   manualOnly: boolean;
   unavailable?: boolean;
+  schedulerConnected?: boolean;
 }): { label: StripScheduleLabel | string; detail: string } {
   if (input.unavailable) {
     return { label: "Unavailable", detail: "Schedule could not be loaded." };
@@ -195,8 +199,14 @@ export function buildScheduleStripLabel(input: {
       detail: AGENT_DETAIL_CC_COPY.schedulerPending,
     };
   }
+  if (input.schedulerConnected) {
+    return {
+      label: "Saved · executable by staging worker",
+      detail: AGENT_DETAIL_CC_COPY.schedulerPending,
+    };
+  }
   return {
-    label: "Saved · not executable",
+    label: "Saved · worker scheduler offline",
     detail: AGENT_DETAIL_CC_COPY.schedulerPending,
   };
 }

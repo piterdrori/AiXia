@@ -25,6 +25,23 @@ export type ManualRunCapability = {
   lastError?: string | null;
   workerId?: string | null;
   workerVersion?: string | null;
+  schedulerConnected?: boolean;
+  lastSchedulerTickAt?: string | null;
+  dueAgents?: number;
+  queuedByLastTick?: number;
+  skippedByLastTick?: number;
+  scheduler?: {
+    connected: boolean;
+    reason: string | null;
+    lastTickAt: string | null;
+    lastTickId: string | null;
+    lastDueCount: number;
+    lastEnqueuedCount: number;
+    lastSkippedCount: number;
+    lastError: string | null;
+    mode: string;
+    agents?: Record<string, unknown>;
+  };
   websiteAudit: { available: boolean; reason: string | null; engine: string };
   browserQa: { available: boolean; reason: string | null; engine: string };
   notes: string[];

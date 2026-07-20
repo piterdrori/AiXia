@@ -9,9 +9,12 @@
  *   node scripts/agentops-staging-manual-run-worker.mjs website-audit-dev
  *   node scripts/agentops-staging-manual-run-worker.mjs browser-qa-once
  *   node scripts/agentops-staging-manual-run-worker.mjs browser-qa-dev
+ *   node scripts/agentops-staging-manual-run-worker.mjs scheduler-tick
+ *   node scripts/agentops-staging-manual-run-worker.mjs scheduler-dev
  *   node scripts/agentops-staging-manual-run-worker.mjs queue-status
  *
- * Playwright runs only via spawned engines (off Vercel). No GitHub dispatch.
+ * Playwright runs only via spawned engines (off Vercel). Scheduler only enqueues.
+ * No GitHub dispatch. No Vercel cron.
  */
 import { createClient } from "@supabase/supabase-js";
 import { spawnSync } from "node:child_process";
@@ -32,6 +35,7 @@ import {
   buildDisconnectedBrowserQaEngine,
   buildWebsiteAuditClaimSummary,
   isBrowserQaQueuedSummary,
+  isClaimableQueuedSummary,
   isLockExpired,
   isOwnerManualQueuedSummary,
   isWebsiteAuditQueuedSummary,
@@ -39,6 +43,7 @@ import {
   parseWorkerHealth,
   validateWorkerEnv,
 } from "./lib/agentops-manual-run-worker-core.mjs";
+import { runSchedulerTick } from "./agentops-manual-run-scheduler-tick.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "..");
@@ -167,13 +172,13 @@ function spawnEngine(scriptPath, runId, envConfig) {
 async function listQueuedManualRuns(client) {
   const { data, error } = await client
     .from(MONITORING_TABLE)
-    .select("id, run_id, status, summary, started_at, created_at")
-    .eq("mode", "owner_manual_single_agent")
+    .select("id, run_id, status, summary, started_at, created_at, mode")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
     .eq("status", "queued")
     .order("created_at", { ascending: true })
     .limit(50);
   if (error) throw new Error(error.message);
-  return (data || []).filter((row) => isOwnerManualQueuedSummary(row.summary));
+  return (data || []).filter((row) => isClaimableQueuedSummary(row.summary));
 }
 
 async function listQueuedWebsiteAudits(client) {
@@ -189,8 +194,8 @@ async function listQueuedBrowserQa(client) {
 async function listRunningManualRuns(client) {
   const { data, error } = await client
     .from(MONITORING_TABLE)
-    .select("id, run_id, status, summary, started_at, created_at")
-    .eq("mode", "owner_manual_single_agent")
+    .select("id, run_id, status, summary, started_at, created_at, mode")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
     .eq("status", "running")
     .order("created_at", { ascending: false })
     .limit(50);
@@ -752,8 +757,38 @@ async function main() {
     }
   }
 
+  if (args.command === "scheduler-tick") {
+    // Do not force engine connectivity via writeHeartbeat — tick heartbeats lightly
+    // and preserves existing engine availability (honest Engine not connected skips).
+    const result = await runSchedulerTick(client, workerId, validated.config);
+    console.log(
+      JSON.stringify({ ok: true, command: "scheduler-tick", workerId, ...result }, null, 2),
+    );
+    return;
+  }
+
+  if (args.command === "scheduler-dev") {
+    if (process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true") {
+      console.error("scheduler-dev must not run in CI.");
+      process.exit(2);
+    }
+    console.error(`[manual-run-worker] scheduler-dev loop interval=${args.intervalMs}ms`);
+    for (;;) {
+      try {
+        const result = await runSchedulerTick(client, workerId, validated.config);
+        console.log(JSON.stringify({ at: new Date().toISOString(), ...result }, null, 2));
+      } catch (error) {
+        console.error(
+          "[manual-run-worker] scheduler-dev tick failed:",
+          error instanceof Error ? error.message : error,
+        );
+      }
+      await sleep(args.intervalMs);
+    }
+  }
+
   console.error(
-    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev",
+    "Unknown command. Use: heartbeat | once | queue-status | claim-test --run-id <id> | website-audit-once | website-audit-dev | browser-qa-once | browser-qa-dev | scheduler-tick | scheduler-dev",
   );
   process.exit(2);
 }

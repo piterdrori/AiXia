@@ -621,6 +621,7 @@ export default function AgentOpsAgentDetailPage() {
           scheduleConfig.frequencyType === "manual"),
     ),
     unavailable: scheduleConfig == null && !loading,
+    schedulerConnected: Boolean(manualCapability?.schedulerConnected),
   });
 
   const durationLabel =
@@ -975,6 +976,36 @@ export default function AgentOpsAgentDetailPage() {
             }
             currentRunStatus={statusStrip.currentActivity}
             lastDurationLabel={durationLabel}
+            schedulerConnected={Boolean(manualCapability?.schedulerConnected)}
+            workerConnected={Boolean(manualCapability?.workerConnected)}
+            websiteAuditAvailable={Boolean(manualCapability?.websiteAudit?.available)}
+            browserQaAvailable={Boolean(manualCapability?.browserQa?.available)}
+            hasActiveRun={Boolean(
+              manualRunResult &&
+                (manualRunResult.status === "queued" || manualRunResult.status === "running"),
+            )}
+            lastSchedulerTickAt={manualCapability?.lastSchedulerTickAt ?? null}
+            lastScheduledRunId={
+              (
+                manualCapability?.scheduler?.agents?.[resolvedSlug] as
+                  | { lastEnqueuedRunId?: string }
+                  | undefined
+              )?.lastEnqueuedRunId ?? null
+            }
+            lastSkippedReason={
+              (
+                manualCapability?.scheduler?.agents?.[resolvedSlug] as
+                  | { lastSkippedReason?: string }
+                  | undefined
+              )?.lastSkippedReason ?? null
+            }
+            nextDueAtFromScheduler={
+              (
+                manualCapability?.scheduler?.agents?.[resolvedSlug] as
+                  | { nextDueAt?: string }
+                  | undefined
+              )?.nextDueAt ?? null
+            }
             onScheduleChange={(config) => {
               setScheduleConfig(config);
             }}

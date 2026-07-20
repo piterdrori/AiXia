@@ -151,7 +151,7 @@ function main(): void {
   const schedulePanel = read(
     "src/components/agentops/owner/agent-detail/AgentSchedulePanel.tsx",
   );
-  assert(schedulePanel.includes("Not connected"), "pending scheduler label");
+  assert(schedulePanel.includes("worker scheduler offline") || schedulePanel.includes("executable by staging worker"), "pending scheduler label");
   assert(schedulePanel.includes("Edit schedule"), "progressive schedule editor");
 
   const memoryPanel = read(

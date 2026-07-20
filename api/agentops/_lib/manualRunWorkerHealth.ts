@@ -1,18 +1,22 @@
 /**
- * Fix B2-D — read staging manual-run worker health from agentops_system_config.
- * Heartbeat is written by the external worker (service role). Vercel only reads.
+ * Fix C-A — read staging manual-run worker + scheduler health from agentops_system_config.
+ * Heartbeat/tick written by external worker (service role). Vercel only reads.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const WORKER_VERSION = "b2-d";
+export const WORKER_VERSION = "c-a";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
+export const SCHEDULER_HEALTH_KEY = "manualRunScheduler";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
+export const SCHEDULER_FRESH_MS = 15 * 60 * 1000;
 export const WORKER_NOT_CONNECTED_REASON = "Staging worker not connected.";
 export const ENGINE_NOT_CONNECTED_WEBSITE =
   "Staging worker connected. Website audit engine not connected in this phase.";
 export const ENGINE_NOT_CONNECTED_BROWSER =
   "Browser QA engine not connected.";
+export const SCHEDULER_NOT_CONNECTED_REASON =
+  "Staging worker scheduler has not ticked recently.";
 export const B2B_CLAIM_CLOSE_MESSAGE =
   "Worker claim verified. Execution engine not connected in B2-B.";
 
@@ -21,6 +25,18 @@ export type ManualRunEngineHealth = {
   version?: string | null;
   lastCheckedAt?: string | null;
   reason?: string | null;
+};
+
+export type ManualRunSchedulerHealth = {
+  connected: boolean;
+  lastTickAt: string | null;
+  lastTickId: string | null;
+  lastDueCount: number;
+  lastEnqueuedCount: number;
+  lastSkippedCount: number;
+  lastError: string | null;
+  mode: string;
+  agents?: Record<string, unknown>;
 };
 
 export type ManualRunWorkerHealth = {
@@ -35,6 +51,7 @@ export type ManualRunWorkerHealth = {
   environment: string;
   websiteAuditEngine: ManualRunEngineHealth;
   browserQaEngine: ManualRunEngineHealth;
+  scheduler: ManualRunSchedulerHealth | null;
 };
 
 export type ManualRunWorkerStatus = "connected" | "offline" | "stale" | "unknown";
@@ -70,9 +87,46 @@ function normalizeEngine(raw: unknown, fallbackReason: string): ManualRunEngineH
   return { connected: false, version: null, lastCheckedAt: null, reason: fallbackReason };
 }
 
-export function parseWorkerHealth(toolsEnabled: unknown): ManualRunWorkerHealth | null {
+function normalizeScheduler(
+  raw: unknown,
+  mirror: unknown,
+  nowMs = Date.now(),
+): ManualRunSchedulerHealth | null {
+  const source =
+    raw && typeof raw === "object"
+      ? (raw as Record<string, unknown>)
+      : mirror && typeof mirror === "object"
+        ? (mirror as Record<string, unknown>)
+        : null;
+  if (!source) return null;
+  const lastTickAt = typeof source.lastTickAt === "string" ? source.lastTickAt : null;
+  const fresh = isHeartbeatFresh(lastTickAt, nowMs, SCHEDULER_FRESH_MS);
+  return {
+    connected: Boolean(source.connected) && fresh,
+    lastTickAt,
+    lastTickId: typeof source.lastTickId === "string" ? source.lastTickId : null,
+    lastDueCount: typeof source.lastDueCount === "number" ? source.lastDueCount : 0,
+    lastEnqueuedCount:
+      typeof source.lastEnqueuedCount === "number" ? source.lastEnqueuedCount : 0,
+    lastSkippedCount:
+      typeof source.lastSkippedCount === "number" ? source.lastSkippedCount : 0,
+    lastError: typeof source.lastError === "string" ? source.lastError : null,
+    mode:
+      typeof source.mode === "string" ? source.mode : "staging_worker_scheduler",
+    agents:
+      source.agents && typeof source.agents === "object"
+        ? (source.agents as Record<string, unknown>)
+        : {},
+  };
+}
+
+export function parseWorkerHealth(
+  toolsEnabled: unknown,
+  nowMs = Date.now(),
+): ManualRunWorkerHealth | null {
   if (!toolsEnabled || typeof toolsEnabled !== "object") return null;
-  const raw = (toolsEnabled as Record<string, unknown>)[WORKER_HEALTH_KEY];
+  const tools = toolsEnabled as Record<string, unknown>;
+  const raw = tools[WORKER_HEALTH_KEY];
   if (!raw || typeof raw !== "object") return null;
   const health = raw as Record<string, unknown>;
   return {
@@ -87,6 +141,7 @@ export function parseWorkerHealth(toolsEnabled: unknown): ManualRunWorkerHealth 
     environment: typeof health.environment === "string" ? health.environment : "staging",
     websiteAuditEngine: normalizeEngine(health.websiteAuditEngine, ENGINE_NOT_CONNECTED_WEBSITE),
     browserQaEngine: normalizeEngine(health.browserQaEngine, ENGINE_NOT_CONNECTED_BROWSER),
+    scheduler: normalizeScheduler(tools[SCHEDULER_HEALTH_KEY], health.scheduler, nowMs),
   };
 }
 
@@ -127,11 +182,11 @@ export async function readManualRunWorkerHealth(
 export async function countQueuedManualRuns(client: SupabaseClient): Promise<number> {
   const { data, error } = await client
     .from("agentops_monitoring_runs")
-    .select("run_id, summary, status")
-    .eq("mode", "owner_manual_single_agent")
+    .select("run_id, summary, status, mode")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
     .eq("status", "queued")
     .order("created_at", { ascending: false })
-    .limit(50);
+    .limit(80);
   if (error || !data) return 0;
   return data.filter((row) => {
     const summary =
@@ -139,8 +194,9 @@ export async function countQueuedManualRuns(client: SupabaseClient): Promise<num
         ? (row.summary as Record<string, unknown>)
         : {};
     return (
-      summary.trigger === "owner_manual" &&
-      summary.schedulerConnection === "staging_worker_pending"
+      (summary.trigger === "owner_manual" &&
+        summary.schedulerConnection === "staging_worker_pending") ||
+      (summary.trigger === "schedule" && summary.schedulerConnection === "staging_worker")
     );
   }).length;
 }
@@ -156,6 +212,8 @@ export function buildCapabilityFromHealth(
     workerConnected && Boolean(health?.websiteAuditEngine?.connected);
   const browserQaEngineConnected =
     workerConnected && Boolean(health?.browserQaEngine?.connected);
+  const scheduler = health?.scheduler ?? null;
+  const schedulerConnected = workerConnected && Boolean(scheduler?.connected);
 
   return {
     queueAvailable: true,
@@ -167,6 +225,27 @@ export function buildCapabilityFromHealth(
     lastError: health?.lastError ?? null,
     workerId: health?.workerId ?? null,
     workerVersion: health?.workerVersion ?? null,
+    schedulerConnected,
+    lastSchedulerTickAt: scheduler?.lastTickAt ?? null,
+    dueAgents: scheduler?.lastDueCount ?? 0,
+    queuedByLastTick: scheduler?.lastEnqueuedCount ?? 0,
+    skippedByLastTick: scheduler?.lastSkippedCount ?? 0,
+    scheduler: {
+      connected: schedulerConnected,
+      reason: schedulerConnected
+        ? null
+        : workerConnected
+          ? SCHEDULER_NOT_CONNECTED_REASON
+          : WORKER_NOT_CONNECTED_REASON,
+      lastTickAt: scheduler?.lastTickAt ?? null,
+      lastTickId: scheduler?.lastTickId ?? null,
+      lastDueCount: scheduler?.lastDueCount ?? 0,
+      lastEnqueuedCount: scheduler?.lastEnqueuedCount ?? 0,
+      lastSkippedCount: scheduler?.lastSkippedCount ?? 0,
+      lastError: scheduler?.lastError ?? null,
+      mode: "staging_worker_scheduler",
+      agents: scheduler?.agents ?? {},
+    },
     websiteAudit: {
       available: websiteAuditEngineConnected,
       reason: websiteAuditEngineConnected
@@ -186,14 +265,12 @@ export function buildCapabilityFromHealth(
       engine: "staging_worker + browser_qa (runPlaywrightBrowserQA)",
     },
     notes: [
-      "Staging queue accepts owner-gated runs into agentops_monitoring_runs.",
-      "No GitHub dispatch. No Playwright on Vercel.",
+      "Staging queue accepts owner-gated and scheduled runs into agentops_monitoring_runs.",
+      "No GitHub dispatch. No Vercel cron. No Playwright on Vercel.",
       workerConnected
-        ? websiteAuditEngineConnected && browserQaEngineConnected
-          ? "Staging worker connected. Website audit and Browser QA engines ready."
-          : websiteAuditEngineConnected
-            ? "Staging worker connected. Website audit ready. Browser QA not connected."
-            : "Staging worker heartbeat is fresh. Engines not fully connected."
+        ? schedulerConnected
+          ? "Staging worker connected. Scheduler tick is fresh. Engines follow heartbeat."
+          : "Staging worker connected. Run scheduler-tick to enqueue due schedules."
         : "A staging worker must heartbeat and claim queued runs.",
       "Findings remain drafts; no auto-promotion, auto-fix, PR, or deploy.",
     ],

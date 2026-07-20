@@ -3,7 +3,7 @@
  * Used by worker CLI + verify scripts (no Supabase imports).
  */
 
-export const WORKER_VERSION = "b2-d";
+export const WORKER_VERSION = "c-a";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
 export const LOCK_TTL_MS = 5 * 60 * 1000;
@@ -170,6 +170,32 @@ export function parseWorkerHealth(toolsEnabled) {
     environment: typeof raw.environment === "string" ? raw.environment : "staging",
     websiteAuditEngine: normalizeWebsiteAuditEngine(raw.websiteAuditEngine),
     browserQaEngine: normalizeBrowserQaEngine(raw.browserQaEngine),
+    scheduler:
+      raw.scheduler && typeof raw.scheduler === "object"
+        ? {
+            connected: Boolean(raw.scheduler.connected),
+            lastTickAt:
+              typeof raw.scheduler.lastTickAt === "string" ? raw.scheduler.lastTickAt : null,
+            lastTickId:
+              typeof raw.scheduler.lastTickId === "string" ? raw.scheduler.lastTickId : null,
+            lastDueCount:
+              typeof raw.scheduler.lastDueCount === "number" ? raw.scheduler.lastDueCount : 0,
+            lastEnqueuedCount:
+              typeof raw.scheduler.lastEnqueuedCount === "number"
+                ? raw.scheduler.lastEnqueuedCount
+                : 0,
+            lastSkippedCount:
+              typeof raw.scheduler.lastSkippedCount === "number"
+                ? raw.scheduler.lastSkippedCount
+                : 0,
+            lastError:
+              typeof raw.scheduler.lastError === "string" ? raw.scheduler.lastError : null,
+            mode:
+              typeof raw.scheduler.mode === "string"
+                ? raw.scheduler.mode
+                : "staging_worker_scheduler",
+          }
+        : null,
   };
 }
 
@@ -179,6 +205,15 @@ export function buildConnectedWebsiteAuditEngine(nowIso = new Date().toISOString
     version: WEBSITE_AUDIT_ENGINE_VERSION,
     lastCheckedAt: nowIso,
     reason: null,
+  };
+}
+
+export function buildDisconnectedWebsiteAuditEngine(reason = ENGINE_NOT_CONNECTED_WEBSITE) {
+  return {
+    connected: false,
+    version: WEBSITE_AUDIT_ENGINE_VERSION,
+    lastCheckedAt: null,
+    reason,
   };
 }
 
@@ -201,7 +236,7 @@ export function buildConnectedBrowserQaEngine(nowIso = new Date().toISOString())
 }
 
 export function isBrowserQaQueuedSummary(summary) {
-  return isOwnerManualQueuedSummary(summary) && summary.workType === "browser_qa";
+  return isClaimableQueuedSummary(summary) && summary.workType === "browser_qa";
 }
 
 /** B2-D Browser QA claim — execution follows. */
@@ -240,10 +275,12 @@ export function mergeWorkerHealthIntoTools(toolsEnabled, healthPatch) {
     ...prev,
     ...healthPatch,
     environment: "staging",
+    // Do not invent engine connectivity on scheduler-tick / partial heartbeats.
+    // Explicit worker heartbeat / audit commands set engines connected.
     websiteAuditEngine:
       healthPatch.websiteAuditEngine !== undefined
         ? normalizeWebsiteAuditEngine(healthPatch.websiteAuditEngine)
-        : prev.websiteAuditEngine ?? buildConnectedWebsiteAuditEngine(nowIso),
+        : prev.websiteAuditEngine ?? buildDisconnectedWebsiteAuditEngine(),
     browserQaEngine:
       healthPatch.browserQaEngine !== undefined
         ? normalizeBrowserQaEngine(healthPatch.browserQaEngine)
@@ -260,8 +297,21 @@ export function isOwnerManualQueuedSummary(summary) {
   );
 }
 
+export function isScheduledQueuedSummary(summary) {
+  if (!summary || typeof summary !== "object") return false;
+  return (
+    summary.trigger === "schedule" &&
+    summary.schedulerConnection === "staging_worker"
+  );
+}
+
+/** Queued rows the staging worker may claim (manual or scheduled). */
+export function isClaimableQueuedSummary(summary) {
+  return isOwnerManualQueuedSummary(summary) || isScheduledQueuedSummary(summary);
+}
+
 export function isWebsiteAuditQueuedSummary(summary) {
-  return isOwnerManualQueuedSummary(summary) && summary.workType === "website_audit";
+  return isClaimableQueuedSummary(summary) && summary.workType === "website_audit";
 }
 
 export function isLockExpired(summary, nowMs = Date.now()) {

@@ -12,6 +12,7 @@ import {
   scheduleExecutionConnectionLabel,
   theoreticalNextDueLabel,
   validateAgentDetailSchedule,
+  resolveAgentScheduleRuntimeStatus,
   type AgentDetailFrequencyType,
   type AgentDetailScheduleConfig,
   type AgentDetailScopeType,
@@ -45,6 +46,15 @@ type AgentSchedulePanelProps = {
   lastResultLabel: string;
   currentRunStatus: string;
   lastDurationLabel?: string;
+  schedulerConnected?: boolean;
+  workerConnected?: boolean;
+  websiteAuditAvailable?: boolean;
+  browserQaAvailable?: boolean;
+  hasActiveRun?: boolean;
+  lastSchedulerTickAt?: string | null;
+  lastScheduledRunId?: string | null;
+  lastSkippedReason?: string | null;
+  nextDueAtFromScheduler?: string | null;
   onScheduleChange?: (config: AgentDetailScheduleConfig, nextAt: string | null) => void;
   onScheduleSaved?: (summary: string) => void;
 };
@@ -56,6 +66,15 @@ export function AgentSchedulePanel({
   lastResultLabel,
   currentRunStatus,
   lastDurationLabel = "Not recorded",
+  schedulerConnected = false,
+  workerConnected = false,
+  websiteAuditAvailable = false,
+  browserQaAvailable = false,
+  hasActiveRun = false,
+  lastSchedulerTickAt = null,
+  lastScheduledRunId = null,
+  lastSkippedReason = null,
+  nextDueAtFromScheduler = null,
   onScheduleChange,
   onScheduleSaved,
 }: AgentSchedulePanelProps) {
@@ -81,20 +100,52 @@ export function AgentSchedulePanel({
       return;
     }
     const next = parseDetailScheduleFromTools(result.data.tools);
+    const withConnection = normalizeDetailSchedule({
+      ...next,
+      schedulerExecutionConnected: schedulerConnected,
+    });
     setRuntimeId(result.data.id);
-    setConfig(next);
-    setModulesText(next.selectedModules.join(", "));
-    setRoutesText(next.selectedRoutes.join(", "));
-    onScheduleChangeRef.current?.(next, computeNextExpectedRunAt(next));
-  }, [agentSlug]);
+    setConfig(withConnection);
+    setModulesText(withConnection.selectedModules.join(", "));
+    setRoutesText(withConnection.selectedRoutes.join(", "));
+    onScheduleChangeRef.current?.(withConnection, computeNextExpectedRunAt(withConnection));
+  }, [agentSlug, schedulerConnected]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const nextAt = useMemo(() => (config ? computeNextExpectedRunAt(config) : null), [config]);
+  useEffect(() => {
+    setConfig((prev) =>
+      prev
+        ? normalizeDetailSchedule({
+            ...prev,
+            schedulerExecutionConnected: schedulerConnected,
+          })
+        : prev,
+    );
+  }, [schedulerConnected]);
+
+  const nextAt = useMemo(() => {
+    if (!config) return null;
+    return nextDueAtFromScheduler || computeNextExpectedRunAt(config);
+  }, [config, nextDueAtFromScheduler]);
   const scheduleSummary = config ? nextRunDisplayLabel(config, nextAt) : "Unavailable";
   const theoreticalDue = config ? theoreticalNextDueLabel(config, nextAt) : "Unavailable";
+  const connectionLabel = scheduleExecutionConnectionLabel(schedulerConnected);
+  const runtimeStatus = config
+    ? resolveAgentScheduleRuntimeStatus({
+        config,
+        isOwnerPaused: isPaused,
+        workerConnected,
+        schedulerConnected,
+        websiteAuditAvailable,
+        browserQaAvailable,
+        hasActiveRun,
+        nextAt,
+        lastSkippedReason,
+      })
+    : "Manual only";
 
   const patch = (partial: Partial<AgentDetailScheduleConfig>) => {
     setConfig((prev) => (prev ? normalizeDetailSchedule({ ...prev, ...partial }) : prev));
@@ -122,6 +173,7 @@ export function AgentSchedulePanel({
         .map((part) => part.trim())
         .filter(Boolean),
       ownerEnabled: !isPaused && config.ownerEnabled,
+      schedulerExecutionConnected: schedulerConnected,
     });
     const validation = validateAgentDetailSchedule(withLists);
     if (!validation.ok) {
@@ -145,7 +197,9 @@ export function AgentSchedulePanel({
     }
     setConfig(withLists);
     onScheduleChange?.(withLists, computeNextExpectedRunAt(withLists));
-    const message = "Schedule preference saved. Execution connection: Not connected.";
+    const message = schedulerConnected
+      ? "Schedule preference saved. Execution connection: Saved · executable by staging worker."
+      : "Schedule preference saved. Execution connection: Saved · worker scheduler offline.";
     setFeedback(message);
     onScheduleSaved?.(message);
   };
@@ -201,13 +255,13 @@ export function AgentSchedulePanel({
     <AgentDetailPanelShell
       title="Schedule and work controls"
       id="agent-schedule"
-      description="Saved preference only — not an executable scheduler."
+      description="Saved preference. Staging worker scheduler-tick enqueues due runs when connected."
       testId="agentops-agent-schedule-panel"
     >
       <AixiaInfoBlock tone="cyan" title="Execution connection">
         <p className="text-sm text-white/75">{AGENT_DETAIL_CC_COPY.schedulerPending}</p>
         <div className="mt-2">
-          <AixiaBadge tone="amber">{scheduleExecutionConnectionLabel()}</AixiaBadge>
+          <AixiaBadge tone={schedulerConnected ? "emerald" : "amber"}>{connectionLabel}</AixiaBadge>
         </div>
       </AixiaInfoBlock>
 
@@ -229,16 +283,34 @@ export function AgentSchedulePanel({
           <p className="text-white/85">{SCOPE_LABELS[config.scopeType]}</p>
         </div>
         <div>
-          <p className="text-white/45">Schedule configuration</p>
-          <p className="text-white/85">{scheduleSummary === "Manual only" ? "Manual" : "Saved"}</p>
+          <p className="text-white/45">Schedule status</p>
+          <p className="text-white/85">{runtimeStatus}</p>
         </div>
         <div>
-          <p className="text-white/45">Theoretical next due</p>
+          <p className="text-white/45">Next due</p>
           <p className="text-white/85">{theoreticalDue}</p>
         </div>
         <div>
           <p className="text-white/45">Execution connection</p>
-          <p className="text-white/85">{scheduleExecutionConnectionLabel()}</p>
+          <p className="text-white/85">{connectionLabel}</p>
+        </div>
+        <div>
+          <p className="text-white/45">Last scheduler tick</p>
+          <p className="text-white/85">
+            {lastSchedulerTickAt ? new Date(lastSchedulerTickAt).toLocaleString() : "Not recorded"}
+          </p>
+        </div>
+        <div>
+          <p className="text-white/45">Last scheduled run</p>
+          <p className="text-white/85">{lastScheduledRunId ?? "Not recorded"}</p>
+        </div>
+        <div>
+          <p className="text-white/45">Last skipped reason</p>
+          <p className="text-white/85">{lastSkippedReason ?? "None"}</p>
+        </div>
+        <div>
+          <p className="text-white/45">Schedule configuration</p>
+          <p className="text-white/85">{scheduleSummary === "Manual only" ? "Manual" : "Saved"}</p>
         </div>
         <div>
           <p className="text-white/45">Last fleet run</p>

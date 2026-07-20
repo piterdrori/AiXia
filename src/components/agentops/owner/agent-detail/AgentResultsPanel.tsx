@@ -5,14 +5,17 @@ import { AixiaBadge, AixiaButton, AixiaInfoBlock } from "@/components/aixia";
 import { AgentOpsEmptyState, AgentOpsFindingCard, type FindingType } from "@/components/agentops/owner";
 import { AgentDetailPanelShell } from "@/components/agentops/owner/agent-detail/AgentDetailPanelShell";
 import type { AgentOpsFinding } from "@/lib/agentops";
+import { fetchArtifactSignedUrl } from "@/lib/agentops/agents/agentManualRunClient";
 import {
-  fetchArtifactSignedUrl,
-  type AgentopsStorageArtifactRef,
-} from "@/lib/agentops/agents/agentManualRunClient";
+  drawerFieldRows,
+  type AgentRunDrawerModel,
+} from "@/lib/agentops/agents/agentDetailLatestRun";
 import {
   mapFindingOwnerStatus,
   OWNER_FINDING_STATUS_LABEL,
 } from "@/lib/agentops/findings/findingsLifecycleModel";
+
+export type { AgentRunDrawerModel };
 
 function findingTypeForIssue(finding: AgentOpsFinding): FindingType {
   const category = finding.category.toLowerCase();
@@ -28,34 +31,6 @@ function ageLabel(value: string): string {
   if (days === 1) return "1 day ago";
   return `${days} days ago`;
 }
-
-export type AgentRunDrawerModel = {
-  open: boolean;
-  executionStatus: string;
-  workType: string;
-  trigger: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  duration: string;
-  reviewDepth: string;
-  authenticationDepth: string;
-  routesModules: string;
-  browserToolUsage: string;
-  rawObservations: string;
-  filteredObservations: string;
-  queuedFindings: string;
-  duplicates: string;
-  evidence: string;
-  limitations: string;
-  failureReason: string;
-  runId?: string | null;
-  stale?: boolean;
-  cancelRequested?: boolean;
-  cancelAcknowledged?: boolean;
-  lockExpiresAt?: string | null;
-  canCancel?: boolean;
-  storageArtifacts?: AgentopsStorageArtifactRef[];
-};
 
 type AgentResultsPanelProps = {
   agentSlug: string;
@@ -262,6 +237,15 @@ export function AgentResultsPanel({
                 </AixiaButton>
               </div>
             </div>
+            {drawer.isFleetFallback || drawer.banner ? (
+              <p
+                className="mb-3 text-sm text-amber-100/90"
+                data-testid="agentops-drawer-fleet-fallback"
+              >
+                {drawer.banner ||
+                  "Fleet daily review fallback — no newer staging-worker run exists for this agent."}
+              </p>
+            ) : null}
             {drawer.stale ? (
               <p className="mb-3 text-sm text-amber-200/85" data-testid="agentops-drawer-stale-badge">
                 Stale run — lock may have expired. Suggested: run cleanup-stale dry-run on the worker,
@@ -338,34 +322,7 @@ export function AgentResultsPanel({
               </div>
             ) : null}
             <dl className="grid gap-3 text-sm">
-              {(
-                [
-                  ["Execution status", drawer.executionStatus],
-                  ["Run id", drawer.runId ?? "Not recorded"],
-                  ["Work type", drawer.workType],
-                  ["Trigger", drawer.trigger],
-                  ["Started", drawer.startedAt ? new Date(drawer.startedAt).toLocaleString() : "Not recorded"],
-                  ["Ended", drawer.endedAt ? new Date(drawer.endedAt).toLocaleString() : "Not recorded"],
-                  ["Duration", drawer.duration],
-                  [
-                    "Lock expires",
-                    drawer.lockExpiresAt
-                      ? new Date(drawer.lockExpiresAt).toLocaleString()
-                      : "Not recorded",
-                  ],
-                  ["Review depth", drawer.reviewDepth],
-                  ["Authentication depth", drawer.authenticationDepth],
-                  ["Routes / modules", drawer.routesModules],
-                  ["Browser / tool usage", drawer.browserToolUsage],
-                  ["Raw observations", drawer.rawObservations],
-                  ["Filtered observations", drawer.filteredObservations],
-                  ["Queued findings", drawer.queuedFindings],
-                  ["Duplicates", drawer.duplicates],
-                  ["Evidence", drawer.evidence],
-                  ["Limitations", drawer.limitations],
-                  ["Failure reason", drawer.failureReason],
-                ] as const
-              ).map(([label, value]) => (
+              {drawerFieldRows(drawer).map(([label, value]) => (
                 <div key={label}>
                   <dt className="text-white/45">{label}</dt>
                   <dd className="text-white/85">{value}</dd>

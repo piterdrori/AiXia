@@ -353,7 +353,7 @@ export function AgentMemoryHermesPanel({
           <p className="text-white/85">See status strip · transport health</p>
         </div>
         <div>
-          <p className="text-white/45">Assigned runtime memory</p>
+          <p className="text-white/45">Runtime memory records</p>
           <p className="text-white/85">
             {loading ? "…" : runtimeError ? "Unavailable" : summary.assigned}
           </p>

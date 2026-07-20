@@ -59,16 +59,21 @@ import {
   type AgentManualWorkType,
 } from "@/lib/agentops/agents/agentManualRunContract";
 import {
+  buildFleetFallbackDrawer,
+  drawerFromWorkerRunResult,
+  selectLatestAgentRun,
+} from "@/lib/agentops/agents/agentDetailLatestRun";
+import {
   activityLabelForManualRun,
   cancelOwnerManualRun,
   defaultScopeForWorkType,
   fetchManualRunCapability,
   fetchManualRunStatus,
-  formatLocalArtifactEvidence,
+  fetchWorkerQueueStatus,
   formatManualRunResultBanner,
-  listStorageArtifactRefs,
   startOwnerManualRun,
   type ManualRunCapability,
+  type WorkerQueueSnapshot,
 } from "@/lib/agentops/agents/agentManualRunClient";
 import {
   fetchLatestDailyExecutionForSlug,
@@ -85,23 +90,25 @@ import { mapFindingOwnerStatus } from "@/lib/agentops/findings/findingsLifecycle
 
 const EMPTY_DRAWER: AgentRunDrawerModel = {
   open: false,
-  executionStatus: "Not recorded",
-  workType: "Daily agent review",
-  trigger: "Fleet monitoring / GitHub Actions",
+  executionStatus: "",
+  workType: "",
+  trigger: "",
   startedAt: null,
   endedAt: null,
-  duration: "Not recorded",
-  reviewDepth: "Not recorded",
-  authenticationDepth: "Not recorded",
-  routesModules: "Not recorded",
-  browserToolUsage: "Not recorded",
-  rawObservations: "Not shown by default",
-  filteredObservations: "Not recorded",
-  queuedFindings: "Not recorded",
-  duplicates: "Not recorded",
-  evidence: "Open Monitoring for fleet evidence",
-  limitations: "Single-agent run execution is not connected on this page.",
-  failureReason: "Not recorded",
+  duration: "",
+  reviewDepth: "",
+  authenticationDepth: "",
+  routesModules: "",
+  browserToolUsage: "",
+  rawObservations: "",
+  filteredObservations: "",
+  queuedFindings: "",
+  duplicates: "",
+  evidence: "",
+  limitations: "",
+  failureReason: "",
+  isFleetFallback: false,
+  banner: null,
 };
 
 function activityFromExecution(
@@ -124,94 +131,7 @@ function drawerFromManualResult(
   result: AgentManualRunResult,
   open: boolean,
 ): AgentRunDrawerModel {
-  const workType =
-    result.workType === "browser_qa"
-      ? result.status === "queued" || result.status === "running"
-        ? "Browser QA"
-        : "Browser QA (owner manual)"
-      : result.status === "queued" || result.status === "running"
-        ? "Website audit"
-        : "Website audit (owner manual)";
-  const routesLabel =
-    result.routesChecked && result.routesChecked.length > 0
-      ? result.routesChecked.join(", ")
-      : result.status === "queued"
-        ? "Queued — waiting for staging worker"
-        : result.status === "running"
-          ? result.workType === "browser_qa"
-            ? "Browser QA running on staging worker"
-            : "Website audit running on staging worker"
-          : "Awaiting execution evidence";
-  const canCancel = result.status === "queued" || result.status === "running";
-  return {
-    open,
-    executionStatus: result.status,
-    workType,
-    trigger: "owner_manual",
-    startedAt: result.startedAt ?? null,
-    endedAt: result.completedAt ?? null,
-    duration:
-      result.status === "queued"
-        ? "Not started"
-        : formatDurationMs(result.durationMs ?? null),
-    reviewDepth:
-      result.workType === "browser_qa"
-        ? "Limited routes (Browser QA)"
-        : result.routesChecked && result.routesChecked.length > 0
-          ? `Limited routes (${result.routesChecked.length})`
-          : "Limited AgentOps route scope",
-    authenticationDepth: "Staging worker (off Vercel)",
-    routesModules: routesLabel,
-    browserToolUsage: "Staging worker Playwright (not on Vercel)",
-    rawObservations:
-      result.status === "queued"
-        ? "None yet — run is queued only"
-        : result.rawObservations != null
-          ? String(result.rawObservations)
-          : "Not yet available",
-    filteredObservations: "Owner drafts only — no auto-promotion",
-    queuedFindings:
-      result.status === "queued"
-        ? "None yet — run is queued only"
-        : result.queuedFindings != null
-          ? result.queuedFindings > 0
-            ? String(result.queuedFindings)
-            : AGENT_MANUAL_RUN_COPY.zeroFindings
-          : "Not yet available",
-    duplicates: "Tracked in Monitoring drafts",
-    evidence:
-      result.status === "queued"
-        ? "No evidence yet — waiting for staging worker"
-        : result.status === "running"
-          ? result.workType === "browser_qa"
-            ? "Evidence pending while Browser QA runs"
-            : "Evidence pending while website audit runs"
-          : formatLocalArtifactEvidence(result),
-    limitations:
-      "Dry-run / drafts only. Staging worker execution. No GitHub dispatch. No code changes, PRs, deploys, or automatic memory apply.",
-    failureReason:
-      result.status === "failed" || result.status === "rejected"
-        ? result.failurePhase
-          ? `${result.message} (${result.failurePhase})`
-          : result.message
-        : result.status === "canceled"
-          ? result.message || "Canceled by owner"
-          : "Not recorded",
-    runId: result.runId ?? null,
-    stale: Boolean(result.stale),
-    cancelRequested: Boolean(result.cancelRequested),
-    cancelAcknowledged:
-      result.status === "canceled" ||
-      Boolean((result as { cancelAcknowledgedAt?: string | null }).cancelAcknowledgedAt),
-    lockExpiresAt: result.lockExpiresAt ?? null,
-    canCancel,
-    storageArtifacts: [
-      ...listStorageArtifactRefs(result.artifactRefs as unknown[]),
-      ...listStorageArtifactRefs(result.screenshotRefs as unknown[]),
-    ].filter(
-      (ref, index, all) => all.findIndex((other) => other.path === ref.path) === index,
-    ),
-  };
+  return drawerFromWorkerRunResult(result, open);
 }
 
 export default function AgentOpsAgentDetailPage() {
@@ -267,6 +187,7 @@ export default function AgentOpsAgentDetailPage() {
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
+  const [agentScopedQueue, setAgentScopedQueue] = useState<WorkerQueueSnapshot | null>(null);
 
   const resolvedSlug = canonical?.id ?? agentId.trim().toLowerCase();
   const ownerMeta = getAgentOwnerMeta(resolvedSlug);
@@ -357,8 +278,8 @@ export default function AgentOpsAgentDetailPage() {
         id: `exec-${execution.id}`,
         agentId: slug,
         eventType: "verification_request",
-        title: "Daily execution",
-        summary: `Latest daily-agent execution: ${execution.status}${
+        title: "Fleet daily review",
+        summary: `Latest fleet daily review (fallback source): ${execution.status}${
           execution.durationMs != null ? ` · ${formatDurationMs(execution.durationMs)}` : ""
         }`,
         source: "system_report",
@@ -396,6 +317,25 @@ export default function AgentOpsAgentDetailPage() {
       cancelled = true;
     };
   }, [isOwner, gateLoading]);
+
+  useEffect(() => {
+    if (!isOwner || gateLoading || !resolvedSlug) return;
+    let cancelled = false;
+    void (async () => {
+      const result = await fetchWorkerQueueStatus({ agentSlug: resolvedSlug });
+      if (cancelled) return;
+      if (result.ok && result.queue) {
+        setAgentScopedQueue(result.queue);
+        if (result.capability) {
+          setManualCapability(result.capability);
+          setManualCapabilityError(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner, gateLoading, resolvedSlug, queueRefreshKey]);
 
   useEffect(() => {
     if (!isOwner || !activeManualRunId) return;
@@ -645,9 +585,20 @@ export default function AgentOpsAgentDetailPage() {
           manualRunResult?.durationMs ?? latestExecution?.durationMs ?? null,
         );
 
+  const agentHasQueuedOrRunning = Boolean(
+    (agentScopedQueue?.queued?.length ?? 0) > 0 ||
+      (agentScopedQueue?.running?.length ?? 0) > 0 ||
+      activeManualRunId,
+  );
+  const agentHasQueuedScheduled = Boolean(
+    agentScopedQueue?.queued?.some((row) => row.trigger === "schedule") ||
+      agentScopedQueue?.running?.some((row) => row.trigger === "schedule"),
+  );
   const manualActivityLabel = activeManualRunId
     ? activityLabelForManualRun(manualRunResult?.status ?? "queued", activeManualWorkType)
-    : null;
+    : agentHasQueuedOrRunning
+      ? "Queued for staging worker"
+      : null;
   const manualStripActivity: StripCurrentActivity | null =
     manualActivityLabel === "Queued for staging worker" ||
     manualActivityLabel === "Preparing" ||
@@ -659,8 +610,12 @@ export default function AgentOpsAgentDetailPage() {
         ? "Preparing"
         : manualActivityLabel
       : manualActivityLabel === "Completed"
-        ? "Idle"
-        : null;
+        ? agentHasQueuedOrRunning
+          ? "Preparing"
+          : "Idle"
+        : agentHasQueuedOrRunning
+          ? "Preparing"
+          : null;
 
   const runInProgress = Boolean(activeManualRunId);
   const canCancelRun = Boolean(
@@ -760,9 +715,95 @@ export default function AgentOpsAgentDetailPage() {
       ? AGENT_DETAIL_CC_COPY.schedulerExecutable
       : AGENT_DETAIL_CC_COPY.schedulerNotExecutable
     : null;
-  const nextSchedulerTickLabel = manualCapability?.nextSchedulerTickEstimate
-    ? new Date(manualCapability.nextSchedulerTickEstimate).toLocaleString()
-    : null;
+  const nextTickEstimate = manualCapability?.nextSchedulerTickEstimate ?? null;
+  const nextTickMs = nextTickEstimate ? Date.parse(nextTickEstimate) : NaN;
+  const schedulerOrWorkerStale =
+    !workerConnected ||
+    workerStatus === "stale" ||
+    !manualCapability?.schedulerConnected ||
+    (Number.isFinite(nextTickMs) && nextTickMs < Date.now());
+  const nextSchedulerTickLabel = !manualCapability
+    ? null
+    : schedulerOrWorkerStale
+      ? "Next tick unknown — scheduler offline/stale"
+      : nextTickEstimate
+        ? new Date(nextTickEstimate).toLocaleString()
+        : null;
+
+  const openLatestRunDrawer = useCallback(async () => {
+    if (
+      manualRunResult?.runId &&
+      (!manualRunResult.agentSlug || manualRunResult.agentSlug === resolvedSlug)
+    ) {
+      setDrawer(drawerFromManualResult(manualRunResult, true));
+      return;
+    }
+    const queueResult = await fetchWorkerQueueStatus({ agentSlug: resolvedSlug });
+    if (queueResult.ok && queueResult.queue) {
+      setAgentScopedQueue(queueResult.queue);
+      const selected = selectLatestAgentRun({
+        queued: queueResult.queue.queued,
+        running: queueResult.queue.running,
+        recentTerminal: queueResult.queue.recentTerminal,
+      });
+      if (selected?.runId) {
+        const status = await fetchManualRunStatus({
+          runId: selected.runId,
+          agentSlug: resolvedSlug,
+        });
+        if (status.ok && status.result) {
+          setDrawer(drawerFromWorkerRunResult(status.result, true));
+          return;
+        }
+        setDrawer(
+          drawerFromWorkerRunResult(
+            {
+              accepted: true,
+              runId: selected.runId,
+              status: (selected.status as AgentManualRunResult["status"]) || "queued",
+              message: "Staging worker run",
+              workType:
+                selected.workType === "browser_qa" || selected.workType === "website_audit"
+                  ? selected.workType
+                  : undefined,
+              agentSlug: selected.agentSlug ?? resolvedSlug,
+              startedAt: selected.startedAt ?? selected.createdAt ?? undefined,
+              completedAt: selected.endedAt ?? undefined,
+              trigger: selected.trigger,
+              mode: selected.mode,
+            },
+            true,
+          ),
+        );
+        return;
+      }
+    }
+    setDrawer(
+      buildFleetFallbackDrawer({
+        open: true,
+        executionStatus: reviewStatusLabel(reviewStatus),
+        startedAt: latestExecution?.startedAt ?? rosterRow?.lastDailyRunAt ?? null,
+        endedAt: latestExecution?.completedAt ?? rosterRow?.lastDailyRunAt ?? null,
+        duration: durationLabel,
+        routesModules: rosterRow?.routesReviewed?.join(", ") || "",
+        queuedFindings: findingsUnavailable ? "Unavailable" : String(findings.length),
+        failureReason:
+          latestExecution?.failureReason ??
+          (reviewStatus === "failed"
+            ? "Latest review reported failed / needs attention"
+            : ""),
+      }),
+    );
+  }, [
+    manualRunResult,
+    resolvedSlug,
+    reviewStatus,
+    latestExecution,
+    rosterRow,
+    durationLabel,
+    findingsUnavailable,
+    findings.length,
+  ]);
   const enginesReadyLabel = manualCapability
     ? manualCapability.enginesReady
       ? AGENT_DETAIL_CC_COPY.enginesReady
@@ -983,29 +1024,7 @@ export default function AgentOpsAgentDetailPage() {
             if (manualRunResult) setDrawer(drawerFromManualResult(manualRunResult, true));
           }}
           onViewLatestRun={() => {
-            if (manualRunResult) {
-              setDrawer(drawerFromManualResult(manualRunResult, true));
-              return;
-            }
-            setDrawer({
-              ...EMPTY_DRAWER,
-              open: true,
-              executionStatus: reviewStatusLabel(reviewStatus),
-              startedAt: latestExecution?.startedAt ?? rosterRow?.lastDailyRunAt ?? null,
-              endedAt: latestExecution?.completedAt ?? rosterRow?.lastDailyRunAt ?? null,
-              duration: durationLabel,
-              routesModules:
-                rosterRow?.routesReviewed?.join(", ") || "Not recorded",
-              queuedFindings: findingsUnavailable ? "Unavailable" : String(findings.length),
-              rawObservations: "Open Monitoring for fleet raw observations",
-              failureReason:
-                latestExecution?.failureReason ??
-                (reviewStatus === "failed"
-                  ? "Latest review reported failed / needs attention"
-                  : "Not recorded"),
-              limitations:
-                "Latest fleet/daily execution. Owner manual runs queue for the staging worker.",
-            });
+            void openLatestRunDrawer();
           }}
         />
 
@@ -1103,24 +1122,26 @@ export default function AgentOpsAgentDetailPage() {
             workerConnected={Boolean(manualCapability?.workerConnected)}
             websiteAuditAvailable={Boolean(manualCapability?.websiteAudit?.available)}
             browserQaAvailable={Boolean(manualCapability?.browserQa?.available)}
-            hasActiveRun={Boolean(
-              manualRunResult &&
-                (manualRunResult.status === "queued" || manualRunResult.status === "running"),
-            )}
+            hasActiveRun={agentHasQueuedOrRunning}
+            hasQueuedScheduledRun={agentHasQueuedScheduled}
             lastSchedulerTickAt={manualCapability?.lastSchedulerTickAt ?? null}
             lastScheduledRunId={
+              agentScopedQueue?.queued?.find((row) => row.trigger === "schedule")?.runId ??
               (
                 manualCapability?.scheduler?.agents?.[resolvedSlug] as
                   | { lastEnqueuedRunId?: string }
                   | undefined
-              )?.lastEnqueuedRunId ?? null
+              )?.lastEnqueuedRunId ??
+              null
             }
             lastSkippedReason={
-              (
-                manualCapability?.scheduler?.agents?.[resolvedSlug] as
-                  | { lastSkippedReason?: string }
-                  | undefined
-              )?.lastSkippedReason ?? null
+              agentHasQueuedScheduled
+                ? null
+                : (
+                    manualCapability?.scheduler?.agents?.[resolvedSlug] as
+                      | { lastSkippedReason?: string }
+                      | undefined
+                  )?.lastSkippedReason ?? null
             }
             nextDueAtFromScheduler={
               (
@@ -1212,33 +1233,10 @@ export default function AgentOpsAgentDetailPage() {
           verifiedFixesLabel={verifiedFixesLabel}
           verifiedFixesScope="Verified findings linked to this agent (Active Top 10 scope)"
           failedRunsLabel={failedRunsLabel}
-          failedRunsScope="Recorded daily-agent execution failures"
+          failedRunsScope="Recorded staging-worker / review failures"
           drawer={drawer}
           onOpenLatestRun={() => {
-            if (manualRunResult) {
-              setDrawer(drawerFromManualResult(manualRunResult, true));
-              return;
-            }
-            setDrawer({
-              ...EMPTY_DRAWER,
-              open: true,
-              executionStatus: reviewStatusLabel(reviewStatus),
-              workType: "Daily agent review",
-              trigger: "Fleet monitoring / GitHub Actions",
-              startedAt: latestExecution?.startedAt ?? rosterRow?.lastDailyRunAt ?? null,
-              endedAt: latestExecution?.completedAt ?? rosterRow?.lastDailyRunAt ?? null,
-              duration: durationLabel,
-              routesModules: rosterRow?.routesReviewed?.join(", ") || "Not recorded",
-              browserToolUsage: "playwrightStagingScanner (daily-12)",
-              queuedFindings: findingsUnavailable ? "Unavailable" : String(findings.length),
-              failureReason:
-                latestExecution?.failureReason ??
-                (reviewStatus === "failed"
-                  ? "Latest review reported failed / needs attention"
-                  : "Not recorded"),
-              limitations:
-                "Fleet/daily execution summary. Owner manual runs override this drawer when available.",
-            });
+            void openLatestRunDrawer();
           }}
           onCloseDrawer={() => setDrawer((prev) => ({ ...prev, open: false }))}
           onCancelRun={() => setCancelConfirmOpen(true)}

@@ -155,38 +155,40 @@ export function AgentControlHeader({
           ) : null}
           {queueLengthLabel ? (
             <p className="text-xs text-white/45" data-testid="agentops-worker-queue-length">
-              Queue length: {queueLengthLabel}
+              Global queue: {queueLengthLabel}
             </p>
           ) : null}
           {oldestQueuedAgeLabel ? (
             <p className="text-xs text-white/45" data-testid="agentops-oldest-queued-age">
-              Oldest queued age: {oldestQueuedAgeLabel}
+              Global oldest queued: {oldestQueuedAgeLabel}
             </p>
           ) : null}
           {workerActiveRunId ? (
             <p className="text-xs text-white/45" data-testid="agentops-worker-active-run">
-              Active run: {workerActiveRunId}
+              Active global run: {workerActiveRunId}
               {workerActiveRunMetaLabel ? ` · ${workerActiveRunMetaLabel}` : ""}
             </p>
           ) : null}
           {lastCompletedRunLabel ? (
             <p className="text-xs text-white/45" data-testid="agentops-last-completed-run">
-              Last completed: {lastCompletedRunLabel}
+              Latest global completed: {lastCompletedRunLabel}
             </p>
           ) : null}
           {lastFailedRunLabel ? (
             <p className="text-xs text-white/45" data-testid="agentops-last-failed-run">
-              Last failed: {lastFailedRunLabel}
+              Latest global failed: {lastFailedRunLabel}
             </p>
           ) : null}
           {lastErrorLabel ? (
             <p className="text-xs text-amber-200/70" data-testid="agentops-worker-last-error">
-              Last error: {lastErrorLabel}
+              Last global error: {lastErrorLabel}
             </p>
           ) : null}
           {nextSchedulerTickLabel ? (
             <p className="text-xs text-white/45" data-testid="agentops-next-scheduler-tick">
-              Next scheduler tick (est.): {nextSchedulerTickLabel}
+              {nextSchedulerTickLabel.startsWith("Next tick unknown")
+                ? nextSchedulerTickLabel
+                : `Next scheduler tick (est.): ${nextSchedulerTickLabel}`}
             </p>
           ) : null}
           {currentActivityLabel ? (

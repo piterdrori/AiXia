@@ -12,6 +12,7 @@ import {
   B2B_CLAIM_CLOSE_MESSAGE,
   buildCapabilityFromHealth,
   classifyWorkerStatus,
+  computeLiveOldestQueuedAgeMs,
   countQueuedManualRuns,
   isLockExpired,
   readManualRunWorkerHealth,
@@ -59,10 +60,12 @@ async function loadWorkerSnapshot(client: SupabaseClient | null): Promise<{
     };
   }
   const health = await readManualRunWorkerHealth(client);
+  const nowMs = Date.now();
   const queueLength = health?.queueLength ?? (await countQueuedManualRuns(client));
+  const liveOldestQueuedAgeMs = await computeLiveOldestQueuedAgeMs(client, nowMs);
   return {
     health,
-    capability: buildCapabilityFromHealth(health, queueLength),
+    capability: buildCapabilityFromHealth(health, queueLength, nowMs, liveOldestQueuedAgeMs),
   };
 }
 
@@ -711,6 +714,11 @@ export async function handleMonitoringManualRunStatusRequest(
           ? summary.artifactUploadStatus
           : null,
       lockExpiresAt: typeof summary.lockExpiresAt === "string" ? summary.lockExpiresAt : null,
+      trigger: typeof summary.trigger === "string" ? summary.trigger : null,
+      mode: typeof row.mode === "string" ? row.mode : null,
+      workerPhase: typeof summary.workerPhase === "string" ? summary.workerPhase : null,
+      executionEngine:
+        typeof summary.executionEngine === "string" ? summary.executionEngine : null,
     },
   });
 }
@@ -892,10 +900,12 @@ type QueueRunView = {
   mode: string;
   createdAt: string | null;
   startedAt: string | null;
+  endedAt: string | null;
   lockExpiresAt: string | null;
   stale: boolean;
   cancelRequested: boolean;
   ageMs: number | null;
+  waitingReason: string | null;
   suggestedAction: string | null;
 };
 
@@ -928,6 +938,12 @@ function toQueueRunView(
   const stale =
     row.status === "running" &&
     (isLockExpired(summary, nowMs) || workerStatus === "stale" || workerStatus === "offline");
+  const waitingReason =
+    row.status === "queued"
+      ? workerStatus === "stale" || workerStatus === "offline"
+        ? "Worker offline/stale"
+        : "Waiting for staging worker"
+      : null;
   return {
     runId: row.run_id,
     agentSlug: typeof summary.agentSlug === "string" ? summary.agentSlug : null,
@@ -937,15 +953,17 @@ function toQueueRunView(
     mode: row.mode,
     createdAt,
     startedAt: typeof row.started_at === "string" ? row.started_at : null,
+    endedAt: typeof row.ended_at === "string" ? row.ended_at : null,
     lockExpiresAt,
     stale,
     cancelRequested: summary.cancelRequested === true,
     ageMs: Number.isFinite(createdMs) ? Math.max(0, nowMs - createdMs) : null,
+    waitingReason,
     suggestedAction: stale
       ? "Run cleanup-stale dry-run on worker, or request cancel / mark failed via owner action. No auto-delete."
       : summary.cancelRequested === true
         ? "Cancel requested — worker will honor before next safe boundary."
-        : null,
+        : waitingReason,
   };
 }
 
@@ -1037,14 +1055,26 @@ export async function handleMonitoringWorkerQueueRequest(
       running[0] ||
       null
     : running[0] || null;
+  const metricScope = agentSlug ? "agent" : "global";
+  // When scoped to an agent, do not fall back to global ops terminal ids.
+  const lastCompletedRunId = lastCompleted?.runId ?? (agentSlug ? null : ops?.lastCompletedRunId ?? null);
+  const lastFailedRunId = lastFailed?.runId ?? (agentSlug ? null : ops?.lastFailedRunId ?? null);
 
   return jsonResponse({
     ok: true,
     environment: "staging",
     capability: snapshot.capability,
     queue: {
+      metricScope,
       length: queued.length,
-      oldestQueuedAgeMs: ops?.oldestQueuedAgeMs ?? oldestQueuedAgeMs,
+      // Live age from current queued rows is source of truth (never prefer frozen ops age).
+      oldestQueuedAgeMs,
+      opsOldestQueuedAgeMs:
+        typeof ops?.oldestQueuedAgeMs === "number" ? ops.oldestQueuedAgeMs : null,
+      opsOldestQueuedAgeStale:
+        workerStatus === "stale" ||
+        workerStatus === "offline" ||
+        !snapshot.capability.schedulerConnected,
       active: activeFromHealth
         ? {
             runId: activeFromHealth.runId,
@@ -1061,8 +1091,8 @@ export async function handleMonitoringWorkerQueueRequest(
       running,
       stale,
       recentTerminal: terminalViews.slice(0, 10),
-      lastCompletedRunId: lastCompleted?.runId ?? ops?.lastCompletedRunId ?? null,
-      lastFailedRunId: lastFailed?.runId ?? ops?.lastFailedRunId ?? null,
+      lastCompletedRunId,
+      lastFailedRunId,
       lastCanceledRunId: lastCanceled?.runId ?? null,
       lastError: snapshot.capability.lastError ?? null,
       workerHeartbeatAt: snapshot.capability.lastHeartbeatAt ?? null,
@@ -1086,6 +1116,9 @@ export async function handleMonitoringWorkerQueueRequest(
         "Staging worker queue only. No GitHub dispatch. No Playwright on Vercel.",
         "Private staging artifacts use short-lived signed links (owner only). Local-only refs stay host-local.",
         "Stale cleanup is dry-run by default on the worker host.",
+        metricScope === "agent"
+          ? "Queue metrics below are scoped to this agent."
+          : "Queue metrics below are global across all staging workers runs.",
       ],
     },
   });

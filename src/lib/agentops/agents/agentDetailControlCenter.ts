@@ -332,13 +332,13 @@ export function mapMemoryCountsToStripStatus(input: {
   }
   if (input.enabledCount != null) {
     return {
-      status: `${input.assignedCount} assigned · ${input.enabledCount} active`,
-      detail: "Runtime memory (agentops_memory)",
+      status: `${input.assignedCount} runtime memory records · ${input.enabledCount} enabled`,
+      detail: "Runtime memory records (agentops_memory) — not all are active/approved current memory.",
     };
   }
   return {
-    status: `${input.assignedCount} runtime records`,
-    detail: "Runtime memory (agentops_memory)",
+    status: `${input.assignedCount} runtime memory records`,
+    detail: "Runtime memory records (agentops_memory) — not all are active/approved current memory.",
   };
 }
 

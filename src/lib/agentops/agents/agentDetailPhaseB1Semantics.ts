@@ -13,16 +13,16 @@ export const AGENT_DETAIL_B1_COPY = {
   chatSubtitle: "Ask this agent about its work, findings, and recommendations.",
   runNowDisabled: "Single-agent review is not connected yet.",
   runNowHint:
-    "Single-agent review is not connected yet. Fleet dry-run stays on Monitoring / GitHub Actions.",
+    "Single-agent runs use the staging worker. Fleet daily review stays on Monitoring.",
   noQualifyingFindings: "No qualifying findings were produced by this review.",
   noQualifyingFindingsCaveat: "This result does not confirm that the website has no issues.",
   assignedAreasHelper:
     "These are the agent’s assigned areas, not proof that every route was reviewed in the latest run.",
   findingsScope: "Showing the latest active findings linked to this agent.",
   ownerWorkStatusHelper:
-    "This controls the agent’s owner-facing work status. It does not currently remove the agent from fleet GitHub Actions reviews.",
+    "This controls the agent’s owner-facing work status. It does not currently remove the agent from fleet monitoring reviews.",
   workPreferenceHelper:
-    "This preference is stored on the agent record. It does not change the fleet daily, six-hour, or weekly GitHub schedules.",
+    "This preference is stored on the agent record. It does not change the fleet daily, six-hour, or weekly monitoring schedules.",
   fleetAutomationLabel: "Managed from Monitoring. Read-only on this page.",
   pauseSuccess: "Agent owner status changed to Paused.",
   activateSuccess: "Agent owner status changed to Active.",

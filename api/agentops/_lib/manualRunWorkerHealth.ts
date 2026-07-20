@@ -231,6 +231,14 @@ export async function readManualRunWorkerHealth(
   return parseWorkerHealth(data.tools_enabled);
 }
 
+function isStagingWorkerQueuedSummary(summary: Record<string, unknown>): boolean {
+  return (
+    (summary.trigger === "owner_manual" &&
+      summary.schedulerConnection === "staging_worker_pending") ||
+    (summary.trigger === "schedule" && summary.schedulerConnection === "staging_worker")
+  );
+}
+
 export async function countQueuedManualRuns(client: SupabaseClient): Promise<number> {
   const { data, error } = await client
     .from("agentops_monitoring_runs")
@@ -245,18 +253,49 @@ export async function countQueuedManualRuns(client: SupabaseClient): Promise<num
       row.summary && typeof row.summary === "object"
         ? (row.summary as Record<string, unknown>)
         : {};
-    return (
-      (summary.trigger === "owner_manual" &&
-        summary.schedulerConnection === "staging_worker_pending") ||
-      (summary.trigger === "schedule" && summary.schedulerConnection === "staging_worker")
-    );
+    return isStagingWorkerQueuedSummary(summary);
   }).length;
+}
+
+/** Live oldest queued age from current queued rows (source of truth for UI). */
+export async function computeLiveOldestQueuedAgeMs(
+  client: SupabaseClient,
+  nowMs = Date.now(),
+): Promise<number | null> {
+  const { data, error } = await client
+    .from("agentops_monitoring_runs")
+    .select("created_at, started_at, summary, status, mode")
+    .in("mode", ["owner_manual_single_agent", "scheduled_single_agent"])
+    .eq("status", "queued")
+    .order("created_at", { ascending: true })
+    .limit(80);
+  if (error || !data) return null;
+  let oldest: number | null = null;
+  for (const row of data) {
+    const summary =
+      row.summary && typeof row.summary === "object"
+        ? (row.summary as Record<string, unknown>)
+        : {};
+    if (!isStagingWorkerQueuedSummary(summary)) continue;
+    const createdAt =
+      typeof row.created_at === "string"
+        ? row.created_at
+        : typeof row.started_at === "string"
+          ? row.started_at
+          : null;
+    const createdMs = createdAt ? Date.parse(createdAt) : NaN;
+    if (!Number.isFinite(createdMs)) continue;
+    const age = Math.max(0, nowMs - createdMs);
+    if (oldest == null || age > oldest) oldest = age;
+  }
+  return oldest;
 }
 
 export function buildCapabilityFromHealth(
   health: ManualRunWorkerHealth | null,
   queueLength: number,
   nowMs = Date.now(),
+  liveOldestQueuedAgeMs: number | null = null,
 ) {
   const workerStatus = classifyWorkerStatus(health, nowMs);
   const workerConnected = workerStatus === "connected";
@@ -274,6 +313,11 @@ export function buildCapabilityFromHealth(
     (ops?.enginesReady === true ||
       (Boolean(health?.websiteAuditEngine?.connected) &&
         Boolean(health?.browserQaEngine?.connected)));
+  const opsOldestQueuedAgeMs =
+    typeof ops?.oldestQueuedAgeMs === "number" ? ops.oldestQueuedAgeMs : null;
+  // Live queue age wins; frozen ops age is diagnostic fallback only.
+  const oldestQueuedAgeMs =
+    liveOldestQueuedAgeMs != null ? liveOldestQueuedAgeMs : opsOldestQueuedAgeMs;
 
   return {
     queueAvailable: true,
@@ -284,7 +328,10 @@ export function buildCapabilityFromHealth(
     activeRunId: health?.activeRunId ?? null,
     activeRunType: ops?.activeRunType ?? null,
     activeRunTrigger: ops?.activeRunTrigger ?? null,
-    oldestQueuedAgeMs: ops?.oldestQueuedAgeMs ?? null,
+    oldestQueuedAgeMs,
+    opsOldestQueuedAgeMs,
+    opsOldestQueuedAgeStale:
+      workerStatus === "stale" || workerStatus === "offline" || !schedulerConnected,
     lastCompletedRunId: ops?.lastCompletedRunId ?? null,
     lastFailedRunId: ops?.lastFailedRunId ?? null,
     lastError: health?.lastError ?? null,

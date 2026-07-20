@@ -182,7 +182,12 @@ function main(): void {
     "chat subtitle",
   );
 
-  assert(/Pending scheduler connection/.test(schedule), "scheduler honesty");
+  assert(
+    /Pending scheduler connection|worker scheduler offline|scheduler offline\/stale/.test(
+      schedule,
+    ),
+    "scheduler honesty",
+  );
   assert(/Save schedule/.test(schedule), "schedule save");
   assert(/Avoid overlapping runs/.test(schedule), "overlap prevention");
 

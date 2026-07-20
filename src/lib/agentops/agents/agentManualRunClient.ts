@@ -63,16 +63,21 @@ export type WorkerQueueRunView = {
   mode: string;
   createdAt: string | null;
   startedAt: string | null;
+  endedAt?: string | null;
   lockExpiresAt: string | null;
   stale: boolean;
   cancelRequested: boolean;
   ageMs: number | null;
+  waitingReason?: string | null;
   suggestedAction: string | null;
 };
 
 export type WorkerQueueSnapshot = {
+  metricScope?: "global" | "agent";
   length: number;
   oldestQueuedAgeMs: number | null;
+  opsOldestQueuedAgeMs?: number | null;
+  opsOldestQueuedAgeStale?: boolean;
   active: {
     runId: string;
     agentSlug: string | null;
@@ -126,6 +131,8 @@ export type ManualRunCapability = {
   activeRunType?: string | null;
   activeRunTrigger?: string | null;
   oldestQueuedAgeMs?: number | null;
+  opsOldestQueuedAgeMs?: number | null;
+  opsOldestQueuedAgeStale?: boolean;
   lastCompletedRunId?: string | null;
   lastFailedRunId?: string | null;
   lastError?: string | null;

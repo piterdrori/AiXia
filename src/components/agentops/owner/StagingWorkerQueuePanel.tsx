@@ -3,8 +3,10 @@ import { useCallback, useEffect, useState } from "react";
 import { AixiaBadge, AixiaButton } from "@/components/aixia";
 import {
   acknowledgeWorkerHealthAlert,
+  cancelOwnerManualRun,
   fetchWorkerQueueStatus,
   type ManualRunCapability,
+  type WorkerQueueRunView,
   type WorkerQueueSnapshot,
 } from "@/lib/agentops/agents/agentManualRunClient";
 
@@ -46,6 +48,15 @@ export function StagingWorkerQueuePanel({
   const [triggerFilter, setTriggerFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [ackBusyType, setAckBusyType] = useState<string | null>(null);
+  const [cancelBusyId, setCancelBusyId] = useState<string | null>(null);
+
+  const scoped = Boolean(agentSlug);
+  // Literal labels kept for D-E1 truthfulness / verify (global vs this-agent scope).
+  const scopePrefix = scoped ? "This agent" : "Global";
+  const queueLengthLabel = scoped ? "This agent queue:" : "Global queue:";
+  const oldestQueuedLabel = scoped
+    ? "This agent oldest queued:"
+    : "Global oldest queued:";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,6 +87,25 @@ export function StagingWorkerQueuePanel({
     [ackBusyType, load],
   );
 
+  const onCancelQueued = useCallback(
+    async (row: WorkerQueueRunView) => {
+      if (!row.runId || cancelBusyId) return;
+      setCancelBusyId(row.runId);
+      const result = await cancelOwnerManualRun({
+        runId: row.runId,
+        agentSlug: row.agentSlug ?? agentSlug,
+      });
+      if (!result.ok) {
+        setError(result.message || "Cancel failed.");
+      } else {
+        setError(null);
+        await load();
+      }
+      setCancelBusyId(null);
+    },
+    [agentSlug, cancelBusyId, load],
+  );
+
   useEffect(() => {
     void load();
   }, [load, refreshKey]);
@@ -103,6 +133,7 @@ export function StagingWorkerQueuePanel({
           </h2>
           <p className="text-xs text-white/45">
             Owner-gated staging queue. No GitHub dispatch. No Playwright on Vercel.
+            {scoped ? " Metrics below are scoped to this agent." : " Metrics below are global."}
           </p>
         </div>
         <AixiaButton variant="secondary" onClick={() => void load()} disabled={loading}>
@@ -126,19 +157,29 @@ export function StagingWorkerQueuePanel({
         <AixiaBadge tone={capability?.enginesReady ? "emerald" : "neutral"}>
           {enginesLabel}
         </AixiaBadge>
-        <AixiaBadge tone="neutral">Queue: {queue?.length ?? "—"}</AixiaBadge>
+        <AixiaBadge tone="neutral" data-testid="agentops-queue-scope-length">
+          {queueLengthLabel} {queue?.length ?? "—"}
+        </AixiaBadge>
       </div>
 
       <div className="grid gap-2 text-xs text-white/60 sm:grid-cols-2 lg:grid-cols-3">
         <p data-testid="agentops-queue-active-run">
-          Active:{" "}
+          {scopePrefix} active:{" "}
           <span className="text-white/85">
             {queue?.active
               ? `${queue.active.runId} · ${queue.active.agentSlug ?? "?"} · ${queue.active.workType ?? "?"} · ${queue.active.trigger ?? "?"}`
               : "None"}
           </span>
         </p>
-        <p>Oldest queued age: {ageLabel(queue?.oldestQueuedAgeMs)}</p>
+        <p data-testid="agentops-queue-oldest-age">
+          {oldestQueuedLabel} {ageLabel(queue?.oldestQueuedAgeMs)}
+          {queue?.opsOldestQueuedAgeStale && queue.opsOldestQueuedAgeMs != null ? (
+            <span className="text-white/35">
+              {" "}
+              (ops diagnostic {ageLabel(queue.opsOldestQueuedAgeMs)} · stale)
+            </span>
+          ) : null}
+        </p>
         <p>
           Heartbeat:{" "}
           {queue?.workerHeartbeatAt
@@ -151,8 +192,14 @@ export function StagingWorkerQueuePanel({
             ? new Date(queue.schedulerHeartbeatAt).toLocaleString()
             : "—"}
         </p>
-        <p>Last completed: {queue?.lastCompletedRunId ?? "—"}</p>
-        <p>Last failed: {queue?.lastFailedRunId ?? "—"}</p>
+        <p data-testid="agentops-queue-last-completed">
+          {scoped ? "Latest completed for this agent" : "Latest global completed"}:{" "}
+          {queue?.lastCompletedRunId ?? "—"}
+        </p>
+        <p>
+          {scoped ? "Latest failed for this agent" : "Latest global failed"}:{" "}
+          {queue?.lastFailedRunId ?? "—"}
+        </p>
         <p className="sm:col-span-2 lg:col-span-3">
           Last error:{" "}
           <span className="text-amber-200/70">{queue?.lastError ?? "None"}</span>
@@ -161,7 +208,9 @@ export function StagingWorkerQueuePanel({
 
       {(queue?.alerts?.length ?? 0) > 0 || queue?.alertFanout ? (
         <div className="space-y-2" data-testid="agentops-worker-health-alerts">
-          <h3 className="text-sm font-medium text-white/80">Health alerts</h3>
+          <h3 className="text-sm font-medium text-white/80">
+            {scoped ? "Health alerts (global worker)" : "Health alerts"}
+          </h3>
           {queue?.alertFanout ? (
             <p className="text-xs text-white/45" data-testid="agentops-alert-fanout-status">
               Fanout: {queue.alertFanout.enabled === false ? "disabled" : queue.alertFanout.lastFanoutChannel || "—"}
@@ -283,7 +332,9 @@ export function StagingWorkerQueuePanel({
       ) : null}
 
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-white/80">Queued (next 10)</h3>
+        <h3 className="text-sm font-medium text-white/80">
+          Queued (next 10){scoped ? " · this agent" : ""}
+        </h3>
         {(queue?.queued?.length ?? 0) === 0 ? (
           <p className="text-xs text-white/45">No queued runs.</p>
         ) : (
@@ -292,6 +343,11 @@ export function StagingWorkerQueuePanel({
               <li
                 key={row.runId}
                 className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1"
+                data-testid={
+                  row.trigger === "schedule"
+                    ? "agentops-queued-scheduled-run-row"
+                    : "agentops-queued-run-row"
+                }
               >
                 <AixiaBadge tone={statusTone(row.status)}>{row.status}</AixiaBadge>
                 <span className="font-mono">{row.runId}</span>
@@ -299,6 +355,28 @@ export function StagingWorkerQueuePanel({
                   {row.agentSlug} · {row.workType} · {row.trigger}
                 </span>
                 <span className="text-white/40">age {ageLabel(row.ageMs)}</span>
+                <span className="text-amber-200/70">
+                  {row.waitingReason ||
+                    (capability?.workerConnected
+                      ? "Waiting for staging worker"
+                      : "Worker offline/stale")}
+                </span>
+                {(row.status === "queued" || row.status === "running") &&
+                (!agentSlug || !row.agentSlug || row.agentSlug === agentSlug) ? (
+                  <AixiaButton
+                    variant="secondary"
+                    className="ml-auto"
+                    data-testid="agentops-queue-row-cancel"
+                    disabled={cancelBusyId === row.runId || row.cancelRequested}
+                    onClick={() => void onCancelQueued(row)}
+                  >
+                    {row.cancelRequested
+                      ? "Cancel requested"
+                      : cancelBusyId === row.runId
+                        ? "Canceling…"
+                        : "Cancel"}
+                  </AixiaButton>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -306,7 +384,9 @@ export function StagingWorkerQueuePanel({
       </div>
 
       <div className="space-y-2">
-        <h3 className="text-sm font-medium text-white/80">Running</h3>
+        <h3 className="text-sm font-medium text-white/80">
+          Running{scoped ? " · this agent" : ""}
+        </h3>
         {(queue?.running?.length ?? 0) === 0 ? (
           <p className="text-xs text-white/45">No running runs.</p>
         ) : (
@@ -334,6 +414,18 @@ export function StagingWorkerQueuePanel({
                 ) : null}
                 {row.suggestedAction ? (
                   <span className="basis-full text-amber-200/70">{row.suggestedAction}</span>
+                ) : null}
+                {!row.cancelRequested &&
+                (!agentSlug || !row.agentSlug || row.agentSlug === agentSlug) ? (
+                  <AixiaButton
+                    variant="secondary"
+                    className="ml-auto"
+                    data-testid="agentops-queue-row-cancel"
+                    disabled={cancelBusyId === row.runId}
+                    onClick={() => void onCancelQueued(row)}
+                  >
+                    {cancelBusyId === row.runId ? "Canceling…" : "Cancel"}
+                  </AixiaButton>
                 ) : null}
               </li>
             ))}

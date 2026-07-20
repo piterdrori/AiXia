@@ -81,6 +81,10 @@ export type AgentManualRunResult = {
   artifactNote?: string | null;
   artifactUploadStatus?: string | null;
   lockExpiresAt?: string | null;
+  trigger?: string | null;
+  mode?: string | null;
+  workerPhase?: string | null;
+  executionEngine?: string | null;
 };
 
 export const AGENT_MANUAL_RUN_COPY = {

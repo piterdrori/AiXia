@@ -244,9 +244,13 @@ export function scheduleExecutionConnectionLabel(schedulerConnected = false): st
 export type AgentScheduleRuntimeStatus =
   | "Active"
   | "Paused"
+  | "Paused · scheduled runs will not enqueue"
   | "Worker offline"
+  | "Saved · worker scheduler offline"
   | "Engine unavailable"
   | "Duplicate active run"
+  | "Existing active or queued run"
+  | "Queued · waiting for staging worker"
   | "Not due yet"
   | "Manual only"
   | "Unsupported scope"
@@ -260,11 +264,17 @@ export function resolveAgentScheduleRuntimeStatus(input: {
   websiteAuditAvailable: boolean;
   browserQaAvailable: boolean;
   hasActiveRun: boolean;
+  /** True when this agent already has a queued/running scheduled (or any) worker run. */
+  hasQueuedScheduledRun?: boolean;
   nextAt: string | null;
   lastSkippedReason?: string | null;
 }): AgentScheduleRuntimeStatus {
   const { config } = input;
-  if (!config.ownerEnabled || input.isOwnerPaused) return "Paused";
+  if (!config.ownerEnabled || input.isOwnerPaused) {
+    return input.isOwnerPaused
+      ? "Paused · scheduled runs will not enqueue"
+      : "Paused";
+  }
   if (!config.enableSchedule || config.frequencyType === "manual") return "Manual only";
   if (
     input.lastSkippedReason === "Scope not supported by staging scheduler yet." ||
@@ -282,9 +292,15 @@ export function resolveAgentScheduleRuntimeStatus(input: {
   ) {
     return "Unsupported work type";
   }
-  if (!input.workerConnected || !input.schedulerConnected) return "Worker offline";
+  // Queued scheduled run dominates skip/due copy so Idle/Not due do not contradict.
+  if (input.hasQueuedScheduledRun) {
+    return "Queued · waiting for staging worker";
+  }
+  if (!input.workerConnected || !input.schedulerConnected) {
+    return "Saved · worker scheduler offline";
+  }
   if (input.hasActiveRun || input.lastSkippedReason === "Existing active or queued run") {
-    return "Duplicate active run";
+    return "Existing active or queued run";
   }
   const wantsAudit =
     config.workTypes.includes("website_audit") ||

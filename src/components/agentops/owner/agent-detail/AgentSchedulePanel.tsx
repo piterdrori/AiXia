@@ -51,6 +51,7 @@ type AgentSchedulePanelProps = {
   websiteAuditAvailable?: boolean;
   browserQaAvailable?: boolean;
   hasActiveRun?: boolean;
+  hasQueuedScheduledRun?: boolean;
   lastSchedulerTickAt?: string | null;
   lastScheduledRunId?: string | null;
   lastSkippedReason?: string | null;
@@ -71,6 +72,7 @@ export function AgentSchedulePanel({
   websiteAuditAvailable = false,
   browserQaAvailable = false,
   hasActiveRun = false,
+  hasQueuedScheduledRun = false,
   lastSchedulerTickAt = null,
   lastScheduledRunId = null,
   lastSkippedReason = null,
@@ -131,7 +133,13 @@ export function AgentSchedulePanel({
     return nextDueAtFromScheduler || computeNextExpectedRunAt(config);
   }, [config, nextDueAtFromScheduler]);
   const scheduleSummary = config ? nextRunDisplayLabel(config, nextAt) : "Unavailable";
-  const theoreticalDue = config ? theoreticalNextDueLabel(config, nextAt) : "Unavailable";
+  const theoreticalDue = hasQueuedScheduledRun
+    ? "Next due after queued run"
+    : !schedulerConnected
+      ? "Next due unknown — scheduler offline/stale"
+      : config
+        ? theoreticalNextDueLabel(config, nextAt)
+        : "Unavailable";
   const connectionLabel = scheduleExecutionConnectionLabel(schedulerConnected);
   const runtimeStatus = config
     ? resolveAgentScheduleRuntimeStatus({
@@ -142,6 +150,7 @@ export function AgentSchedulePanel({
         websiteAuditAvailable,
         browserQaAvailable,
         hasActiveRun,
+        hasQueuedScheduledRun,
         nextAt,
         lastSkippedReason,
       })
@@ -363,7 +372,8 @@ export function AgentSchedulePanel({
             </div>
             {isPaused ? (
               <p className="text-xs text-white/50">
-                Header Pause also marks owner work status as Paused — it does not stop fleet GHA.
+                Header Pause also marks owner work status as Paused — scheduled staging-worker
+                runs will not enqueue while paused.
               </p>
             ) : null}
           </div>

@@ -244,7 +244,7 @@ node qa-agent/scripts/agentops-c-a-scheduler-live.mjs
 | STAGING_ONLY_ENFORCED | YES |
 | FUNCTION_COUNT_WITHIN_BUDGET | YES |
 | BUILD_GREEN | YES (committed tree / Vercel; local WIP excluded) |
-| COMMITTED_TO_ORIGIN_STAGING | (pending push) |
-| VERCEL_STAGING_DEPLOY_GREEN | (pending deploy) |
+| COMMITTED_TO_ORIGIN_STAGING | YES (`de3385cd`) |
+| VERCEL_STAGING_DEPLOY_GREEN | YES (`dpl_CKs2APJDUPZhrtqXr5N1JToKKMre` → https://ai-xia-staging.vercel.app) |
 | READY_FOR_FIX_C_B_SCHEDULER_HARDENING | YES |
 | READY_FOR_AGENTOPS_NEXT_PHASE | YES |

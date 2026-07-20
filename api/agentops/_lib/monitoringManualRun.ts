@@ -32,7 +32,7 @@ const MONITORING_TABLE = "agentops_monitoring_runs";
 const DAILY_EXECUTIONS_TABLE = "agentops_monitoring_daily_agent_executions";
 const AGENTS_TABLE = "agentops_agents";
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
-const QUEUE_VERSION = "b2-b";
+const QUEUE_VERSION = "b2-c";
 const DUPLICATE_LOCK_MESSAGE = "This agent already has an active or queued run.";
 
 function methodNotAllowed(): Response {
@@ -190,14 +190,22 @@ function statusMessageForRow(input: {
   summary: Record<string, unknown>;
 }): string {
   const { status, workerConnected, stale, summary } = input;
+  const isWebsiteAudit =
+    summary.workType === "website_audit" || summary.executionEngine === "website_audit";
   if (status === "queued") {
     return workerConnected
       ? "Waiting for staging worker."
       : "Queued. Worker not connected.";
   }
   if (status === "running") {
-    if (stale) return "Run is running but worker heartbeat is stale.";
-    return "Manual run is in progress on the staging worker.";
+    if (stale) {
+      return isWebsiteAudit
+        ? "Website audit run is running but worker heartbeat is stale."
+        : "Run is running but worker heartbeat is stale.";
+    }
+    return isWebsiteAudit
+      ? "Website audit running on staging worker."
+      : "Manual run is in progress on the staging worker.";
   }
   if (status === "failed") {
     if (summary.b2bClaimOnly === true || summary.workerPhase === "b2-b") {
@@ -205,9 +213,30 @@ function statusMessageForRow(input: {
         ? summary.failureReason
         : B2B_CLAIM_CLOSE_MESSAGE;
     }
+    if (typeof summary.failureReason === "string" && summary.failureReason.trim()) {
+      return summary.failureReason;
+    }
+    if (typeof summary.error === "string" && summary.error.trim()) {
+      return summary.error;
+    }
     return "Manual run failed.";
   }
-  if (status === "completed") return "Manual run completed.";
+  if (status === "completed") {
+    if (isWebsiteAudit) {
+      const evidence =
+        summary.evidenceSummary && typeof summary.evidenceSummary === "object"
+          ? (summary.evidenceSummary as Record<string, unknown>)
+          : {};
+      if (typeof evidence.zeroFindingsMessage === "string" && evidence.zeroFindingsMessage) {
+        return evidence.zeroFindingsMessage;
+      }
+      if (summary.result === "findings_found") {
+        return "Website audit completed with qualifying findings.";
+      }
+      return "Website audit completed.";
+    }
+    return "Manual run completed.";
+  }
   return `Manual run status: ${status}`;
 }
 
@@ -327,7 +356,9 @@ export async function handleMonitoringManualRunStartRequest(
       ? runRequest.scope.routes
       : runRequest.workType === "browser_qa"
         ? ["/system/agent-ops"]
-        : [];
+        : runRequest.workType === "website_audit"
+          ? [`/system/agent-ops/agents/${runRequest.agentSlug}`]
+          : [];
   const selectedModules = runRequest.scope.modules ?? [];
 
   const summary = buildManualRunSummary({
@@ -494,8 +525,14 @@ export async function handleMonitoringManualRunStatusRequest(
     (isLockExpired(summary) || classifyWorkerStatus(snapshot.health) === "stale");
 
   // Only look for worker/execution evidence once a worker has claimed the run (running+).
-  // Queued-only / B2-B claim-test closures must not invent engine evidence.
-  if (status === "running" && slug && startedAt && summary.workerPhase !== "b2-b") {
+  // Queued-only / B2-B claim-test / B2-C website-audit persist on the monitoring row itself.
+  if (
+    status === "running" &&
+    slug &&
+    startedAt &&
+    summary.workerPhase !== "b2-b" &&
+    summary.workerPhase !== "b2-c"
+  ) {
     const { data: execution } = await client
       .from(DAILY_EXECUTIONS_TABLE)
       .select(
@@ -562,6 +599,43 @@ export async function handleMonitoringManualRunStatusRequest(
     rawObservations = null;
   }
 
+  // B2-C website audit persists evidence on the monitoring row itself.
+  if (
+    summary.workerPhase === "b2-c" &&
+    summary.executionEngine === "website_audit" &&
+    (status === "completed" || status === "failed" || status === "running")
+  ) {
+    const routesScanned = Array.isArray(summary.routesScanned)
+      ? (summary.routesScanned as string[])
+      : Array.isArray(summary.selectedRoutes)
+        ? (summary.selectedRoutes as string[])
+        : [];
+    if (routesScanned.length > 0) routesChecked = routesScanned;
+    const evidence =
+      summary.evidenceSummary && typeof summary.evidenceSummary === "object"
+        ? (summary.evidenceSummary as Record<string, unknown>)
+        : {};
+    if (typeof evidence.qualifyingFindingsCount === "number") {
+      queuedFindings = evidence.qualifyingFindingsCount;
+    } else if (typeof row.findings_count === "number") {
+      queuedFindings = row.findings_count as number;
+    }
+    if (typeof evidence.scanFindingsCount === "number") {
+      rawObservations = evidence.scanFindingsCount;
+    } else if (Array.isArray(summary.rawObservations)) {
+      rawObservations = summary.rawObservations.length;
+    }
+    evidenceAvailable =
+      Boolean(summary.evidenceSummary) ||
+      (Array.isArray(summary.artifactRefs) && summary.artifactRefs.length > 0) ||
+      (Array.isArray(summary.rawObservations) && summary.rawObservations.length > 0);
+  }
+
+  const findingsCount =
+    typeof row.findings_count === "number" ? (row.findings_count as number) : queuedFindings;
+  const errorsCount =
+    typeof row.errors_count === "number" ? (row.errors_count as number) : null;
+
   return jsonResponse({
     ok: true,
     active: ACTIVE_STATUSES.has(status),
@@ -588,6 +662,13 @@ export async function handleMonitoringManualRunStatusRequest(
       routesChecked,
       rawObservations,
       queuedFindings,
+      findingsCount,
+      errorsCount,
+      scope: summary.scope ?? null,
+      artifactRefs: Array.isArray(summary.artifactRefs) ? summary.artifactRefs : [],
+      workerId: typeof summary.workerId === "string" ? summary.workerId : null,
+      failurePhase:
+        typeof summary.failurePhase === "string" ? summary.failurePhase : null,
       stale: status === "running" ? stale : false,
     },
   });

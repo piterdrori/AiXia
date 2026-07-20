@@ -117,8 +117,15 @@ export async function startOwnerManualRun(
     routesChecked: payload.routesChecked,
     rawObservations: payload.rawObservations,
     queuedFindings: payload.queuedFindings,
+    findingsCount: payload.findingsCount,
+    errorsCount: payload.errorsCount,
+    scope: payload.scope,
+    artifactRefs: payload.artifactRefs,
+    workerId: payload.workerId,
+    failurePhase: payload.failurePhase,
     existingRunId: payload.existingRunId,
     workerConnected: payload.workerConnected,
+    stale: payload.stale,
   };
 }
 
@@ -196,11 +203,18 @@ export function activityLabelForManualRun(
   return "Idle";
 }
 
-export function defaultScopeForWorkType(workType: AgentManualWorkType): AgentManualRunRequest["scope"] {
+export function defaultScopeForWorkType(
+  workType: AgentManualWorkType,
+  agentSlug?: string,
+): AgentManualRunRequest["scope"] {
   if (workType === "browser_qa") {
     return { type: "selected_routes", routes: ["/system/agent-ops"] };
   }
-  return { type: "assigned_modules" };
+  const slug = (agentSlug || "system-agent").trim().toLowerCase() || "system-agent";
+  return {
+    type: "selected_routes",
+    routes: [`/system/agent-ops/agents/${slug}`],
+  };
 }
 
 export function formatManualRunResultBanner(result: AgentManualRunResult): string {

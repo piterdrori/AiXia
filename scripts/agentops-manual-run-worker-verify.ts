@@ -1,5 +1,5 @@
 /**
- * Fix B2-B — staging manual-run worker foundation verify.
+ * Fix B2-B/B2-C — staging manual-run worker foundation verify.
  * Usage: npx tsx scripts/agentops-manual-run-worker-verify.ts
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -115,21 +115,40 @@ async function verifyCore(): Promise<void> {
   ) {
     fail("Expired lock should be detected");
   }
+
+  const tools = core.mergeWorkerHealthIntoTools(
+    {},
+    {
+      connected: true,
+      lastHeartbeatAt: "2026-07-20T12:00:00.000Z",
+      workerId: "w1",
+      websiteAuditEngine: core.buildConnectedWebsiteAuditEngine("2026-07-20T12:00:00.000Z"),
+      browserQaEngine: core.buildDisconnectedBrowserQaEngine(),
+    },
+  );
+  const parsed = core.parseWorkerHealth(tools);
+  if (!parsed?.websiteAuditEngine?.connected) {
+    fail("Heartbeat merge must mark websiteAuditEngine connected");
+  }
+  if (parsed?.browserQaEngine?.connected) {
+    fail("Heartbeat merge must keep browserQaEngine disconnected");
+  }
 }
 
 function verifyWiring(): void {
   mustInclude("scripts/lib/agentops-manual-run-worker-core.mjs", "Worker claim verified");
+  mustInclude("scripts/lib/agentops-manual-run-worker-core.mjs", "buildWebsiteAuditClaimSummary");
   mustInclude("scripts/agentops-staging-manual-run-worker.mjs", "claim-test");
   mustInclude("scripts/agentops-staging-manual-run-worker.mjs", "heartbeat");
+  mustInclude("scripts/agentops-staging-manual-run-worker.mjs", "website-audit-once");
   mustInclude("scripts/agentops-staging-manual-run-worker.mjs", "agentops_system_config");
   mustInclude("scripts/agentops-staging-manual-run-worker.mjs", "B2B_CLAIM_CLOSE_MESSAGE");
-  mustNotInclude("scripts/agentops-staging-manual-run-worker.mjs", "playwright");
   mustNotInclude("scripts/agentops-staging-manual-run-worker.mjs", "workflow_dispatch");
   mustNotInclude("scripts/agentops-staging-manual-run-worker.mjs", "api.github.com");
 
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "HEARTBEAT_FRESH_MS");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "buildCapabilityFromHealth");
-  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Website audit engine not connected");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Browser QA engine not connected until B2-D.");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "readManualRunWorkerHealth");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "Waiting for staging worker.");
   mustInclude(
@@ -138,7 +157,7 @@ function verifyWiring(): void {
   );
   mustInclude(
     "src/lib/agentops/agents/agentDetailControlCenter.ts",
-    "Website audit engine not connected yet.",
+    "Browser QA engine not connected until B2-D.",
   );
 
   const pkg = readFileSync(join(REPO_ROOT, "package.json"), "utf8");
@@ -146,6 +165,7 @@ function verifyWiring(): void {
     "agentops:manual-run-worker:once",
     "agentops:manual-run-worker:heartbeat",
     "agentops:manual-run-worker:claim-test",
+    "agentops:manual-run-worker:website-audit-once",
     "agentops:manual-run-worker-verify",
   ]) {
     if (!pkg.includes(script)) fail(`package.json missing script ${script}`);

@@ -1,20 +1,27 @@
 /**
- * Fix B2-B — read staging manual-run worker health from agentops_system_config.
+ * Fix B2-C — read staging manual-run worker health from agentops_system_config.
  * Heartbeat is written by the external worker (service role). Vercel only reads.
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const WORKER_VERSION = "b2-b";
+export const WORKER_VERSION = "b2-c";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
 export const WORKER_NOT_CONNECTED_REASON = "Staging worker not connected.";
 export const ENGINE_NOT_CONNECTED_WEBSITE =
   "Staging worker connected. Website audit engine not connected in this phase.";
 export const ENGINE_NOT_CONNECTED_BROWSER =
-  "Staging worker connected. Browser QA engine not connected in this phase.";
+  "Browser QA engine not connected until B2-D.";
 export const B2B_CLAIM_CLOSE_MESSAGE =
   "Worker claim verified. Execution engine not connected in B2-B.";
+
+export type ManualRunEngineHealth = {
+  connected: boolean;
+  version?: string | null;
+  lastCheckedAt?: string | null;
+  reason?: string | null;
+};
 
 export type ManualRunWorkerHealth = {
   connected: boolean;
@@ -26,8 +33,8 @@ export type ManualRunWorkerHealth = {
   lastClaimedRunId: string | null;
   lastError: string | null;
   environment: string;
-  websiteAuditEngine: string;
-  browserQaEngine: string;
+  websiteAuditEngine: ManualRunEngineHealth;
+  browserQaEngine: ManualRunEngineHealth;
 };
 
 export type ManualRunWorkerStatus = "connected" | "offline" | "stale" | "unknown";
@@ -47,6 +54,22 @@ export function isHeartbeatFresh(
   return heartbeatAgeMs(lastHeartbeatAt, nowMs) < freshMs;
 }
 
+function normalizeEngine(raw: unknown, fallbackReason: string): ManualRunEngineHealth {
+  if (raw && typeof raw === "object") {
+    const engine = raw as Record<string, unknown>;
+    return {
+      connected: Boolean(engine.connected),
+      version: typeof engine.version === "string" ? engine.version : null,
+      lastCheckedAt: typeof engine.lastCheckedAt === "string" ? engine.lastCheckedAt : null,
+      reason: typeof engine.reason === "string" ? engine.reason : null,
+    };
+  }
+  if (raw === "connected") {
+    return { connected: true, version: "b2-c", lastCheckedAt: null, reason: null };
+  }
+  return { connected: false, version: null, lastCheckedAt: null, reason: fallbackReason };
+}
+
 export function parseWorkerHealth(toolsEnabled: unknown): ManualRunWorkerHealth | null {
   if (!toolsEnabled || typeof toolsEnabled !== "object") return null;
   const raw = (toolsEnabled as Record<string, unknown>)[WORKER_HEALTH_KEY];
@@ -62,10 +85,8 @@ export function parseWorkerHealth(toolsEnabled: unknown): ManualRunWorkerHealth 
     lastClaimedRunId: typeof health.lastClaimedRunId === "string" ? health.lastClaimedRunId : null,
     lastError: typeof health.lastError === "string" ? health.lastError : null,
     environment: typeof health.environment === "string" ? health.environment : "staging",
-    websiteAuditEngine:
-      typeof health.websiteAuditEngine === "string" ? health.websiteAuditEngine : "not_connected",
-    browserQaEngine:
-      typeof health.browserQaEngine === "string" ? health.browserQaEngine : "not_connected",
+    websiteAuditEngine: normalizeEngine(health.websiteAuditEngine, ENGINE_NOT_CONNECTED_WEBSITE),
+    browserQaEngine: normalizeEngine(health.browserQaEngine, ENGINE_NOT_CONNECTED_BROWSER),
   };
 }
 
@@ -131,6 +152,11 @@ export function buildCapabilityFromHealth(
 ) {
   const workerStatus = classifyWorkerStatus(health, nowMs);
   const workerConnected = workerStatus === "connected";
+  const websiteAuditEngineConnected =
+    workerConnected && Boolean(health?.websiteAuditEngine?.connected);
+  const browserQaEngineConnected =
+    workerConnected && Boolean(health?.browserQaEngine?.connected);
+
   return {
     queueAvailable: true,
     workerConnected,
@@ -142,21 +168,31 @@ export function buildCapabilityFromHealth(
     workerId: health?.workerId ?? null,
     workerVersion: health?.workerVersion ?? null,
     websiteAudit: {
-      available: false,
-      reason: workerConnected ? ENGINE_NOT_CONNECTED_WEBSITE : WORKER_NOT_CONNECTED_REASON,
-      engine: "staging_worker + website_audit (pending B2-C)",
+      available: websiteAuditEngineConnected,
+      reason: websiteAuditEngineConnected
+        ? null
+        : workerConnected
+          ? health?.websiteAuditEngine?.reason ?? ENGINE_NOT_CONNECTED_WEBSITE
+          : WORKER_NOT_CONNECTED_REASON,
+      engine: "staging_worker + website_audit (scanStagingWebsite)",
     },
     browserQa: {
-      available: false,
-      reason: workerConnected ? ENGINE_NOT_CONNECTED_BROWSER : WORKER_NOT_CONNECTED_REASON,
+      available: browserQaEngineConnected,
+      reason: browserQaEngineConnected
+        ? null
+        : workerConnected
+          ? health?.browserQaEngine?.reason ?? ENGINE_NOT_CONNECTED_BROWSER
+          : WORKER_NOT_CONNECTED_REASON,
       engine: "staging_worker + browser_qa (pending B2-D)",
     },
     notes: [
       "Staging queue accepts owner-gated runs into agentops_monitoring_runs.",
       "No GitHub dispatch. No Playwright on Vercel.",
       workerConnected
-        ? "Staging worker heartbeat is fresh. Engine execution arrives in B2-C / B2-D."
-        : "A staging worker must heartbeat and claim queued runs (Fix B2-B).",
+        ? websiteAuditEngineConnected
+          ? "Staging worker connected. Website audit engine ready. Browser QA pending B2-D."
+          : "Staging worker heartbeat is fresh. Website audit engine not connected."
+        : "A staging worker must heartbeat and claim queued runs.",
       "Findings remain drafts; no auto-promotion, auto-fix, PR, or deploy.",
     ],
   };

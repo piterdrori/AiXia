@@ -121,6 +121,14 @@ function drawerFromManualResult(
 ): AgentRunDrawerModel {
   const workType =
     result.workType === "browser_qa" ? "Browser QA (owner manual)" : "Website audit (owner manual)";
+  const routesLabel =
+    result.routesChecked && result.routesChecked.length > 0
+      ? result.routesChecked.join(", ")
+      : result.status === "queued"
+        ? "Queued — waiting for staging worker"
+        : result.status === "running"
+          ? "Website audit running on staging worker"
+          : "Awaiting execution evidence";
   return {
     open,
     executionStatus: result.status,
@@ -132,14 +140,14 @@ function drawerFromManualResult(
       result.status === "queued"
         ? "Not started"
         : formatDurationMs(result.durationMs ?? null),
-    reviewDepth: result.workType === "browser_qa" ? "Limited routes (Browser QA)" : "Assigned modules",
-    authenticationDepth: "Staging worker (pending claim)",
-    routesModules:
-      result.routesChecked && result.routesChecked.length > 0
-        ? result.routesChecked.join(", ")
-        : result.status === "queued"
-          ? "Queued — waiting for staging worker"
-          : "Awaiting execution evidence",
+    reviewDepth:
+      result.workType === "browser_qa"
+        ? "Limited routes (Browser QA)"
+        : result.routesChecked && result.routesChecked.length > 0
+          ? `Limited routes (${result.routesChecked.length})`
+          : "Limited AgentOps route scope",
+    authenticationDepth: "Staging worker (off Vercel)",
+    routesModules: routesLabel,
     browserToolUsage: "Staging worker Playwright (not on Vercel)",
     rawObservations:
       result.status === "queued"
@@ -161,13 +169,19 @@ function drawerFromManualResult(
       result.status === "queued"
         ? "No evidence yet — waiting for staging worker"
         : result.evidenceAvailable
-          ? "Evidence available in Monitoring"
-          : "Evidence pending while run is active",
+          ? result.artifactRefs && result.artifactRefs.length > 0
+            ? `Evidence available (${result.artifactRefs.length} artifact ref(s))`
+            : "Evidence available in Monitoring"
+          : result.status === "running"
+            ? "Evidence pending while website audit runs"
+            : "No evidence linked",
     limitations:
-      "Dry-run / drafts only. Staging queue accept. No GitHub dispatch. No code changes, PRs, deploys, or automatic memory apply.",
+      "Dry-run / drafts only. Staging worker execution. No GitHub dispatch. No code changes, PRs, deploys, or automatic memory apply.",
     failureReason:
       result.status === "failed" || result.status === "rejected"
-        ? result.message
+        ? result.failurePhase
+          ? `${result.message} (${result.failurePhase})`
+          : result.message
         : "Not recorded",
   };
 }
@@ -444,7 +458,7 @@ export default function AgentOpsAgentDetailPage() {
 
   const openConfirm = (workType: AgentManualWorkType) => {
     setConfirmWorkType(workType);
-    setConfirmScope(defaultScopeForWorkType(workType));
+    setConfirmScope(defaultScopeForWorkType(workType, resolvedSlug));
     setActionFeedback(null);
   };
 
@@ -1072,7 +1086,7 @@ export default function AgentOpsAgentDetailPage() {
           agentSlug={resolvedSlug}
           displayName={displayName}
           workType={confirmWorkType ?? "website_audit"}
-          scope={confirmScope ?? defaultScopeForWorkType("website_audit")}
+          scope={confirmScope ?? defaultScopeForWorkType("website_audit", resolvedSlug)}
           maxDurationMinutes={DEFAULT_MANUAL_MAX_DURATION_MINUTES}
           isPaused={isPaused}
           submitting={manualSubmitting}

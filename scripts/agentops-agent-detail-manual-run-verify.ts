@@ -140,12 +140,17 @@ function verifyWiring(): void {
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "queueAvailable: true");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Staging worker not connected.");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Website audit engine not connected");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "Browser QA engine not connected until B2-D.");
+  mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "scanStagingWebsite");
   mustInclude("api/agentops/_lib/manualRunWorkerHealth.ts", "HEARTBEAT_FRESH_MS");
+  mustInclude("api/agentops/_lib/monitoringManualRun.ts", "Website audit running on staging worker.");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "aixia.app");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "schedulerConnection");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", "queueVersion");
   mustInclude("api/agentops/_lib/monitoringManualRun.ts", 'status: "queued"');
+  mustInclude("scripts/agentops-staging-manual-run-worker.mjs", "website-audit-once");
   mustInclude("scripts/agentops-staging-manual-run-worker.mjs", "claim-test");
+  mustInclude("scripts/agentops-manual-run-website-audit-engine.ts", "scanStagingWebsite");
 
   mustNotInclude(
     "api/agentops/_lib/monitoringManualRun.ts",
@@ -186,7 +191,15 @@ function verifyWiring(): void {
   );
   mustInclude(
     "src/lib/agentops/agents/agentDetailControlCenter.ts",
-    "Staging queue · Worker required · No GitHub dependency",
+    "Staging worker · No GitHub dependency",
+  );
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailControlCenter.ts",
+    "Website audit ready",
+  );
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailControlCenter.ts",
+    "Browser QA pending",
   );
   mustNotInclude(
     "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",

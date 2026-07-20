@@ -1,19 +1,21 @@
 /**
- * Fix B2-B — shared pure helpers for staging manual-run worker.
+ * Fix B2-C — shared pure helpers for staging manual-run worker.
  * Used by worker CLI + verify scripts (no Supabase imports).
  */
 
-export const WORKER_VERSION = "b2-b";
+export const WORKER_VERSION = "b2-c";
 export const WORKER_HEALTH_KEY = "manualRunWorker";
 export const HEARTBEAT_FRESH_MS = 3 * 60 * 1000;
 export const LOCK_TTL_MS = 5 * 60 * 1000;
+export const WEBSITE_AUDIT_LOCK_TTL_MS = 15 * 60 * 1000;
 export const B2B_CLAIM_CLOSE_MESSAGE =
   "Worker claim verified. Execution engine not connected in B2-B.";
 export const ENGINE_NOT_CONNECTED_WEBSITE =
   "Staging worker connected. Website audit engine not connected in this phase.";
 export const ENGINE_NOT_CONNECTED_BROWSER =
-  "Staging worker connected. Browser QA engine not connected in this phase.";
+  "Browser QA engine not connected until B2-D.";
 export const WORKER_NOT_CONNECTED = "Staging worker not connected.";
+export const WEBSITE_AUDIT_ENGINE_VERSION = "b2-c";
 
 export function validateWorkerEnv(env = process.env) {
   const errors = [];
@@ -88,6 +90,51 @@ export function classifyWorkerStatus(health, nowMs = Date.now()) {
   return "stale";
 }
 
+export function normalizeWebsiteAuditEngine(raw) {
+  if (raw && typeof raw === "object") {
+    return {
+      connected: Boolean(raw.connected),
+      version: typeof raw.version === "string" ? raw.version : WEBSITE_AUDIT_ENGINE_VERSION,
+      lastCheckedAt: typeof raw.lastCheckedAt === "string" ? raw.lastCheckedAt : null,
+      reason: typeof raw.reason === "string" ? raw.reason : null,
+    };
+  }
+  if (raw === "connected") {
+    return {
+      connected: true,
+      version: WEBSITE_AUDIT_ENGINE_VERSION,
+      lastCheckedAt: null,
+      reason: null,
+    };
+  }
+  return {
+    connected: false,
+    version: WEBSITE_AUDIT_ENGINE_VERSION,
+    lastCheckedAt: null,
+    reason: ENGINE_NOT_CONNECTED_WEBSITE,
+  };
+}
+
+export function normalizeBrowserQaEngine(raw) {
+  if (raw && typeof raw === "object") {
+    return {
+      connected: Boolean(raw.connected),
+      reason:
+        typeof raw.reason === "string" ? raw.reason : ENGINE_NOT_CONNECTED_BROWSER,
+    };
+  }
+  return {
+    connected: false,
+    reason: ENGINE_NOT_CONNECTED_BROWSER,
+  };
+}
+
+export function isWebsiteAuditEngineConnected(health) {
+  if (!health || typeof health !== "object") return false;
+  const engine = normalizeWebsiteAuditEngine(health.websiteAuditEngine);
+  return engine.connected === true;
+}
+
 export function parseWorkerHealth(toolsEnabled) {
   const tools =
     toolsEnabled && typeof toolsEnabled === "object" ? toolsEnabled : {};
@@ -103,10 +150,24 @@ export function parseWorkerHealth(toolsEnabled) {
     lastClaimedRunId: typeof raw.lastClaimedRunId === "string" ? raw.lastClaimedRunId : null,
     lastError: typeof raw.lastError === "string" ? raw.lastError : null,
     environment: typeof raw.environment === "string" ? raw.environment : "staging",
-    websiteAuditEngine:
-      typeof raw.websiteAuditEngine === "string" ? raw.websiteAuditEngine : "not_connected",
-    browserQaEngine:
-      typeof raw.browserQaEngine === "string" ? raw.browserQaEngine : "not_connected",
+    websiteAuditEngine: normalizeWebsiteAuditEngine(raw.websiteAuditEngine),
+    browserQaEngine: normalizeBrowserQaEngine(raw.browserQaEngine),
+  };
+}
+
+export function buildConnectedWebsiteAuditEngine(nowIso = new Date().toISOString()) {
+  return {
+    connected: true,
+    version: WEBSITE_AUDIT_ENGINE_VERSION,
+    lastCheckedAt: nowIso,
+    reason: null,
+  };
+}
+
+export function buildDisconnectedBrowserQaEngine() {
+  return {
+    connected: false,
+    reason: ENGINE_NOT_CONNECTED_BROWSER,
   };
 }
 
@@ -114,12 +175,19 @@ export function mergeWorkerHealthIntoTools(toolsEnabled, healthPatch) {
   const tools =
     toolsEnabled && typeof toolsEnabled === "object" ? { ...toolsEnabled } : {};
   const prev = parseWorkerHealth(tools) || {};
+  const nowIso = new Date().toISOString();
   tools[WORKER_HEALTH_KEY] = {
     ...prev,
     ...healthPatch,
     environment: "staging",
-    websiteAuditEngine: "not_connected",
-    browserQaEngine: "not_connected",
+    websiteAuditEngine:
+      healthPatch.websiteAuditEngine !== undefined
+        ? normalizeWebsiteAuditEngine(healthPatch.websiteAuditEngine)
+        : prev.websiteAuditEngine ?? buildConnectedWebsiteAuditEngine(nowIso),
+    browserQaEngine:
+      healthPatch.browserQaEngine !== undefined
+        ? normalizeBrowserQaEngine(healthPatch.browserQaEngine)
+        : prev.browserQaEngine ?? buildDisconnectedBrowserQaEngine(),
   };
   return tools;
 }
@@ -132,6 +200,10 @@ export function isOwnerManualQueuedSummary(summary) {
   );
 }
 
+export function isWebsiteAuditQueuedSummary(summary) {
+  return isOwnerManualQueuedSummary(summary) && summary.workType === "website_audit";
+}
+
 export function isLockExpired(summary, nowMs = Date.now()) {
   const raw = summary?.lockExpiresAt;
   if (typeof raw !== "string") return false;
@@ -140,6 +212,7 @@ export function isLockExpired(summary, nowMs = Date.now()) {
   return ts < nowMs;
 }
 
+/** B2-B claim-test only — closes without engine execution. */
 export function buildClaimSummaryPatch(summary, input) {
   const claimedAt = input.claimedAt || new Date().toISOString();
   const lockExpiresAt =
@@ -165,4 +238,44 @@ export function buildClaimCloseSummary(summary, message = B2B_CLAIM_CLOSE_MESSAG
     workerPhase: "b2-b",
     closedAt: new Date().toISOString(),
   };
+}
+
+/** B2-C website audit claim — execution follows. */
+export function buildWebsiteAuditClaimSummary(summary, input) {
+  const claimedAt = input.claimedAt || new Date().toISOString();
+  const lockExpiresAt =
+    input.lockExpiresAt ||
+    new Date(Date.parse(claimedAt) + WEBSITE_AUDIT_LOCK_TTL_MS).toISOString();
+  return {
+    ...(summary && typeof summary === "object" ? summary : {}),
+    workerId: input.workerId,
+    workerVersion: input.workerVersion || WORKER_VERSION,
+    claimedAt,
+    lockExpiresAt,
+    workerPhase: "b2-c",
+    executionEngine: "website_audit",
+    claimTest: false,
+    b2bClaimOnly: false,
+  };
+}
+
+export function resolveLimitedAuditRoutes(summary, agentSlug) {
+  const selected =
+    Array.isArray(summary?.selectedRoutes) && summary.selectedRoutes.length > 0
+      ? summary.selectedRoutes.filter((r) => typeof r === "string" && r.trim())
+      : [];
+  if (selected.length > 0) {
+    return selected.map((r) => (r.startsWith("/") ? r : `/${r}`)).slice(0, 3);
+  }
+  const scopeRoutes =
+    summary?.scope &&
+    typeof summary.scope === "object" &&
+    Array.isArray(summary.scope.routes)
+      ? summary.scope.routes.filter((r) => typeof r === "string" && r.trim())
+      : [];
+  if (scopeRoutes.length > 0) {
+    return scopeRoutes.map((r) => (r.startsWith("/") ? r : `/${r}`)).slice(0, 3);
+  }
+  const slug = typeof agentSlug === "string" && agentSlug ? agentSlug : "system-agent";
+  return [`/system/agent-ops/agents/${slug}`];
 }

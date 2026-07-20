@@ -271,16 +271,14 @@ export function AgentControlHeader({
           {AGENT_DETAIL_CC_COPY.stagingQueueBadge}
         </AixiaBadge>
         <AixiaBadge tone={auditAvailable ? "emerald" : "neutral"}>
-          Run audit:{" "}
           {auditAvailable
-            ? AGENT_DETAIL_CC_COPY.runAuditConnected
-            : auditDisabledReason ?? AGENT_DETAIL_CC_COPY.runAuditNotConnected}
+            ? AGENT_DETAIL_CC_COPY.websiteAuditReadyBadge
+            : `Run audit: ${auditDisabledReason ?? AGENT_DETAIL_CC_COPY.runAuditNotConnected}`}
         </AixiaBadge>
         <AixiaBadge tone={browserQaAvailable ? "emerald" : "neutral"}>
-          Browser QA:{" "}
           {browserQaAvailable
             ? AGENT_DETAIL_CC_COPY.runBrowserQaConnected
-            : browserQaDisabledReason ?? AGENT_DETAIL_CC_COPY.runBrowserQaNotConnected}
+            : AGENT_DETAIL_CC_COPY.browserQaPendingBadge}
         </AixiaBadge>
       </div>
     </header>

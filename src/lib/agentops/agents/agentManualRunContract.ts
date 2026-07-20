@@ -60,8 +60,15 @@ export type AgentManualRunResult = {
   routesChecked?: string[];
   rawObservations?: number | null;
   queuedFindings?: number | null;
+  findingsCount?: number | null;
+  errorsCount?: number | null;
+  scope?: AgentManualRunScope | null;
+  artifactRefs?: string[];
+  workerId?: string | null;
+  failurePhase?: string | null;
   existingRunId?: string;
   workerConnected?: boolean;
+  stale?: boolean;
 };
 
 export const AGENT_MANUAL_RUN_COPY = {

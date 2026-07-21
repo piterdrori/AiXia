@@ -1,0 +1,137 @@
+/**
+ * Phase E-A1 — owner Browser QA for Issues list/detail after deploy.
+ */
+import fs from "fs";
+import path from "path";
+import { chromium } from "@playwright/test";
+import { loadAgentOpsOwnerEnv } from "./load-agentops-owner-env.mjs";
+
+loadAgentOpsOwnerEnv();
+
+const base = process.env.AGENTOPS_QA_BASE_URL || "https://ai-xia-staging.vercel.app";
+const email = process.env.AGENTOPS_QA_OWNER_EMAIL?.trim();
+const password = process.env.AGENTOPS_QA_OWNER_PASSWORD;
+const DRAFT_ROUTE =
+  "/system/agent-ops/issues/draft-21109c88-4ca6-4afa-9546-f7db66f8bc13";
+
+if (!email || !password) {
+  console.error("Missing owner credentials");
+  process.exit(2);
+}
+
+const outDir = path.join("qa-agent", "browser-qa-artifacts", "phase-e-a1-issues");
+fs.mkdirSync(outDir, { recursive: true });
+
+const consoleErrors = [];
+const failedRequests = [];
+
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const page = await context.newPage();
+
+page.on("console", (msg) => {
+  if (msg.type() === "error") consoleErrors.push(msg.text().slice(0, 300));
+});
+page.on("response", (res) => {
+  if (res.status() >= 400 && /\/api\/agentops\//i.test(res.url())) {
+    failedRequests.push({ url: res.url(), status: res.status() });
+  }
+});
+
+await page.goto(`${base}/login`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+await page.fill('input[type="email"], input[name="email"]', email);
+await page.fill('input[type="password"], input[name="password"]', password);
+await page.click('button[type="submit"]');
+await page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 60_000 });
+
+await page.goto(`${base}/system/agent-ops/issues`, {
+  waitUntil: "domcontentloaded",
+  timeout: 90_000,
+});
+await page.waitForTimeout(5000);
+await page.screenshot({ path: path.join(outDir, "issues-list-1440.png") });
+
+const list = await page.evaluate(() => {
+  const text = document.body.innerText;
+  const draftHrefs = [...document.querySelectorAll('a[href*="draft-"]')].map((a) =>
+    a.getAttribute("href"),
+  );
+  const openIssueHrefs = [...document.querySelectorAll('a[data-testid="agentops-open-issue"]')].map(
+    (a) => a.getAttribute("href"),
+  );
+  return {
+    h1Issues: /Issues/i.test(document.querySelector("h1")?.textContent || ""),
+    hasReportedBy: /Reported by/i.test(text),
+    hasFound: /\bFound\b/i.test(text),
+    openIssueHrefs: openIssueHrefs.slice(0, 8),
+    draftHrefs: draftHrefs.slice(0, 8),
+    hideNoise: /Hide likely shell noise/i.test(text),
+    hasApprove: /Approve/i.test(text),
+  };
+});
+
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(outDir, "issues-list-390.png") });
+const listOverflow = await page.evaluate(
+  () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
+);
+await page.setViewportSize({ width: 1440, height: 900 });
+
+await page.goto(`${base}${DRAFT_ROUTE}`, {
+  waitUntil: "domcontentloaded",
+  timeout: 90_000,
+});
+await page.waitForTimeout(5000);
+await page.screenshot({ path: path.join(outDir, "draft-detail-1440.png") });
+
+const detail = await page.evaluate(() => {
+  const text = document.body.innerText;
+  return {
+    notFound: /not found/i.test(text),
+    hasReportedBy: /Reported by/i.test(text),
+    hasFound: /\bFound\b/i.test(text),
+    hasRun: /Source run|Monitoring run|owner-manual/i.test(text),
+    hasFixPrompt: /Fix Issue Prompt/i.test(text),
+    hasChat: /Discuss with|Finding chat|Ask QA Agent/i.test(text),
+    hasApprove: /Approve/i.test(text),
+    hasDefer: /Defer/i.test(text),
+    hasReject: /Reject/i.test(text),
+    hasSafetyCopy: /does not change code|creates an AgentOps issue record only/i.test(text),
+    hasEvidence: /Evidence/i.test(text),
+    agentLink: [...document.querySelectorAll("a[href]")]
+      .map((a) => a.getAttribute("href") || "")
+      .find((h) => /\/system\/agent-ops\/agents\//.test(h)) || null,
+  };
+});
+
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(outDir, "draft-detail-390.png") });
+const detailOverflow = await page.evaluate(
+  () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
+);
+
+await browser.close();
+
+const report = {
+  at: new Date().toISOString(),
+  base,
+  list,
+  detail,
+  listOverflow,
+  detailOverflow,
+  consoleErrors: consoleErrors.slice(0, 20),
+  failedRequests: failedRequests.slice(0, 20),
+};
+
+const outPath = path.join(
+  "qa-agent",
+  "reports",
+  "runtime",
+  `phase-e-a1-issues-live-${Date.now()}.json`,
+);
+fs.mkdirSync(path.dirname(outPath), { recursive: true });
+fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
+console.log(JSON.stringify({ outPath, list, detail, listOverflow, detailOverflow }, null, 2));
+process.exit(list.h1Issues && detail.hasFixPrompt && !detail.notFound ? 0 : 2);

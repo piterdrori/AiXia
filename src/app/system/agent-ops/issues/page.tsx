@@ -122,7 +122,8 @@ export default function AgentOpsIssuesPage() {
   const filterStatus = searchParams.get("status") as OwnerFindingStatus | null;
   const filterDate = searchParams.get("date");
   const filterQuery = searchParams.get("q");
-  const hideNoise = searchParams.get("hideNoise") !== "0";
+  // Opt-in hide: default shows noise drafts with a badge so the queue stays visible.
+  const hideNoise = searchParams.get("hideNoise") === "1";
 
   const patchParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -349,7 +350,7 @@ export default function AgentOpsIssuesPage() {
               type="checkbox"
               checked={hideNoise}
               onChange={(event) =>
-                patchParams({ hideNoise: event.target.checked ? null : "0" })
+                patchParams({ hideNoise: event.target.checked ? "1" : null })
               }
             />
             Hide likely shell noise
@@ -359,7 +360,11 @@ export default function AgentOpsIssuesPage() {
               {noiseHiddenCount} likely shell-noise draft
               {noiseHiddenCount === 1 ? "" : "s"} hidden from this tab
             </span>
-          ) : null}
+          ) : (
+            <span className="text-xs text-white/45">
+              Shell-noise drafts stay visible with a badge unless you hide them.
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Issues tabs">

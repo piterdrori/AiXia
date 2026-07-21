@@ -35,21 +35,37 @@ function main(): void {
   mustInclude("src/App.tsx", 'path="/system/agent-ops/issues/:issueCode"');
   mustNotInclude("src/App.tsx", 'path="/system/agent-ops/findings"');
 
-  // List owner acceptance fields
+  // List owner acceptance fields — browse + Open issue only
   mustInclude("src/app/system/agent-ops/issues/page.tsx", 'title="Issues"');
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "openHref");
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "foundLabel");
+  mustInclude("src/app/system/agent-ops/issues/page.tsx", 'openLabel="Open issue"');
+  mustInclude(
+    "src/app/system/agent-ops/issues/page.tsx",
+    "This is your Issues inbox. Open an issue to review the evidence",
+  );
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "Show likely shell noise");
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "needs-more-info");
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "duplicates");
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "onDraftsReady");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "onApprove");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "onDefer");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "onReject");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "onSecondary");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "Promote to issue");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "applyMonitoringDraftDecision");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "promoteMonitoringDraft");
   mustInclude("src/components/agentops/owner/AgentOpsFindingCard.tsx", "Reported by");
   mustInclude("src/components/agentops/owner/AgentOpsFindingCard.tsx", 'data-testid="agentops-open-issue"');
 
-  // Detail owner acceptance
+  // Detail owner acceptance — full decision workflow retained
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Fix Issue Prompt");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "AgentOpsFindingChatCard");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'data-testid="agentops-issue-header-meta"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Approve"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Defer"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Reject"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Promote to issue"');
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Needs more info");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Mark duplicate");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Open signed link");
@@ -118,7 +134,11 @@ function main(): void {
       checks: [
         "routes_reused",
         "list_owner_fields",
+        "list_open_only",
+        "list_no_decision_actions",
+        "inbox_helper_copy",
         "detail_owner_fields",
+        "detail_keeps_decision_actions",
         "chat_to_prompt_deterministic",
         "use_as_fix_prompt_ui",
         "prompt_save",

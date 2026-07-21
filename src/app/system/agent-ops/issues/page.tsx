@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 
 import { AixiaButton, AixiaInfoBlock } from "@/components/aixia";
@@ -28,11 +28,7 @@ import {
   type OwnerFindingType,
   type CanonicalFindingView,
 } from "@/lib/agentops/findings/findingsLifecycleModel";
-import {
-  applyMonitoringDraftDecision,
-  loadFindingsOwnerCatalog,
-  promoteMonitoringDraft,
-} from "@/lib/agentops/findings/findingsOwnerCatalog";
+import { loadFindingsOwnerCatalog } from "@/lib/agentops/findings/findingsOwnerCatalog";
 import { normalizeReportingAgent } from "@/lib/agentops/findings/reportingAgentIdentity";
 
 const EMPTY_COPY: Record<FindingsTabId, { title: string; description: string }> = {
@@ -108,7 +104,6 @@ function countLabel(value: number | "Unavailable"): string | number {
 
 export default function AgentOpsIssuesPage() {
   usePageTitle("Issues · AgentOps");
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
     useAgentOpsOwnerGate();
@@ -118,8 +113,6 @@ export default function AgentOpsIssuesPage() {
   const [draftsError, setDraftsError] = useState<string | null>(null);
   const [findingsError, setFindingsError] = useState<string | null>(null);
   const [allSourcesUnavailable, setAllSourcesUnavailable] = useState(false);
-  const [actionFeedback, setActionFeedback] = useState<string | null>(null);
-  const [actionId, setActionId] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const tab = parseFindingsTab(searchParams.get("tab"));
@@ -255,45 +248,6 @@ export default function AgentOpsIssuesPage() {
       filterSeverity,
   );
 
-  const decideDraft = async (
-    draftId: string,
-    decision: "owner_approved" | "rejected" | "deferred",
-  ) => {
-    setActionId(draftId);
-    setActionFeedback(null);
-    const result = await applyMonitoringDraftDecision(draftId, decision);
-    setActionId(null);
-    if (!result.ok) {
-      setActionFeedback(result.error ?? "Action failed.");
-      return;
-    }
-    setActionFeedback(
-      decision === "owner_approved"
-        ? "Draft approved."
-        : decision === "deferred"
-          ? "Draft deferred."
-          : "Draft rejected.",
-    );
-    await loadCatalog();
-  };
-
-  const promoteDraft = async (draftId: string) => {
-    setActionId(draftId);
-    setActionFeedback(null);
-    const result = await promoteMonitoringDraft(draftId);
-    setActionId(null);
-    if (!result.ok) {
-      setActionFeedback(result.error ?? "Promotion failed.");
-      return;
-    }
-    setActionFeedback(
-      result.issueDisplayCode
-        ? `Draft promoted to ${result.issueDisplayCode}.`
-        : "Draft promoted.",
-    );
-    await loadCatalog();
-  };
-
   const refreshAll = () => void Promise.all([refreshGate(), loadCatalog()]);
 
   return (
@@ -305,7 +259,7 @@ export default function AgentOpsIssuesPage() {
       <div className="space-y-6">
         <AgentOpsPageHeader
           title="Issues"
-          subtitle="Owner review of agent-reported issues. Approving does not change code, create PRs, deploy, or auto-fix."
+          subtitle="Browse agent-reported issues. Open an issue to review evidence and decide — decisions happen on the detail page only."
           actions={
             <>
               <AixiaButton variant="secondary" onClick={refreshAll} disabled={loading}>
@@ -321,6 +275,13 @@ export default function AgentOpsIssuesPage() {
             </>
           }
         />
+
+        <AixiaInfoBlock tone="cyan" title="Issues inbox">
+          <p className="text-sm text-white/75" data-testid="agentops-issues-inbox-helper">
+            This is your Issues inbox. Open an issue to review the evidence, chat with the reporting
+            agent, improve the fix prompt, and decide what to do.
+          </p>
+        </AixiaInfoBlock>
 
         <AgentOpsStatusSummary
           items={[
@@ -370,12 +331,6 @@ export default function AgentOpsIssuesPage() {
           <AixiaInfoBlock tone="rose" title="Findings data unavailable">
             Both monitoring drafts and promoted findings failed to load. Try Refresh.
           </AixiaInfoBlock>
-        ) : null}
-
-        {actionFeedback ? (
-          <p className="text-sm text-white/70" role="status">
-            {actionFeedback}
-          </p>
         ) : null}
 
         <div className="flex flex-wrap items-center gap-3 text-sm text-white/65">
@@ -593,16 +548,6 @@ export default function AgentOpsIssuesPage() {
                     }`
                   : null;
 
-              const canDecideDraft =
-                item.source === "draft" &&
-                item.ownerStatus === "needs_review" &&
-                Boolean(item.draftId);
-
-              const canPromoteDraft =
-                item.source === "draft" &&
-                item.ownerStatus === "approved" &&
-                Boolean(item.draftId);
-
               const openPath =
                 item.openPath ??
                 (item.issueCode
@@ -632,7 +577,6 @@ export default function AgentOpsIssuesPage() {
                   priority={item.severity}
                   confidence={item.confidence}
                   evidenceSummary={item.summary || null}
-                  recommendedAction={item.nextAction}
                   foundLabel={formatFoundLabel(item.createdAt) ?? undefined}
                   ageLabel={formatShortDate(item.createdAt) ?? undefined}
                   updatedLabel={formatShortDate(item.updatedAt) ?? undefined}
@@ -641,39 +585,9 @@ export default function AgentOpsIssuesPage() {
                   likelyShellNoise={item.likelyShellNoise}
                   openLabel="Open issue"
                   openHref={openPath}
-                  onApprove={
-                    canDecideDraft
-                      ? () => void decideDraft(item.draftId!, "owner_approved")
-                      : undefined
-                  }
-                  onDefer={
-                    canDecideDraft ? () => void decideDraft(item.draftId!, "deferred") : undefined
-                  }
-                  onReject={
-                    canDecideDraft ? () => void decideDraft(item.draftId!, "rejected") : undefined
-                  }
-                  secondaryLabel={
-                    canPromoteDraft
-                      ? "Promote to issue"
-                      : item.ownerStatus === "waiting_for_verification"
-                        ? "Review verification"
-                        : undefined
-                  }
-                  onSecondary={
-                    canPromoteDraft
-                      ? () => void promoteDraft(item.draftId!)
-                      : item.ownerStatus === "waiting_for_verification" && openPath
-                        ? () => navigate(openPath)
-                        : undefined
-                  }
                 />
               );
             })}
-            {actionId ? (
-              <p className="text-xs text-white/45" role="status">
-                Applying owner decision…
-              </p>
-            ) : null}
           </div>
         )}
 

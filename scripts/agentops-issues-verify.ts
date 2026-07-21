@@ -41,9 +41,24 @@ function verifyRoutesAndCopy(): void {
   mustInclude("src/app/system/agent-ops/issues/page.tsx", 'title="Issues"');
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "openHref");
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "foundLabel");
+  mustInclude("src/app/system/agent-ops/issues/page.tsx", 'openLabel="Open issue"');
+  mustInclude(
+    "src/app/system/agent-ops/issues/page.tsx",
+    "This is your Issues inbox. Open an issue to review the evidence",
+  );
+  mustInclude("src/app/system/agent-ops/issues/page.tsx", 'data-testid="agentops-issues-inbox-helper"');
+  // List page: browse + open only — no decision action wiring
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "onApprove");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "onDefer");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "onReject");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "onSecondary");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "Promote to issue");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "applyMonitoringDraftDecision");
+  mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "promoteMonitoringDraft");
   mustInclude("src/components/agentops/owner/AgentOpsFindingCard.tsx", "Reported by");
   mustInclude("src/components/agentops/owner/AgentOpsFindingCard.tsx", "openHref");
   mustInclude("src/components/agentops/owner/AgentOpsFindingCard.tsx", 'data-testid="agentops-issue-reported-by"');
+  mustInclude("src/components/agentops/owner/AgentOpsFindingCard.tsx", 'data-testid="agentops-open-issue"');
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Fix Issue Prompt");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "AgentOpsFindingChatCard");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "saveMonitoringDraftFixPrompt");
@@ -51,6 +66,13 @@ function verifyRoutesAndCopy(): void {
     "src/app/system/agent-ops/issues/[issueCode]/page.tsx",
     "Approving does not change code",
   );
+  // Detail page keeps full decision workflow
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Approve"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Defer"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Reject"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Promote to issue"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Needs more info");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Mark duplicate");
 }
 
 function verifyAuthHardening(): void {
@@ -222,6 +244,10 @@ function main(): void {
         "draft_get_by_id",
         "fix_prompt_save",
         "open_href",
+        "list_open_only",
+        "list_no_decision_actions",
+        "detail_keeps_decision_actions",
+        "inbox_helper_copy",
         "noise_filter",
         "promotion_evidence",
         "function_count_safe",

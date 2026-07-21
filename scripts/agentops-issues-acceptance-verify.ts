@@ -1,5 +1,5 @@
 /**
- * Phase E-A3 — static Issues workflow acceptance verify.
+ * Phase E-A3/E-A4 — static Issues workflow acceptance verify.
  * Usage: npm run agentops:issues-acceptance-verify
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -42,13 +42,14 @@ function main(): void {
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "Show likely shell noise");
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "needs-more-info");
   mustInclude("src/app/system/agent-ops/issues/page.tsx", "duplicates");
+  mustInclude("src/app/system/agent-ops/issues/page.tsx", "onDraftsReady");
   mustInclude("src/components/agentops/owner/AgentOpsFindingCard.tsx", "Reported by");
   mustInclude("src/components/agentops/owner/AgentOpsFindingCard.tsx", 'data-testid="agentops-open-issue"');
 
   // Detail owner acceptance
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Fix Issue Prompt");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "AgentOpsFindingChatCard");
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "data-testid=\"agentops-issue-header-meta\"");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'data-testid="agentops-issue-header-meta"');
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Needs more info");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Mark duplicate");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Open signed link");
@@ -60,11 +61,25 @@ function main(): void {
     "src/app/system/agent-ops/issues/[issueCode]/page.tsx",
     "Approving does not change code",
   );
+  mustInclude("src/components/agentops/owner/AgentOpsPageHeader.tsx", 'data-testid="agentops-page-h1"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Loading issue…");
 
-  // Chat-to-prompt UI
+  // Chat-to-prompt — deterministic closure (E-A4)
   mustInclude("src/components/agentops/owner/AgentOpsFindingChatCard.tsx", "Use as Fix Issue Prompt");
+  mustInclude("src/components/agentops/owner/AgentOpsFindingChatCard.tsx", "Suggested Fix Prompt");
   mustInclude("src/lib/agentops/findings/findingChatModel.ts", "Improve Fix Prompt");
+  mustInclude("src/lib/agentops/findings/findingChatModel.ts", "buildDeterministicFixPromptSuggestion");
+  mustInclude("src/lib/agentops/findings/findingChatModel.ts", "resolvePromptRewriteProposal");
+  mustInclude("src/lib/agentops/findings/findingChatModel.ts", "deterministic_fallback");
+  mustInclude("src/lib/agentops/findings/findingChatModel.ts", "fixPromptSuggestion");
+  mustInclude("src/components/agentops/owner/useAgentOpsFindingChat.tsx", "resolvePromptRewriteProposal");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "saveMonitoringDraftFixPrompt");
+
+  // Overlay labels not hidden behind Deferred
+  mustInclude("src/lib/agentops/findings/findingsLifecycleModel.ts", 'needs_more_info: "Needs more info"');
+  mustInclude("src/lib/agentops/findings/findingsLifecycleModel.ts", 'duplicate: "Marked duplicate"');
+  mustInclude("src/lib/agentops/findings/draftOwnerLifecycle.ts", "needs_more_info");
+  mustInclude("src/lib/agentops/findings/draftOwnerLifecycle.ts", "marked_duplicate");
 
   // Owner decisions + auth
   mustInclude("api/agentops/_lib/monitoringRoutes.ts", "needs_more_info");
@@ -77,26 +92,17 @@ function main(): void {
   mustNotInclude("api/agentops/_lib/monitoringRoutes.ts", "autoFix: true");
   mustNotInclude("src/app/system/agent-ops/issues/page.tsx", "auto-promote");
 
-  // Promoted BQA-* runtime issues must resolve on Issues detail (not findings-only)
-  mustInclude(
-    "src/lib/agentops/findings/findingsDetailLoader.ts",
-    "loadPromotedRuntimeDetail",
-  );
-  mustInclude(
-    "src/lib/agentops/findings/findingsDetailLoader.ts",
-    "getProductIssueByCode",
-  );
-  mustInclude(
-    "src/lib/agentops/findings/findingsDetailLoader.ts",
-    "bridgedFromRuntime",
-  );
+  // Promoted BQA-* runtime issues must resolve on Issues detail
+  mustInclude("src/lib/agentops/findings/findingsDetailLoader.ts", "loadPromotedRuntimeDetail");
+  mustInclude("src/lib/agentops/findings/findingsDetailLoader.ts", "getProductIssueByCode");
+  mustInclude("src/lib/agentops/findings/findingsDetailLoader.ts", "bridgedFromRuntime");
 
   // Agent Detail complement — no lifecycle mutations there
   mustInclude("scripts/agentops-pre-issues-pages-verify.ts", "no_issues_approval_ui");
 
   // Reports present
-  if (!existsSync(join(REPO_ROOT, "qa-agent/reports/agentops-phase-e-a2-issue-review-polish.md"))) {
-    fail("Missing E-A2 report");
+  if (!existsSync(join(REPO_ROOT, "qa-agent/reports/agentops-phase-e-a3-issues-acceptance.md"))) {
+    fail("Missing E-A3 report");
   }
 
   if (failures.length > 0) {
@@ -113,15 +119,18 @@ function main(): void {
         "routes_reused",
         "list_owner_fields",
         "detail_owner_fields",
-        "chat_to_prompt_ui",
+        "chat_to_prompt_deterministic",
+        "use_as_fix_prompt_ui",
         "prompt_save",
+        "promoted_h1",
         "owner_decisions",
-        "needs_more_info",
-        "mark_duplicate",
+        "needs_more_info_label",
+        "marked_duplicate_label",
         "non_owner_auth_wiring",
         "no_findings_route",
         "no_auto_fix",
         "promoted_bqa_detail_bridge",
+        "drafts_first_paint",
       ],
     }),
   );

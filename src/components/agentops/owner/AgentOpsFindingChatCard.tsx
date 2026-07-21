@@ -67,9 +67,14 @@ function PromptRewriteProposalCard({
       data-proposal-state={uiState}
     >
       <h3 id={headingId} className="text-sm font-semibold text-cyan-100">
-        Proposed prompt rewrite
+        Suggested Fix Prompt
       </h3>
       <p className="mt-2 text-sm text-white/75">{proposal.explanation}</p>
+      {proposal.parseSource === "deterministic_fallback" ? (
+        <p className="mt-1 text-xs text-amber-200/80" data-testid="agentops-fix-prompt-fallback-note">
+          Built from issue fields (LLM structured rewrite unavailable).
+        </p>
+      ) : null}
 
       {proposal.safetyHits.length > 0 || proposal.safetyNotes.length > 0 ? (
         <div className="mt-3" role="status" aria-live="polite">
@@ -85,8 +90,11 @@ function PromptRewriteProposalCard({
       ) : null}
 
       <div className="mt-3">
-        <p className="text-xs text-white/45">Rewritten prompt</p>
-        <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-black/40 p-3 text-xs text-white/80">
+        <p className="text-xs text-white/45">Suggested prompt text</p>
+        <pre
+          className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded-lg bg-black/40 p-3 text-xs text-white/80"
+          data-testid="agentops-suggested-fix-prompt-text"
+        >
           {proposal.rewrittenPrompt}
         </pre>
       </div>

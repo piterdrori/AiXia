@@ -551,6 +551,13 @@ export default function AgentOpsFindingDetailPage() {
 
         {loading ? (
           <div className="space-y-3" aria-busy="true">
+            <AgentOpsPageHeader
+              title={
+                detail?.title ||
+                (params.issueCode ? decodeURIComponent(params.issueCode) : "Issue detail")
+              }
+              subtitle="Loading issue…"
+            />
             <p className="text-sm text-white/55" role="status">
               Loading finding…
             </p>

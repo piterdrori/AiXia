@@ -58,7 +58,7 @@ export const OWNER_FINDING_STATUS_LABEL: Record<OwnerFindingStatus, string> = {
   deferred: "Deferred",
   needs_more_info: "Needs more info",
   rejected: "Rejected",
-  duplicate: "Duplicate",
+  duplicate: "Marked duplicate",
   archived: "Archived",
   unknown: "Unknown",
 };

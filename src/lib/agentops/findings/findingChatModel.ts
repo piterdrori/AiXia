@@ -40,7 +40,7 @@ export const FINDING_CHAT_QUICK_QUESTIONS: ReadonlyArray<{ id: string; label: st
     id: "improve-prompt",
     label: "Improve Fix Prompt",
     message:
-      "Improve the Fix Issue Prompt for this finding. Return a structured prompt rewrite proposal the owner can review before saving.",
+      "Explain this issue and create a better Fix Issue Prompt. Return a structured prompt rewrite proposal the owner can review before saving (include rewritten_prompt or fixPromptSuggestion).",
   },
   {
     id: "verify",
@@ -117,8 +117,28 @@ export type PromptRewriteProposal = {
   safetyNotes: string[];
   validationSteps: string[];
   safetyHits: PromptSafetyHit[];
-  parseSource: "json_block" | "json_object" | "markdown_fenced";
+  parseSource:
+    | "json_block"
+    | "json_object"
+    | "markdown_fenced"
+    | "deterministic_fallback";
   rawExcerpt: string;
+};
+
+export type DeterministicFixPromptInput = {
+  title: string;
+  explanation?: string | null;
+  evidenceSummary?: string | null;
+  rawObservations?: string[];
+  artifactNotes?: string[];
+  agentSlug?: string | null;
+  reportingAgentName?: string | null;
+  foundAt?: string | null;
+  route?: string | null;
+  module?: string | null;
+  runId?: string | null;
+  severity?: string | null;
+  currentPrompt?: string | null;
 };
 
 export type PromptLineComparison = {
@@ -245,9 +265,115 @@ export function buildFindingChatContextPacket(input: FindingChatContextInput): F
 }
 
 export function detectPromptRewriteIntent(message: string): boolean {
-  return /\b(improve|rewrite|revise|update|better)\b.{0,40}\b(prompt|fix prompt|suggested fix)\b|\bprompt rewrite\b/i.test(
-    message,
+  const text = message?.trim() ?? "";
+  if (!text) return false;
+  return (
+    /\b(improve|rewrite|revise|update|better|create)\b.{0,80}\b(fix\s*issue\s*prompt|fix prompt|suggested fix|prompt rewrite)\b/i.test(
+      text,
+    ) ||
+    /\bImprove the Fix Issue Prompt\b/i.test(text) ||
+    /\bImprove Fix Prompt\b/i.test(text) ||
+    /\bprompt rewrite proposal\b/i.test(text) ||
+    /\bfixPromptSuggestion\b/i.test(text)
   );
+}
+
+/** Owner-ready Fix Issue Prompt built from issue fields (no LLM required). */
+export function buildDeterministicFixPromptSuggestion(
+  input: DeterministicFixPromptInput,
+): PromptRewriteProposal {
+  const title = input.title?.trim() || "Untitled issue";
+  const agent =
+    input.reportingAgentName?.trim() || input.agentSlug?.trim() || "Reporting agent";
+  const found = input.foundAt?.trim() || "—";
+  const routeModule = [input.route?.trim(), input.module?.trim()].filter(Boolean).join(" / ") || "—";
+  const runId = input.runId?.trim() || "—";
+  const severity = input.severity?.trim() || "—";
+  const explanation =
+    input.explanation?.trim() ||
+    "Owner-readable explanation was not recorded; investigate from evidence and route.";
+  const evidenceBits = [
+    input.evidenceSummary?.trim(),
+    ...(input.rawObservations ?? []).map((item) => item.trim()).filter(Boolean).slice(0, 6),
+    ...(input.artifactNotes ?? []).map((item) => item.trim()).filter(Boolean).slice(0, 4),
+  ].filter(Boolean);
+  const evidence =
+    evidenceBits.length > 0 ? evidenceBits.join("\n- ") : "No artifact links — text evidence only.";
+
+  const rewrittenPrompt = [
+    `Title:`,
+    `Fix AgentOps issue: ${title}`,
+    ``,
+    `Context:`,
+    `- Reported by: ${agent}`,
+    `- Found: ${found}`,
+    `- Route/module: ${routeModule}`,
+    `- Source run: ${runId}`,
+    `- Severity: ${severity}`,
+    ``,
+    `Issue in simple language:`,
+    explanation,
+    ``,
+    `Evidence:`,
+    `- ${evidence}`,
+    ``,
+    `Task:`,
+    `Investigate and fix this issue on staging only.`,
+    ``,
+    `Constraints:`,
+    `- Do not touch main.`,
+    `- Do not touch production.`,
+    `- Do not use --prod.`,
+    `- Do not create PRs.`,
+    `- Do not auto-deploy.`,
+    `- Do not auto-promote.`,
+    `- Do not modify unrelated files.`,
+    `- Keep owner-facing copy truthful.`,
+    ``,
+    `Expected output:`,
+    `- root cause`,
+    `- files changed`,
+    `- tests run`,
+    `- screenshots/evidence`,
+    `- final verdict`,
+  ].join("\n");
+
+  return {
+    explanation:
+      "Deterministic Fix Issue Prompt built from this issue’s fields (usable when the LLM does not return a structured rewrite).",
+    rewrittenPrompt,
+    changesMade: [
+      "Structured Cursor-ready template",
+      "Staging-only constraints",
+      "Evidence and reporting-agent context included",
+    ],
+    safetyNotes: [
+      "Staging only — no production, main, PR, or auto-deploy instructions.",
+      "Does not auto-save; owner must click Use as Fix Issue Prompt, then Save.",
+    ],
+    validationSteps: [
+      "Reproduce on the reported staging route",
+      "Confirm the fix on staging only",
+      "Capture evidence for owner review",
+    ],
+    safetyHits: inspectPromptSafety(rewrittenPrompt),
+    parseSource: "deterministic_fallback",
+    rawExcerpt: truncateForChatContext(input.currentPrompt ?? explanation, 400),
+  };
+}
+
+/**
+ * Prefer a parsed LLM proposal; when rewrite was requested and parse fails, use deterministic fallback.
+ */
+export function resolvePromptRewriteProposal(
+  agentReply: string | null | undefined,
+  fallbackInput: DeterministicFixPromptInput,
+  wantsRewrite: boolean,
+): PromptRewriteProposal | null {
+  const parsed = parsePromptRewriteProposal(agentReply ?? "");
+  if (parsed) return parsed;
+  if (!wantsRewrite) return null;
+  return buildDeterministicFixPromptSuggestion(fallbackInput);
 }
 
 function asStringArray(value: unknown): string[] {
@@ -266,6 +392,8 @@ function normalizeProposalObject(
   const rewritten =
     (typeof raw.rewritten_prompt === "string" && raw.rewritten_prompt) ||
     (typeof raw.rewrittenPrompt === "string" && raw.rewrittenPrompt) ||
+    (typeof raw.fixPromptSuggestion === "string" && raw.fixPromptSuggestion) ||
+    (typeof raw.fix_prompt_suggestion === "string" && raw.fix_prompt_suggestion) ||
     (typeof raw.prompt === "string" && raw.prompt) ||
     "";
   if (!rewritten.trim()) return null;
@@ -305,7 +433,7 @@ function normalizeProposalObject(
 
 /**
  * Parse a structured prompt rewrite from an agent reply.
- * On failure returns null — caller should keep the full reply as a normal message.
+ * On failure returns null — caller may attach a deterministic fallback when rewrite was requested.
  */
 export function parsePromptRewriteProposal(content: string): PromptRewriteProposal | null {
   const text = content?.trim() ?? "";
@@ -328,7 +456,9 @@ export function parsePromptRewriteProposal(content: string): PromptRewritePropos
     }
   }
 
-  const objectMatch = text.match(/\{[\s\S]*"rewritten_prompt"[\s\S]*\}/);
+  const objectMatch = text.match(
+    /\{[\s\S]*"(?:rewritten_prompt|rewrittenPrompt|fixPromptSuggestion|fix_prompt_suggestion)"[\s\S]*\}/,
+  );
   if (objectMatch?.[0]) {
     try {
       const parsed = JSON.parse(objectMatch[0]) as unknown;
@@ -340,7 +470,7 @@ export function parsePromptRewriteProposal(content: string): PromptRewritePropos
         );
       }
     } catch {
-      return null;
+      // fall through
     }
   }
 
@@ -387,12 +517,14 @@ export function promptRewriteSystemInstructions(): string {
     "{",
     '  "explanation": "...",',
     '  "rewritten_prompt": "...",',
+    '  "fixPromptSuggestion": "...",',
     '  "changes_made": ["..."],',
     '  "safety_notes": ["..."],',
     '  "validation_steps": ["..."]',
     "}",
     "```",
-    "Keep rewritten_prompt staging-only. Never instruct production deploy, main-branch edits, auto-fix, auto-PR, or secret exposure.",
+    "Either rewritten_prompt or fixPromptSuggestion must contain the full improved Fix Issue Prompt.",
+    "Keep the prompt staging-only. Never instruct production deploy, main-branch edits, auto-fix, auto-PR, or secret exposure.",
     "Normal chat answers (not prompt rewrites) should be plain text — do not force the JSON contract.",
   ].join("\n");
 }

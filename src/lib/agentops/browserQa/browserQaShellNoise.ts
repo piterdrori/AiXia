@@ -7,7 +7,10 @@
 const AGENTOPS_ROUTE_RE = /\/system\/agent-ops(?:\/|$)/i;
 const SHELL_PROBE_PATH_RE =
   /\/(calendar_events|calendar\/events|tasks|api\/tasks|api\/calendar)(?:\?|\s|—|-|$|\/)/i;
-const ABORT_RE = /abort|net::err_aborted|cancelled|canceled/i;
+/** Non-AgentOps shell badge/prefetch endpoints that abort during tab settle. */
+const SHELL_SETTLE_PATH_RE =
+  /\/(notifications|notification|voice\/settings|voice-settings|calendar\/badge)(?:\?|\s|—|-|$|\/)/i;
+const ABORT_RE = /abort|net::err_aborted|cancelled|canceled|failed to fetch/i;
 
 export type ShellNoiseClassification = {
   isShellNoise: boolean;
@@ -53,6 +56,18 @@ export function classifyBrowserQaShellNoise(input: {
       isShellNoise: true,
       reason:
         "Known app-shell calendar/tasks probe abort on AgentOps route — filtered from Browser QA findings.",
+    };
+  }
+  // Shell badge/prefetch settle noise only — never filter /api/agentops/* product APIs.
+  if (
+    SHELL_SETTLE_PATH_RE.test(line) &&
+    isAbort &&
+    !/\/api\/agentops\//i.test(line)
+  ) {
+    return {
+      isShellNoise: true,
+      reason:
+        "Known app-shell notification/voice/calendar-badge settle noise on AgentOps route — not an Issues product failure.",
     };
   }
   return { isShellNoise: false, reason: null };

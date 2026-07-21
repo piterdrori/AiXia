@@ -90,8 +90,8 @@ async function ownerAuthHeaders(): Promise<HeadersInit> {
   let token = (await supabase.auth.getSession()).data.session?.access_token ?? null;
   if (!token) {
     // Owner gate can resolve slightly before the session token is readable.
-    for (let attempt = 0; attempt < 5 && !token; attempt += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+    for (let attempt = 0; attempt < 8 && !token; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
       token = (await supabase.auth.getSession()).data.session?.access_token ?? null;
     }
   }
@@ -273,31 +273,48 @@ async function withCatalogTimeout<T>(
   }
 }
 
-export async function loadFindingsOwnerCatalog(): Promise<FindingsCatalogLoadResult> {
-  // Drafts API and promoted findings are independent. Cap each so a hung Supabase
-  // findings read cannot leave the Issues list on "Loading issues…" forever.
-  const [draftsResult, findingsResult] = await Promise.all([
-    withCatalogTimeout(fetchMonitoringDrafts(100), 25_000, () => ({
-      data: [] as MonitoringDraftApiRow[],
-      error: "Monitoring drafts timed out. Retry.",
-    })),
-    withCatalogTimeout(
-      listAgentOpsFindingsCatalog(200) as Promise<AgentOpsReadResult<AgentOpsFinding[]>>,
-      12_000,
-      () => ({
-        data: null,
-        error: "Promoted findings timed out. Drafts may still be available.",
-      }),
-    ),
-  ]);
+export type FindingsCatalogProgress = {
+  items: CanonicalFindingView[];
+  draftsError: string | null;
+  findingsPending: boolean;
+};
 
-  const mapped: CanonicalFindingView[] = [];
+/**
+ * Load Issues catalog. Drafts are awaited first so the list can paint quickly;
+ * promoted findings merge afterward (short timeout so they cannot block forever).
+ */
+export async function loadFindingsOwnerCatalog(options?: {
+  onDraftsReady?: (progress: FindingsCatalogProgress) => void;
+}): Promise<FindingsCatalogLoadResult> {
+  // Start findings in parallel, but do not wait on them before first paint.
+  const findingsPromise = withCatalogTimeout(
+    listAgentOpsFindingsCatalog(200) as Promise<AgentOpsReadResult<AgentOpsFinding[]>>,
+    6_000,
+    () => ({
+      data: null,
+      error: "Promoted findings timed out. Drafts may still be available.",
+    }),
+  );
 
+  const draftsResult = await withCatalogTimeout(fetchMonitoringDrafts(100), 18_000, () => ({
+    data: [] as MonitoringDraftApiRow[],
+    error: "Monitoring drafts timed out. Retry.",
+  }));
+
+  const draftMapped: CanonicalFindingView[] = [];
   for (const draft of draftsResult.data) {
     const view = mapDraftToCanonical(draft);
-    if (view) mapped.push(view);
+    if (view) draftMapped.push(view);
   }
+  const draftItems = dedupeCanonicalFindings(draftMapped);
+  options?.onDraftsReady?.({
+    items: draftItems,
+    draftsError: draftsResult.error,
+    findingsPending: true,
+  });
 
+  const findingsResult = await findingsPromise;
+  const mapped = [...draftMapped];
   for (const finding of findingsResult.data ?? []) {
     const view = mapFindingToCanonical(finding);
     if (view) mapped.push(view);

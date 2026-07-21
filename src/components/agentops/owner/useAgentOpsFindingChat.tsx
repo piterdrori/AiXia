@@ -17,6 +17,8 @@ import {
   FINDING_CHAT_QUICK_QUESTIONS,
   FINDING_CHAT_SCOPE,
   parsePromptRewriteProposal,
+  resolvePromptRewriteProposal,
+  type DeterministicFixPromptInput,
   type FindingChatContextPacket,
   type PromptRewriteProposal,
 } from "@/lib/agentops/findings/findingChatModel";
@@ -68,7 +70,9 @@ function resolveProposalFromMessage(
           ? (raw.safetyHits as PromptRewriteProposal["safetyHits"])
           : [],
         parseSource:
-          raw.parseSource === "json_object" || raw.parseSource === "markdown_fenced"
+          raw.parseSource === "json_object" ||
+          raw.parseSource === "markdown_fenced" ||
+          raw.parseSource === "deterministic_fallback"
             ? raw.parseSource
             : "json_block",
         rawExcerpt: typeof raw.rawExcerpt === "string" ? raw.rawExcerpt : "",
@@ -79,6 +83,23 @@ function resolveProposalFromMessage(
     return parsePromptRewriteProposal(entry.content);
   }
   return null;
+}
+
+function buildFallbackPromptInput(detail: CanonicalFindingDetailView): DeterministicFixPromptInput {
+  return {
+    title: detail.title,
+    explanation: detail.explanationDisplay,
+    evidenceSummary: detail.evidenceSummary,
+    rawObservations: detail.rawObservations,
+    artifactNotes: detail.artifactNotes,
+    agentSlug: detail.agentSlug,
+    foundAt: detail.createdAt,
+    route: detail.route,
+    module: detail.module,
+    runId: detail.runId,
+    severity: detail.severity,
+    currentPrompt: detail.promptText,
+  };
 }
 
 function deriveProposalUiState(
@@ -241,7 +262,10 @@ export function useAgentOpsFindingChat(options: UseAgentOpsFindingChatOptions) {
           ? "risk_review"
           : "clarification";
 
-      let llmResult: Awaited<ReturnType<typeof runAgentOpsLocalLlmChat>>;
+      const fallbackInput = buildFallbackPromptInput(detail);
+
+      let llmResult: Awaited<ReturnType<typeof runAgentOpsLocalLlmChat>> | null = null;
+      let llmErrorMessage: string | null = null;
       try {
         llmResult = await runAgentOpsLocalLlmChat({
           chatScope: "issue",
@@ -285,55 +309,64 @@ export function useAgentOpsFindingChat(options: UseAgentOpsFindingChatOptions) {
           },
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const timedOut = /abort|timeout|timed out/i.test(msg);
-        setChatSubmitting(false);
-        setChatError(
-          timedOut
-            ? "The agent did not respond in time."
-            : msg || "The agent did not respond.",
-        );
-        setLastFailedMessage(message);
-        pendingOwnerContentRef.current = null;
-        return;
+        llmErrorMessage = err instanceof Error ? err.message : String(err);
+        if (!wantsRewrite) {
+          const timedOut = /abort|timeout|timed out/i.test(llmErrorMessage);
+          setChatSubmitting(false);
+          setChatError(
+            timedOut
+              ? "The agent did not respond in time."
+              : llmErrorMessage || "The agent did not respond.",
+          );
+          setLastFailedMessage(message);
+          pendingOwnerContentRef.current = null;
+          return;
+        }
       }
 
-      const timedOut =
-        llmResult.blockers.some((item) => /abort|timeout|timed out/i.test(item)) ||
-        /abort|timeout|timed out/i.test(llmResult.limitations ?? "");
+      const timedOut = Boolean(
+        (llmResult &&
+          (llmResult.blockers.some((item) => /abort|timeout|timed out/i.test(item)) ||
+            /abort|timeout|timed out/i.test(llmResult.limitations ?? ""))) ||
+          (llmErrorMessage && /abort|timeout|timed out/i.test(llmErrorMessage)),
+      );
 
       const agentReply =
-        llmResult.response?.trim() ||
-        (llmResult.shouldFallbackToMock
-          ? `${identity.displayName}: I could not reach the staging LLM just now. Ask again shortly.`
-          : null);
+        llmResult?.response?.trim() ||
+        (wantsRewrite
+          ? `${identity.displayName}: Staging LLM was unavailable or did not return a structured rewrite. A deterministic Fix Issue Prompt suggestion is ready below for your review.`
+          : llmResult?.shouldFallbackToMock
+            ? `${identity.displayName}: I could not reach the staging LLM just now. Ask again shortly.`
+            : null);
 
       if (!agentReply) {
         setChatSubmitting(false);
         setChatError(
           timedOut
             ? "The agent did not respond in time."
-            : llmResult.blockers[0] ?? "The agent did not respond.",
+            : llmResult?.blockers[0] ?? llmErrorMessage ?? "The agent did not respond.",
         );
         setLastFailedMessage(message);
         pendingOwnerContentRef.current = null;
         return;
       }
 
-      const proposal = parsePromptRewriteProposal(agentReply);
+      const proposal = resolvePromptRewriteProposal(agentReply, fallbackInput, wantsRewrite);
       const displayContent =
         proposal != null
-          ? proposal.explanation || "Proposed a rewritten suggested fix prompt."
+          ? proposal.parseSource === "deterministic_fallback"
+            ? proposal.explanation
+            : proposal.explanation || "Proposed a rewritten suggested fix prompt."
           : agentReply;
 
       await recordAgentOpsAgentChatMessage({
         agentId: identity.agentId,
         sender: "agent",
         content: displayContent,
-        source: llmResult.localLlmCalled ? "local_llm_runtime" : "mock_response_layer",
+        source: llmResult?.localLlmCalled ? "local_llm_runtime" : "mock_response_layer",
         metadata: {
           ...roomMeta,
-          requestId: llmResult.requestId,
+          requestId: llmResult?.requestId ?? null,
           fullAgentReply: agentReply,
           promptRewriteProposal: proposal
             ? {
@@ -353,21 +386,32 @@ export function useAgentOpsFindingChat(options: UseAgentOpsFindingChatOptions) {
       setChatSubmitting(false);
       pendingOwnerContentRef.current = null;
 
-      if (timedOut) {
+      if (timedOut && !wantsRewrite) {
         setChatError("The agent did not respond in time.");
         setLastFailedMessage(message);
-      } else if (!llmResult.localLlmCalled) {
+      } else if (llmResult && !llmResult.localLlmCalled && !wantsRewrite) {
         setChatError(
           llmResult.blockers[0] ??
             llmResult.limitations ??
             "Agent LLM unavailable — a fallback reply may have been recorded.",
         );
+      } else if (wantsRewrite && proposal?.parseSource === "deterministic_fallback") {
+        setChatError(null);
+        setChatFeedback(
+          "Suggested Fix Prompt ready (deterministic fallback). Click Use as Fix Issue Prompt, then Save.",
+        );
+      } else {
+        setChatFeedback(
+          llmResult?.localLlmCalled
+            ? `${identity.displayName} replied about this finding.`
+            : "Message sent — fallback reply recorded (LLM unavailable).",
+        );
       }
-      setChatFeedback(
-        llmResult.localLlmCalled
-          ? `${identity.displayName} replied about this finding.`
-          : "Message sent — fallback reply recorded (LLM unavailable).",
-      );
+      if (wantsRewrite && proposal && proposal.parseSource !== "deterministic_fallback") {
+        setChatFeedback(
+          "Suggested Fix Prompt ready. Click Use as Fix Issue Prompt, then Save when you are ready.",
+        );
+      }
       await loadData({ silent: true });
     },
     [chatSubmitting, contextPacket, detail, identity, loadData, selectedLlmModel],

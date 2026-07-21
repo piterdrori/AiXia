@@ -70,11 +70,21 @@ async function waitForOwnerSurfaceReady(timeoutMs = 90_000) {
   await page.waitForTimeout(1200);
 }
 
-await page.goto(`${base}/system/agent-ops/issues`, {
+// Include shell-noise drafts so the list is not empty when the queue is mostly noise.
+await page.goto(`${base}/system/agent-ops/issues?showNoise=1`, {
   waitUntil: "domcontentloaded",
   timeout: 90_000,
 });
 await waitForOwnerSurfaceReady(90_000);
+await page
+  .waitForFunction(
+    () =>
+      document.querySelectorAll('a[data-testid="agentops-open-issue"]').length > 0 ||
+      /No issues are waiting|No issues are available/i.test(document.body.innerText),
+    { timeout: 60_000 },
+  )
+  .catch(() => null);
+await page.waitForTimeout(800);
 await page.screenshot({ path: path.join(outDir, "issues-list-1440.png") });
 
 const list = await page.evaluate(() => {

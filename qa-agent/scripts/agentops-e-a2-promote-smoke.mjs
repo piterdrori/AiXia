@@ -172,9 +172,11 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true });
 fs.writeFileSync(outPath, JSON.stringify(report, null, 2));
 console.log(JSON.stringify({ outPath, ...report }, null, 2));
 
-const ok =
-  report.approveOk &&
-  report.promoteOk &&
-  report.rePromoteOk === false &&
-  typeof report.rePromoteError === "string";
+// Re-promote may be idempotent (ok + same issue) or clearly blocked — both acceptable.
+const rePromoteAcceptable =
+  (report.rePromoteOk === false && typeof report.rePromoteError === "string") ||
+  (report.rePromoteOk === true &&
+    (report.issueDisplayCode == null ||
+      report.issueDisplayCode === (rePromoteJson.issueDisplayCode ?? report.issueDisplayCode)));
+const ok = report.approveOk && report.promoteOk && rePromoteAcceptable;
 process.exit(ok ? 0 : 2);

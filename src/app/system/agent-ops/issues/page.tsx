@@ -149,7 +149,6 @@ export default function AgentOpsIssuesPage() {
       return;
     }
     setLoading(true);
-    setActionFeedback(null);
     const result = await loadFindingsOwnerCatalog({
       onDraftsReady: (progress) => {
         // Paint drafts as soon as ready — do not wait on promoted findings.

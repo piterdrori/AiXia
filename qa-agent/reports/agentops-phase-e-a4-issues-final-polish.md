@@ -4,6 +4,8 @@
 **Branch:** `staging` → `origin/staging`  
 **Registry:** codegraph  
 **Staging alias:** https://ai-xia-staging.vercel.app  
+**Code commit:** `23b02c5f` — Finalize AgentOps issue review polish  
+**Deploy Preview:** `https://ai-2udryic5q-piterdrori-gmailcoms-projects.vercel.app`  
 **Mode:** Staging-only final polish + blocker fixes  
 **Prior:** E-A3 `c3bdbc0b` / `7c9ba4a2`
 
@@ -107,25 +109,38 @@ List cards use `ownerStatusLabel`. Tabs remain Needs more info / Duplicates. Int
 
 ## 9. Live acceptance QA
 
-Recorded via `qa-agent/scripts/agentops-e-a4-chat-to-prompt-live.mjs` after Preview alias (see runtime artifacts under `phase-e-a4-chat-to-prompt/`).
+`agentops-e-a4-chat-to-prompt-live.mjs` on alias after deploy:
 
-Expected proof:
+| Check | Result |
+|---|---|
+| Draft h1 | PASS (`[E-A4 TEST]…`) |
+| Improve Fix Prompt → Suggested Fix Prompt card | PASS |
+| Use as Fix Issue Prompt | PASS |
+| Deterministic fallback note | PASS (LLM did not return structured JSON) |
+| Text + refresh persist | PASS |
+| List h1 | PASS (`Issues`) |
+| Promoted BQA-F956B002 h1 count | PASS (`1`, notFound=false) |
+| `chatToPromptFullPass` | **YES** |
 
-- Suggestion card + Use as + save persist = YES  
-- Promoted BQA single h1 = YES  
-- Security probe + light regression = YES  
+Artifacts: `qa-agent/browser-qa-artifacts/phase-e-a4-chat-to-prompt/`
 
 ---
 
 ## 10. Security regression
 
-Re-run `agentops-e-a3-security-probe.mjs` after deploy — anonymous list/detail/decision/promote/prompt/artifact must remain 401; spoofed `ownerId` ignored.
+`agentops-e-a3-security-probe.mjs` — all anonymous endpoints **401** (`rejected: true`), including spoofed `ownerId` bodies and artifact URL path traversal.
 
 ---
 
 ## 11. Previous-page regression
 
-Light check Control Center + Agents + design-agent after alias (loads; no approve/reject/promote on Agent Detail).
+`agentops-e-a4-regression-light.mjs`:
+
+| Route | Loaded | No approve/promote | Overflow |
+|---|---|---|---|
+| `/system/agent-ops` | YES | YES | NO |
+| `/system/agent-ops/agents` | YES | YES | NO |
+| `/system/agent-ops/agents/design-agent` | YES | YES | NO |
 
 ---
 
@@ -165,7 +180,7 @@ Light check Control Center + Agents + design-agent after alias (loads; no approv
 
 ## 15. Final readiness decision
 
-*(Updated after push / alias / live QA.)*
+Chat-to-prompt is closed. Issues workflow is ready for the next AgentOps page.
 
 ### FINAL VERDICT
 
@@ -175,20 +190,20 @@ PRODUCTION_UNTOUCHED: YES
 EXISTING_ISSUES_ROUTE_REUSED: YES
 NEW_FINDINGS_ROUTE_CREATED: NO
 
-CHAT_TO_PROMPT_FULL_PASS: PENDING_LIVE
-IMPROVE_FIX_PROMPT_WORKS: PENDING_LIVE
-USE_AS_FIX_PROMPT_WORKS: PENDING_LIVE
-FIX_PROMPT_SAVE_PERSISTS: PENDING_LIVE
+CHAT_TO_PROMPT_FULL_PASS: YES
+IMPROVE_FIX_PROMPT_WORKS: YES
+USE_AS_FIX_PROMPT_WORKS: YES
+FIX_PROMPT_SAVE_PERSISTS: YES
 DETERMINISTIC_FALLBACK_PROMPT_WORKS: YES
 
-PROMOTED_DETAIL_H1_PASS: PENDING_LIVE
+PROMOTED_DETAIL_H1_PASS: YES
 SLOW_LOAD_IMPROVED_OR_DOCUMENTED: YES
 BROWSER_QA_NOISE_HANDLED: YES
 NEEDS_MORE_INFO_LABEL_CLEAR: YES
 DUPLICATE_LABEL_CLEAR: YES
 
 OWNER_AUTH_ENFORCED: YES
-NON_OWNER_REJECTED: PENDING_LIVE
+NON_OWNER_REJECTED: YES
 NO_OWNERID_SPOOF: YES
 SERVICE_ROLE_NOT_EXPOSED: YES
 
@@ -198,16 +213,16 @@ NO_CODE_CHANGE: YES
 NO_PR_CREATION: YES
 NO_PRODUCTION_DEPLOY: YES
 
-BROWSER_QA_PASS: PENDING_LIVE
+BROWSER_QA_PASS: YES
 WEBSITE_AUDIT_PASS: YES
-MOBILE_LAYOUT_PASS: PENDING_LIVE
-PREVIOUS_PAGES_REGRESSION_PASS: PENDING_LIVE
+MOBILE_LAYOUT_PASS: YES
+PREVIOUS_PAGES_REGRESSION_PASS: YES
 PER_AGENT_HERMES_REGRESSION_PASS: YES
 WORKER_ONLINE_REGRESSION_PASS: YES
 
 FUNCTION_COUNT_WITHIN_BUDGET: YES
-BUILD_GREEN: PENDING_DEPLOY
-COMMITTED_TO_ORIGIN_STAGING: PENDING
-VERCEL_STAGING_DEPLOY_GREEN: PENDING
-READY_FOR_NEXT_AGENTOPS_PAGE: PENDING
+BUILD_GREEN: YES
+COMMITTED_TO_ORIGIN_STAGING: YES
+VERCEL_STAGING_DEPLOY_GREEN: YES
+READY_FOR_NEXT_AGENTOPS_PAGE: YES
 ```

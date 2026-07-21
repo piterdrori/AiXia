@@ -1,11 +1,10 @@
 /**
- * E-A3 — limited Browser QA via staging worker (not Vercel Playwright).
- * Routes: Issues list + known draft detail (+ optional promoted).
+ * E-A3 — limited Browser QA via remote staging worker (not Vercel Playwright).
+ * Queues selected_routes runs; does not require a local worker process.
  */
 import fs from "fs";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
-import { spawnSync } from "node:child_process";
 import { loadAgentOpsOwnerEnv } from "./load-agentops-owner-env.mjs";
 
 function loadEnvFile(filePath) {
@@ -30,25 +29,13 @@ loadEnvFile(".env.local");
 loadEnvFile("qa-agent/browser-qa/.env.owner.local");
 loadAgentOpsOwnerEnv();
 
-process.env.AGENTOPS_ENVIRONMENT = "staging";
-process.env.AGENTOPS_PRODUCTION_BLOCKED = "true";
-process.env.AGENTOPS_RUNTIME_ALLOW_REMOTE_STAGING = "true";
-process.env.STAGING_APP_URL =
-  process.env.STAGING_APP_URL || "https://ai-xia-staging.vercel.app";
-if (!process.env.STAGING_SUPABASE_URL) {
-  process.env.STAGING_SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-}
-if (!process.env.STAGING_SUPABASE_SERVICE_ROLE_KEY) {
-  process.env.STAGING_SUPABASE_SERVICE_ROLE_KEY =
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-}
-
 const base = process.env.AGENTOPS_QA_BASE_URL || "https://ai-xia-staging.vercel.app";
 const email = process.env.AGENTOPS_QA_OWNER_EMAIL?.trim();
 const password = process.env.AGENTOPS_QA_OWNER_PASSWORD;
-const url = process.env.STAGING_SUPABASE_URL;
+const url = process.env.STAGING_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const anon = process.env.VITE_SUPABASE_ANON_KEY || process.env.STAGING_SUPABASE_ANON_KEY;
-const service = process.env.STAGING_SUPABASE_SERVICE_ROLE_KEY;
+const service =
+  process.env.STAGING_SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!email || !password || !url || !anon || !service) {
   console.error("MISSING_ENV");
@@ -57,23 +44,6 @@ if (!email || !password || !url || !anon || !service) {
 
 const client = createClient(url, service, { auth: { persistSession: false } });
 const owner = createClient(url, anon, { auth: { persistSession: false } });
-
-function runWorker(args) {
-  const result = spawnSync(
-    process.execPath,
-    ["scripts/agentops-staging-manual-run-worker.mjs", ...args],
-    { cwd: process.cwd(), env: process.env, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 },
-  );
-  if (result.status !== 0) {
-    console.error(result.stdout);
-    console.error(result.stderr);
-    throw new Error(`worker failed: ${args.join(" ")}`);
-  }
-  const stdout = (result.stdout || "").trim();
-  const jsonStart = stdout.indexOf("{");
-  if (jsonStart < 0) throw new Error("worker produced no JSON");
-  return JSON.parse(stdout.slice(jsonStart));
-}
 
 async function token() {
   const { data, error } = await owner.auth.signInWithPassword({ email, password });
@@ -102,15 +72,13 @@ const routes = [
   process.env.AGENTOPS_E_A3_PROMOTED_ROUTE || "/system/agent-ops/issues/BQA-F956B002",
 ];
 
-const hb = runWorker(["heartbeat"]);
 const capRes = await fetch(`${base}/api/agentops/monitoring/manual-run/capability`);
 const cap = await capRes.json();
 if (!cap.capability?.workerConnected || !cap.capability?.browserQa?.available) {
   console.error(
     JSON.stringify({
       ok: false,
-      blocker: "Browser QA worker not available",
-      heartbeat: hb.health ?? hb,
+      blocker: "Remote Browser QA worker not available",
       capability: cap.capability ?? cap,
     }),
   );
@@ -139,9 +107,6 @@ for (const route of routes) {
   });
   const accept = await acceptRes.json();
   const runId = accept.runId;
-  if (runId) {
-    runWorker(["browser-qa-once"]);
-  }
   const terminal = runId ? await wait(runId) : null;
   results.push({
     route,
@@ -162,7 +127,7 @@ for (const route of routes) {
 const out = {
   at: new Date().toISOString(),
   base,
-  workerOnline: true,
+  workerOnline: Boolean(cap.capability?.workerConnected),
   ok: results.every((r) =>
     ["completed", "failed"].includes(String(r.terminalStatus || "").toLowerCase()),
   ),

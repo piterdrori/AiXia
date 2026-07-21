@@ -4,6 +4,8 @@
 **Branch:** `staging` → `origin/staging`  
 **Registry:** codegraph  
 **Staging alias:** https://ai-xia-staging.vercel.app  
+**Code commit:** `c3bdbc0b` — Accept AgentOps issue review workflow  
+**Deploy Preview:** `https://ai-1hre701te-piterdrori-gmailcoms-projects.vercel.app` (`dpl_Az1zz6aBMsZMKbnPc3eJ1r6wjt1a`)  
 **Mode:** Staging-only acceptance QA + blocker fixes only  
 **Prior:** E-A1 `0d49673d` · E-A2 `dfa5ffe7` / `b21b0bdb`
 
@@ -56,9 +58,9 @@ Filters/search covered by E-A2 static verify + UI presence (agent/status/severit
 | Link to reporting Agent Detail | PASS → `/system/agent-ops/agents/qa-agent` |
 | Mobile overflow | PASS |
 
-**Promoted (pre-fix):** `BQA-659157F4` / initial `BQA-F956B002` → not found (**blocker**).  
+**Promoted (pre-fix):** `BQA-659157F4` / `BQA-F956B002` → not found (**blocker**).  
 **Fix:** `loadPromotedRuntimeDetail` in `findingsDetailLoader.ts`.  
-**Post-deploy:** re-check `BQA-F956B002` (E-A3 promote smoke) and/or E-A2 codes.
+**Post-deploy smoke:** both `BQA-F956B002` and `BQA-659157F4` load with Reported by, Found, Fix Issue Prompt (`agentops-e-a3-promoted-detail-smoke.mjs`).
 
 ---
 
@@ -133,22 +135,30 @@ Owner auth still uses `assertOwnerFromRequest` (session + `agentops_is_owner`). 
 
 ## 9. Browser QA results
 
-Owner Playwright acceptance live (local Chromium → staging URL) used for workflow proof.
+Owner Playwright acceptance live (local Chromium → staging URL) used for workflow proof — list/detail/chat/decisions/promote/regression.
 
-Limited **staging worker** Browser QA queued via `agentops-e-a3-browser-qa-limited.mjs` (not Vercel Playwright). Results recorded under `qa-agent/reports/runtime/phase-e-a3-browser-qa-limited-*.json` when worker completes.
+Limited **remote staging worker** Browser QA via `agentops-e-a3-browser-qa-limited.mjs` (not Vercel Playwright). Runtime: `phase-e-a3-browser-qa-limited-1784621210353.json` — all three routes `completed`.
 
-Console during owner live run included approved-style shell noise (calendar/tasks) plus one transient `drafts?status=pending` 401 during settle — not treated as owner-auth bypass.
+| Route | Worker notes (non-blocking) |
+|---|---|
+| Issues list | low disabled button; medium failed_requests (1) — likely shell/auth settle |
+| Known draft | low disabled button |
+| BQA-F956B002 | medium missing_h1; low disabled button — E-A4 polish |
+
+Owner Playwright workflow QA remains the acceptance proof. Console shell noise (calendar/tasks) + transient list 401 during settle documented, not auth bypass.
 
 ---
 
 ## 10. Website audit results
 
-Limited website audit (`agentops-e-a0-website-audit-limited.mjs`) for:
+Limited website audit completed (`phase-e-a0-website-audit-limited-1784620584778.json`):
 
-- `/system/agent-ops/issues`
-- `/system/agent-ops/issues/draft-21109c88-4ca6-4afa-9546-f7db66f8bc13`
+| Route | Status | Notes |
+|---|---|---|
+| `/system/agent-ops/issues` | completed | Slow load ~6.9s (low) |
+| draft-21109c88-… | completed | Slow load ~6.6s (low) |
 
-Runtime JSON under `qa-agent/reports/runtime/phase-e-a*-website-audit*`. No full-site scan.
+No broken-structure blockers. No full-site scan.
 
 ---
 
@@ -181,7 +191,8 @@ Static verifies: pre-issues, agent-detail-final, hermes-memory, manual-run brows
 - Chat → “Use as Fix Issue Prompt” not always emitted → treat full chat-to-prompt as PARTIAL until LLM rewrite proposal is reliable.
 - DB statuses still lack first-class `needs_more_info` / `duplicate` (overlays on `deferred`).
 - Transient AgentOps API 401 during first list settle may still flash once after login (session race) — monitor, not a spoof hole.
-- Worker Browser QA / website audit depend on staging worker online; document runtime JSON if delayed.
+- Promoted runtime detail may lack a primary `h1` (worker medium finding) — align heading with draft detail in polish.
+- Issues list slow-load (~6–7s) and occasional failed_requests noise from Browser QA — performance/noise polish, not workflow blockers.
 
 ---
 
@@ -206,7 +217,7 @@ Build gate: git-connected Vercel Preview (local dirty WIP avoided).
 
 ## 15. Final readiness decision
 
-Issues workflow is owner-acceptable on staging after the promoted-detail bridge fix. Ready for the next AgentOps page once Preview is aliased and post-deploy BQA detail smoke confirms.
+Issues workflow is owner-acceptable on staging. Promoted BQA detail blocker fixed and verified on alias. Ready for the next AgentOps page.
 
 ### FINAL VERDICT
 
@@ -250,7 +261,7 @@ NO_PR_CREATION: YES
 NO_PRODUCTION_DEPLOY: YES
 
 BROWSER_QA_PASS: YES
-WEBSITE_AUDIT_PASS: PENDING_WORKER
+WEBSITE_AUDIT_PASS: YES
 MOBILE_LAYOUT_PASS: YES
 PREVIOUS_PAGES_REGRESSION_PASS: YES
 PER_AGENT_HERMES_REGRESSION_PASS: YES
@@ -258,9 +269,7 @@ WORKER_ONLINE_REGRESSION_PASS: YES
 
 FUNCTION_COUNT_WITHIN_BUDGET: YES
 BUILD_GREEN: YES
-COMMITTED_TO_ORIGIN_STAGING: PENDING
-VERCEL_STAGING_DEPLOY_GREEN: PENDING
-READY_FOR_NEXT_AGENTOPS_PAGE: PENDING_DEPLOY
+COMMITTED_TO_ORIGIN_STAGING: YES
+VERCEL_STAGING_DEPLOY_GREEN: YES
+READY_FOR_NEXT_AGENTOPS_PAGE: YES
 ```
-
-*(Update PENDING_* after push / Preview alias / post-deploy BQA detail smoke.)*

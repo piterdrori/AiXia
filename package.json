@@ -38,6 +38,7 @@
     "agentops:agent-detail-final-verify": "tsx scripts/agentops-agent-detail-final-verify.ts",
     "agentops:agent-detail-memory-hermes-verify": "tsx scripts/agentops-agent-detail-memory-hermes-verify.ts",
     "agentops:agent-detail-polish-verify": "tsx scripts/agentops-agent-detail-polish-verify.ts",
+    "agentops:agent-detail-online-verify": "tsx scripts/agentops-agent-detail-online-verify.ts",
     "agentops:manual-run-worker:once": "node scripts/agentops-staging-manual-run-worker.mjs once",
     "agentops:manual-run-worker:heartbeat": "node scripts/agentops-staging-manual-run-worker.mjs heartbeat",
     "agentops:manual-run-worker:claim-test": "node scripts/agentops-staging-manual-run-worker.mjs claim-test",

@@ -38,13 +38,17 @@ export type AgentHermesConnectionLabel =
 export type FleetHermesTransportLabel = "Available" | "Unavailable" | "Unknown";
 
 const DIAGNOSTIC_SOURCE_RE =
-  /marker|diagnostic|scan|cycle|thread|cross[-_]?agent|chat[-_]?marker|initializer|heartbeat|simulation/i;
+  /marker|diagnostic|scan|cycle|thread|cross[-_]?agent|chat[-_]?marker|initializer|heartbeat|simulation|conversation|user[_-]?message|prompt|test[_-]?message/i;
 
 const DIAGNOSTIC_TEXT_RE =
-  /thread[-_]?marker|cross[-_]?agent marker|cycle scanned|scan marker|scheduled_cycle|work cycle|browser qa simulation|activation log|initializer returned|chat marker|diagnostic/i;
+  /thread[-_]?marker|cross[-_]?agent marker|cycle scanned|scan marker|scheduled_cycle|work cycle|browser qa simulation|activation log|initializer returned|chat marker|diagnostic|scan\/test|test marker/i;
 
+/** Starts-with + anywhere prompt/conversation markers (owner Runtime list noise). */
 const PROMPT_LIKE_RE =
-  /^(please |can you |could you |i need |help me |review |check |look at |audit |run |test )/i;
+  /^(please |can you |could you |i need |help me |review |check |look at |audit |run |test |inspect |remember |hello[, ]|hi[, ]|hey[, ]|tell me |describe |what is broken)/i;
+
+const PROMPT_LIKE_ANYWHERE_RE =
+  /\b(inspect this page|tell me:\s*what is broken|remember this( test)?( rule)?|hello,\s*describe|describe your role|localhost(:\d+)?\/|127\.0\.0\.1|internal url|user prompt|test prompt|conversation message|scan\/test|cross[-_]?agent|thread[-_]?marker)\b/i;
 
 /** Preview text from a runtime memory content payload. */
 export function runtimeMemoryPreview(
@@ -73,11 +77,39 @@ export function isPromptLikeRuntimeMemory(row: AgentOpsRuntimeMemoryRow): boolea
   const preview = runtimeMemoryPreview(row.content).trim();
   if (!preview) return false;
   if (PROMPT_LIKE_RE.test(preview)) return true;
+  if (PROMPT_LIKE_ANYWHERE_RE.test(preview)) return true;
+  if (preview.length > 120 && /\?\s*$/.test(preview) && /\b(page|broken|role|remember|inspect|describe)\b/i.test(preview)) {
+    return true;
+  }
   if (preview.length > 220 && /\?\s*$/.test(preview)) return true;
   if (/^user[:\s]/i.test(preview) || /^human[:\s]/i.test(preview)) return true;
+  if (/^assistant[:\s]/i.test(preview) || /^system[:\s]/i.test(preview)) return true;
   const source = String(row.source ?? "").toLowerCase();
-  if (source.includes("chat") || source.includes("prompt") || source.includes("user_message")) {
+  if (
+    source.includes("chat") ||
+    source.includes("prompt") ||
+    source.includes("user_message") ||
+    source.includes("conversation") ||
+    source.includes("test_message") ||
+    source.includes("thread")
+  ) {
     return true;
+  }
+  if (typeof row.content === "object" && row.content) {
+    const record = row.content as Record<string, unknown>;
+    const role = typeof record.role === "string" ? record.role.toLowerCase() : "";
+    const kind = typeof record.kind === "string" ? record.kind.toLowerCase() : "";
+    const type = typeof record.type === "string" ? record.type.toLowerCase() : "";
+    if (role === "user" || role === "human" || role === "assistant") return true;
+    if (
+      kind.includes("prompt") ||
+      kind.includes("message") ||
+      kind.includes("conversation") ||
+      type.includes("prompt") ||
+      type.includes("chat")
+    ) {
+      return true;
+    }
   }
   return false;
 }

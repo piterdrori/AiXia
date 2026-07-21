@@ -7,6 +7,7 @@ import { join } from "node:path";
 import {
   AGENT_DETAIL_MEMORY_COPY,
   isDiagnosticRuntimeMemory,
+  isPromptLikeRuntimeMemory,
   mapMemoryPartitionToStripStatus,
   MEMORY_LOAD_TIMEOUT_MS,
   partitionRuntimeMemory,
@@ -86,14 +87,42 @@ function verifyPartitionAndNoise(): void {
   if (!isDiagnosticRuntimeMemory(marker)) fail("thread-marker must be diagnostic");
   if (isDiagnosticRuntimeMemory(useful)) fail("useful owner fact must not be diagnostic");
 
-  const part = partitionRuntimeMemory([useful, noisy, marker], [
-    row({ id: "g1", scope: "global", content: "shared rule", approved: true }),
-  ]);
-  if (part.counts.runtimeTotal !== 3) fail("runtimeTotal must be 3");
-  if (part.counts.diagnostic !== 2) fail("diagnostic count must be 2");
+  const promptLikeSamples = [
+    row({
+      id: "p1",
+      content: "Inspect this page and tell me: what is broken on the Agent Detail layout?",
+      source: "chat",
+    }),
+    row({ id: "p2", content: "remember this test rule for staging QA", source: "system" }),
+    row({ id: "p3", content: "hello, describe your role as design-agent", source: "user_message" }),
+    row({
+      id: "p4",
+      content: "Open http://localhost:5173/system/agent-ops and scan/test the page",
+      source: "system",
+    }),
+  ];
+  for (const sample of promptLikeSamples) {
+    if (!isPromptLikeRuntimeMemory(sample)) {
+      fail(`prompt-like sample must match: ${String(sample.content).slice(0, 48)}`);
+    }
+    if (!isDiagnosticRuntimeMemory(sample)) {
+      fail(`prompt-like sample must be diagnostic: ${sample.id}`);
+    }
+  }
+  if (isPromptLikeRuntimeMemory(useful)) fail("useful owner fact must not be prompt-like");
+
+  const part = partitionRuntimeMemory(
+    [useful, noisy, marker, ...promptLikeSamples],
+    [row({ id: "g1", scope: "global", content: "shared rule", approved: true })],
+  );
+  if (part.counts.runtimeTotal !== 7) fail("runtimeTotal must be 7");
+  if (part.counts.diagnostic !== 6) fail("diagnostic count must be 6");
   if (part.counts.approvedUseful !== 1) fail("approvedUseful must be 1");
   if (part.counts.enabledRuntime !== 2) fail("enabledRuntime counts approved flag on all agent rows");
   if (part.approvedUsefulRows[0]?.id !== "u1") fail("approved useful must exclude diagnostics");
+  if (part.usefulAgentRows.some((r) => promptLikeSamples.some((p) => p.id === r.id))) {
+    fail("prompt-like records must not appear in usefulAgentRows (main Runtime list)");
+  }
   if (part.counts.globalApproved !== 1) fail("globalApproved must be 1");
 }
 

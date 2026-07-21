@@ -408,7 +408,7 @@ export async function proposeAgentMemoryImprovement(input: {
     agentId: input.agentSlug.trim().toLowerCase(),
     memoryType: "instruction",
     content,
-    source: "manual",
+    source: input.source === "owner" ? "piter" : "agentops",
     priority: "medium",
     activateImmediately: false,
     approvalStatus: "pending_approval",

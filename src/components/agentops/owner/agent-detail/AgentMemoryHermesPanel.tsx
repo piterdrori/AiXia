@@ -37,7 +37,6 @@ import {
   addAgentOpsAgentMemory,
   getAgentOpsAgentMemory,
   getAgentOpsHermesRuntimeHealth,
-  setAgentOpsAgentMemoryActive,
   updateAgentOpsAgentMemory,
   uploadAgentOpsChatAttachment,
   type AgentOpsManagedAgentMemoryItem,

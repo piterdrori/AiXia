@@ -50,40 +50,71 @@ const PROMPT_LIKE_RE =
 const PROMPT_LIKE_ANYWHERE_RE =
   /\b(inspect this page|tell me:\s*what is broken|remember this( test)?( rule)?|ask you to remember|operating rule did i ask|hello,\s*describe|describe your role|localhost(:\d+)?\/|127\.0\.0\.1|internal url|user prompt|test prompt|conversation message|scan\/test|cross[-_]?agent|thread[-_]?marker)\b/i;
 
+/** Collect string-ish fields from a content payload for classification + preview. */
+function contentStringCandidates(content: AgentOpsRuntimeMemoryRow["content"]): string[] {
+  if (content == null) return [];
+  if (typeof content === "string") return [content];
+  if (typeof content === "number" || typeof content === "boolean") return [String(content)];
+  if (typeof content === "object") {
+    const record = content as Record<string, unknown>;
+    const keys = [
+      "title",
+      "text",
+      "summary",
+      "message",
+      "prompt",
+      "body",
+      "content",
+      "question",
+      "input",
+      "kind",
+    ] as const;
+    const out: string[] = [];
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim()) out.push(value);
+    }
+    try {
+      out.push(JSON.stringify(content).slice(0, 400));
+    } catch {
+      /* ignore */
+    }
+    return out;
+  }
+  return [String(content)];
+}
+
 /** Preview text from a runtime memory content payload. */
 export function runtimeMemoryPreview(
   content: AgentOpsRuntimeMemoryRow["content"],
 ): string {
-  if (content == null) return "(empty)";
-  if (typeof content === "string") return content;
-  if (typeof content === "number" || typeof content === "boolean") return String(content);
-  if (typeof content === "object") {
-    const record = content as Record<string, unknown>;
-    if (typeof record.title === "string") return record.title;
-    if (typeof record.text === "string") return record.text;
-    if (typeof record.summary === "string") return record.summary;
-    if (typeof record.kind === "string") return record.kind;
-    try {
-      return JSON.stringify(content).slice(0, 160);
-    } catch {
-      return "(object)";
-    }
-  }
-  return String(content);
+  const candidates = contentStringCandidates(content);
+  return candidates[0]?.trim() || "(empty)";
 }
 
-/** Prompt-like / chat-user text — hide from owner-facing runtime list (Diagnostics). */
-export function isPromptLikeRuntimeMemory(row: AgentOpsRuntimeMemoryRow): boolean {
-  const preview = runtimeMemoryPreview(row.content).trim();
+function textLooksPromptLike(text: string): boolean {
+  const preview = text.trim();
   if (!preview) return false;
   if (PROMPT_LIKE_RE.test(preview)) return true;
   if (PROMPT_LIKE_ANYWHERE_RE.test(preview)) return true;
-  if (preview.length > 120 && /\?\s*$/.test(preview) && /\b(page|broken|role|remember|inspect|describe)\b/i.test(preview)) {
+  if (
+    preview.length > 120 &&
+    /\?\s*$/.test(preview) &&
+    /\b(page|broken|role|remember|inspect|describe)\b/i.test(preview)
+  ) {
     return true;
   }
   if (preview.length > 220 && /\?\s*$/.test(preview)) return true;
   if (/^user[:\s]/i.test(preview) || /^human[:\s]/i.test(preview)) return true;
   if (/^assistant[:\s]/i.test(preview) || /^system[:\s]/i.test(preview)) return true;
+  return false;
+}
+
+/** Prompt-like / chat-user text — hide from owner-facing runtime list (Diagnostics). */
+export function isPromptLikeRuntimeMemory(row: AgentOpsRuntimeMemoryRow): boolean {
+  for (const candidate of contentStringCandidates(row.content)) {
+    if (textLooksPromptLike(candidate)) return true;
+  }
   const source = String(row.source ?? "").toLowerCase();
   if (
     source.includes("chat") ||

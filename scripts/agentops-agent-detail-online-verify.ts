@@ -150,18 +150,26 @@ function verifyPromptLikeHiddenFromMainRuntime(): void {
     "hello, describe your role",
     "What operating rule did I ask you to remember?",
   ].map((content, i) => row({ id: `p${i}`, content, source: "chat" }));
+  const nestedPrompt = row({
+    id: "p-nested",
+    content: {
+      title: "Enabled operating note",
+      message: "What operating rule did I ask you to remember?",
+    },
+    source: "agent",
+  });
 
-  for (const p of prompts) {
-    if (!isPromptLikeRuntimeMemory(p)) fail(`must classify prompt-like: ${String(p.content)}`);
+  for (const p of [...prompts, nestedPrompt]) {
+    if (!isPromptLikeRuntimeMemory(p)) fail(`must classify prompt-like: ${JSON.stringify(p.content)}`);
     if (!isDiagnosticRuntimeMemory(p)) fail(`prompt-like must be diagnostic: ${p.id}`);
   }
 
-  const part = partitionRuntimeMemory([useful, ...prompts], []);
-  if (part.usefulAgentRows.some((r) => r.id.startsWith("p"))) {
+  const part = partitionRuntimeMemory([useful, ...prompts, nestedPrompt], []);
+  if (part.usefulAgentRows.some((r) => String(r.id).startsWith("p"))) {
     fail("prompt-like must not appear in main Runtime usefulAgentRows");
   }
-  if (part.counts.diagnostic < 4) fail("diagnostics count must include prompt-like rows");
-  if (part.counts.runtimeTotal !== 5) fail("runtimeTotal must stay truthful (5)");
+  if (part.counts.diagnostic < 5) fail("diagnostics count must include prompt-like rows");
+  if (part.counts.runtimeTotal !== 6) fail("runtimeTotal must stay truthful (6)");
 }
 
 function verifyUiContracts(): void {

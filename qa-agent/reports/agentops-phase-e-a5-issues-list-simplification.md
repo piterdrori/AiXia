@@ -104,6 +104,14 @@ Base: https://ai-xia-staging.vercel.app
 | Fix Issue Prompt present | YES |
 | chat surface present | YES |
 
+Additional regression (`agentops-e-a4-chat-to-prompt-live.mjs` on staging after alias):
+
+- `chatToPromptFullPass: true`
+- `promptUpdated` / `saved` / `persisted: true`
+- Suggested Fix Prompt + Use as Fix Issue Prompt exercised
+
+Light previous-page regression (`agentops-e-a4-regression-light.mjs`): Control Center / Agents / design-agent loaded, no overflow.
+
 Security probe: `qa-agent/scripts/agentops-e-a3-security-probe.mjs` — all anonymous decision/prompt/promote/list calls **401**.
 
 ## 8. Security regression
@@ -157,8 +165,8 @@ List is browse/open only; decisions stay on detail; staging alias updated; main/
 | OPEN_ISSUE_REAL_HREF | YES |
 | FILTERS_TABS_STILL_WORK | YES |
 | DETAIL_ACTIONS_STILL_WORK | YES |
-| FIX_PROMPT_REGRESSION_PASS | YES (UI present; save path unchanged) |
-| CHAT_TO_PROMPT_REGRESSION_PASS | YES (chat surface present; E-A4 wiring unchanged) |
+| FIX_PROMPT_REGRESSION_PASS | YES (`saved` + `persisted` on E-A4 live) |
+| CHAT_TO_PROMPT_REGRESSION_PASS | YES (`chatToPromptFullPass: true`) |
 | OWNER_AUTH_STILL_ENFORCED | YES |
 | MOBILE_LAYOUT_PASS | YES |
 | FUNCTION_COUNT_WITHIN_BUDGET | YES |

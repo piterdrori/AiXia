@@ -25,13 +25,31 @@ await page.click('button[type="submit"]');
 await page.waitForURL((u) => !u.pathname.includes("/login"), { timeout: 90_000 });
 await page.waitForTimeout(2000);
 
-await page.goto(`${base}/system/agent-ops/issues`, {
+await page.goto(`${base}/system/agent-ops/issues?tab=all`, {
   waitUntil: "domcontentloaded",
   timeout: 90_000,
 });
-await page.waitForTimeout(5000);
+await page.waitForSelector(
+  '[data-testid="agentops-issue-card"], [data-testid="agentops-issues-inbox-helper"]',
+  { timeout: 60_000 },
+).catch(() => null);
+// Wait until loading skeleton clears or cards appear
+for (let i = 0; i < 30; i++) {
+  const ready = await page.evaluate(() => {
+    const loading = /Loading issues/i.test(document.body.innerText || "");
+    const cards = document.querySelectorAll('[data-testid="agentops-issue-card"]').length;
+    const empty = /No issues are available|No issues are waiting/i.test(
+      document.body.innerText || "",
+    );
+    return !loading && (cards > 0 || empty);
+  });
+  if (ready) break;
+  await page.waitForTimeout(1000);
+}
+await page.waitForTimeout(1500);
 
 const list = await page.evaluate(() => {
+  const body = document.body.innerText || "";
   const helper = document.querySelector('[data-testid="agentops-issues-inbox-helper"]');
   const cards = [...document.querySelectorAll('[data-testid="agentops-issue-card"]')];
   const openLinks = [...document.querySelectorAll('[data-testid="agentops-open-issue"]')];
@@ -39,12 +57,19 @@ const list = await page.evaluate(() => {
   const decisionOnCards = cardTexts.some((text) =>
     /\b(Approve|Defer|Reject|Promote to issue|Needs more info|Mark duplicate)\b/.test(text),
   );
+  // Page chrome may mention statuses; only fail if those labels appear as card action buttons.
+  const decisionButtonsInDom = [...document.querySelectorAll("button, a")].some((el) => {
+    const inCard = el.closest('[data-testid="agentops-issue-card"]');
+    if (!inCard) return false;
+    const label = (el.textContent || "").trim();
+    return /^(Approve|Defer|Reject|Promote to issue|Needs more info|Mark duplicate)$/i.test(label);
+  });
   const openHrefs = openLinks.map((el) => el.getAttribute("href") || "");
   const openHrefOk =
     openLinks.length > 0 &&
     openHrefs.every((href) => href.startsWith("/system/agent-ops/issues/"));
   return {
-    pageLoaded: (document.body.innerText || "").includes("Issues"),
+    pageLoaded: body.includes("Issues"),
     helperVisible: Boolean(helper?.textContent?.includes("Issues inbox")),
     cardCount: cards.length,
     openLinkCount: openLinks.length,
@@ -57,12 +82,13 @@ const list = await page.evaluate(() => {
     foundTimeVisible: cards.some((c) =>
       c.querySelector('[data-testid="agentops-issue-found-time"]'),
     ),
-    decisionButtonsOnCards: decisionOnCards,
+    decisionButtonsOnCards: decisionOnCards || decisionButtonsInDom,
     overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
-    hasNoiseToggle: /Show likely shell noise|Hide likely shell noise/i.test(
-      document.body.innerText || "",
-    ),
-    hasTabs: /Needs review|Accepted|All/i.test(document.body.innerText || ""),
+    hasNoiseToggle: /Show likely shell noise|Hide likely shell noise/i.test(body),
+    hasTabs: /Needs review|Accepted|All/i.test(body),
+    emptyState: /No issues are available|No issues are waiting/i.test(body),
+    gateError: /Owner gate|not an owner|Could not load/i.test(body),
+    bodySnippet: body.slice(0, 600),
   };
 });
 
@@ -83,46 +109,53 @@ let detail = {
   path: null,
 };
 
-if (list.sampleOpenHref) {
-  await page.goto(`${base}${list.sampleOpenHref}`, {
-    waitUntil: "domcontentloaded",
-    timeout: 90_000,
-  });
-  await page.waitForTimeout(5000);
-  detail = await page.evaluate(() => {
-    const text = document.body.innerText || "";
-    return {
-      opened: !/Issue not found|404/i.test(text) && text.length > 200,
-      hasApprove: /\bApprove\b/.test(text),
-      hasDefer: /\bDefer\b|\bLater\b/.test(text),
-      hasReject: /\bReject\b|\bDismiss\b/.test(text),
-      hasNeedsMoreInfo: /Needs more info/i.test(text),
-      hasMarkDuplicate: /Mark duplicate/i.test(text),
-      hasPromote: /Promote to issue/i.test(text),
-      hasFixPrompt: /Fix Issue Prompt/i.test(text),
-      hasChat: /AgentOpsFindingChat|chat with|Improve Fix Prompt|Suggested Fix Prompt/i.test(text) ||
-        Boolean(document.querySelector("[data-testid*='finding-chat'], [data-testid*='issue-chat']")),
-      path: location.pathname,
-    };
-  });
-  // Chat surface may use component without those strings — probe textarea/composer
-  if (!detail.hasChat) {
-    detail.hasChat = await page.locator("textarea, [contenteditable='true']").count().then((n) => n > 0);
-  }
+const detailPath =
+  list.sampleOpenHref ||
+  "/system/agent-ops/issues/draft-21109c88-4ca6-4afa-9546-f7db66f8bc13";
+
+await page.goto(`${base}${detailPath}`, {
+  waitUntil: "domcontentloaded",
+  timeout: 90_000,
+});
+await page.waitForTimeout(6000);
+detail = await page.evaluate(() => {
+  const text = document.body.innerText || "";
+  return {
+    opened: !/Issue not found|404/i.test(text) && text.length > 200,
+    hasApprove: /\bApprove\b/.test(text),
+    hasDefer: /\bDefer\b|\bLater\b/.test(text),
+    hasReject: /\bReject\b|\bDismiss\b/.test(text),
+    hasNeedsMoreInfo: /Needs more info/i.test(text),
+    hasMarkDuplicate: /Mark duplicate/i.test(text),
+    hasPromote: /Promote to issue/i.test(text),
+    hasFixPrompt: /Fix Issue Prompt/i.test(text),
+    hasChat:
+      /Improve Fix Prompt|Suggested Fix Prompt|Use as Fix Issue Prompt|Chat with/i.test(text) ||
+      Boolean(document.querySelector("[data-testid*='finding-chat'], [data-testid*='issue-chat']")),
+    path: location.pathname,
+  };
+});
+if (!detail.hasChat) {
+  detail.hasChat = (await page.locator("textarea, [contenteditable='true']").count()) > 0;
 }
+detail.usedFallbackPath = !list.sampleOpenHref;
 
 await browser.close();
 
-const ok =
-  list.pageLoaded &&
-  list.helperVisible &&
+const listCardsOk =
   list.cardCount > 0 &&
   list.openLinkCount > 0 &&
   list.openHrefOk &&
   list.titleVisible &&
   list.reportedByVisible &&
   list.foundTimeVisible &&
-  !list.decisionButtonsOnCards &&
+  !list.decisionButtonsOnCards;
+
+const ok =
+  list.pageLoaded &&
+  list.helperVisible &&
+  !list.gateError &&
+  listCardsOk &&
   !list.overflow &&
   !mobile.overflow &&
   list.hasNoiseToggle &&

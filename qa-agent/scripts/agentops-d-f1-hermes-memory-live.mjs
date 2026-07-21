@@ -44,11 +44,18 @@ async function openAgent(slug) {
   });
   await page.waitForSelector('[data-testid="agentops-hermes-summary"]', { timeout: 90_000 });
   await page.waitForFunction(() => {
-    const el = document.querySelector('[data-testid="memory-summary-agent-hermes"]');
-    const t = (el?.textContent || "").trim();
-    return t && !t.includes("…");
-  }, { timeout: 90_000 });
-  await page.waitForTimeout(800);
+    const agent = document.querySelector('[data-testid="memory-summary-agent-hermes"]');
+    const ns = document.querySelector('[data-testid="memory-summary-namespace"]');
+    const fleet = document.querySelector('[data-testid="memory-summary-fleet-hermes"]');
+    const a = (agent?.textContent || "").replace(/\s+/g, " ").trim();
+    const n = (ns?.textContent || "").replace(/\s+/g, " ").trim();
+    const f = (fleet?.textContent || "").replace(/\s+/g, " ").trim();
+    if (!a || !n || !f) return false;
+    if (/…|\.\.\./.test(a + n + f)) return false;
+    // Settled owner states only
+    return /Connected|Not configured|Error/i.test(a) && /agentops\.agent\./i.test(n);
+  }, { timeout: 120_000 });
+  await page.waitForTimeout(1000);
 }
 
 async function probe() {

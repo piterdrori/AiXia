@@ -566,14 +566,17 @@ export function AgentMemoryHermesPanel({
         ? "Unavailable"
         : "Unknown";
 
-  const agentHermesCardValue =
-    agentHermesLabel === "Connected"
-      ? "Connected"
-      : agentHermesLabel === "Error"
-        ? "Error"
-        : agentHermesLabel === "Unknown"
-          ? "Unknown"
-          : "Not configured";
+  const agentHermesCardValue = loading
+    ? "…"
+    : !identityReady
+      ? "…"
+      : agentHermesLabel === "Connected"
+        ? "Connected"
+        : agentHermesLabel === "Error"
+          ? "Error"
+          : agentHermesLabel === "Unknown"
+            ? "Unknown"
+            : "Not configured";
 
   return (
     <AgentDetailPanelShell

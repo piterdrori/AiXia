@@ -43,16 +43,32 @@ await page.fill('input[type="email"], input[name="email"]', email);
 await page.fill('input[type="password"], input[name="password"]', password);
 await page.click('button[type="submit"]');
 await page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 60_000 });
+// Let auth/session settle before owner-gated AgentOps routes.
+await page.waitForTimeout(2500);
+
+async function waitForOwnerSurfaceReady(timeoutMs = 90_000) {
+  await page.waitForFunction(
+    () => {
+      const text = document.body.innerText || "";
+      const h1 = document.querySelector("h1")?.textContent || "";
+      if (/Could not load this page|Owner gate timed out/i.test(text)) return true;
+      if (/Fix Issue Prompt|Reported by/i.test(text)) return true;
+      if (/Loading issues|Loading finding|\bLoading\b/i.test(text) && !/Reported by|Fix Issue Prompt|Open issue/i.test(text)) {
+        return false;
+      }
+      if (/Issues/i.test(h1) && /Needs review|No issues|Open issue|Approve/i.test(text)) return true;
+      return false;
+    },
+    { timeout: timeoutMs },
+  ).catch(() => null);
+  await page.waitForTimeout(1200);
+}
 
 await page.goto(`${base}/system/agent-ops/issues`, {
   waitUntil: "domcontentloaded",
   timeout: 90_000,
 });
-await page.waitForFunction(
-  () => !/Loading issues|Loading findings/i.test(document.body.innerText),
-  { timeout: 120_000 },
-).catch(() => null);
-await page.waitForTimeout(1500);
+await waitForOwnerSurfaceReady(90_000);
 await page.screenshot({ path: path.join(outDir, "issues-list-1440.png") });
 
 const list = await page.evaluate(() => {
@@ -71,6 +87,7 @@ const list = await page.evaluate(() => {
     draftHrefs: draftHrefs.slice(0, 8),
     hideNoise: /Hide likely shell noise/i.test(text),
     hasApprove: /Approve/i.test(text),
+    bodySnippet: text.replace(/\s+/g, " ").trim().slice(0, 400),
   };
 });
 
@@ -86,11 +103,7 @@ await page.goto(`${base}${DRAFT_ROUTE}`, {
   waitUntil: "domcontentloaded",
   timeout: 90_000,
 });
-await page.waitForFunction(
-  () => !/Loading finding|Loading issue/i.test(document.body.innerText),
-  { timeout: 120_000 },
-).catch(() => null);
-await page.waitForTimeout(1500);
+await waitForOwnerSurfaceReady(90_000);
 await page.screenshot({ path: path.join(outDir, "draft-detail-1440.png") });
 
 const detail = await page.evaluate(() => {
@@ -110,6 +123,7 @@ const detail = await page.evaluate(() => {
     agentLink: [...document.querySelectorAll("a[href]")]
       .map((a) => a.getAttribute("href") || "")
       .find((h) => /\/system\/agent-ops\/agents\//.test(h)) || null,
+    bodySnippet: text.replace(/\s+/g, " ").trim().slice(0, 400),
   };
 });
 

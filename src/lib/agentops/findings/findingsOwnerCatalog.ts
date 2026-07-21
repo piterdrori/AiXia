@@ -233,10 +233,40 @@ export async function fetchMonitoringDraftById(
   }
 }
 
+async function withCatalogTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout: () => T,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(onTimeout()), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function loadFindingsOwnerCatalog(): Promise<FindingsCatalogLoadResult> {
+  // Drafts API and promoted findings are independent. Cap each so a hung Supabase
+  // findings read cannot leave the Issues list on "Loading issues…" forever.
   const [draftsResult, findingsResult] = await Promise.all([
-    fetchMonitoringDrafts(100),
-    listAgentOpsFindingsCatalog(200) as Promise<AgentOpsReadResult<AgentOpsFinding[]>>,
+    withCatalogTimeout(fetchMonitoringDrafts(100), 25_000, () => ({
+      data: [] as MonitoringDraftApiRow[],
+      error: "Monitoring drafts timed out. Retry.",
+    })),
+    withCatalogTimeout(
+      listAgentOpsFindingsCatalog(200) as Promise<AgentOpsReadResult<AgentOpsFinding[]>>,
+      12_000,
+      () => ({
+        data: null,
+        error: "Promoted findings timed out. Drafts may still be available.",
+      }),
+    ),
   ]);
 
   const mapped: CanonicalFindingView[] = [];

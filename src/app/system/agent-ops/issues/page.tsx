@@ -37,7 +37,7 @@ import { normalizeReportingAgent } from "@/lib/agentops/findings/reportingAgentI
 
 const EMPTY_COPY: Record<FindingsTabId, { title: string; description: string }> = {
   "needs-review": {
-    title: "No findings are waiting for your review.",
+    title: "No issues are waiting for your review.",
     description: "When agents create new monitoring drafts, they appear here first.",
   },
   active: {
@@ -57,22 +57,35 @@ const EMPTY_COPY: Record<FindingsTabId, { title: string; description: string }> 
     description: "Fixed items awaiting owner or agent verification land here.",
   },
   fixed: {
-    title: "No fixed findings yet.",
-    description: "Fixed and verified findings will appear in this tab.",
+    title: "No fixed issues yet.",
+    description: "Fixed and verified issues will appear in this tab.",
   },
   deferred: {
-    title: "No deferred findings.",
-    description: "Findings you explicitly defer will be listed here.",
+    title: "No deferred issues.",
+    description: "Issues you explicitly defer will be listed here.",
   },
   rejected: {
-    title: "No rejected findings.",
-    description: "Rejected findings remain visible for audit.",
+    title: "No rejected issues.",
+    description: "Rejected issues remain visible for audit.",
   },
   all: {
-    title: "No findings are available.",
-    description: "Findings from monitoring drafts and promoted issues will appear here.",
+    title: "No issues are available.",
+    description: "Drafts and promoted issues from agents will appear here.",
   },
 };
+
+function formatFoundLabel(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.round(diffMs / 60_000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes}m ago · ${date.toLocaleString()}`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago · ${date.toLocaleString()}`;
+  return date.toLocaleString();
+}
 
 function formatShortDate(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -86,7 +99,7 @@ function countLabel(value: number | "Unavailable"): string | number {
 }
 
 export default function AgentOpsIssuesPage() {
-  usePageTitle("Findings · AgentOps");
+  usePageTitle("Issues · AgentOps");
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
@@ -109,6 +122,7 @@ export default function AgentOpsIssuesPage() {
   const filterStatus = searchParams.get("status") as OwnerFindingStatus | null;
   const filterDate = searchParams.get("date");
   const filterQuery = searchParams.get("q");
+  const hideNoise = searchParams.get("hideNoise") !== "0";
 
   const patchParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -145,7 +159,7 @@ export default function AgentOpsIssuesPage() {
 
   const filtered = useMemo(() => {
     const tabItems = items.filter((item) => findingMatchesTab(item, tab));
-    return applyFindingsFilters(tabItems, {
+    const base = applyFindingsFilters(tabItems, {
       agent: filterAgent,
       type: filterType,
       priority: filterPriority,
@@ -153,6 +167,12 @@ export default function AgentOpsIssuesPage() {
       status: filterStatus,
       date: filterDate,
       q: filterQuery,
+    });
+    const visible = hideNoise ? base.filter((item) => !item.likelyShellNoise) : base;
+    return [...visible].sort((a, b) => {
+      const aTime = a.createdAt ?? a.updatedAt ?? "";
+      const bTime = b.createdAt ?? b.updatedAt ?? "";
+      return bTime.localeCompare(aTime);
     });
   }, [
     items,
@@ -164,7 +184,14 @@ export default function AgentOpsIssuesPage() {
     filterStatus,
     filterDate,
     filterQuery,
+    hideNoise,
   ]);
+
+  const noiseHiddenCount = useMemo(() => {
+    if (!hideNoise) return 0;
+    const tabItems = items.filter((item) => findingMatchesTab(item, tab));
+    return tabItems.filter((item) => item.likelyShellNoise).length;
+  }, [items, tab, hideNoise]);
 
   const summary = useMemo(
     () => buildFindingsSummaryCounts(items, allSourcesUnavailable),
@@ -242,8 +269,8 @@ export default function AgentOpsIssuesPage() {
     >
       <div className="space-y-6">
         <AgentOpsPageHeader
-          title="Findings"
-          subtitle="Review issues, improvements, fixes, and feature ideas reported by your agents."
+          title="Issues"
+          subtitle="Owner review of agent-reported issues. Approving does not change code, create PRs, deploy, or auto-fix."
           actions={
             <>
               <AixiaButton variant="secondary" onClick={refreshAll} disabled={loading}>
@@ -316,7 +343,26 @@ export default function AgentOpsIssuesPage() {
           </p>
         ) : null}
 
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Findings tabs">
+        <div className="flex flex-wrap items-center gap-3 text-sm text-white/65">
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={hideNoise}
+              onChange={(event) =>
+                patchParams({ hideNoise: event.target.checked ? null : "0" })
+              }
+            />
+            Hide likely shell noise
+          </label>
+          {noiseHiddenCount > 0 ? (
+            <span className="text-xs text-amber-200/80">
+              {noiseHiddenCount} likely shell-noise draft
+              {noiseHiddenCount === 1 ? "" : "s"} hidden from this tab
+            </span>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Issues tabs">
           {FINDINGS_TABS.map((item) => (
             <button
               key={item.id}
@@ -521,10 +567,14 @@ export default function AgentOpsIssuesPage() {
                   confidence={item.confidence}
                   evidenceSummary={item.summary || null}
                   recommendedAction={item.nextAction}
+                  foundLabel={formatFoundLabel(item.createdAt) ?? undefined}
                   ageLabel={formatShortDate(item.createdAt) ?? undefined}
                   updatedLabel={formatShortDate(item.updatedAt) ?? undefined}
-                  openLabel="Open finding"
-                  onOpen={openPath ? () => navigate(openPath) : undefined}
+                  workSourceLabel={item.workSourceLabel}
+                  evidenceIndicator={item.evidenceIndicator}
+                  likelyShellNoise={item.likelyShellNoise}
+                  openLabel="Open issue"
+                  openHref={openPath}
                   onApprove={
                     canDecideDraft
                       ? () => void decideDraft(item.draftId!, "owner_approved")
@@ -541,16 +591,13 @@ export default function AgentOpsIssuesPage() {
                       ? "Promote to issue"
                       : item.ownerStatus === "waiting_for_verification"
                         ? "Review verification"
-                        : item.source === "finding" && openPath
-                          ? "Open issue"
-                          : undefined
+                        : undefined
                   }
                   onSecondary={
                     canPromoteDraft
                       ? () => void promoteDraft(item.draftId!)
-                      : item.ownerStatus === "waiting_for_verification" ||
-                          (item.source === "finding" && openPath)
-                        ? () => navigate(openPath!)
+                      : item.ownerStatus === "waiting_for_verification" && openPath
+                        ? () => navigate(openPath)
                         : undefined
                   }
                 />

@@ -8,11 +8,43 @@ import {
   toCanonicalFindingView,
   type CanonicalFindingView,
 } from "@/lib/agentops/findings/findingsLifecycleModel";
+import { classifyLikelyShellNoiseDraft } from "@/lib/agentops/findings/issueDraftNoise";
+import { supabase } from "@/lib/supabase";
+
+function workSourceLabelForDraft(source: string | null | undefined): string {
+  const value = (source ?? "").toLowerCase();
+  if (value.includes("browser_qa")) return "Browser QA";
+  if (value.includes("website_audit")) return "Website audit";
+  if (value.includes("daily") || value.includes("scheduled")) return "Scheduled";
+  if (value.includes("owner_manual") || value.includes("manual")) return "Manual";
+  if (value.includes("monitoring")) return "Monitoring";
+  return "Monitoring";
+}
+
+function evidenceIndicatorForDraft(draft: MonitoringDraftApiRow): string {
+  const bqa = draft.browserQaEvidence ?? {};
+  const evidence = draft.evidence ?? {};
+  const hasSignedHint =
+    evidence.provider === "supabase_storage" ||
+    bqa.provider === "supabase_storage" ||
+    (Array.isArray(evidence.artifactRefs) && evidence.artifactRefs.length > 0) ||
+    (Array.isArray(bqa.artifactRefs) && bqa.artifactRefs.length > 0);
+  if (hasSignedHint) return "Signed artifact";
+  const hasLocal =
+    typeof bqa.screenshot_path === "string" ||
+    typeof evidence.screenshotPath === "string" ||
+    typeof bqa.evidence === "string" ||
+    typeof evidence.evidence === "string";
+  if (hasLocal) return "Has evidence";
+  if ((draft.summary ?? "").trim()) return "Summary only";
+  return "No artifact";
+}
 
 export type MonitoringDraftApiRow = {
   id: string;
   runId: string;
   githubRunId: string | null;
+  source?: string | null;
   status: string;
   agentSlug: string;
   module?: string | null;
@@ -23,12 +55,15 @@ export type MonitoringDraftApiRow = {
   issueType?: string | null;
   confidence?: number | null;
   duplicateKey?: string | null;
+  evidence?: Record<string, unknown>;
   browserQaEvidence?: Record<string, unknown>;
   suggestedFixPrompt?: string | null;
   promotedIssueId?: string | null;
   issueDisplayCode?: string | null;
   createdAt: string;
   updatedAt?: string;
+  ownerDecisionBy?: string | null;
+  ownerDecisionAt?: string | null;
 };
 
 export type FindingsCatalogLoadResult = {
@@ -38,6 +73,19 @@ export type FindingsCatalogLoadResult = {
   /** True when both primary sources failed — summary must show Unavailable. */
   allSourcesUnavailable: boolean;
 };
+
+async function ownerAuthHeaders(): Promise<HeadersInit> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) {
+    throw new Error("You must be signed in as AgentOps Owner.");
+  }
+  return {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+}
 
 function findingTypeRaw(finding: AgentOpsFinding): string {
   const meta = finding.metadata ?? {};
@@ -55,6 +103,14 @@ function supportingAgentsFromFinding(finding: AgentOpsFinding): string[] {
 }
 
 export function mapDraftToCanonical(draft: MonitoringDraftApiRow): CanonicalFindingView | null {
+  const noise = classifyLikelyShellNoiseDraft({
+    title: draft.title,
+    summary: draft.summary,
+    route: draft.route,
+    module: draft.module,
+    evidence: draft.evidence,
+    browserQaEvidence: draft.browserQaEvidence,
+  });
   return toCanonicalFindingView({
     source: "draft",
     id: draft.id,
@@ -73,6 +129,9 @@ export function mapDraftToCanonical(draft: MonitoringDraftApiRow): CanonicalFind
     issueCode: draft.issueDisplayCode ?? null,
     promotedIssueId: draft.promotedIssueId ?? null,
     duplicateKey: draft.duplicateKey ?? null,
+    workSourceLabel: workSourceLabelForDraft(draft.source),
+    likelyShellNoise: noise.likelyShellNoise,
+    evidenceIndicator: evidenceIndicatorForDraft(draft),
   });
 }
 
@@ -103,10 +162,13 @@ export function mapFindingToCanonical(finding: AgentOpsFinding): CanonicalFindin
 }
 
 export async function fetchMonitoringDrafts(
-  limit = 50,
+  limit = 100,
 ): Promise<{ data: MonitoringDraftApiRow[]; error: string | null }> {
   try {
-    const response = await fetch(`/api/agentops/monitoring/drafts?limit=${limit}`);
+    const headers = await ownerAuthHeaders();
+    const response = await fetch(`/api/agentops/monitoring/drafts?limit=${limit}`, {
+      headers,
+    });
     const payload = (await response.json()) as {
       ok?: boolean;
       drafts?: MonitoringDraftApiRow[];
@@ -124,9 +186,43 @@ export async function fetchMonitoringDrafts(
   }
 }
 
+export async function fetchMonitoringDraftById(
+  draftId: string,
+): Promise<{ data: MonitoringDraftApiRow | null; error: string | null; notFound: boolean }> {
+  try {
+    const headers = await ownerAuthHeaders();
+    const response = await fetch(
+      `/api/agentops/monitoring/drafts?id=${encodeURIComponent(draftId)}`,
+      { headers },
+    );
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      draft?: MonitoringDraftApiRow;
+      error?: string;
+    };
+    if (response.status === 404) {
+      return { data: null, error: null, notFound: true };
+    }
+    if (!response.ok || payload.ok === false) {
+      return {
+        data: null,
+        error: payload.error ?? "Could not load monitoring draft.",
+        notFound: false,
+      };
+    }
+    return { data: payload.draft ?? null, error: null, notFound: !payload.draft };
+  } catch (error) {
+    return {
+      data: null,
+      error: error instanceof Error ? error.message : String(error),
+      notFound: false,
+    };
+  }
+}
+
 export async function loadFindingsOwnerCatalog(): Promise<FindingsCatalogLoadResult> {
   const [draftsResult, findingsResult] = await Promise.all([
-    fetchMonitoringDrafts(50),
+    fetchMonitoringDrafts(100),
     listAgentOpsFindingsCatalog(200) as Promise<AgentOpsReadResult<AgentOpsFinding[]>>,
   ]);
 
@@ -158,12 +254,18 @@ export async function loadFindingsOwnerCatalog(): Promise<FindingsCatalogLoadRes
 export async function applyMonitoringDraftDecision(
   draftId: string,
   decision: "owner_approved" | "rejected" | "deferred",
+  note?: string | null,
 ): Promise<{ ok: boolean; error: string | null }> {
   try {
+    const headers = await ownerAuthHeaders();
     const response = await fetch("/api/agentops/monitoring/drafts/decision", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draftId, decision, ownerId: "owner" }),
+      headers,
+      body: JSON.stringify({
+        draftId,
+        decision,
+        ...(note?.trim() ? { note: note.trim() } : {}),
+      }),
     });
     const payload = (await response.json()) as { ok?: boolean; error?: string };
     if (!response.ok || !payload.ok) {
@@ -179,10 +281,11 @@ export async function promoteMonitoringDraft(
   draftId: string,
 ): Promise<{ ok: boolean; error: string | null; issueDisplayCode?: string | null }> {
   try {
+    const headers = await ownerAuthHeaders();
     const response = await fetch("/api/agentops/monitoring/drafts/promote", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ draftId, ownerId: "owner" }),
+      headers,
+      body: JSON.stringify({ draftId }),
     });
     const payload = (await response.json()) as {
       ok?: boolean;
@@ -193,6 +296,37 @@ export async function promoteMonitoringDraft(
       return { ok: false, error: payload.error ?? "Promotion failed." };
     }
     return { ok: true, error: null, issueDisplayCode: payload.issueDisplayCode ?? null };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function saveMonitoringDraftFixPrompt(
+  draftId: string,
+  promptText: string,
+): Promise<{ ok: boolean; error: string | null; savedAt?: string | null; message?: string | null }> {
+  try {
+    const headers = await ownerAuthHeaders();
+    const response = await fetch("/api/agentops/monitoring/drafts/prompt", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ draftId, promptText }),
+    });
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      error?: string;
+      savedAt?: string;
+      message?: string;
+    };
+    if (!response.ok || !payload.ok) {
+      return { ok: false, error: payload.error ?? "Could not save Fix Issue Prompt." };
+    }
+    return {
+      ok: true,
+      error: null,
+      savedAt: payload.savedAt ?? null,
+      message: payload.message ?? null,
+    };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error) };
   }

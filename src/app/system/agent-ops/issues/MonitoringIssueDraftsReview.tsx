@@ -41,16 +41,14 @@ export function MonitoringIssueDraftsReview() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/agentops/monitoring/drafts?limit=25");
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        drafts?: MonitoringIssueDraftSummary[];
-        error?: string;
-      };
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.error ?? "Could not load monitoring issue drafts.");
+      const { fetchMonitoringDrafts } = await import(
+        "@/lib/agentops/findings/findingsOwnerCatalog"
+      );
+      const listed = await fetchMonitoringDrafts(25);
+      if (listed.error) {
+        throw new Error(listed.error);
       }
-      setDrafts(payload.drafts ?? []);
+      setDrafts(listed.data as MonitoringIssueDraftSummary[]);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : String(loadError));
       setDrafts([]);
@@ -66,14 +64,12 @@ export function MonitoringIssueDraftsReview() {
   const applyDecision = async (draftId: string, decision: DraftDecision) => {
     setActionId(draftId);
     try {
-      const response = await fetch("/api/agentops/monitoring/drafts/decision", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draftId, decision, ownerId: "owner" }),
-      });
-      const payload = (await response.json()) as { ok?: boolean; error?: string };
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.error ?? "Decision failed.");
+      const { applyMonitoringDraftDecision } = await import(
+        "@/lib/agentops/findings/findingsOwnerCatalog"
+      );
+      const result = await applyMonitoringDraftDecision(draftId, decision);
+      if (!result.ok) {
+        throw new Error(result.error ?? "Decision failed.");
       }
       await loadDrafts();
     } catch (decisionError) {
@@ -86,19 +82,12 @@ export function MonitoringIssueDraftsReview() {
   const promoteDraft = async (draftId: string) => {
     setActionId(draftId);
     try {
-      const response = await fetch("/api/agentops/monitoring/drafts/promote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ draftId, ownerId: "owner" }),
-      });
-      const payload = (await response.json()) as {
-        ok?: boolean;
-        error?: string;
-        issueDisplayCode?: string;
-        alreadyPromoted?: boolean;
-      };
-      if (!response.ok || !payload.ok) {
-        throw new Error(payload.error ?? "Promotion failed.");
+      const { promoteMonitoringDraft } = await import(
+        "@/lib/agentops/findings/findingsOwnerCatalog"
+      );
+      const result = await promoteMonitoringDraft(draftId);
+      if (!result.ok) {
+        throw new Error(result.error ?? "Promotion failed.");
       }
       await loadDrafts();
     } catch (promoteError) {

@@ -11,6 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { runPlaywrightBrowserQA } from "../src/lib/agentops/browserQa/playwrightBrowserQaRunner";
 import type { BrowserQaFinding } from "../src/lib/agentops/browserQa/browserQaRunResult";
+import { shouldSkipFailedRequestDraft } from "../src/lib/agentops/findings/issueDraftNoise";
 import { isCancelRequestedError } from "../src/lib/agentops/runtime/agentOpsCancelCheckpoint";
 import { assertStagingScanUrl } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
 
@@ -132,9 +133,24 @@ async function insertDraftFindings(
   agentSlug: string,
   route: string,
   findings: BrowserQaFinding[],
-): Promise<{ created: number; skippedDuplicate: number; draftIds: string[] }> {
-  const result = { created: 0, skippedDuplicate: 0, draftIds: [] as string[] };
+): Promise<{ created: number; skippedDuplicate: number; skippedNoise: number; draftIds: string[] }> {
+  const result = {
+    created: 0,
+    skippedDuplicate: 0,
+    skippedNoise: 0,
+    draftIds: [] as string[],
+  };
   for (const finding of findings) {
+    if (
+      shouldSkipFailedRequestDraft({
+        pageUrl: route,
+        findingType: finding.type,
+        evidenceText: finding.evidence ?? finding.description,
+      })
+    ) {
+      result.skippedNoise += 1;
+      continue;
+    }
     const key = duplicateKey(agentSlug, finding);
     const { data: existing } = await client
       .from(DRAFTS_TABLE)
@@ -146,6 +162,15 @@ async function insertDraftFindings(
       result.skippedDuplicate += 1;
       continue;
     }
+    const suggestedFixPrompt = [
+      `Investigate Browser QA finding on staging route ${route}.`,
+      `Title: ${finding.title}`,
+      `Description: ${finding.description}`,
+      finding.evidence ? `Evidence: ${finding.evidence}` : null,
+      "Constraints: staging-only; no production; no PR/deploy/auto-fix unless owner later approves.",
+    ]
+      .filter(Boolean)
+      .join("\n");
     const row = {
       monitoring_run_id: null,
       run_id: runId,
@@ -166,10 +191,15 @@ async function insertDraftFindings(
         workerPhase: "b2-d",
       },
       browser_qa_evidence: {
+        scan_mode: "playwright",
+        route,
+        absolute_url: null,
         type: finding.type,
         evidence: finding.evidence ?? null,
+        source: "owner_manual_browser_qa",
+        workerPhase: "b2-d",
       },
-      suggested_fix_prompt: null,
+      suggested_fix_prompt: suggestedFixPrompt,
       confidence: null,
       duplicate_key: key,
       duplicate_of: null,
@@ -412,7 +442,7 @@ async function main(): Promise<void> {
         qualifying,
       );
       draftsCreated = draftResult.created;
-      draftsSkipped = draftResult.skippedDuplicate;
+      draftsSkipped = draftResult.skippedDuplicate + draftResult.skippedNoise;
       draftIds = draftResult.draftIds;
     } catch (error) {
       failureReason = error instanceof Error ? error.message : String(error);

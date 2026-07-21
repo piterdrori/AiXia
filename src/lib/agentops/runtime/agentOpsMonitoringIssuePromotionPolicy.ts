@@ -18,13 +18,38 @@ export type MonitoringIssuePromotionOwnerContext = {
 
 const FORBIDDEN_DRAFT_STATUSES = new Set(["draft", "rejected", "deferred", "promoted"]);
 
-function hasBrowserQaEvidenceDraft(draft: MonitoringIssueDraftRow): boolean {
+/**
+ * Accept classic dry-run Playwright evidence OR equivalent verified worker Browser QA shape.
+ * Does not weaken staging / owner-approved / explicit-click gates.
+ */
+export function hasBrowserQaEvidenceDraft(draft: MonitoringIssueDraftRow): boolean {
   const evidence = draft.browser_qa_evidence ?? {};
+  const draftEvidence = draft.evidence ?? {};
   const scanMode = evidence.scan_mode;
   const hasRoute =
-    (typeof evidence.route === "string" && evidence.route.length > 0) ||
-    (typeof evidence.absolute_url === "string" && evidence.absolute_url.length > 0);
-  return scanMode === "playwright" && hasRoute;
+    (typeof evidence.route === "string" && evidence.route.trim().length > 0) ||
+    (typeof evidence.absolute_url === "string" && evidence.absolute_url.trim().length > 0) ||
+    (typeof draft.route === "string" && draft.route.trim().length > 0);
+
+  if (!hasRoute) return false;
+
+  if (scanMode === "playwright") return true;
+
+  // Worker Browser QA / website audit drafts store type + evidence without scan_mode.
+  const workerSource =
+    draft.source === "owner_manual_browser_qa" ||
+    draft.source === "owner_manual_website_audit" ||
+    draftEvidence.ownerManual === true ||
+    evidence.source === "owner_manual_browser_qa" ||
+    evidence.source === "owner_manual_website_audit";
+  const hasFindingType =
+    typeof evidence.type === "string" && evidence.type.trim().length > 0;
+  const hasEvidencePayload =
+    evidence.evidence != null ||
+    typeof evidence.summary === "string" ||
+    typeof draftEvidence.evidence === "string";
+
+  return workerSource && (hasFindingType || hasEvidencePayload);
 }
 
 function draftRequestsAutoFixOrDeploy(draft: MonitoringIssueDraftRow): boolean {

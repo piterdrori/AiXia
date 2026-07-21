@@ -30,6 +30,7 @@ import {
   applyMonitoringDraftDecision,
   loadCanonicalFindingDetail,
   promoteMonitoringDraft,
+  saveMonitoringDraftFixPrompt,
   type CanonicalFindingDetailView,
 } from "@/lib/agentops/findings/findingsDetailLoader";
 import {
@@ -123,7 +124,9 @@ export default function AgentOpsFindingDetailPage() {
   const [copyAnnounce, setCopyAnnounce] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
 
-  usePageTitle(detail?.issueCode ? `Finding ${detail.issueCode}` : "Finding");
+  usePageTitle(
+    detail?.issueCode ? `Issue ${detail.issueCode}` : detail?.title ? detail.title : "Issue",
+  );
 
   const backHref = useMemo(() => findingsBackHref(searchParams), [searchParams]);
 
@@ -360,12 +363,7 @@ export default function AgentOpsFindingDetailPage() {
   };
 
   const savePrompt = async (restoreOriginal = false) => {
-    if (!detail?.findingId) {
-      setPromptError("Promote this draft to an issue before saving an edited prompt.");
-      setPromptSaveState("failed");
-      return;
-    }
-    const text = restoreOriginal ? detail.originalPrompt ?? "" : promptDraft;
+    const text = restoreOriginal ? detail?.originalPrompt ?? "" : promptDraft;
     if (!text.trim()) {
       setPromptError("Prompt text is required.");
       setPromptSaveState("failed");
@@ -373,6 +371,33 @@ export default function AgentOpsFindingDetailPage() {
     }
     setPromptSaveState("saving");
     setPromptError(null);
+
+    if (detail?.draftId && !detail.findingId) {
+      const result = await saveMonitoringDraftFixPrompt(detail.draftId, text);
+      if (!result.ok) {
+        setPromptError(result.error ?? "Could not save Fix Issue Prompt.");
+        setPromptSaveState("failed");
+        return;
+      }
+      setPromptSaveState("saved");
+      setFeedback(
+        result.message ??
+          "Fix Issue Prompt saved on this draft. No code, PR, or deploy was created.",
+      );
+      setEditingPrompt(false);
+      const next = new URLSearchParams(searchParams);
+      next.delete("mode");
+      setSearchParams(next, { replace: true });
+      await loadDetail();
+      return;
+    }
+
+    if (!detail?.findingId) {
+      setPromptError("No draft or issue id is available to save this prompt.");
+      setPromptSaveState("failed");
+      return;
+    }
+
     const result = await saveAgentOpsSuggestedFixPrompt({
       findingId: detail.findingId,
       promptText: text,
@@ -418,7 +443,7 @@ export default function AgentOpsFindingDetailPage() {
           />
           <AixiaButton variant="secondary" onClick={() => navigate(backHref)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Findings
+            Back to Issues
           </AixiaButton>
         </div>
       </AgentOpsOwnerPageShell>
@@ -435,7 +460,7 @@ export default function AgentOpsFindingDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <AixiaButton variant="secondary" onClick={() => navigate(backHref)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Findings
+            Back to Issues
           </AixiaButton>
           <AixiaButton
             variant="secondary"
@@ -484,11 +509,43 @@ export default function AgentOpsFindingDetailPage() {
                   {detail.confidence ? (
                     <AixiaBadge tone="neutral">{detail.confidence} confidence</AixiaBadge>
                   ) : null}
+                  {detail.workSourceLabel ? (
+                    <AixiaBadge tone="cyan">{detail.workSourceLabel}</AixiaBadge>
+                  ) : null}
+                  {detail.likelyShellNoise ? (
+                    <AixiaBadge tone="amber">Likely shell noise</AixiaBadge>
+                  ) : null}
                 </div>
                 <AgentOpsPageHeader
                   title={detail.title}
-                  subtitle={detail.issueCode ?? detail.draftId ?? "Finding detail"}
+                  subtitle={detail.issueCode ?? detail.draftId ?? "Issue detail"}
                 />
+                <dl className="grid gap-3 text-sm sm:grid-cols-2" data-testid="agentops-issue-header-meta">
+                  <div>
+                    <dt className="text-white/45">Reported by</dt>
+                    <dd className="text-white/85">
+                      {agentHref ? (
+                        <Link to={agentHref} className="text-cyan-300/90 hover:text-cyan-200">
+                          {agentName}
+                        </Link>
+                      ) : (
+                        agentName
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Found</dt>
+                    <dd className="text-white/85">{formatDateTime(detail.createdAt)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Source route / module</dt>
+                    <dd className="text-white/85">{detail.route ?? detail.module ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Source run</dt>
+                    <dd className="text-white/85">{detail.runId ?? "—"}</dd>
+                  </div>
+                </dl>
                 <div className="flex flex-wrap gap-2">
                   {primaryActions.map((action) => (
                     <AixiaButton
@@ -504,9 +561,13 @@ export default function AgentOpsFindingDetailPage() {
                     </AixiaButton>
                   ))}
                 </div>
+                <p className="text-xs text-white/45">
+                  Approving does not change code, create PRs, deploy, or auto-fix. Promoting
+                  creates an AgentOps issue record only.
+                </p>
               </header>
 
-              <OwnerSection title="What was found" id="finding-summary">
+              <OwnerSection title="What happened" id="finding-summary">
                 <p className="text-sm leading-relaxed text-white/80">{detail.explanationDisplay}</p>
                 {detail.explanationInferred ? (
                   <p className="text-xs text-white/45">
@@ -515,16 +576,8 @@ export default function AgentOpsFindingDetailPage() {
                 ) : null}
                 <dl className="grid gap-3 text-sm sm:grid-cols-2">
                   <div>
-                    <dt className="text-white/45">Route / module</dt>
-                    <dd className="text-white/85">{detail.route ?? detail.module ?? "—"}</dd>
-                  </div>
-                  <div>
                     <dt className="text-white/45">Type</dt>
                     <dd className="text-white/85">{detail.typeLabel}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">First detected</dt>
-                    <dd className="text-white/85">{formatDateTime(detail.createdAt)}</dd>
                   </div>
                   <div>
                     <dt className="text-white/45">Latest update</dt>
@@ -559,6 +612,11 @@ export default function AgentOpsFindingDetailPage() {
                 <p className="text-sm text-white/75">
                   {detail.evidenceSummary ?? "No short evidence summary recorded."}
                 </p>
+                {detail.artifactNotes.map((note) => (
+                  <p key={note} className="text-xs text-white/45">
+                    {note}
+                  </p>
+                ))}
                 <dl className="grid gap-3 text-sm sm:grid-cols-2">
                   <div>
                     <dt className="text-white/45">Observed</dt>
@@ -568,42 +626,42 @@ export default function AgentOpsFindingDetailPage() {
                     <dt className="text-white/45">Expected</dt>
                     <dd className="text-white/85">{detail.expectedResult ?? "—"}</dd>
                   </div>
-                  <div>
-                    <dt className="text-white/45">Reporting agent</dt>
-                    <dd className="text-white/85">
-                      {agentName}
-                      {reporter.kind === "alias" ? (
-                        <span className="block text-xs text-white/45">
-                          Stored as {reporter.originalLabel}
-                        </span>
-                      ) : null}
-                      {reporter.kind === "external" ? (
-                        <span className="block text-xs text-white/45">
-                          {reporter.originalLabel}
-                        </span>
-                      ) : null}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-white/45">Monitoring run</dt>
-                    <dd className="text-white/85">{detail.runId ?? "—"}</dd>
-                  </div>
                 </dl>
                 {detail.evidenceLinks.length > 0 ? (
                   <ul className="space-y-2 text-sm">
                     {detail.evidenceLinks.map((file) => (
                       <li key={file.id}>
                         <a
-                          href={file.href}
-                          target="_blank"
-                          rel="noreferrer"
+                          href={file.href.startsWith("http") ? file.href : undefined}
                           className="text-indigo-300 hover:text-indigo-200"
+                          title={file.href}
                         >
-                          {file.label} — view evidence
+                          {file.label}
+                          {!file.href.startsWith("http") ? (
+                            <span className="block text-xs text-white/45 break-all">{file.href}</span>
+                          ) : (
+                            " — open signed/local link"
+                          )}
                         </a>
                       </li>
                     ))}
                   </ul>
+                ) : (
+                  <p className="text-sm text-white/55">No artifact links available for this issue.</p>
+                )}
+                {detail.rawObservations.length > 0 ? (
+                  <details className="rounded-lg border border-white/10 p-3">
+                    <summary className="cursor-pointer text-sm text-white/70">
+                      Raw observations ({detail.rawObservations.length})
+                    </summary>
+                    <ul className="mt-2 space-y-1 text-xs text-white/55">
+                      {detail.rawObservations.map((line) => (
+                        <li key={line} className="break-all">
+                          {line}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                 ) : null}
               </OwnerSection>
 
@@ -658,11 +716,16 @@ export default function AgentOpsFindingDetailPage() {
                 )}
               </OwnerSection>
 
-              <OwnerSection title="Suggested fix prompt" id="finding-prompt">
+              <OwnerSection title="Fix Issue Prompt" id="finding-prompt">
+                <p className="text-xs text-white/45">
+                  Edit and save a prompt draft for investigating/fixing this issue. Saving does not
+                  modify code, create a PR, deploy, or auto-fix.
+                  {detail.promptSavedAt
+                    ? ` Last saved ${formatDateTime(detail.promptSavedAt)}.`
+                    : ""}
+                </p>
                 {!detail.canSavePrompt ? (
-                  <p className="text-xs text-white/45">
-                    Prompt edits can be saved after this draft is promoted to an issue.
-                  </p>
+                  <p className="text-xs text-white/45">Prompt editing is unavailable for this item.</p>
                 ) : null}
                 {safetyHits.length > 0 ? (
                   <AixiaInfoBlock
@@ -677,11 +740,12 @@ export default function AgentOpsFindingDetailPage() {
                 ) : null}
                 <label className="block space-y-2" htmlFor="suggested-fix-prompt">
                   <span className="text-sm text-white/55">
-                    Suggested fix prompt
+                    Fix Issue Prompt
                     {detail.promptSource !== "none" ? ` · source: ${detail.promptSource}` : ""}
                   </span>
                   <textarea
                     id="suggested-fix-prompt"
+                    data-testid="agentops-fix-issue-prompt"
                     className="min-h-[220px] w-full rounded-lg border border-white/10 bg-black/30 p-3 text-sm text-white/90"
                     value={editingPrompt ? promptDraft : detail.promptText ?? ""}
                     readOnly={!editingPrompt}
@@ -764,6 +828,10 @@ export default function AgentOpsFindingDetailPage() {
                   Current status: <span className="text-white">{detail.ownerStatusLabel}</span>
                 </p>
                 <p className="text-sm text-white/60">Recommended next step: {detail.nextAction}</p>
+                <AixiaInfoBlock tone="cyan" title="Safety">
+                  Approving does not change code, create PRs, deploy, or auto-fix. Promoting creates
+                  an AgentOps issue record only.
+                </AixiaInfoBlock>
                 <ul className="space-y-3">
                   {primaryActions.map((action) => {
                     const meta = detail.actionMeta.find((item) => item.id === action);
@@ -882,7 +950,7 @@ export default function AgentOpsFindingDetailPage() {
                 <ul className="space-y-2 text-sm">
                   <li>
                     <Link className="text-cyan-300 hover:text-cyan-200" to={backHref}>
-                      Back to Findings
+                      Back to Issues
                     </Link>
                   </li>
                   {detail.runId ? (

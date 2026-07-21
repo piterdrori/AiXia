@@ -157,6 +157,9 @@ export type CanonicalFindingInput = {
   duplicateKey?: string | null;
   findingId?: string | null;
   draftId?: string | null;
+  workSourceLabel?: string | null;
+  likelyShellNoise?: boolean;
+  evidenceIndicator?: string | null;
 };
 
 export type CanonicalFindingView = {
@@ -183,6 +186,10 @@ export type CanonicalFindingView = {
   statusRaw: string;
   nextAction: string;
   openPath: string | null;
+  /** Monitoring / Browser QA / Website audit / Manual when known. */
+  workSourceLabel: string | null;
+  likelyShellNoise: boolean;
+  evidenceIndicator: string | null;
 };
 
 function normalizeConfidence(value: number | string | null | undefined): string | null {
@@ -231,12 +238,17 @@ export function toCanonicalFindingView(input: CanonicalFindingInput): CanonicalF
 
   const type = mapOwnerFindingType(input.typeRaw);
   const issueCode = input.issueCode?.trim() || null;
+  const draftId = input.draftId?.trim() || (input.source === "draft" ? input.id : null);
+  const findingId =
+    input.findingId?.trim() || (input.source === "finding" ? input.id : null);
   const openPath =
     issueCode != null
       ? `/system/agent-ops/issues/${encodeURIComponent(issueCode)}`
-      : input.draftId
-        ? null
-        : null;
+      : draftId
+        ? `/system/agent-ops/issues/${encodeURIComponent(`draft-${draftId}`)}`
+        : findingId
+          ? `/system/agent-ops/issues/${encodeURIComponent(findingId)}`
+          : null;
 
   return {
     key: buildCanonicalFindingKey(input),
@@ -259,11 +271,14 @@ export function toCanonicalFindingView(input: CanonicalFindingInput): CanonicalF
     issueCode,
     promotedIssueId: input.promotedIssueId?.trim() || null,
     duplicateKey: input.duplicateKey?.trim() || null,
-    findingId: input.findingId?.trim() || (input.source === "finding" ? input.id : null),
-    draftId: input.draftId?.trim() || (input.source === "draft" ? input.id : null),
+    findingId,
+    draftId,
     statusRaw: input.statusRaw,
     nextAction: nextOwnerActionFor(ownerStatus, input.source),
     openPath,
+    workSourceLabel: input.workSourceLabel?.trim() || null,
+    likelyShellNoise: Boolean(input.likelyShellNoise),
+    evidenceIndicator: input.evidenceIndicator?.trim() || null,
   };
 }
 

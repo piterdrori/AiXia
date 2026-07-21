@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 const PRIMARY_NAV = [
   { to: "/system/agent-ops", label: "Overview", end: true },
   { to: "/system/agent-ops/agents", label: "Agents" },
-  { to: "/system/agent-ops/issues", label: "Findings" },
+  { to: "/system/agent-ops/issues", label: "Issues" },
   { to: "/system/agent-ops/monitoring", label: "Monitoring" },
   { to: "/system/agent-ops/memory", label: "Memory" },
 ] as const;

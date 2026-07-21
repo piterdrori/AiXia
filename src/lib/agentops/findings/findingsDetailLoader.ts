@@ -15,11 +15,13 @@ import {
 } from "@/lib/agentops";
 import {
   applyMonitoringDraftDecision,
-  fetchMonitoringDrafts,
+  fetchMonitoringDraftById,
   mapDraftToCanonical,
   promoteMonitoringDraft,
+  saveMonitoringDraftFixPrompt,
   type MonitoringDraftApiRow,
 } from "@/lib/agentops/findings/findingsOwnerCatalog";
+import { classifyLikelyShellNoiseDraft } from "@/lib/agentops/findings/issueDraftNoise";
 import {
   actionHelp,
   actionLabel,
@@ -86,6 +88,12 @@ export type CanonicalFindingDetailView = {
   pendingVerificationId: string | null;
   technical: Record<string, unknown>;
   nextAction: string;
+  likelyShellNoise: boolean;
+  noiseReason: string | null;
+  workSourceLabel: string | null;
+  rawObservations: string[];
+  promptSavedAt: string | null;
+  artifactNotes: string[];
 };
 
 export type FindingDetailLoadResult = {
@@ -301,7 +309,85 @@ function fromFinding(
     nextAction: actionLabel(
       actions.find((action) => !["open_agent", "chat_agent"].includes(action)) ?? "open_agent",
     ),
+    likelyShellNoise: false,
+    noiseReason: null,
+    workSourceLabel: "Promoted issue",
+    rawObservations: [],
+    promptSavedAt: metaString(finding.metadata, "fix_prompt_saved_at"),
+    artifactNotes: [],
   };
+}
+
+function buildInitialFixPrompt(draft: MonitoringDraftApiRow): string {
+  return [
+    "Fix / investigate this AgentOps staging issue.",
+    "",
+    `Issue summary: ${draft.title}`,
+    `Description: ${draft.summary}`,
+    `Reporting agent: ${draft.agentSlug}`,
+    `Route / module: ${draft.route ?? "—"} / ${draft.module ?? "—"}`,
+    `Severity: ${draft.severity}`,
+    `Source run: ${draft.runId}`,
+    draft.browserQaEvidence?.evidence
+      ? `Evidence: ${String(draft.browserQaEvidence.evidence)}`
+      : draft.evidence?.evidence
+        ? `Evidence: ${String(draft.evidence.evidence)}`
+        : null,
+    "",
+    "What to inspect:",
+    "- Reproduce on staging only",
+    "- Confirm whether this is a real product defect or shell/noise",
+    "- Identify the owner-readable root cause",
+    "",
+    "Constraints:",
+    "- Staging only — do not touch production",
+    "- Do not create a PR, deploy, or auto-fix unless the owner later approves",
+    "",
+    "Expected output:",
+    "- Clear diagnosis",
+    "- Minimal safe fix plan for staging",
+    "- Verification steps on the affected route",
+  ]
+    .filter((line): line is string => line != null)
+    .join("\n");
+}
+
+function extractDraftObservations(draft: MonitoringDraftApiRow): string[] {
+  const out: string[] = [];
+  const push = (value: unknown) => {
+    if (typeof value === "string" && value.trim()) out.push(value.trim());
+  };
+  push(draft.browserQaEvidence?.evidence);
+  push(draft.evidence?.evidence);
+  const raw = draft.browserQaEvidence?.rawObservations ?? draft.evidence?.rawObservations;
+  if (Array.isArray(raw)) {
+    for (const item of raw) push(item);
+  }
+  return out.slice(0, 12);
+}
+
+function extractDraftEvidenceLinks(draft: MonitoringDraftApiRow): Array<{
+  id: string;
+  label: string;
+  href: string;
+}> {
+  const links: Array<{ id: string; label: string; href: string }> = [];
+  const candidates = [
+    draft.browserQaEvidence?.screenshot_path,
+    draft.browserQaEvidence?.screenshotPath,
+    draft.evidence?.screenshotPath,
+    draft.evidence?.screenshot_path,
+  ];
+  candidates.forEach((path, index) => {
+    if (typeof path === "string" && path.trim()) {
+      links.push({
+        id: `local-${index}`,
+        label: "Local screenshot / artifact path",
+        href: path.trim(),
+      });
+    }
+  });
+  return links;
 }
 
 function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | null {
@@ -311,9 +397,21 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
   } as MonitoringDraftApiRow);
   if (!canonical) return null;
 
+  const noise = classifyLikelyShellNoiseDraft({
+    title: draft.title,
+    summary: draft.summary,
+    route: draft.route,
+    module: draft.module,
+    evidence: draft.evidence,
+    browserQaEvidence: draft.browserQaEvidence,
+  });
+
   const explanation = ownerReadableExplanation(draft.summary);
+  const initialPrompt = draft.suggestedFixPrompt?.trim()
+    ? draft.suggestedFixPrompt
+    : buildInitialFixPrompt(draft);
   const prompt = resolveSuggestedFixPrompt({
-    suggestedFixPrompt: draft.suggestedFixPrompt ?? null,
+    suggestedFixPrompt: initialPrompt,
   });
   const actions = validOwnerActionsFor({
     source: "draft",
@@ -326,7 +424,66 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
   const evidenceText =
     typeof draft.browserQaEvidence?.summary === "string"
       ? draft.browserQaEvidence.summary
-      : draft.summary;
+      : typeof draft.browserQaEvidence?.evidence === "string"
+        ? draft.browserQaEvidence.evidence
+        : typeof draft.evidence?.evidence === "string"
+          ? draft.evidence.evidence
+          : draft.summary;
+
+  const observed =
+    typeof draft.browserQaEvidence?.observed === "string"
+      ? draft.browserQaEvidence.observed
+      : typeof draft.evidence?.observed === "string"
+        ? draft.evidence.observed
+        : typeof draft.browserQaEvidence?.evidence === "string"
+          ? draft.browserQaEvidence.evidence
+          : null;
+  const expected =
+    typeof draft.browserQaEvidence?.expected === "string"
+      ? draft.browserQaEvidence.expected
+      : typeof draft.evidence?.expected === "string"
+        ? draft.evidence.expected
+        : null;
+
+  const promptSavedAt =
+    typeof draft.evidence?.fix_prompt_saved_at === "string"
+      ? draft.evidence.fix_prompt_saved_at
+      : null;
+
+  const history = buildHistory({
+    createdAt: draft.createdAt,
+    updatedAt: draft.updatedAt ?? draft.createdAt,
+    feedback: [],
+  });
+  if (draft.ownerDecisionAt) {
+    history.unshift({
+      id: `owner-decision-${draft.ownerDecisionAt}`,
+      at: draft.ownerDecisionAt,
+      actor: "Owner",
+      label: `Owner decision: ${draft.status}`,
+      note: draft.ownerDecisionBy ? `Actor: ${draft.ownerDecisionBy}` : null,
+    });
+  }
+  if (promptSavedAt) {
+    history.unshift({
+      id: `prompt-saved-${promptSavedAt}`,
+      at: promptSavedAt,
+      actor: "Owner",
+      label: "Fix Issue Prompt saved",
+      note: "Prompt draft only — no code, PR, or deploy.",
+    });
+  }
+
+  const artifactNotes: string[] = [];
+  if (extractDraftEvidenceLinks(draft).length === 0) {
+    artifactNotes.push(
+      "No signed storage artifact is linked on this draft yet. Local worker paths appear when available.",
+    );
+  } else {
+    artifactNotes.push(
+      "Local artifact path shown below. Signed URLs are available for storage-backed runs via the monitoring artifact API (owner-only).",
+    );
+  }
 
   return {
     source: "draft",
@@ -336,16 +493,40 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
     ownerStatusLabel: canonical.ownerStatusLabel,
     statusRaw: draft.status,
     title: draft.title,
-    explanationDisplay: explanation.display,
+    explanationDisplay: noise.likelyShellNoise
+      ? `${explanation.display} This may be known AgentOps shell noise (calendar/tasks prefetch abort) rather than a product defect.`
+      : explanation.display,
     explanationTechnical: explanation.technical,
-    explanationInferred: explanation.inferred,
-    whyItMatters: buildWhyItMatters({
-      problem: draft.summary,
-      severity: draft.severity,
-    }),
+    explanationInferred: explanation.inferred || noise.likelyShellNoise,
+    whyItMatters: [
+      ...buildWhyItMatters({
+        problem: draft.summary,
+        severity: draft.severity,
+      }),
+      {
+        label: "Likely real vs noise",
+        text: noise.likelyShellNoise
+          ? noise.reason ??
+            "Likely shell noise from calendar/tasks HEAD abort on AgentOps routes."
+          : "Treat as a real review candidate until evidence says otherwise.",
+        inferred: noise.likelyShellNoise,
+      },
+      {
+        label: "What should be checked",
+        text: `Confirm the failure on ${draft.route ?? "the reported route"} and whether it still reproduces after a clean reload.`,
+        inferred: true,
+      },
+      {
+        label: "Risk if ignored",
+        text: noise.likelyShellNoise
+          ? "Low — if confirmed shell noise, defer or reject after a quick check."
+          : "Medium — unresolved staging defects can block owner trust in agent monitoring.",
+        inferred: true,
+      },
+    ],
     evidenceSummary: evidenceText,
-    expectedResult: null,
-    actualResult: null,
+    expectedResult: expected,
+    actualResult: observed,
     route: draft.route,
     module: draft.module ?? null,
     severity: draft.severity,
@@ -361,20 +542,18 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
     duplicateKey: draft.duplicateKey ?? null,
     runId: draft.runId,
     suggestedSolution: null,
-    likelyRootCause: null,
+    likelyRootCause: noise.likelyShellNoise
+      ? "Known app-shell calendar/tasks HEAD abort on AgentOps pages."
+      : null,
     promptText: prompt.text,
     originalPrompt: prompt.originalText,
     promptSource: prompt.source,
     promptSafetyHits: inspectPromptSafety(prompt.text ?? ""),
-    canSavePrompt: false,
+    canSavePrompt: true,
     validActions: actions,
     actionMeta: actions.map((id) => ({ id, label: actionLabel(id), help: actionHelp(id) })),
-    history: buildHistory({
-      createdAt: draft.createdAt,
-      updatedAt: draft.updatedAt ?? draft.createdAt,
-      feedback: [],
-    }),
-    evidenceLinks: [],
+    history: history.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
+    evidenceLinks: extractDraftEvidenceLinks(draft),
     pendingVerificationId: null,
     technical: {
       draftId: draft.id,
@@ -384,15 +563,22 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
       duplicateKey: draft.duplicateKey,
       promotedIssueId: draft.promotedIssueId,
       suggestedFixPrompt: draft.suggestedFixPrompt,
+      source: draft.source,
     },
     nextAction: canonical.nextAction,
+    likelyShellNoise: noise.likelyShellNoise,
+    noiseReason: noise.reason,
+    workSourceLabel: canonical.workSourceLabel,
+    rawObservations: extractDraftObservations(draft),
+    promptSavedAt,
+    artifactNotes,
   };
 }
 
 async function loadDraftById(draftId: string): Promise<MonitoringDraftApiRow | null> {
-  const listed = await fetchMonitoringDrafts(50);
-  if (listed.error) return null;
-  return listed.data.find((draft) => draft.id === draftId) ?? null;
+  const result = await fetchMonitoringDraftById(draftId);
+  if (result.error || result.notFound) return null;
+  return result.data;
 }
 
 export async function loadCanonicalFindingDetail(
@@ -470,6 +656,8 @@ export async function loadCanonicalFindingDetail(
 
 export {
   applyMonitoringDraftDecision,
+  fetchMonitoringDraftById,
   promoteMonitoringDraft,
+  saveMonitoringDraftFixPrompt,
   decodeRouteParam,
 };

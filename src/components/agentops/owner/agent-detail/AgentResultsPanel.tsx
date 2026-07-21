@@ -244,12 +244,10 @@ export function AgentResultsPanel({
                       statusLabel={OWNER_FINDING_STATUS_LABEL[ownerStatusMapped]}
                       route={finding.route ?? finding.module}
                       priority={finding.severity}
+                      foundLabel={ageLabel(finding.created_at)}
                       ageLabel={ageLabel(finding.created_at)}
-                      onOpen={() =>
-                        navigate(
-                          `/system/agent-ops/issues/${encodeURIComponent(finding.issue_code)}`,
-                        )
-                      }
+                      openLabel="Open issue"
+                      openHref={`/system/agent-ops/issues/${encodeURIComponent(finding.issue_code)}`}
                     />
                   );
                 })}

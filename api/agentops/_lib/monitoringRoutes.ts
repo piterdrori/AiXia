@@ -26,6 +26,7 @@ import {
   handleMonitoringManualRunStatusRequest,
   handleMonitoringWorkerQueueRequest,
 } from "./monitoringManualRun.js";
+import { assertOwnerFromRequest, ownerActorMarker } from "./monitoringOwnerAuth.js";
 import { jsonResponse } from "./ollamaProxy.js";
 
 const MONITORING_TABLE = "agentops_monitoring_runs";
@@ -601,7 +602,7 @@ async function listIndexedRuns(client: SupabaseClient, limit = 10) {
 }
 
 async function listIssueDrafts(client: SupabaseClient, limit = 20, status?: string) {
-  const safeLimit = Math.min(Math.max(limit, 1), 50);
+  const safeLimit = Math.min(Math.max(limit, 1), 200);
   let query = client
     .from(ISSUE_DRAFTS_TABLE)
     .select(
@@ -613,6 +614,19 @@ async function listIssueDrafts(client: SupabaseClient, limit = 20, status?: stri
   const { data, error } = await query;
   if (error) return { ok: false as const, error: error.message };
   return { ok: true as const, data: (data ?? []) as IssueDraftRow[] };
+}
+
+async function getIssueDraftById(client: SupabaseClient, draftId: string) {
+  const { data, error } = await client
+    .from(ISSUE_DRAFTS_TABLE)
+    .select(
+      "id, run_id, github_run_id, source, status, agent_slug, module, route, issue_type, severity, title, summary, evidence, browser_qa_evidence, suggested_fix_prompt, confidence, duplicate_key, promoted_issue_id, created_at, updated_at, owner_decision_by, owner_decision_at",
+    )
+    .eq("id", draftId)
+    .maybeSingle();
+  if (error) return { ok: false as const, error: error.message };
+  if (!data) return { ok: true as const, data: null };
+  return { ok: true as const, data: data as IssueDraftRow };
 }
 
 async function countIssueDraftsByStatus(client: SupabaseClient) {
@@ -689,11 +703,27 @@ function isDuplicateIssueError(message: string): boolean {
 
 function hasBrowserQaEvidenceDraft(draft: IssueDraftRow): boolean {
   const evidence = draft.browser_qa_evidence ?? {};
+  const draftEvidence = draft.evidence ?? {};
   const scanMode = evidence.scan_mode;
   const hasRoute =
-    (typeof evidence.route === "string" && evidence.route.length > 0) ||
-    (typeof evidence.absolute_url === "string" && evidence.absolute_url.length > 0);
-  return scanMode === "playwright" && hasRoute;
+    (typeof evidence.route === "string" && evidence.route.trim().length > 0) ||
+    (typeof evidence.absolute_url === "string" && evidence.absolute_url.trim().length > 0) ||
+    (typeof draft.route === "string" && draft.route.trim().length > 0);
+  if (!hasRoute) return false;
+  if (scanMode === "playwright") return true;
+  const workerSource =
+    draft.source === "owner_manual_browser_qa" ||
+    draft.source === "owner_manual_website_audit" ||
+    draftEvidence.ownerManual === true ||
+    evidence.source === "owner_manual_browser_qa" ||
+    evidence.source === "owner_manual_website_audit";
+  const hasFindingType =
+    typeof evidence.type === "string" && evidence.type.trim().length > 0;
+  const hasEvidencePayload =
+    evidence.evidence != null ||
+    typeof evidence.summary === "string" ||
+    typeof draftEvidence.evidence === "string";
+  return workerSource && (hasFindingType || hasEvidencePayload);
 }
 
 function validateDraftPromotion(draft: IssueDraftRow, ownerId: string): string | null {
@@ -741,6 +771,7 @@ function toIssueDraftSummary(row: IssueDraftRow) {
     severity: row.severity,
     title: row.title,
     summary: row.summary,
+    evidence: row.evidence ?? {},
     browserQaEvidence: row.browser_qa_evidence,
     suggestedFixPrompt: row.suggested_fix_prompt,
     confidence: row.confidence,
@@ -1124,6 +1155,11 @@ export async function handleMonitoringDraftsListRequest(request: Request): Promi
   if (blocked) return blocked;
   if (request.method !== "GET") return methodNotAllowed();
 
+  const owner = await assertOwnerFromRequest(request);
+  if (!owner.ok) {
+    return jsonResponse({ ok: false, error: owner.error }, owner.status);
+  }
+
   const client = createStagingSupabaseClient();
   if (!client) {
     return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
@@ -1131,6 +1167,20 @@ export async function handleMonitoringDraftsListRequest(request: Request): Promi
 
   const [, queryPart = ""] = request.url.split("?");
   const params = new URLSearchParams(queryPart);
+  const draftId = params.get("id")?.trim() ?? "";
+  if (draftId) {
+    const fetched = await getIssueDraftById(client, draftId);
+    if (!fetched.ok) return jsonResponse({ ok: false, error: fetched.error }, 503);
+    if (!fetched.data) {
+      return jsonResponse({ ok: false, error: "Draft not found." }, 404);
+    }
+    return jsonResponse({
+      ok: true,
+      environment: "staging",
+      draft: toIssueDraftSummary(fetched.data),
+    });
+  }
+
   const status = params.get("status") ?? undefined;
   const limit = Number(params.get("limit") ?? "20");
   const listed = await listIssueDrafts(client, Number.isFinite(limit) ? limit : 20, status);
@@ -1148,12 +1198,18 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
   if (blocked) return blocked;
   if (request.method !== "POST") return methodNotAllowed();
 
+  const owner = await assertOwnerFromRequest(request);
+  if (!owner.ok) {
+    return jsonResponse({ ok: false, error: owner.error }, owner.status);
+  }
+  const ownerId = ownerActorMarker(owner);
+
   const client = createStagingSupabaseClient();
   if (!client) {
     return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
   }
 
-  let body: { draftId?: string; decision?: string; ownerId?: string };
+  let body: { draftId?: string; decision?: string; ownerId?: string; note?: string };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -1162,7 +1218,7 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
 
   const draftId = body.draftId?.trim();
   const decision = body.decision?.trim();
-  const ownerId = body.ownerId?.trim() ?? "owner";
+  // Ignore client-supplied ownerId — identity comes from session only.
 
   if (!draftId || !decision) {
     return jsonResponse({ ok: false, error: "draftId and decision are required." }, 400);
@@ -1184,12 +1240,36 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
     return jsonResponse({ ok: false, error: "Promoted drafts cannot be changed." }, 409);
   }
 
+  const previousStatus = existing.status;
+  const decisionAt = new Date().toISOString();
+  const note =
+    typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+  const priorEvidence =
+    existing.evidence && typeof existing.evidence === "object"
+      ? (existing.evidence as Record<string, unknown>)
+      : {};
+  const nextEvidence = {
+    ...priorEvidence,
+    ownerActionAudit: {
+      action: decision,
+      previousStatus,
+      newStatus: decision,
+      ownerId,
+      ownerEmail: owner.email,
+      at: decisionAt,
+      note,
+      runId: existing.run_id,
+      agentSlug: existing.agent_slug,
+    },
+  };
+
   const { data, error } = await client
     .from(ISSUE_DRAFTS_TABLE)
     .update({
       status: decision,
       owner_decision_by: ownerId,
-      owner_decision_at: new Date().toISOString(),
+      owner_decision_at: decisionAt,
+      evidence: nextEvidence,
     })
     .eq("id", draftId)
     .select("*")
@@ -1202,6 +1282,105 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
     environment: "staging",
     draft: toIssueDraftSummary(data as IssueDraftRow),
     promoted: false,
+    ownerId,
+    previousStatus,
+  });
+}
+
+export async function handleMonitoringDraftPromptSaveRequest(request: Request): Promise<Response> {
+  const blocked = guardAgentOpsExecutionResponse(process.env);
+  if (blocked) return blocked;
+  if (request.method !== "POST") return methodNotAllowed();
+
+  const owner = await assertOwnerFromRequest(request);
+  if (!owner.ok) {
+    return jsonResponse({ ok: false, error: owner.error }, owner.status);
+  }
+  const ownerId = ownerActorMarker(owner);
+
+  const client = createStagingSupabaseClient();
+  if (!client) {
+    return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
+  }
+
+  let body: { draftId?: string; promptText?: string; ownerId?: string };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return jsonResponse({ ok: false, error: "Invalid JSON body." }, 400);
+  }
+
+  const draftId = body.draftId?.trim();
+  const promptText = typeof body.promptText === "string" ? body.promptText : "";
+  if (!draftId) {
+    return jsonResponse({ ok: false, error: "draftId is required." }, 400);
+  }
+  if (!promptText.trim()) {
+    return jsonResponse({ ok: false, error: "promptText is required." }, 400);
+  }
+  if (promptText.length > 20_000) {
+    return jsonResponse({ ok: false, error: "promptText exceeds 20000 characters." }, 400);
+  }
+
+  const { data: existing, error: fetchError } = await client
+    .from(ISSUE_DRAFTS_TABLE)
+    .select("*")
+    .eq("id", draftId)
+    .maybeSingle();
+  if (fetchError) return jsonResponse({ ok: false, error: fetchError.message }, 503);
+  if (!existing) return jsonResponse({ ok: false, error: "Draft not found." }, 404);
+  if (existing.status === "promoted") {
+    return jsonResponse(
+      { ok: false, error: "Promoted drafts use the issue prompt editor instead." },
+      409,
+    );
+  }
+
+  const savedAt = new Date().toISOString();
+  const priorEvidence =
+    existing.evidence && typeof existing.evidence === "object"
+      ? (existing.evidence as Record<string, unknown>)
+      : {};
+  const originalPrompt =
+    typeof priorEvidence.original_suggested_fix_prompt === "string"
+      ? priorEvidence.original_suggested_fix_prompt
+      : existing.suggested_fix_prompt;
+
+  const { data, error } = await client
+    .from(ISSUE_DRAFTS_TABLE)
+    .update({
+      suggested_fix_prompt: promptText.trim(),
+      evidence: {
+        ...priorEvidence,
+        original_suggested_fix_prompt: originalPrompt,
+        fix_prompt_saved_at: savedAt,
+        fix_prompt_saved_by: ownerId,
+        ownerActionAudit: {
+          action: "save_fix_prompt",
+          previousStatus: existing.status,
+          newStatus: existing.status,
+          ownerId,
+          ownerEmail: owner.email,
+          at: savedAt,
+          note: "Fix Issue Prompt draft saved (no code change).",
+          runId: existing.run_id,
+          agentSlug: existing.agent_slug,
+        },
+      },
+    })
+    .eq("id", draftId)
+    .select("*")
+    .single();
+
+  if (error) return jsonResponse({ ok: false, error: error.message }, 503);
+
+  return jsonResponse({
+    ok: true,
+    environment: "staging",
+    draft: toIssueDraftSummary(data as IssueDraftRow),
+    savedAt,
+    ownerId,
+    message: "Fix Issue Prompt saved on this draft. No code, PR, or deploy was created.",
   });
 }
 
@@ -1209,6 +1388,12 @@ export async function handleMonitoringDraftPromoteRequest(request: Request): Pro
   const blocked = guardAgentOpsExecutionResponse(process.env);
   if (blocked) return blocked;
   if (request.method !== "POST") return methodNotAllowed();
+
+  const owner = await assertOwnerFromRequest(request);
+  if (!owner.ok) {
+    return jsonResponse({ ok: false, error: owner.error }, owner.status);
+  }
+  const ownerId = ownerActorMarker(owner);
 
   const client = createStagingSupabaseClient();
   if (!client) {
@@ -1223,7 +1408,7 @@ export async function handleMonitoringDraftPromoteRequest(request: Request): Pro
   }
 
   const draftId = body.draftId?.trim();
-  const ownerId = body.ownerId?.trim() ?? "owner";
+  // Ignore client-supplied ownerId — identity comes from session only.
 
   if (!draftId) {
     return jsonResponse({ ok: false, error: "draftId is required." }, 400);
@@ -1598,6 +1783,9 @@ export async function routeMonitoringRequest(request: Request): Promise<Response
   }
   if (pathname === "/api/agentops/monitoring/drafts/decision") {
     return handleMonitoringDraftDecisionRequest(request);
+  }
+  if (pathname === "/api/agentops/monitoring/drafts/prompt") {
+    return handleMonitoringDraftPromptSaveRequest(request);
   }
   if (pathname === "/api/agentops/monitoring/drafts/promote") {
     return handleMonitoringDraftPromoteRequest(request);

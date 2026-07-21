@@ -187,7 +187,8 @@ function verifyLayoutAndCopy(): void {
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
     "memory-summary-agent-hermes",
   );
-  mustNotInclude(
+  // D-F1: dedicated Agent Hermes connection banner is required (not forbidden).
+  mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
     "Agent Hermes connected",
   );

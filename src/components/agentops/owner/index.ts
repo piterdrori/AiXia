@@ -17,6 +17,7 @@ export { AgentOpsOwnerNav } from "./AgentOpsOwnerNav";
 export { AgentOpsPageHeader } from "./AgentOpsPageHeader";
 export { AgentOpsRunRow } from "./AgentOpsRunRow";
 export { AgentOpsStatusSummary } from "./AgentOpsStatusSummary";
+export { StagingWorkerHealthStrip } from "./StagingWorkerHealthStrip";
 export { AGENT_OWNER_META, getAgentOwnerMeta } from "./agentDisplayMeta";
 export { useAgentOpsAgentChat } from "./useAgentOpsAgentChat";
 export type { AgentOpsAgentChatIdentity } from "./useAgentOpsAgentChat";

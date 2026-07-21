@@ -1,4 +1,5 @@
 import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 
 import { AixiaBadge } from "@/components/aixia";
 import { getAgentOwnerMeta } from "@/components/agentops/owner/agentDisplayMeta";
@@ -60,7 +61,8 @@ type AgentOpsAgentCardProps = {
   features?: number;
   noFindings?: boolean;
   openFindingsCount?: number | null;
-  onOpen: () => void;
+  /** Optional side-effect when opening (navigation is via Link href). */
+  onOpen?: () => void;
 };
 
 export function AgentOpsAgentCard({
@@ -79,9 +81,13 @@ export function AgentOpsAgentCard({
   onOpen,
 }: AgentOpsAgentCardProps) {
   const meta = getAgentOwnerMeta(agentSlug, { username, jobTitle, responsibility });
+  const detailHref = `/system/agent-ops/agents/${agentSlug}`;
 
   return (
-    <article className="flex h-full flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4">
+    <article
+      className="flex h-full flex-col rounded-xl border border-white/10 bg-white/[0.03] p-4"
+      data-testid={`agentops-agent-card-${agentSlug}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-white">{displayName}</h3>
@@ -109,14 +115,15 @@ export function AgentOpsAgentCard({
           </div>
         ) : null}
       </dl>
-      <button
-        type="button"
-        onClick={onOpen}
+      <Link
+        to={detailHref}
+        onClick={() => onOpen?.()}
+        data-testid={`agentops-open-agent-${agentSlug}`}
         className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-indigo-300 hover:text-indigo-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400"
       >
         Open agent
         <ArrowRight className="h-4 w-4" aria-hidden />
-      </button>
+      </Link>
     </article>
   );
 }

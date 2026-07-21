@@ -41,6 +41,7 @@
     "agentops:agent-detail-online-verify": "tsx scripts/agentops-agent-detail-online-verify.ts",
     "agentops:agent-detail-status-strip-verify": "tsx scripts/agentops-agent-detail-status-strip-verify.ts",
     "agentops:agent-hermes-memory-verify": "tsx scripts/agentops-agent-hermes-memory-verify.ts",
+    "agentops:pre-issues-pages-verify": "tsx scripts/agentops-pre-issues-pages-verify.ts",
     "agentops:manual-run-worker:once": "node scripts/agentops-staging-manual-run-worker.mjs once",
     "agentops:manual-run-worker:heartbeat": "node scripts/agentops-staging-manual-run-worker.mjs heartbeat",
     "agentops:manual-run-worker:claim-test": "node scripts/agentops-staging-manual-run-worker.mjs claim-test",

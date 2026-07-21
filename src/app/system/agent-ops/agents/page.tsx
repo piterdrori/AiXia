@@ -10,6 +10,7 @@ import {
   AgentOpsOwnerPageShell,
   AgentOpsPageHeader,
   AgentOpsStatusSummary,
+  StagingWorkerHealthStrip,
   getAgentOwnerMeta,
   useAgentOpsMonitoringStatus,
   useAgentOpsOwnerGate,
@@ -268,6 +269,12 @@ export default function AgentOpsAgentsPage() {
               },
             ]}
           />
+          <div className="mt-3">
+            <StagingWorkerHealthStrip enabled={isOwner} />
+          </div>
+          <p className="mt-2 text-xs text-white/45">
+            Per-agent Hermes memory is on each Agent Detail page (unique namespace per agent).
+          </p>
         </section>
 
         {/* Keep chat enabled across silent refreshes — only gated by owner status. */}
@@ -302,7 +309,6 @@ export default function AgentOpsAgentsPage() {
                 features={agent.features}
                 noFindings={agent.noFindings}
                 openFindingsCount={agent.openFindingsCount}
-                onOpen={() => navigate(`/system/agent-ops/agents/${agent.slug}`)}
               />
             ))}
           </div>

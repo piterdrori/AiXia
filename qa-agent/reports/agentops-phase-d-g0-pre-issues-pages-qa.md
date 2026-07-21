@@ -18,6 +18,9 @@ Full pre-Issues sweep over:
 
 **Result:** Pages are owner-usable with truthful worker/Hermes/detail status. Real gaps fixed on Agents list (worker health strip + real detail links). Functional audit / Browser QA / cancel / schedule proved with durable staging worker online. Issues workflow **not** started.
 
+**Deploy:** `c7bb9145` → Preview `https://ai-gejo43axc-piterdrori-gmailcoms-projects.vercel.app` (Ready) → aliased `https://ai-xia-staging.vercel.app`  
+**Post-deploy probe:** Agents strip shows `Worker online` / `Scheduler online` / `Audit tools ready` / `Queue empty`; Overview settles to Healthy 12/12.
+
 **Fixes shipped in this phase:**
 
 | Fix | Why |

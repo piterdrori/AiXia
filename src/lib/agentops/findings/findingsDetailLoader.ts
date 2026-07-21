@@ -13,6 +13,7 @@ import {
   type AgentOpsPromptLibraryEntry,
   type AgentOpsVerification,
 } from "@/lib/agentops";
+import type { AgentOpsRuntimeIssueRow } from "@/lib/agentops/db/agentOpsRuntimeTypes";
 import {
   applyMonitoringDraftDecision,
   fetchMonitoringDraftById,
@@ -27,6 +28,15 @@ import {
   readOwnerActionHistory,
 } from "@/lib/agentops/findings/draftOwnerLifecycle";
 import { classifyLikelyShellNoiseDraft } from "@/lib/agentops/findings/issueDraftNoise";
+import {
+  buildSyntheticFindingFromProductIssue,
+  mapRuntimeIssueToProductIssue,
+  runtimeIssueDisplayCode,
+} from "@/lib/agentops/issues/productIssueMappers";
+import {
+  getProductIssueByCode,
+  getRuntimeIssueById,
+} from "@/lib/agentops/issues/productIssuesService";
 import {
   actionHelp,
   actionLabel,
@@ -668,6 +678,63 @@ async function loadDraftById(draftId: string): Promise<MonitoringDraftApiRow | n
   return result.data;
 }
 
+/**
+ * Promoted monitoring drafts become runtime `agentops_issues` rows with BQA-* display
+ * codes — not rows in `agentops_findings`. Bridge them into the owner detail view.
+ */
+function detailFromRuntimeIssue(runtime: AgentOpsRuntimeIssueRow): CanonicalFindingDetailView {
+  const product = mapRuntimeIssueToProductIssue(runtime, new Map());
+  const synthetic = buildSyntheticFindingFromProductIssue(product, runtime);
+  const evidence = runtime.evidence ?? {};
+  if (typeof evidence.agent_slug === "string" && evidence.agent_slug.trim()) {
+    synthetic.agent_id = evidence.agent_slug.trim();
+  }
+  if (typeof evidence.source_run_id === "string" && evidence.source_run_id.trim()) {
+    synthetic.run_id = evidence.source_run_id.trim();
+  }
+  const sourceDraftId =
+    typeof evidence.source_draft_id === "string" ? evidence.source_draft_id.trim() : null;
+  synthetic.metadata = {
+    ...(synthetic.metadata && typeof synthetic.metadata === "object"
+      ? (synthetic.metadata as Record<string, unknown>)
+      : {}),
+    bridgedFromRuntime: true,
+    source_draft_id: sourceDraftId,
+    suggested_fix_prompt: runtime.fix_prompt,
+  };
+  const view = fromFinding(synthetic, null);
+  return {
+    ...view,
+    issueCode: runtimeIssueDisplayCode(runtime),
+    promotedIssueId: runtime.id,
+    draftId: sourceDraftId,
+    workSourceLabel: "Promoted issue",
+    // Prompt edits stay on the source draft when available; runtime rows are read-through.
+    canSavePrompt: Boolean(sourceDraftId),
+    promptText: runtime.fix_prompt ?? view.promptText,
+  };
+}
+
+async function loadPromotedRuntimeDetail(
+  issueCodeOrId: string,
+): Promise<CanonicalFindingDetailView | null> {
+  const byCode = await getProductIssueByCode(issueCodeOrId);
+  if (byCode.error) throw new Error(byCode.error);
+  if (byCode.data?.mode === "bridged_runtime" && byCode.data.runtimeIssueId) {
+    const runtimeResult = await getRuntimeIssueById(byCode.data.runtimeIssueId);
+    if (runtimeResult.error) throw new Error(runtimeResult.error);
+    if (runtimeResult.data) return detailFromRuntimeIssue(runtimeResult.data);
+  }
+
+  if (UUID_RE.test(issueCodeOrId)) {
+    const runtimeResult = await getRuntimeIssueById(issueCodeOrId);
+    if (runtimeResult.error) throw new Error(runtimeResult.error);
+    if (runtimeResult.data) return detailFromRuntimeIssue(runtimeResult.data);
+  }
+
+  return null;
+}
+
 export async function loadCanonicalFindingDetail(
   routeParam: string | undefined,
 ): Promise<FindingDetailLoadResult> {
@@ -692,6 +759,10 @@ export async function loadCanonicalFindingDetail(
           error: detailResult.error,
         };
       }
+      const bridged = await loadPromotedRuntimeDetail(key.value);
+      if (bridged) {
+        return { detail: bridged, notFound: false, error: null };
+      }
       return { detail: null, notFound: true, error: null };
     }
 
@@ -707,6 +778,10 @@ export async function loadCanonicalFindingDetail(
           notFound: false,
           error: detailResult.error,
         };
+      }
+      const bridged = await loadPromotedRuntimeDetail(key.value);
+      if (bridged) {
+        return { detail: bridged, notFound: false, error: null };
       }
       const draft = await loadDraftById(key.value);
       if (draft) {
@@ -728,6 +803,10 @@ export async function loadCanonicalFindingDetail(
           notFound: false,
           error: detailResult.error,
         };
+      }
+      const bridged = await loadPromotedRuntimeDetail(draft.promotedIssueId);
+      if (bridged) {
+        return { detail: bridged, notFound: false, error: null };
       }
     }
     const detail = fromDraft(draft);

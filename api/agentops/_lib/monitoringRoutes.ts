@@ -84,6 +84,7 @@ type IssueDraftRow = {
   suggested_fix_prompt: string | null;
   confidence: number | null;
   duplicate_key: string;
+  duplicate_of: string | null;
   promoted_issue_id: string | null;
   created_at: string;
   updated_at: string;
@@ -776,6 +777,7 @@ function toIssueDraftSummary(row: IssueDraftRow) {
     suggestedFixPrompt: row.suggested_fix_prompt,
     confidence: row.confidence,
     duplicateKey: row.duplicate_key,
+    duplicateOf: row.duplicate_of ?? null,
     promotedIssueId: row.promoted_issue_id,
     issueDisplayCode: row.promoted_issue_id ? runtimeIssueDisplayCode(row.promoted_issue_id) : null,
     createdAt: row.created_at,
@@ -1209,7 +1211,13 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
     return jsonResponse({ ok: false, error: "Staging Supabase not configured." }, 503);
   }
 
-  let body: { draftId?: string; decision?: string; ownerId?: string; note?: string };
+  let body: {
+    draftId?: string;
+    decision?: string;
+    ownerId?: string;
+    note?: string;
+    duplicateOf?: string;
+  };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -1224,7 +1232,14 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
     return jsonResponse({ ok: false, error: "draftId and decision are required." }, 400);
   }
 
-  if (!["owner_approved", "rejected", "deferred"].includes(decision)) {
+  const allowedDecisions = [
+    "owner_approved",
+    "rejected",
+    "deferred",
+    "needs_more_info",
+    "mark_duplicate",
+  ];
+  if (!allowedDecisions.includes(decision)) {
     return jsonResponse({ ok: false, error: "Invalid decision." }, 400);
   }
 
@@ -1244,32 +1259,85 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
   const decisionAt = new Date().toISOString();
   const note =
     typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+
+  // DB status constraint: draft|owner_approved|rejected|deferred|promoted.
+  // needs_more_info / mark_duplicate persist as deferred + evidence overlay.
+  let nextStatus: string = decision;
+  let duplicateOf: string | null = existing.duplicate_of ?? null;
+  let ownerDecisionKind = decision;
+  let message: string | null = null;
+
+  if (decision === "needs_more_info") {
+    nextStatus = "deferred";
+    ownerDecisionKind = "needs_more_info";
+    message =
+      "Marked as needs more info. Follow-up execution is not automatic yet.";
+  } else if (decision === "mark_duplicate") {
+    const targetRaw = typeof body.duplicateOf === "string" ? body.duplicateOf.trim() : "";
+    const targetId = targetRaw.replace(/^draft-/i, "");
+    if (!targetId) {
+      return jsonResponse(
+        { ok: false, error: "duplicateOf (target draft or issue draft id) is required." },
+        400,
+      );
+    }
+    if (targetId === draftId) {
+      return jsonResponse({ ok: false, error: "A draft cannot be marked as a duplicate of itself." }, 400);
+    }
+    const { data: target, error: targetError } = await client
+      .from(ISSUE_DRAFTS_TABLE)
+      .select("id, status, title")
+      .eq("id", targetId)
+      .maybeSingle();
+    if (targetError) return jsonResponse({ ok: false, error: targetError.message }, 503);
+    if (!target) {
+      return jsonResponse({ ok: false, error: "Duplicate target draft was not found." }, 404);
+    }
+    nextStatus = "deferred";
+    ownerDecisionKind = "marked_duplicate";
+    duplicateOf = targetId;
+    message = `Marked duplicate of draft ${targetId}. Original rows are retained.`;
+  } else if (decision === "deferred") {
+    ownerDecisionKind = "deferred";
+  } else if (decision === "owner_approved" || decision === "rejected") {
+    ownerDecisionKind = decision;
+  }
+
   const priorEvidence =
     existing.evidence && typeof existing.evidence === "object"
       ? (existing.evidence as Record<string, unknown>)
       : {};
+  const historyEntry = {
+    action: ownerDecisionKind,
+    previousStatus,
+    newStatus: nextStatus,
+    ownerId,
+    ownerEmail: owner.email,
+    at: decisionAt,
+    note,
+    runId: existing.run_id,
+    agentSlug: existing.agent_slug,
+    duplicateOf,
+  };
+  const priorHistory = Array.isArray(priorEvidence.ownerActionHistory)
+    ? priorEvidence.ownerActionHistory
+    : [];
   const nextEvidence = {
     ...priorEvidence,
-    ownerActionAudit: {
-      action: decision,
-      previousStatus,
-      newStatus: decision,
-      ownerId,
-      ownerEmail: owner.email,
-      at: decisionAt,
-      note,
-      runId: existing.run_id,
-      agentSlug: existing.agent_slug,
-    },
+    ownerDecisionKind,
+    ownerDecisionNote: note,
+    ownerActionAudit: historyEntry,
+    ownerActionHistory: [...priorHistory, historyEntry].slice(-40),
   };
 
   const { data, error } = await client
     .from(ISSUE_DRAFTS_TABLE)
     .update({
-      status: decision,
+      status: nextStatus,
       owner_decision_by: ownerId,
       owner_decision_at: decisionAt,
       evidence: nextEvidence,
+      duplicate_of: duplicateOf,
     })
     .eq("id", draftId)
     .select("*")
@@ -1284,6 +1352,9 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
     promoted: false,
     ownerId,
     previousStatus,
+    newStatus: nextStatus,
+    ownerDecisionKind,
+    message,
   });
 }
 
@@ -1346,6 +1417,21 @@ export async function handleMonitoringDraftPromptSaveRequest(request: Request): 
       ? priorEvidence.original_suggested_fix_prompt
       : existing.suggested_fix_prompt;
 
+  const promptHistoryEntry = {
+    action: "save_fix_prompt",
+    previousStatus: existing.status,
+    newStatus: existing.status,
+    ownerId,
+    ownerEmail: owner.email,
+    at: savedAt,
+    note: "Fix Issue Prompt draft saved (no code change).",
+    runId: existing.run_id,
+    agentSlug: existing.agent_slug,
+  };
+  const priorPromptHistory = Array.isArray(priorEvidence.ownerActionHistory)
+    ? priorEvidence.ownerActionHistory
+    : [];
+
   const { data, error } = await client
     .from(ISSUE_DRAFTS_TABLE)
     .update({
@@ -1355,17 +1441,8 @@ export async function handleMonitoringDraftPromptSaveRequest(request: Request): 
         original_suggested_fix_prompt: originalPrompt,
         fix_prompt_saved_at: savedAt,
         fix_prompt_saved_by: ownerId,
-        ownerActionAudit: {
-          action: "save_fix_prompt",
-          previousStatus: existing.status,
-          newStatus: existing.status,
-          ownerId,
-          ownerEmail: owner.email,
-          at: savedAt,
-          note: "Fix Issue Prompt draft saved (no code change).",
-          runId: existing.run_id,
-          agentSlug: existing.agent_slug,
-        },
+        ownerActionAudit: promptHistoryEntry,
+        ownerActionHistory: [...priorPromptHistory, promptHistoryEntry].slice(-40),
       },
     })
     .eq("id", draftId)

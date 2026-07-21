@@ -49,6 +49,30 @@ results.push(
     }),
   }),
 );
+results.push(
+  await probe("/api/agentops/monitoring/drafts/decision", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      draftId: "21109c88-4ca6-4afa-9546-f7db66f8bc13",
+      decision: "needs_more_info",
+      note: "spoof",
+      ownerId: "spoofed-owner",
+    }),
+  }),
+);
+results.push(
+  await probe("/api/agentops/monitoring/drafts/decision", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      draftId: "21109c88-4ca6-4afa-9546-f7db66f8bc13",
+      decision: "mark_duplicate",
+      duplicateOf: "00000000-0000-4000-8000-000000000001",
+      ownerId: "spoofed-owner",
+    }),
+  }),
+);
 
 const rejected = results.every((row) => row.status === 401 || row.status === 403);
 console.log(

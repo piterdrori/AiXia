@@ -38,9 +38,9 @@ export const FINDING_CHAT_QUICK_QUESTIONS: ReadonlyArray<{ id: string; label: st
   },
   {
     id: "improve-prompt",
-    label: "Improve the fix prompt",
+    label: "Improve Fix Prompt",
     message:
-      "Improve the suggested fix prompt for this finding. Return a structured prompt rewrite proposal.",
+      "Improve the Fix Issue Prompt for this finding. Return a structured prompt rewrite proposal the owner can review before saving.",
   },
   {
     id: "verify",

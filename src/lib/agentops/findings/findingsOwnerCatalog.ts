@@ -8,8 +8,12 @@ import {
   toCanonicalFindingView,
   type CanonicalFindingView,
 } from "@/lib/agentops/findings/findingsLifecycleModel";
+import {
+  mapDraftStatusWithEvidence,
+} from "@/lib/agentops/findings/draftOwnerLifecycle";
 import { classifyLikelyShellNoiseDraft } from "@/lib/agentops/findings/issueDraftNoise";
 import { supabase } from "@/lib/supabase";
+import type { OwnerFindingStatus } from "@/lib/agentops/findings/findingsLifecycleModel";
 
 function workSourceLabelForDraft(source: string | null | undefined): string {
   const value = (source ?? "").toLowerCase();
@@ -64,7 +68,15 @@ export type MonitoringDraftApiRow = {
   updatedAt?: string;
   ownerDecisionBy?: string | null;
   ownerDecisionAt?: string | null;
+  duplicateOf?: string | null;
 };
+
+export type MonitoringDraftOwnerDecision =
+  | "owner_approved"
+  | "rejected"
+  | "deferred"
+  | "needs_more_info"
+  | "mark_duplicate";
 
 export type FindingsCatalogLoadResult = {
   items: CanonicalFindingView[];
@@ -124,6 +136,12 @@ export function mapDraftToCanonical(draft: MonitoringDraftApiRow): CanonicalFind
     evidence: draft.evidence,
     browserQaEvidence: draft.browserQaEvidence,
   });
+  const mapped = mapDraftStatusWithEvidence(draft.status, draft.evidence ?? {});
+  if (mapped === "superseded") return null;
+  const ownerStatusOverride =
+    mapped === "needs_more_info" || mapped === "duplicate"
+      ? (mapped as OwnerFindingStatus)
+      : null;
   return toCanonicalFindingView({
     source: "draft",
     id: draft.id,
@@ -145,6 +163,9 @@ export function mapDraftToCanonical(draft: MonitoringDraftApiRow): CanonicalFind
     workSourceLabel: workSourceLabelForDraft(draft.source),
     likelyShellNoise: noise.likelyShellNoise,
     evidenceIndicator: evidenceIndicatorForDraft(draft),
+    ownerStatusOverride,
+    runId: draft.runId,
+    duplicateOf: draft.duplicateOf ?? null,
   });
 }
 
@@ -161,6 +182,7 @@ export function mapFindingToCanonical(finding: AgentOpsFinding): CanonicalFindin
     confidence: null,
     agentSlug: finding.agent_id,
     supportingAgentSlugs: supportingAgentsFromFinding(finding),
+    runId: finding.run_id ?? null,
     route: finding.route,
     module: finding.module,
     createdAt: finding.created_at,
@@ -296,9 +318,10 @@ export async function loadFindingsOwnerCatalog(): Promise<FindingsCatalogLoadRes
 
 export async function applyMonitoringDraftDecision(
   draftId: string,
-  decision: "owner_approved" | "rejected" | "deferred",
+  decision: MonitoringDraftOwnerDecision,
   note?: string | null,
-): Promise<{ ok: boolean; error: string | null }> {
+  options?: { duplicateOf?: string | null },
+): Promise<{ ok: boolean; error: string | null; message?: string | null }> {
   try {
     const headers = await ownerAuthHeaders();
     const response = await fetch("/api/agentops/monitoring/drafts/decision", {
@@ -308,15 +331,26 @@ export async function applyMonitoringDraftDecision(
         draftId,
         decision,
         ...(note?.trim() ? { note: note.trim() } : {}),
+        ...(options?.duplicateOf?.trim()
+          ? { duplicateOf: options.duplicateOf.trim() }
+          : {}),
       }),
     });
-    const payload = (await response.json()) as { ok?: boolean; error?: string };
+    const payload = (await response.json()) as {
+      ok?: boolean;
+      error?: string;
+      message?: string;
+    };
     if (!response.ok || !payload.ok) {
-      return { ok: false, error: payload.error ?? "Decision failed." };
+      return { ok: false, error: payload.error ?? "Decision failed.", message: null };
     }
-    return { ok: true, error: null };
+    return { ok: true, error: null, message: payload.message ?? null };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+      message: null,
+    };
   }
 }
 

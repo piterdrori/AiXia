@@ -64,6 +64,14 @@ const EMPTY_COPY: Record<FindingsTabId, { title: string; description: string }> 
     title: "No deferred issues.",
     description: "Issues you explicitly defer will be listed here.",
   },
+  "needs-more-info": {
+    title: "No issues are waiting for more information.",
+    description: "When you mark Needs more info, those drafts collect here.",
+  },
+  duplicates: {
+    title: "No duplicate-marked issues.",
+    description: "Drafts you mark as duplicate remain visible here for audit.",
+  },
   rejected: {
     title: "No rejected issues.",
     description: "Rejected issues remain visible for audit.",
@@ -122,8 +130,11 @@ export default function AgentOpsIssuesPage() {
   const filterStatus = searchParams.get("status") as OwnerFindingStatus | null;
   const filterDate = searchParams.get("date");
   const filterQuery = searchParams.get("q");
-  // Opt-in hide: default shows noise drafts with a badge so the queue stays visible.
-  const hideNoise = searchParams.get("hideNoise") === "1";
+  const filterSource = searchParams.get("source"); // draft | promoted
+  const filterSeverity = searchParams.get("severity");
+  // Default hide likely shell noise; opt-in with showNoise=1.
+  const showNoise = searchParams.get("showNoise") === "1";
+  const hideNoise = !showNoise;
 
   const patchParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -168,6 +179,16 @@ export default function AgentOpsIssuesPage() {
       status: filterStatus,
       date: filterDate,
       q: filterQuery,
+    }).filter((item) => {
+      if (filterSource === "draft" && item.source !== "draft") return false;
+      if (filterSource === "promoted" && item.source !== "finding") return false;
+      if (
+        filterSeverity &&
+        (item.severity ?? "").toLowerCase() !== filterSeverity.toLowerCase()
+      ) {
+        return false;
+      }
+      return true;
     });
     const visible = hideNoise ? base.filter((item) => !item.likelyShellNoise) : base;
     return [...visible].sort((a, b) => {
@@ -185,6 +206,8 @@ export default function AgentOpsIssuesPage() {
     filterStatus,
     filterDate,
     filterQuery,
+    filterSource,
+    filterSeverity,
     hideNoise,
   ]);
 
@@ -208,6 +231,8 @@ export default function AgentOpsIssuesPage() {
       status: null,
       date: null,
       q: null,
+      source: null,
+      severity: null,
     });
   };
 
@@ -218,7 +243,9 @@ export default function AgentOpsIssuesPage() {
       filterRoute ||
       filterStatus ||
       filterDate ||
-      filterQuery,
+      filterQuery ||
+      filterSource ||
+      filterSeverity,
   );
 
   const decideDraft = async (
@@ -348,12 +375,12 @@ export default function AgentOpsIssuesPage() {
           <label className="inline-flex items-center gap-2">
             <input
               type="checkbox"
-              checked={hideNoise}
+              checked={showNoise}
               onChange={(event) =>
-                patchParams({ hideNoise: event.target.checked ? "1" : null })
+                patchParams({ showNoise: event.target.checked ? "1" : null })
               }
             />
-            Hide likely shell noise
+            Show likely shell noise
           </label>
           {noiseHiddenCount > 0 ? (
             <span className="text-xs text-amber-200/80">
@@ -362,7 +389,7 @@ export default function AgentOpsIssuesPage() {
             </span>
           ) : (
             <span className="text-xs text-white/45">
-              Shell-noise drafts stay visible with a badge unless you hide them.
+              Likely calendar/tasks HEAD abort noise is hidden by default.
             </span>
           )}
         </div>
@@ -451,6 +478,33 @@ export default function AgentOpsIssuesPage() {
                 </select>
               </label>
               <label className="space-y-1 text-sm">
+                <span className="text-white/55">Severity</span>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterSeverity ?? ""}
+                  onChange={(event) => patchParams({ severity: event.target.value || null })}
+                >
+                  <option value="">All severities</option>
+                  {["critical", "high", "medium", "low"].map((level) => (
+                    <option key={level} value={level}>
+                      {level}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
+                <span className="text-white/55">Source</span>
+                <select
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
+                  value={filterSource ?? ""}
+                  onChange={(event) => patchParams({ source: event.target.value || null })}
+                >
+                  <option value="">Drafts + promoted</option>
+                  <option value="draft">Drafts only</option>
+                  <option value="promoted">Promoted only</option>
+                </select>
+              </label>
+              <label className="space-y-1 text-sm">
                 <span className="text-white/55">Status</span>
                 <select
                   className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
@@ -493,7 +547,7 @@ export default function AgentOpsIssuesPage() {
                   className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-white"
                   value={filterQuery ?? ""}
                   onChange={(event) => patchParams({ q: event.target.value || null })}
-                  placeholder="Title, explanation, agent…"
+                  placeholder="Title, route, agent, run id…"
                 />
               </label>
             </div>

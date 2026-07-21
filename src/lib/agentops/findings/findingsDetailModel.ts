@@ -27,6 +27,8 @@ export type OwnerDetailAction =
   | "approve"
   | "defer"
   | "reject"
+  | "needs_more_info"
+  | "mark_duplicate"
   | "promote"
   | "mark_fixed"
   | "request_verification"
@@ -204,12 +206,17 @@ export function validOwnerActionsFor(input: {
 
   if (source === "draft") {
     if (ownerStatus === "needs_review" && hasDraftId) {
-      actions.push("approve", "defer", "reject");
+      actions.push("approve", "defer", "reject", "needs_more_info", "mark_duplicate");
     }
     if (ownerStatus === "approved" && hasDraftId) {
-      actions.push("promote");
+      actions.push("promote", "needs_more_info", "mark_duplicate");
     }
-    if (ownerStatus === "deferred" || ownerStatus === "rejected") {
+    if (
+      ownerStatus === "deferred" ||
+      ownerStatus === "rejected" ||
+      ownerStatus === "needs_more_info" ||
+      ownerStatus === "duplicate"
+    ) {
       // No safe draft restore API — omit reopen for drafts.
     }
     return actions;
@@ -248,6 +255,10 @@ export function actionLabel(action: OwnerDetailAction): string {
       return "Defer";
     case "reject":
       return "Reject";
+    case "needs_more_info":
+      return "Needs more info";
+    case "mark_duplicate":
+      return "Mark duplicate";
     case "promote":
       return "Promote to issue";
     case "mark_fixed":
@@ -275,6 +286,10 @@ export function actionHelp(action: OwnerDetailAction): string {
       return "Keeps the finding available and records your deferral.";
     case "reject":
       return "Records rejection. Evidence is retained.";
+    case "needs_more_info":
+      return "Keeps the issue open but asks for clearer evidence. No automatic agent follow-up yet.";
+    case "mark_duplicate":
+      return "Links this draft to another draft as a duplicate. Does not delete either row.";
     case "promote":
       return "Creates or links a promoted issue via the owner promotion service.";
     case "mark_fixed":

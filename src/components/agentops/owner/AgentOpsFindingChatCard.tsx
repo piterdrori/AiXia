@@ -170,11 +170,12 @@ function PromptRewriteProposalCard({
       {uiState !== "dismissed" ? (
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <AixiaButton
-            aria-label="Use this prompt rewrite in the editor"
+            aria-label="Use as Fix Issue Prompt"
             onClick={onUse}
             className="w-full sm:w-auto"
+            data-testid="agentops-use-as-fix-prompt"
           >
-            Use this prompt
+            Use as Fix Issue Prompt
           </AixiaButton>
           <AixiaButton
             variant="secondary"

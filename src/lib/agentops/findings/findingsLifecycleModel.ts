@@ -14,6 +14,7 @@ export type OwnerFindingStatus =
   | "waiting_for_verification"
   | "verified"
   | "deferred"
+  | "needs_more_info"
   | "rejected"
   | "duplicate"
   | "archived"
@@ -27,7 +28,9 @@ export type FindingsTabId =
   | "verification"
   | "fixed"
   | "deferred"
+  | "needs-more-info"
   | "rejected"
+  | "duplicates"
   | "all";
 
 export const FINDINGS_TABS: Array<{ id: FindingsTabId; label: string }> = [
@@ -37,7 +40,9 @@ export const FINDINGS_TABS: Array<{ id: FindingsTabId; label: string }> = [
   { id: "new-features", label: "New features" },
   { id: "verification", label: "Verification" },
   { id: "fixed", label: "Fixed" },
+  { id: "needs-more-info", label: "Needs more info" },
   { id: "deferred", label: "Deferred" },
+  { id: "duplicates", label: "Duplicates" },
   { id: "rejected", label: "Rejected" },
   { id: "all", label: "All" },
 ];
@@ -51,6 +56,7 @@ export const OWNER_FINDING_STATUS_LABEL: Record<OwnerFindingStatus, string> = {
   waiting_for_verification: "Waiting for verification",
   verified: "Verified",
   deferred: "Deferred",
+  needs_more_info: "Needs more info",
   rejected: "Rejected",
   duplicate: "Duplicate",
   archived: "Archived",
@@ -160,6 +166,10 @@ export type CanonicalFindingInput = {
   workSourceLabel?: string | null;
   likelyShellNoise?: boolean;
   evidenceIndicator?: string | null;
+  /** When set (e.g. needs_more_info / duplicate overlays), wins over statusRaw mapping. */
+  ownerStatusOverride?: OwnerFindingStatus | null;
+  runId?: string | null;
+  duplicateOf?: string | null;
 };
 
 export type CanonicalFindingView = {
@@ -190,6 +200,8 @@ export type CanonicalFindingView = {
   workSourceLabel: string | null;
   likelyShellNoise: boolean;
   evidenceIndicator: string | null;
+  runId: string | null;
+  duplicateOf: string | null;
 };
 
 function normalizeConfidence(value: number | string | null | undefined): string | null {
@@ -214,11 +226,13 @@ export function nextOwnerActionFor(
   status: OwnerFindingStatus,
   source: CanonicalFindingSource,
 ): string {
-  if (status === "needs_review") return "Approve, defer, or reject this finding.";
+  if (status === "needs_review") return "Approve, defer, reject, ask for more info, or mark duplicate.";
   if (status === "approved" && source === "draft") return "Promote to an active issue when ready.";
   if (status === "waiting_for_verification") return "Review verification evidence.";
   if (status === "verified" || status === "fixed") return "Open finding for history.";
+  if (status === "needs_more_info") return "Waiting for clearer evidence or explanation.";
   if (status === "deferred") return "Re-open later if still relevant.";
+  if (status === "duplicate") return "Linked as a duplicate — no separate promote.";
   if (status === "rejected") return "No action required.";
   if (status === "active" || status === "in_progress" || status === "approved") {
     return "Open issue to continue work.";
@@ -232,9 +246,10 @@ export function toCanonicalFindingView(input: CanonicalFindingInput): CanonicalF
   if (draftStatus === "superseded") return null;
 
   const ownerStatus =
-    input.source === "draft"
+    input.ownerStatusOverride ??
+    (input.source === "draft"
       ? (draftStatus as OwnerFindingStatus)
-      : mapFindingOwnerStatus(input.statusRaw);
+      : mapFindingOwnerStatus(input.statusRaw));
 
   const type = mapOwnerFindingType(input.typeRaw);
   const issueCode = input.issueCode?.trim() || null;
@@ -279,6 +294,8 @@ export function toCanonicalFindingView(input: CanonicalFindingInput): CanonicalF
     workSourceLabel: input.workSourceLabel?.trim() || null,
     likelyShellNoise: Boolean(input.likelyShellNoise),
     evidenceIndicator: input.evidenceIndicator?.trim() || null,
+    runId: input.runId?.trim() || null,
+    duplicateOf: input.duplicateOf?.trim() || null,
   };
 }
 
@@ -333,8 +350,12 @@ export function findingMatchesTab(item: CanonicalFindingView, tab: FindingsTabId
       return item.ownerStatus === "fixed" || item.ownerStatus === "verified";
     case "deferred":
       return item.ownerStatus === "deferred";
+    case "needs-more-info":
+      return item.ownerStatus === "needs_more_info";
+    case "duplicates":
+      return item.ownerStatus === "duplicate";
     case "rejected":
-      return item.ownerStatus === "rejected" || item.ownerStatus === "duplicate";
+      return item.ownerStatus === "rejected";
     case "all":
       return true;
     default:
@@ -396,6 +417,8 @@ export function findingMatchesSearch(item: CanonicalFindingView, query: string):
     item.module,
     item.agentSlug,
     item.issueCode,
+    item.runId,
+    item.draftId,
     item.ownerStatusLabel,
     ownerFindingTypeLabel(item.type),
   ]

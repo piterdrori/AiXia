@@ -26,6 +26,7 @@ import {
   requestAgentOpsVerification,
   saveAgentOpsSuggestedFixPrompt,
 } from "@/lib/agentops";
+import { MANUAL_RUN_ARTIFACT_URL } from "@/lib/agentops/agents/agentManualRunClient";
 import {
   applyMonitoringDraftDecision,
   loadCanonicalFindingDetail,
@@ -38,6 +39,7 @@ import {
   type OwnerDetailAction,
 } from "@/lib/agentops/findings/findingsDetailModel";
 import { normalizeReportingAgent } from "@/lib/agentops/findings/reportingAgentIdentity";
+import { supabase } from "@/lib/supabase";
 
 function OwnerSection({
   title,
@@ -86,6 +88,10 @@ function actionLabelSafe(action: OwnerDetailAction): string {
       return "Defer";
     case "reject":
       return "Reject";
+    case "needs_more_info":
+      return "Needs more info";
+    case "mark_duplicate":
+      return "Mark duplicate";
     case "promote":
       return "Promote to issue";
     case "mark_fixed":
@@ -123,6 +129,10 @@ export default function AgentOpsFindingDetailPage() {
   const [promptError, setPromptError] = useState<string | null>(null);
   const [copyAnnounce, setCopyAnnounce] = useState<string | null>(null);
   const [showOriginal, setShowOriginal] = useState(false);
+  const [needsMoreInfoNote, setNeedsMoreInfoNote] = useState("");
+  const [duplicateOfInput, setDuplicateOfInput] = useState("");
+  const [signedLinkFeedback, setSignedLinkFeedback] = useState<string | null>(null);
+  const [openingSignedPath, setOpeningSignedPath] = useState<string | null>(null);
 
   usePageTitle(
     detail?.issueCode ? `Issue ${detail.issueCode}` : detail?.title ? detail.title : "Issue",
@@ -263,6 +273,31 @@ export default function AgentOpsFindingDetailPage() {
       if (action === "reject") {
         await runAction("Draft rejected.", () =>
           applyMonitoringDraftDecision(detail.draftId!, "rejected"),
+        );
+        return;
+      }
+      if (action === "needs_more_info") {
+        await runAction(
+          "Marked as needs more info. Follow-up execution is not automatic yet.",
+          () =>
+            applyMonitoringDraftDecision(
+              detail.draftId!,
+              "needs_more_info",
+              needsMoreInfoNote || "Owner requested more information.",
+            ),
+        );
+        return;
+      }
+      if (action === "mark_duplicate") {
+        const target = duplicateOfInput.trim();
+        if (!target) {
+          setFeedback("Enter the duplicate target draft id (draft-<uuid> or uuid).");
+          return;
+        }
+        await runAction("Marked as duplicate. Original rows are retained.", () =>
+          applyMonitoringDraftDecision(detail.draftId!, "mark_duplicate", null, {
+            duplicateOf: target,
+          }),
         );
         return;
       }
@@ -430,8 +465,50 @@ export default function AgentOpsFindingDetailPage() {
   };
 
   const primaryActions = (detail?.validActions ?? []).filter(
-    (action) => !["open_agent", "chat_agent"].includes(action),
+    (action) =>
+      !["open_agent", "chat_agent", "needs_more_info", "mark_duplicate"].includes(action),
   );
+  const hasNeedsMoreInfo = (detail?.validActions ?? []).includes("needs_more_info");
+  const hasMarkDuplicate = (detail?.validActions ?? []).includes("mark_duplicate");
+
+  const openSignedArtifact = async (runId: string, artifactPath: string) => {
+    setOpeningSignedPath(artifactPath);
+    setSignedLinkFeedback(null);
+    try {
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if (!token) {
+        setSignedLinkFeedback("Owner session required for signed artifact links.");
+        return;
+      }
+      const url = new URL(MANUAL_RUN_ARTIFACT_URL, window.location.origin);
+      url.searchParams.set("runId", runId);
+      url.searchParams.set("artifactPath", artifactPath);
+      url.searchParams.set("bucket", "agentops-artifacts-staging");
+      const response = await fetch(url.toString(), {
+        headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+      });
+      const payload = (await response.json()) as {
+        ok?: boolean;
+        signedUrl?: string;
+        expiresIn?: number;
+        error?: string;
+        note?: string;
+      };
+      if (!response.ok || !payload.ok || !payload.signedUrl) {
+        setSignedLinkFeedback(payload.error ?? "Could not create a signed artifact URL.");
+        return;
+      }
+      setSignedLinkFeedback(
+        payload.note ??
+          `Signed link opens in a new tab and expires in about ${Math.round((payload.expiresIn ?? 600) / 60)} minutes.`,
+      );
+      window.open(payload.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      setSignedLinkFeedback(error instanceof Error ? error.message : String(error));
+    } finally {
+      setOpeningSignedPath(null);
+    }
+  };
 
   if (!gateLoading && notFound) {
     return (
@@ -626,29 +703,84 @@ export default function AgentOpsFindingDetailPage() {
                     <dt className="text-white/45">Expected</dt>
                     <dd className="text-white/85">{detail.expectedResult ?? "—"}</dd>
                   </div>
+                  <div>
+                    <dt className="text-white/45">Classification</dt>
+                    <dd className="text-white/85">{detail.evidenceClassification ?? "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-white/45">Source run</dt>
+                    <dd className="text-white/85">{detail.runId ?? "—"}</dd>
+                  </div>
+                  {detail.duplicateOf ? (
+                    <div className="sm:col-span-2">
+                      <dt className="text-white/45">Duplicate of</dt>
+                      <dd className="text-white/85">
+                        <Link
+                          to={`/system/agent-ops/issues/draft-${detail.duplicateOf}`}
+                          className="text-cyan-300/90 hover:text-cyan-200"
+                        >
+                          draft-{detail.duplicateOf}
+                        </Link>
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
+                {detail.storageArtifacts.length > 0 ? (
+                  <ul className="space-y-2 text-sm" data-testid="agentops-signed-artifacts">
+                    {detail.storageArtifacts.map((artifact) => (
+                      <li
+                        key={artifact.path}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 p-3"
+                      >
+                        <div>
+                          <p className="text-white/85">{artifact.label}</p>
+                          <p className="break-all text-xs text-white/45">{artifact.path}</p>
+                        </div>
+                        <AixiaButton
+                          variant="secondary"
+                          disabled={openingSignedPath === artifact.path}
+                          onClick={() => void openSignedArtifact(artifact.runId, artifact.path)}
+                        >
+                          {openingSignedPath === artifact.path ? "Signing…" : "Open signed link"}
+                        </AixiaButton>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {signedLinkFeedback ? (
+                  <p className="text-xs text-white/55" role="status">
+                    {signedLinkFeedback}
+                  </p>
+                ) : null}
                 {detail.evidenceLinks.length > 0 ? (
                   <ul className="space-y-2 text-sm">
                     {detail.evidenceLinks.map((file) => (
                       <li key={file.id}>
-                        <a
-                          href={file.href.startsWith("http") ? file.href : undefined}
-                          className="text-indigo-300 hover:text-indigo-200"
-                          title={file.href}
-                        >
-                          {file.label}
-                          {!file.href.startsWith("http") ? (
-                            <span className="block text-xs text-white/45 break-all">{file.href}</span>
-                          ) : (
-                            " — open signed/local link"
-                          )}
-                        </a>
+                        {file.href.startsWith("http") ? (
+                          <a
+                            href={file.href}
+                            className="text-indigo-300 hover:text-indigo-200"
+                            title={file.href}
+                          >
+                            {file.label}
+                          </a>
+                        ) : (
+                          <div>
+                            <p className="text-white/80">{file.label}</p>
+                            <p className="break-all text-xs text-white/45">
+                              Local worker artifact: {file.href}
+                            </p>
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>
-                ) : (
-                  <p className="text-sm text-white/55">No artifact links available for this issue.</p>
-                )}
+                ) : detail.storageArtifacts.length === 0 ? (
+                  <p className="text-sm text-white/55">
+                    No artifact links are available for this issue. The issue was created from text
+                    evidence only.
+                  </p>
+                ) : null}
                 {detail.rawObservations.length > 0 ? (
                   <details className="rounded-lg border border-white/10 p-3">
                     <summary className="cursor-pointer text-sm text-white/70">
@@ -818,8 +950,8 @@ export default function AgentOpsFindingDetailPage() {
                   </pre>
                 ) : null}
                 <p className="text-xs text-white/40">
-                  Prompt rewrites from Finding Chat load into this editor only after you click Use
-                  this prompt. Nothing auto-saves or executes.
+                  Prompt rewrites from chat load into this editor only after you click Use as Fix
+                  Issue Prompt. Nothing auto-saves or executes.
                 </p>
               </OwnerSection>
 
@@ -830,7 +962,8 @@ export default function AgentOpsFindingDetailPage() {
                 <p className="text-sm text-white/60">Recommended next step: {detail.nextAction}</p>
                 <AixiaInfoBlock tone="cyan" title="Safety">
                   Approving does not change code, create PRs, deploy, or auto-fix. Promoting creates
-                  an AgentOps issue record only.
+                  an AgentOps issue record only. Needs more info and Mark duplicate do not delete
+                  drafts or run agents automatically.
                 </AixiaInfoBlock>
                 <ul className="space-y-3">
                   {primaryActions.map((action) => {
@@ -852,7 +985,62 @@ export default function AgentOpsFindingDetailPage() {
                     );
                   })}
                 </ul>
-                {primaryActions.length === 0 ? (
+                {hasNeedsMoreInfo ? (
+                  <div
+                    className="space-y-2 rounded-lg border border-white/10 p-3"
+                    data-testid="agentops-needs-more-info"
+                  >
+                    <p className="text-sm font-medium text-white">Needs more info</p>
+                    <p className="text-xs text-white/50">
+                      Keeps the issue open but moves it out of the normal approve queue. Follow-up
+                      agent execution is not automatic yet.
+                    </p>
+                    <label className="block space-y-1 text-sm">
+                      <span className="text-white/55">What information do you need?</span>
+                      <textarea
+                        className="min-h-[80px] w-full rounded-lg border border-white/10 bg-black/30 p-2 text-sm text-white/90"
+                        value={needsMoreInfoNote}
+                        onChange={(event) => setNeedsMoreInfoNote(event.target.value)}
+                        placeholder="Example: Need a screenshot of the failing console error and the exact route steps."
+                      />
+                    </label>
+                    <AixiaButton
+                      variant="secondary"
+                      disabled={submitting}
+                      onClick={() => void handleOwnerAction("needs_more_info")}
+                    >
+                      Mark needs more info
+                    </AixiaButton>
+                  </div>
+                ) : null}
+                {hasMarkDuplicate ? (
+                  <div
+                    className="space-y-2 rounded-lg border border-white/10 p-3"
+                    data-testid="agentops-mark-duplicate"
+                  >
+                    <p className="text-sm font-medium text-white">Mark duplicate</p>
+                    <p className="text-xs text-white/50">
+                      Links this draft to another existing draft. Neither row is deleted.
+                    </p>
+                    <label className="block space-y-1 text-sm">
+                      <span className="text-white/55">Duplicate target draft id</span>
+                      <input
+                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/90"
+                        value={duplicateOfInput}
+                        onChange={(event) => setDuplicateOfInput(event.target.value)}
+                        placeholder="draft-<uuid> or <uuid>"
+                      />
+                    </label>
+                    <AixiaButton
+                      variant="secondary"
+                      disabled={submitting}
+                      onClick={() => void handleOwnerAction("mark_duplicate")}
+                    >
+                      Mark duplicate
+                    </AixiaButton>
+                  </div>
+                ) : null}
+                {primaryActions.length === 0 && !hasNeedsMoreInfo && !hasMarkDuplicate ? (
                   <p className="text-sm text-white/55">No lifecycle actions are available right now.</p>
                 ) : null}
               </OwnerSection>

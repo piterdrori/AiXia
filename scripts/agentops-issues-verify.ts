@@ -73,6 +73,25 @@ function verifyNoAutoFix(): void {
   mustNotInclude("api/agentops/_lib/monitoringRoutes.ts", "autoFix: true");
 }
 
+function verifyEa2Polish(): void {
+  mustInclude("api/agentops/_lib/monitoringRoutes.ts", "needs_more_info");
+  mustInclude("api/agentops/_lib/monitoringRoutes.ts", "mark_duplicate");
+  mustInclude("api/agentops/_lib/monitoringRoutes.ts", "ownerActionHistory");
+  mustInclude("src/lib/agentops/findings/draftOwnerLifecycle.ts", "mapDraftStatusWithEvidence");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Needs more info");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Mark duplicate");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Open signed link");
+  mustInclude("src/components/agentops/owner/AgentOpsFindingChatCard.tsx", "Use as Fix Issue Prompt");
+  mustInclude("src/lib/agentops/findings/findingChatModel.ts", "Improve Fix Prompt");
+  mustInclude("src/app/system/agent-ops/issues/page.tsx", "Show likely shell noise");
+  mustInclude("src/lib/agentops/findings/findingsLifecycleModel.ts", "needs-more-info");
+  mustInclude("src/lib/agentops/findings/findingsLifecycleModel.ts", "duplicates");
+  mustInclude(
+    "src/app/system/agent-ops/issues/[issueCode]/page.tsx",
+    "No artifact links are available for this issue",
+  );
+}
+
 function verifyOpenPath(): void {
   const view = toCanonicalFindingView({
     source: "draft",
@@ -185,6 +204,7 @@ function main(): void {
   verifyNoiseFilter();
   verifyPromotionEvidence();
   verifyFunctionCountSafe();
+  verifyEa2Polish();
 
   if (failures.length > 0) {
     console.error("AGENTOPS ISSUES VERIFY — FAILED");
@@ -205,6 +225,11 @@ function main(): void {
         "noise_filter",
         "promotion_evidence",
         "function_count_safe",
+        "needs_more_info",
+        "mark_duplicate",
+        "owner_history",
+        "evidence_artifact_ux",
+        "chat_to_prompt",
       ],
     }),
   );

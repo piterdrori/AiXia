@@ -21,6 +21,11 @@ import {
   saveMonitoringDraftFixPrompt,
   type MonitoringDraftApiRow,
 } from "@/lib/agentops/findings/findingsOwnerCatalog";
+import {
+  collectStorageArtifactPaths,
+  mapDraftStatusWithEvidence,
+  readOwnerActionHistory,
+} from "@/lib/agentops/findings/draftOwnerLifecycle";
 import { classifyLikelyShellNoiseDraft } from "@/lib/agentops/findings/issueDraftNoise";
 import {
   actionHelp,
@@ -39,6 +44,7 @@ import {
   type PromptSourceField,
 } from "@/lib/agentops/findings/findingsDetailModel";
 import {
+  OWNER_FINDING_STATUS_LABEL,
   mapOwnerFindingType,
   type CanonicalFindingSource,
   type OwnerFindingStatus,
@@ -94,6 +100,9 @@ export type CanonicalFindingDetailView = {
   rawObservations: string[];
   promptSavedAt: string | null;
   artifactNotes: string[];
+  storageArtifacts: Array<{ path: string; runId: string; label: string }>;
+  evidenceClassification: string | null;
+  duplicateOf: string | null;
 };
 
 export type FindingDetailLoadResult = {
@@ -315,6 +324,9 @@ function fromFinding(
     rawObservations: [],
     promptSavedAt: metaString(finding.metadata, "fix_prompt_saved_at"),
     artifactNotes: [],
+    storageArtifacts: [],
+    evidenceClassification: null,
+    duplicateOf: null,
   };
 }
 
@@ -406,6 +418,13 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
     browserQaEvidence: draft.browserQaEvidence,
   });
 
+  const mappedStatus = mapDraftStatusWithEvidence(draft.status, draft.evidence ?? {});
+  const ownerStatus =
+    mappedStatus === "needs_more_info" || mappedStatus === "duplicate"
+      ? (mappedStatus as OwnerFindingStatus)
+      : canonical.ownerStatus;
+  const ownerStatusLabel = OWNER_FINDING_STATUS_LABEL[ownerStatus];
+
   const explanation = ownerReadableExplanation(draft.summary);
   const initialPrompt = draft.suggestedFixPrompt?.trim()
     ? draft.suggestedFixPrompt
@@ -415,7 +434,7 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
   });
   const actions = validOwnerActionsFor({
     source: "draft",
-    ownerStatus: canonical.ownerStatus,
+    ownerStatus,
     hasFindingId: false,
     hasDraftId: true,
     hasPendingVerification: false,
@@ -450,18 +469,48 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
       ? draft.evidence.fix_prompt_saved_at
       : null;
 
+  const classification =
+    typeof draft.browserQaEvidence?.type === "string"
+      ? draft.browserQaEvidence.type
+      : typeof draft.evidence?.type === "string"
+        ? draft.evidence.type
+        : typeof draft.issueType === "string"
+          ? draft.issueType
+          : null;
+
   const history = buildHistory({
     createdAt: draft.createdAt,
     updatedAt: draft.updatedAt ?? draft.createdAt,
     feedback: [],
   });
-  if (draft.ownerDecisionAt) {
+  history.unshift({
+    id: `found-${draft.createdAt}`,
+    at: draft.createdAt,
+    actor: draft.agentSlug || "Agent",
+    label: "Issue found / draft created",
+    note: draft.runId ? `Source run: ${draft.runId}` : null,
+  });
+  for (const entry of readOwnerActionHistory(draft.evidence ?? {})) {
+    history.unshift({
+      id: `hist-${entry.at}-${entry.action}`,
+      at: entry.at,
+      actor: entry.ownerEmail || entry.ownerId || "Owner",
+      label: `${entry.action}: ${entry.previousStatus} → ${entry.newStatus}`,
+      note: [
+        entry.note,
+        entry.duplicateOf ? `duplicate_of=${entry.duplicateOf}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || null,
+    });
+  }
+  if (draft.ownerDecisionAt && readOwnerActionHistory(draft.evidence ?? {}).length === 0) {
     history.unshift({
       id: `owner-decision-${draft.ownerDecisionAt}`,
       at: draft.ownerDecisionAt,
-      actor: "Owner",
+      actor: draft.ownerDecisionBy || "Owner",
       label: `Owner decision: ${draft.status}`,
-      note: draft.ownerDecisionBy ? `Actor: ${draft.ownerDecisionBy}` : null,
+      note: null,
     });
   }
   if (promptSavedAt) {
@@ -474,23 +523,39 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
     });
   }
 
+  const localLinks = extractDraftEvidenceLinks(draft);
+  const storagePaths = collectStorageArtifactPaths(
+    draft.evidence ?? {},
+    draft.browserQaEvidence ?? {},
+  );
+  const storageArtifacts = storagePaths.map((path, index) => ({
+    path,
+    runId: draft.runId,
+    label: `Signed storage artifact ${index + 1}`,
+  }));
+
   const artifactNotes: string[] = [];
-  if (extractDraftEvidenceLinks(draft).length === 0) {
+  if (storageArtifacts.length === 0 && localLinks.length === 0) {
     artifactNotes.push(
-      "No signed storage artifact is linked on this draft yet. Local worker paths appear when available.",
+      "No artifact links are available for this issue. The issue was created from text evidence only.",
     );
-  } else {
+  } else if (storageArtifacts.length > 0) {
     artifactNotes.push(
-      "Local artifact path shown below. Signed URLs are available for storage-backed runs via the monitoring artifact API (owner-only).",
+      "Storage-backed artifacts can be opened as short-lived signed links (owner-only, expires in about 10 minutes).",
+    );
+  }
+  if (localLinks.length > 0) {
+    artifactNotes.push(
+      "Local worker artifact path shown below (not a public URL). Signed links appear only for storage-backed runs.",
     );
   }
 
   return {
     source: "draft",
     type: canonical.type,
-    typeLabel: typeAndStatusLabels(canonical.type, canonical.ownerStatus).typeLabel,
-    ownerStatus: canonical.ownerStatus,
-    ownerStatusLabel: canonical.ownerStatusLabel,
+    typeLabel: typeAndStatusLabels(canonical.type, ownerStatus).typeLabel,
+    ownerStatus,
+    ownerStatusLabel,
     statusRaw: draft.status,
     title: draft.title,
     explanationDisplay: noise.likelyShellNoise
@@ -553,7 +618,7 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
     validActions: actions,
     actionMeta: actions.map((id) => ({ id, label: actionLabel(id), help: actionHelp(id) })),
     history: history.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
-    evidenceLinks: extractDraftEvidenceLinks(draft),
+    evidenceLinks: localLinks,
     pendingVerificationId: null,
     technical: {
       draftId: draft.id,
@@ -561,18 +626,40 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
       githubRunId: draft.githubRunId,
       statusRaw: draft.status,
       duplicateKey: draft.duplicateKey,
+      duplicateOf: draft.duplicateOf ?? null,
       promotedIssueId: draft.promotedIssueId,
       suggestedFixPrompt: draft.suggestedFixPrompt,
       source: draft.source,
+      evidenceClassification: classification,
     },
-    nextAction: canonical.nextAction,
+    nextAction: nextOwnerActionForSafe(ownerStatus, "draft"),
     likelyShellNoise: noise.likelyShellNoise,
     noiseReason: noise.reason,
     workSourceLabel: canonical.workSourceLabel,
     rawObservations: extractDraftObservations(draft),
     promptSavedAt,
     artifactNotes,
+    storageArtifacts,
+    evidenceClassification: classification,
+    duplicateOf: draft.duplicateOf ?? null,
   };
+}
+
+function nextOwnerActionForSafe(
+  status: OwnerFindingStatus,
+  source: CanonicalFindingSource,
+): string {
+  if (status === "needs_more_info") return "Provide clearer evidence or ask the reporting agent.";
+  if (status === "duplicate") return "Open the canonical issue / draft target.";
+  if (status === "needs_review") return "Approve, defer, reject, ask for more info, or mark duplicate.";
+  if (status === "approved" && source === "draft") return "Promote to an active issue when ready.";
+  return canonicalNextFallback(status);
+}
+
+function canonicalNextFallback(status: OwnerFindingStatus): string {
+  if (status === "deferred") return "Re-open later if still relevant.";
+  if (status === "rejected") return "No action required.";
+  return "Open finding for details.";
 }
 
 async function loadDraftById(draftId: string): Promise<MonitoringDraftApiRow | null> {

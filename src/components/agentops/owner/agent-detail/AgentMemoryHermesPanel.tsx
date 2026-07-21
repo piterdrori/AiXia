@@ -14,12 +14,18 @@ import {
   MEMORY_LIST_PAGE_SIZE,
   MEMORY_LOAD_TIMEOUT_MS,
   partitionRuntimeMemory,
-  resolveAgentHermesConnectionLabel,
   usefulRuntimeEmptyCopy,
   resolveFleetHermesTransportLabel,
   runtimeMemoryPreview,
   withTimeout,
 } from "@/lib/agentops/agents/agentDetailMemoryModel";
+import {
+  approveAgentMemoryImprovement,
+  getAgentHermesMemory,
+  proposeAgentMemoryImprovement,
+  rejectAgentMemoryImprovement,
+  type AgentHermesMemorySnapshot,
+} from "@/lib/agentops/agents/agentHermesMemory";
 import { fetchAgentScopedMemory } from "@/app/system/agent-ops/agents/agentIntelligenceClient";
 import type { AgentOpsRuntimeMemoryRow } from "@/lib/agentops/db/agentOpsRuntimeTypes";
 import {
@@ -186,7 +192,7 @@ export function AgentMemoryHermesPanel({
   onHermesTestEvent,
 }: AgentMemoryHermesPanelProps) {
   const draftAgentId = ownerDraftAgentId || agentSlug;
-  const [tab, setTab] = useState<TabId>("runtime");
+  const [tab, setTab] = useState<TabId>("approved");
   const [agentRuntimeRows, setAgentRuntimeRows] = useState<AgentOpsRuntimeMemoryRow[]>([]);
   const [globalRows, setGlobalRows] = useState<AgentOpsRuntimeMemoryRow[]>([]);
   const [draftItems, setDraftItems] = useState<AgentOpsManagedAgentMemoryItem[]>([]);
@@ -201,6 +207,8 @@ export function AgentMemoryHermesPanel({
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [globalLoaded, setGlobalLoaded] = useState(false);
   const [globalLoading, setGlobalLoading] = useState(false);
+  const [hermesSnapshot, setHermesSnapshot] = useState<AgentHermesMemorySnapshot | null>(null);
+  const [improvementDraft, setImprovementDraft] = useState("");
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -212,12 +220,7 @@ export function AgentMemoryHermesPanel({
   onMemoryStatsRef.current = onMemoryStats;
   const loadGenerationRef = useRef(0);
 
-  const agentHermesLabel = resolveAgentHermesConnectionLabel({
-    agentSpecificRecordExists: false,
-    runtimeAgentId,
-    retrievalError: runtimeError,
-    identityReady,
-  });
+  const agentHermesLabel = hermesSnapshot?.agentHermesLabel ?? "Unknown";
 
   const load = useCallback(async () => {
     if (!identityReady) {
@@ -243,9 +246,15 @@ export function AgentMemoryHermesPanel({
     setDraftError(null);
     setTimedOut(false);
 
-    // D-E3: defer shared/global fetch until Shared tab — keep first paint lighter.
+    // D-F1: load fleet health + per-agent Hermes snapshot (connection + memory scopes).
     const loadWork = Promise.all([
       getAgentOpsHermesRuntimeHealth(),
+      getAgentHermesMemory({
+        agentSlug: draftAgentId,
+        runtimeAgentId,
+        ensureConnection: true,
+        touchSync: true,
+      }),
       getAgentOpsAgentMemory(draftAgentId),
       runtimeAgentId
         ? fetchAgentScopedMemory(runtimeAgentId, INITIAL_RUNTIME_MEMORY_LIMIT)
@@ -266,6 +275,7 @@ export function AgentMemoryHermesPanel({
     if (!raced.ok) {
       setAgentRuntimeRows([]);
       setDraftItems([]);
+      setHermesSnapshot(null);
       setRuntimeError(raced.error);
       setTimedOut(raced.timedOut);
       setFleetTransportLabel("Unknown");
@@ -283,7 +293,7 @@ export function AgentMemoryHermesPanel({
       return;
     }
 
-    const [healthResult, draftResult, runtimeResult] = raced.value;
+    const [healthResult, hermesResult, draftResult, runtimeResult] = raced.value;
 
     const fleetLabel = resolveFleetHermesTransportLabel({
       loaded: true,
@@ -292,6 +302,12 @@ export function AgentMemoryHermesPanel({
       error: healthResult?.loadError ?? null,
     });
     setFleetTransportLabel(fleetLabel);
+
+    if (hermesResult.error || !hermesResult.data) {
+      setHermesSnapshot(null);
+    } else {
+      setHermesSnapshot(hermesResult.data);
+    }
 
     if (runtimeResult.error) {
       setAgentRuntimeRows([]);
@@ -310,11 +326,18 @@ export function AgentMemoryHermesPanel({
     const agentRowsOnly = runtimeResult.error ? [] : (runtimeResult.data ?? []);
     const partitioned = partitionRuntimeMemory(agentRowsOnly, []);
     const assigned = runtimeResult.error ? null : partitioned.counts.runtimeTotal;
-    const enabled = runtimeResult.error ? null : partitioned.counts.enabledRuntime;
-    const diagnostic = runtimeResult.error ? null : partitioned.counts.diagnostic;
-    const pendingDraftCount = draftResult.error
-      ? null
-      : (draftResult.data ?? []).filter((row) => row.approvalStatus === "pending_approval").length;
+    const enabled = hermesResult.data?.approvedActiveCount ??
+      (runtimeResult.error ? null : partitioned.counts.enabledRuntime);
+    const diagnostic = hermesResult.data?.diagnosticCount ??
+      (runtimeResult.error ? null : partitioned.counts.diagnostic);
+    const pendingDraftCount = hermesResult.data?.pendingImprovementsCount ??
+      (draftResult.error
+        ? null
+        : (draftResult.data ?? []).filter((row) => row.approvalStatus === "pending_approval").length);
+
+    const connected =
+      hermesResult.data?.agentHermesLabel === "Connected" ||
+      hermesResult.data?.connectionStatus === "connected";
 
     const model = buildHermesConnectionModel({
       agentId: runtimeAgentId ?? draftAgentId,
@@ -323,11 +346,14 @@ export function AgentMemoryHermesPanel({
       assignedMemoryCount: assigned,
       enabledMemoryCount: enabled,
       pendingApprovalCount: pendingDraftCount,
-      retrievalError: runtimeResult.error,
-      lastSuccessfulRetrievalAt: runtimeResult.error ? null : new Date().toISOString(),
+      retrievalError: hermesResult.data?.retrievalError ?? runtimeResult.error,
+      lastSuccessfulRetrievalAt:
+        hermesResult.data?.lastMemorySyncAt ??
+        (runtimeResult.error ? null : new Date().toISOString()),
       tested: true,
-      agentSpecificRecordExists: false,
+      agentSpecificRecordExists: connected,
       runtimeAgentId,
+      namespace: hermesResult.data?.namespace ?? null,
     });
     const stripHermes = hermesStatusForStrip(model);
 
@@ -407,11 +433,14 @@ export function AgentMemoryHermesPanel({
     [draftItems],
   );
 
+  const showConnectedBanner = identityReady && agentHermesLabel === "Connected";
   const showFleetBanner =
     identityReady &&
-    fleetTransportLabel === "Available" &&
+    !showConnectedBanner &&
+    agentHermesLabel !== "Error" &&
     (agentHermesLabel === "Not configured" ||
       (agentHermesLabel === "Unknown" && !runtimeAgentId));
+  const showErrorBanner = identityReady && agentHermesLabel === "Error";
 
   const saveDraft = async (approve: boolean) => {
     setFeedback(null);
@@ -507,17 +536,23 @@ export function AgentMemoryHermesPanel({
     setTesting(true);
     setTestResult(null);
     const health = await getAgentOpsHermesRuntimeHealth();
-    const memoryResult = runtimeAgentId
-      ? await fetchAgentScopedMemory(runtimeAgentId, 500)
-      : { data: [] as AgentOpsRuntimeMemoryRow[], error: "Agent runtime identity missing" };
+    const hermesResult = await getAgentHermesMemory({
+      agentSlug: draftAgentId,
+      runtimeAgentId,
+      ensureConnection: true,
+      touchSync: false,
+    });
+    if (hermesResult.data) setHermesSnapshot(hermesResult.data);
+    const snapshot = hermesResult.data;
     const result = evaluateHermesSafeConnectionTest({
       health,
       healthError: null,
-      runtimeAgentId,
-      memoryQueryOk: !memoryResult.error,
-      memoryError: memoryResult.error,
-      assignedMemoryCount: memoryResult.data?.length ?? 0,
-      agentSpecificRecordExists: false,
+      runtimeAgentId: snapshot?.runtimeAgentId ?? runtimeAgentId,
+      memoryQueryOk: snapshot?.retrievalOk ?? false,
+      memoryError: snapshot?.retrievalError ?? hermesResult.error,
+      assignedMemoryCount: snapshot?.approvedActiveCount ?? 0,
+      agentSpecificRecordExists: snapshot?.agentHermesLabel === "Connected",
+      snapshot,
     });
     setTestResult(result);
     onHermesTestEvent?.(result.detail);
@@ -549,7 +584,7 @@ export function AgentMemoryHermesPanel({
       testId="agentops-agent-memory-hermes-panel"
     >
       <div
-        className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4"
+        className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3"
         data-testid="agentops-hermes-summary"
       >
         <SummaryCard
@@ -563,18 +598,23 @@ export function AgentMemoryHermesPanel({
           testId="memory-summary-agent-hermes"
         />
         <SummaryCard
-          label="Runtime memory"
+          label="Namespace"
+          value={loading ? "…" : hermesSnapshot?.namespace ?? `agentops.agent.${draftAgentId}`}
+          testId="memory-summary-namespace"
+        />
+        <SummaryCard
+          label="Approved memory"
           value={
             loading
               ? "…"
-              : runtimeError
+              : draftError
                 ? "Unavailable"
-                : `${partition.counts.runtimeTotal} records, ${partition.counts.enabledRuntime} enabled`
+                : `${hermesSnapshot?.approvedActiveCount ?? approvedOwnerMemory.length} active`
           }
-          testId="memory-summary-runtime"
+          testId="memory-summary-approved"
         />
         <SummaryCard
-          label="Pending drafts"
+          label="Pending improvements"
           value={
             loading
               ? "…"
@@ -586,12 +626,37 @@ export function AgentMemoryHermesPanel({
           }
           testId="memory-summary-pending"
         />
+        <SummaryCard
+          label="Diagnostics"
+          value={
+            loading
+              ? "…"
+              : `${hermesSnapshot?.diagnosticCount ?? partition.counts.diagnostic} collapsed`
+          }
+          testId="memory-summary-diagnostics"
+        />
       </div>
+
+      {showConnectedBanner ? (
+        <AixiaInfoBlock tone="cyan" title="Agent Hermes connected">
+          <p className="text-sm text-white/75" data-testid="agentops-hermes-connected-banner">
+            {hermesSnapshot?.banner ?? AGENT_DETAIL_MEMORY_COPY.agentHermesConnectedBanner}
+          </p>
+        </AixiaInfoBlock>
+      ) : null}
 
       {showFleetBanner ? (
         <AixiaInfoBlock tone="cyan" title="Fleet transport ≠ agent connection">
           <p className="text-sm text-white/75" data-testid="agentops-hermes-no-per-agent-banner">
-            {AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner}
+            {hermesSnapshot?.banner ?? AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner}
+          </p>
+        </AixiaInfoBlock>
+      ) : null}
+
+      {showErrorBanner ? (
+        <AixiaInfoBlock tone="gold" title="Agent Hermes error">
+          <p className="text-sm text-white/75" data-testid="agentops-hermes-error-banner">
+            {hermesSnapshot?.banner ?? AGENT_DETAIL_MEMORY_COPY.agentHermesErrorBanner}
           </p>
         </AixiaInfoBlock>
       ) : null}
@@ -636,9 +701,16 @@ export function AgentMemoryHermesPanel({
           </AixiaBadge>
           <p className="mt-2 text-white/75">{testResult.detail}</p>
           <p className="mt-1 text-xs text-white/45">
-            Agent Hermes: {testResult.agentHermesLabel}
-            {" · "}
             Fleet transport: {testResult.fleetTransportAvailable ? "Available" : "Unavailable"}
+            {" · "}
+            Agent Hermes: {testResult.agentHermesLabel}
+            {testResult.namespace ? ` · Namespace: ${testResult.namespace}` : ""}
+            {typeof testResult.approvedMemoryCount === "number"
+              ? ` · Approved memory loaded: ${testResult.approvedMemoryCount}`
+              : ""}
+            {typeof testResult.pendingDraftsCount === "number"
+              ? ` · Pending drafts: ${testResult.pendingDraftsCount}`
+              : ""}
           </p>
           <p className="mt-1 text-xs text-white/45">
             {new Date(testResult.checkedAt).toLocaleString()}
@@ -650,18 +722,18 @@ export function AgentMemoryHermesPanel({
       <div className="flex flex-wrap gap-2" data-testid="agentops-memory-tabs">
         {(
           [
-            ["runtime", `Runtime (${partition.counts.runtimeTotal})`],
             [
               "approved",
-              `Approved (${partition.counts.approvedUseful + approvedOwnerMemory.length})`,
+              `Approved memory (${hermesSnapshot?.approvedActiveCount ?? approvedOwnerMemory.length})`,
             ],
+            ["pending", `Pending improvements (${pendingDrafts.length})`],
             [
               "shared",
-              `Shared (${globalLoaded ? partition.counts.globalApproved : "…"})`,
+              `Shared/global (${globalLoaded ? partition.counts.globalApproved : hermesSnapshot?.sharedGlobalCount ?? "…"})`,
             ],
-            ["pending", `Pending (${pendingDrafts.length})`],
-            ["files", `Files (${fileDrafts.length})`],
             ["diagnostics", `Diagnostics (${partition.counts.diagnostic})`],
+            ["files", `Files/drafts (${fileDrafts.length})`],
+            ["runtime", `Runtime history (${partition.counts.runtimeTotal})`],
           ] as const
         ).map(([id, label]) => (
           <AixiaButton
@@ -771,7 +843,42 @@ export function AgentMemoryHermesPanel({
       ) : null}
 
       {!loading && tab === "pending" ? (
-        <div data-testid="agentops-memory-tab-pending">
+        <div data-testid="agentops-memory-tab-pending" className="space-y-4">
+          <div className="space-y-2 rounded-lg border border-white/10 p-3">
+            <p className="text-sm font-medium text-white/85">Propose memory improvement</p>
+            <p className="text-xs text-white/45">
+              Creates a pending draft only. Not active until owner approval. Never auto-applied.
+            </p>
+            <textarea
+              className="min-h-[72px] w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white"
+              placeholder="Example: Design Agent should remember that Agent Detail UI must prioritize owner-readable status over raw diagnostics."
+              value={improvementDraft}
+              onChange={(event) => setImprovementDraft(event.target.value)}
+              data-testid="agentops-memory-improvement-input"
+            />
+            <AixiaButton
+              onClick={() =>
+                void proposeAgentMemoryImprovement({
+                  agentSlug: draftAgentId,
+                  content: improvementDraft,
+                  title: "Memory improvement",
+                  source: "owner",
+                }).then(async (result) => {
+                  if (result.error) {
+                    setFeedback(result.error);
+                    return;
+                  }
+                  setFeedback("Pending memory improvement created (not active yet).");
+                  setImprovementDraft("");
+                  setTab("pending");
+                  await load();
+                })
+              }
+              data-testid="agentops-propose-memory-improvement"
+            >
+              Create pending improvement
+            </AixiaButton>
+          </div>
           {draftError ? (
             <AixiaInfoBlock tone="gold" title="Owner drafts unavailable">
               <p className="text-sm text-white/75">{draftError}</p>
@@ -785,7 +892,7 @@ export function AgentMemoryHermesPanel({
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <div className="mb-1 flex flex-wrap gap-2">
-                        <AixiaBadge tone="amber">Pending owner draft</AixiaBadge>
+                        <AixiaBadge tone="amber">Pending improvement</AixiaBadge>
                         {item.scope === "global" ? (
                           <AixiaBadge tone="neutral">Global</AixiaBadge>
                         ) : item.scope === "shared" ? (
@@ -803,47 +910,33 @@ export function AgentMemoryHermesPanel({
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <AixiaButton
-                        variant="secondary"
-                        onClick={() => {
-                          setEditingId(item.id);
-                          setTitle(item.title ?? "");
-                          setContent(item.memoryText);
-                          setOwnerFacingType(item.ownerFacingType ?? "instruction");
-                          setScope(item.scope ?? "private");
-                        }}
-                      >
-                        Edit
-                      </AixiaButton>
-                      <AixiaButton
                         onClick={() =>
-                          void updateAgentOpsAgentMemory({
+                          void approveAgentMemoryImprovement({
+                            agentSlug: draftAgentId,
                             memoryId: item.id,
-                            agentId: draftAgentId,
-                            approvalStatus: "active",
-                            active: true,
                           }).then(async (result) => {
-                            setFeedback(result.error ?? "Approved and activated.");
+                            setFeedback(result.error ?? "Approved and activated for this agent only.");
                             await load();
                           })
                         }
+                        data-testid={`agentops-approve-memory-${item.id}`}
                       >
                         Approve
                       </AixiaButton>
                       <AixiaButton
                         variant="secondary"
                         onClick={() =>
-                          void setAgentOpsAgentMemoryActive({
+                          void rejectAgentMemoryImprovement({
+                            agentSlug: draftAgentId,
                             memoryId: item.id,
-                            agentId: draftAgentId,
-                            active: !item.active,
-                            approvalStatus: item.active ? "disabled" : "active",
                           }).then(async (result) => {
-                            setFeedback(result.error ?? (item.active ? "Disabled." : "Enabled."));
+                            setFeedback(result.error ?? "Rejected — not active memory.");
                             await load();
                           })
                         }
+                        data-testid={`agentops-reject-memory-${item.id}`}
                       >
-                        {item.active ? "Disable" : "Enable"}
+                        Reject
                       </AixiaButton>
                     </div>
                   </div>

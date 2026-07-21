@@ -1,6 +1,6 @@
 /**
  * Owner-facing Hermes connection model for Agent Detail.
- * Fleet transport health exists; per-agent Hermes connection rows do not.
+ * Fleet transport health + dedicated per-agent Hermes connection (D-F1).
  */
 
 import {
@@ -16,10 +16,14 @@ import {
   resolveAgentHermesConnectionLabel,
   type AgentHermesConnectionLabel,
 } from "@/lib/agentops/agents/agentDetailMemoryModel";
+import type { AgentHermesMemorySnapshot } from "@/lib/agentops/agents/agentHermesMemory";
 import type { AgentOpsHermesRuntimeHealth } from "@/lib/agentops/types";
 
 export type HermesTestResult = {
   status:
+    | "Agent Hermes connected"
+    | "Agent Hermes not configured"
+    | "Agent Hermes error"
     | "Fleet available · memory found"
     | "Fleet available · no memory assigned"
     | "Fleet available · memory query failed"
@@ -29,13 +33,13 @@ export type HermesTestResult = {
   checkedAt: string;
   error: string | null;
   detail: string;
-  /** Never "Connected" unless a dedicated per-agent record exists. */
+  /** Never "Connected" unless dedicated per-agent record + retrieval works. */
   agentHermesLabel: AgentHermesConnectionLabel;
   fleetTransportAvailable: boolean;
+  namespace?: string | null;
+  approvedMemoryCount?: number;
+  pendingDraftsCount?: number;
 };
-
-const AGENT_HERMES_NOT_CONNECTED_NOTE =
-  "Agent Hermes: Not configured — no dedicated per-agent Hermes connection record.";
 
 export function buildHermesConnectionModel(input: {
   agentId: string;
@@ -47,9 +51,10 @@ export function buildHermesConnectionModel(input: {
   retrievalError: string | null;
   lastSuccessfulRetrievalAt: string | null;
   tested?: boolean;
-  /** Future: true only when a real per-agent Hermes connection row exists. */
+  /** True only when a real per-agent Hermes connection row exists and retrieval works. */
   agentSpecificRecordExists?: boolean;
   runtimeAgentId?: string | null;
+  namespace?: string | null;
 }): AgentHermesConnectionModel {
   const mapped = mapHermesRuntimeToStripStatus({
     loaded: Boolean(input.health) || Boolean(input.healthError),
@@ -81,11 +86,16 @@ export function buildHermesConnectionModel(input: {
   });
 
   const notes = [
-    mapped.status === "Fleet available"
-      ? AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner
-      : mapped.detail,
+    agentHermesLabel === "Connected"
+      ? AGENT_DETAIL_MEMORY_COPY.agentHermesConnectedBanner
+      : agentHermesLabel === "Error"
+        ? AGENT_DETAIL_MEMORY_COPY.agentHermesErrorBanner
+        : mapped.status === "Fleet available"
+          ? AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner
+          : mapped.detail,
     formatAgentHermesStripDetail(agentHermesLabel),
-  ];
+    input.namespace ? `Namespace: ${input.namespace}` : null,
+  ].filter(Boolean) as string[];
 
   return {
     agentId: input.agentId,
@@ -111,22 +121,47 @@ export function evaluateHermesSafeConnectionTest(input: {
   memoryError: string | null;
   assignedMemoryCount: number;
   agentSpecificRecordExists?: boolean;
+  snapshot?: AgentHermesMemorySnapshot | null;
 }): HermesTestResult {
   const checkedAt = new Date().toISOString();
-  const agentHermesLabel = resolveAgentHermesConnectionLabel({
-    agentSpecificRecordExists: input.agentSpecificRecordExists === true,
-    runtimeAgentId: input.runtimeAgentId,
-    retrievalError: null,
-  });
+  const snapshot = input.snapshot ?? null;
+  const agentHermesLabel =
+    snapshot?.agentHermesLabel ??
+    resolveAgentHermesConnectionLabel({
+      agentSpecificRecordExists: input.agentSpecificRecordExists === true,
+      runtimeAgentId: input.runtimeAgentId,
+      retrievalError: input.memoryError,
+    });
+
+  const namespace = snapshot?.namespace ?? null;
+  const approved = snapshot?.approvedActiveCount ?? input.assignedMemoryCount;
+  const pending = snapshot?.pendingImprovementsCount ?? 0;
+
+  const baseDetail = [
+    `Fleet transport: ${
+      input.health && !input.healthError && input.health.transportReachable && input.health.ok
+        ? "Available"
+        : "Unavailable"
+    }`,
+    `Agent Hermes: ${agentHermesLabel}`,
+    namespace ? `Namespace: ${namespace}` : null,
+    `Approved memory loaded: ${approved}`,
+    `Pending drafts: ${pending}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   if (!input.runtimeAgentId) {
     return {
       status: "Agent runtime identity missing",
       checkedAt,
       error: "No agentops_agents UUID for this canonical agent.",
-      detail: `Cannot query living memory without a runtime UUID. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+      detail: `${baseDetail} · Cannot query living memory without a runtime UUID.`,
       agentHermesLabel: "Unknown",
       fleetTransportAvailable: false,
+      namespace,
+      approvedMemoryCount: approved,
+      pendingDraftsCount: pending,
     };
   }
 
@@ -135,9 +170,12 @@ export function evaluateHermesSafeConnectionTest(input: {
       status: "Fleet unavailable",
       checkedAt,
       error: input.healthError ?? "Hermes health unavailable",
-      detail: `Could not reach Hermes health endpoint. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+      detail: baseDetail,
       agentHermesLabel,
       fleetTransportAvailable: false,
+      namespace,
+      approvedMemoryCount: approved,
+      pendingDraftsCount: pending,
     };
   }
 
@@ -146,41 +184,53 @@ export function evaluateHermesSafeConnectionTest(input: {
       status: "Fleet unavailable",
       checkedAt,
       error: input.health.message,
-      detail: `Hermes transport not fully reachable. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+      detail: baseDetail,
       agentHermesLabel,
       fleetTransportAvailable: false,
+      namespace,
+      approvedMemoryCount: approved,
+      pendingDraftsCount: pending,
     };
   }
 
-  if (!input.memoryQueryOk) {
+  if (!input.memoryQueryOk || agentHermesLabel === "Error") {
     return {
-      status: "Fleet available · memory query failed",
+      status: "Agent Hermes error",
       checkedAt,
-      error: input.memoryError ?? "Memory retrieval failed",
-      detail: `Fleet Hermes transport available. Memory query failed. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
-      agentHermesLabel,
+      error: input.memoryError ?? snapshot?.retrievalError ?? "Memory retrieval failed",
+      detail: baseDetail,
+      agentHermesLabel: "Error",
       fleetTransportAvailable: true,
+      namespace,
+      approvedMemoryCount: approved,
+      pendingDraftsCount: pending,
     };
   }
 
-  if (input.assignedMemoryCount === 0) {
+  if (agentHermesLabel === "Connected") {
     return {
-      status: "Fleet available · no memory assigned",
+      status: "Agent Hermes connected",
       checkedAt,
       error: null,
-      detail: `Fleet Hermes transport available · 0 runtime memory records (runtime ${input.runtimeAgentId.slice(0, 8)}…). ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
-      agentHermesLabel,
+      detail: baseDetail,
+      agentHermesLabel: "Connected",
       fleetTransportAvailable: true,
+      namespace,
+      approvedMemoryCount: approved,
+      pendingDraftsCount: pending,
     };
   }
 
   return {
-    status: "Fleet available · memory found",
+    status: "Agent Hermes not configured",
     checkedAt,
     error: null,
-    detail: `Fleet Hermes transport available · ${input.assignedMemoryCount} runtime memory records found. ${AGENT_HERMES_NOT_CONNECTED_NOTE}`,
+    detail: baseDetail,
     agentHermesLabel,
     fleetTransportAvailable: true,
+    namespace,
+    approvedMemoryCount: approved,
+    pendingDraftsCount: pending,
   };
 }
 

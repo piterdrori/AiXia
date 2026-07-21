@@ -352,19 +352,23 @@ function verifySourceFiles(): void {
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
-    "memory-summary-runtime",
+    "memory-summary-namespace",
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
-    "Runtime memory",
+    "memory-summary-approved",
   );
   mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
     "Fleet Hermes",
   );
-  mustNotInclude(
+  mustInclude(
     "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
-    "Agent Hermes connected",
+    "getAgentHermesMemory",
+  );
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
+    "agentops-hermes-connected-banner",
   );
 
   mustInclude("package.json", '"agentops:agent-detail-final-verify"');

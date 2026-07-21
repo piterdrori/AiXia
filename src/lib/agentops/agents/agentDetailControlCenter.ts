@@ -39,9 +39,9 @@ export const AGENT_DETAIL_CC_COPY = {
   scheduleExecutionConnected: "Schedule saved · can run when due",
   hermesNotYetMeasurable: "Not measurable",
   hermesFleetAvailable:
-    "Hermes transport is available. This agent does not yet have a dedicated connection record.",
+    "Hermes transport is available. Check Agent Hermes for this agent's dedicated namespace.",
   hermesNoAgentSpecificRecord:
-    "Hermes transport is available. This agent does not yet have a dedicated connection record.",
+    "Hermes transport is available. Agent Hermes is not configured for this agent yet.",
   permissionsReadOnly: "Read-only — no permission write API on this page",
   fileMemoryPending:
     "File memory uses secure storage plus a pending memory record. Owner approval is required before permanent Hermes use.",

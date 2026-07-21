@@ -108,10 +108,11 @@ export function useAgentOpsAgentChat(options: UseAgentOpsAgentChatOptions) {
     }
 
     const memoryResult = await getAgentOpsAgentMemory(identity.agentId);
-    const memorySnippets = (memoryResult.data ?? [])
-      .filter((item) => item.active)
-      .map((item) => item.memoryText)
-      .slice(0, 8);
+    const { selectApprovedAgentMemoryForPrompt } = await import(
+      "@/lib/agentops/agents/agentHermesMemoryModel"
+    );
+    // D-F1: approved active only — never pending drafts or diagnostics.
+    const memorySnippets = selectApprovedAgentMemoryForPrompt(memoryResult.data ?? [], 8);
 
     const contextNotes = (identity.contextNotes ?? []).filter(Boolean).slice(0, 6);
     const focusParts = [

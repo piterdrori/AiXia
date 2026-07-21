@@ -18,7 +18,11 @@ export const AGENT_DETAIL_MEMORY_COPY = {
   agentHermesUnknown: "Agent Hermes: Unknown",
   agentHermesError: "Agent Hermes: Error",
   noPerAgentBanner:
-    "Hermes transport is available at fleet level, but this agent does not yet have a dedicated Hermes connection record.",
+    "Agent Hermes not configured. Fleet transport is available, but this agent does not yet have its own memory namespace.",
+  agentHermesConnectedBanner:
+    "Agent Hermes connected. This agent has a dedicated long-term memory namespace.",
+  agentHermesErrorBanner:
+    "Agent Hermes error. Test Hermes connection for the reason, then refresh memory.",
   memoryLoadSlow:
     "Memory load is slow or unavailable. Try refresh memory.",
   noPendingDrafts: "No pending owner drafts",

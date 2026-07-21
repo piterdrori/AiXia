@@ -212,8 +212,52 @@ function verifyHermesSeparation(): void {
   if (!/Agent Hermes: Not configured/i.test(test.detail)) {
     fail("test detail must state Agent Hermes not configured");
   }
-  if (/Agent Hermes connected/i.test(test.detail)) {
-    fail("test detail must not say Agent Hermes connected");
+  if (test.status === "Agent Hermes connected") {
+    fail("test status must not say Agent Hermes connected without connection record");
+  }
+
+  const connectedTest = evaluateHermesSafeConnectionTest({
+    health: {
+      ok: true,
+      status: "ready",
+      transportReachable: true,
+      mode: "live",
+      message: "ok",
+      checkedAt: new Date().toISOString(),
+      loadError: null,
+    } as never,
+    healthError: null,
+    runtimeAgentId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    memoryQueryOk: true,
+    memoryError: null,
+    assignedMemoryCount: 2,
+    agentSpecificRecordExists: true,
+    snapshot: {
+      agentSlug: "design-agent",
+      runtimeAgentId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      connection: null,
+      connectionStatus: "connected",
+      agentHermesLabel: "Connected",
+      namespace: "agentops.agent.design-agent",
+      approvedActiveCount: 2,
+      pendingImprovementsCount: 1,
+      sharedGlobalCount: 0,
+      diagnosticCount: 3,
+      runtimeTotalCount: 10,
+      approvedMemory: [],
+      pendingImprovements: [],
+      lastHealthCheckAt: null,
+      lastMemorySyncAt: null,
+      retrievalOk: true,
+      retrievalError: null,
+      banner: "Agent Hermes connected.",
+    },
+  });
+  if (connectedTest.status !== "Agent Hermes connected") {
+    fail("test with connected snapshot must report Agent Hermes connected");
+  }
+  if (!/Namespace: agentops\.agent\.design-agent/i.test(connectedTest.detail)) {
+    fail("connected test must include namespace");
   }
 }
 
@@ -259,11 +303,12 @@ function verifySourceFiles(): void {
   mustInclude(panel, "Fleet Hermes");
   mustInclude(panel, "memory-summary-fleet-hermes");
   mustInclude(panel, "memory-summary-agent-hermes");
+  mustInclude(panel, "memory-summary-namespace");
+  mustInclude(panel, "memory-summary-approved");
   mustInclude(panel, "Agent Hermes");
-  mustInclude(panel, "memory-summary-runtime");
-  mustInclude(panel, "Runtime memory");
-  mustInclude(panel, "Pending drafts");
+  mustInclude(panel, "Pending improvements");
   mustInclude(panel, "AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner");
+  mustInclude(panel, "getAgentHermesMemory");
   mustInclude(
     "src/lib/agentops/agents/agentDetailMemoryModel.ts",
     AGENT_DETAIL_MEMORY_COPY.noPerAgentBanner,
@@ -279,7 +324,7 @@ function verifySourceFiles(): void {
   mustInclude(panel, "Load more");
   mustInclude(panel, "identityReady");
   mustInclude(panel, "Waiting for runtime agent identity");
-  mustNotInclude(panel, "Agent Hermes connected");
+  mustInclude(panel, "agentops-hermes-connected-banner");
   mustNotInclude(panel, "120 ASSIGNED");
 
   mustInclude(

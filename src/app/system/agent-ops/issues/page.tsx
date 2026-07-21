@@ -503,7 +503,7 @@ export default function AgentOpsIssuesPage() {
         {loading ? (
           <div className="space-y-3" aria-busy="true" aria-live="polite">
             <p className="text-sm text-white/55" role="status">
-              Loading findings…
+              Loading issues…
             </p>
             {[0, 1, 2].map((slot) => (
               <div

@@ -48,7 +48,11 @@ await page.goto(`${base}/system/agent-ops/issues`, {
   waitUntil: "domcontentloaded",
   timeout: 90_000,
 });
-await page.waitForTimeout(5000);
+await page.waitForFunction(
+  () => !/Loading issues|Loading findings/i.test(document.body.innerText),
+  { timeout: 120_000 },
+).catch(() => null);
+await page.waitForTimeout(1500);
 await page.screenshot({ path: path.join(outDir, "issues-list-1440.png") });
 
 const list = await page.evaluate(() => {
@@ -82,7 +86,11 @@ await page.goto(`${base}${DRAFT_ROUTE}`, {
   waitUntil: "domcontentloaded",
   timeout: 90_000,
 });
-await page.waitForTimeout(5000);
+await page.waitForFunction(
+  () => !/Loading finding|Loading issue/i.test(document.body.innerText),
+  { timeout: 120_000 },
+).catch(() => null);
+await page.waitForTimeout(1500);
 await page.screenshot({ path: path.join(outDir, "draft-detail-1440.png") });
 
 const detail = await page.evaluate(() => {

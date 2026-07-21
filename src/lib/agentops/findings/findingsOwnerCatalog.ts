@@ -75,8 +75,21 @@ export type FindingsCatalogLoadResult = {
 };
 
 async function ownerAuthHeaders(): Promise<HeadersInit> {
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
+  let token = (await supabase.auth.getSession()).data.session?.access_token ?? null;
+  if (!token) {
+    // Owner gate can resolve slightly before the session token is readable.
+    for (let attempt = 0; attempt < 5 && !token; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+      token = (await supabase.auth.getSession()).data.session?.access_token ?? null;
+    }
+  }
+  if (!token) {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) {
+      throw new Error("You must be signed in as AgentOps Owner.");
+    }
+    token = (await supabase.auth.getSession()).data.session?.access_token ?? null;
+  }
   if (!token) {
     throw new Error("You must be signed in as AgentOps Owner.");
   }

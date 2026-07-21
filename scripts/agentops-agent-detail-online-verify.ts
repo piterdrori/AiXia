@@ -148,6 +148,7 @@ function verifyPromptLikeHiddenFromMainRuntime(): void {
     "Inspect this page and tell me: what is broken",
     "remember this test rule",
     "hello, describe your role",
+    "What operating rule did I ask you to remember?",
   ].map((content, i) => row({ id: `p${i}`, content, source: "chat" }));
 
   for (const p of prompts) {
@@ -159,8 +160,8 @@ function verifyPromptLikeHiddenFromMainRuntime(): void {
   if (part.usefulAgentRows.some((r) => r.id.startsWith("p"))) {
     fail("prompt-like must not appear in main Runtime usefulAgentRows");
   }
-  if (part.counts.diagnostic < 3) fail("diagnostics count must include prompt-like rows");
-  if (part.counts.runtimeTotal !== 4) fail("runtimeTotal must stay truthful (4)");
+  if (part.counts.diagnostic < 4) fail("diagnostics count must include prompt-like rows");
+  if (part.counts.runtimeTotal !== 5) fail("runtimeTotal must stay truthful (5)");
 }
 
 function verifyUiContracts(): void {

@@ -578,7 +578,9 @@ export function defaultScopeForWorkType(
 
 export function formatManualRunResultBanner(result: AgentManualRunResult): string {
   if (result.status === "queued") {
-    return result.message || AGENT_MANUAL_RUN_COPY.queuedWorkerOffline;
+    // Prefer the API message; default to waiting (not offline) — offline is set
+    // explicitly by the Agent Detail poll when capability is offline.
+    return result.message || AGENT_MANUAL_RUN_COPY.queuedWaiting;
   }
   const parts = [
     result.status === "completed" ? "Completed" : result.status === "failed" ? "Failed" : result.status,

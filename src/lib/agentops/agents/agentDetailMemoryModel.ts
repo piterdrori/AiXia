@@ -41,14 +41,14 @@ const DIAGNOSTIC_SOURCE_RE =
   /marker|diagnostic|scan|cycle|thread|cross[-_]?agent|chat[-_]?marker|initializer|heartbeat|simulation|conversation|user[_-]?message|prompt|test[_-]?message/i;
 
 const DIAGNOSTIC_TEXT_RE =
-  /thread[-_]?marker|cross[-_]?agent marker|cycle scanned|scan marker|scheduled_cycle|work cycle|browser qa simulation|activation log|initializer returned|chat marker|diagnostic|scan\/test|test marker/i;
+  /thread[-_]?marker|cross[-_]?agent marker|cycle scanned|scan marker|scheduled_cycle|work cycle|browser qa simulation|activation log|initializer returned|chat marker|diagnostic|scan\/test|test marker|delete-active|active test\b|\btest\b.*\b(system|design|qa|runtime|logs|analytics)-agent\b/i;
 
 /** Starts-with + anywhere prompt/conversation markers (owner Runtime list noise). */
 const PROMPT_LIKE_RE =
-  /^(please |can you |could you |i need |help me |review |check |look at |audit |run |test |inspect |remember |hello[, ]|hi[, ]|hey[, ]|tell me |describe |what is broken)/i;
+  /^(please |can you |could you |i need |help me |review |check |look at |audit |run |test |inspect |remember |hello[, ]|hi[, ]|hey[, ]|tell me |describe |what is broken|what operating rule|what did i ask)/i;
 
 const PROMPT_LIKE_ANYWHERE_RE =
-  /\b(inspect this page|tell me:\s*what is broken|remember this( test)?( rule)?|hello,\s*describe|describe your role|localhost(:\d+)?\/|127\.0\.0\.1|internal url|user prompt|test prompt|conversation message|scan\/test|cross[-_]?agent|thread[-_]?marker)\b/i;
+  /\b(inspect this page|tell me:\s*what is broken|remember this( test)?( rule)?|ask you to remember|operating rule did i ask|hello,\s*describe|describe your role|localhost(:\d+)?\/|127\.0\.0\.1|internal url|user prompt|test prompt|conversation message|scan\/test|cross[-_]?agent|thread[-_]?marker)\b/i;
 
 /** Preview text from a runtime memory content payload. */
 export function runtimeMemoryPreview(

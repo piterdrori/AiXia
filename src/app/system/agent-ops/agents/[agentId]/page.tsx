@@ -331,12 +331,33 @@ export default function AgentOpsAgentDetailPage() {
           setManualCapability(result.capability);
           setManualCapabilityError(null);
         }
+        // Unstick UI when local active run finished on the worker but poll stopped early.
+        if (activeManualRunId) {
+          const stillLive = [...result.queue.queued, ...result.queue.running].some(
+            (row) => row.runId === activeManualRunId,
+          );
+          if (!stillLive) {
+            const status = await fetchManualRunStatus({
+              runId: activeManualRunId,
+              agentSlug: resolvedSlug,
+            });
+            if (cancelled) return;
+            if (status.ok && status.result) {
+              setManualRunResult(status.result);
+              if (!status.active) {
+                setActiveManualRunId(null);
+                setManualResultBanner(formatManualRunResultBanner(status.result));
+                setActionFeedback(formatManualRunResultBanner(status.result));
+              }
+            }
+          }
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [isOwner, gateLoading, resolvedSlug, queueRefreshKey]);
+  }, [isOwner, gateLoading, resolvedSlug, queueRefreshKey, activeManualRunId]);
 
   useEffect(() => {
     if (!isOwner || !activeManualRunId) return;
@@ -359,16 +380,22 @@ export default function AgentOpsAgentDetailPage() {
       const workerConnected = status.workerConnected === true;
 
       if (runStatus === "queued") {
+        // Prefer live capability over status payload — status can lag and falsely
+        // report offline while the owner badges already show Worker online.
+        const liveWorkerOnline =
+          workerConnected || manualCapability?.workerConnected === true;
         setActionFeedback(
-          workerConnected
+          liveWorkerOnline
             ? AGENT_MANUAL_RUN_COPY.queuedWaiting
             : AGENT_MANUAL_RUN_COPY.queuedWorkerOffline,
         );
-        setManualResultBanner(formatManualRunResultBanner(status.result));
-        // Worker offline: one status read is enough — no forever polling.
-        if (!workerConnected) {
-          return "stop";
-        }
+        setManualResultBanner(
+          liveWorkerOnline
+            ? AGENT_MANUAL_RUN_COPY.queuedWaiting
+            : formatManualRunResultBanner(status.result),
+        );
+        // Keep polling while queued — never freeze on a single offline status read.
+        // Cap only after MAX_QUEUED_POLL_MS so the owner is not stuck forever.
         if (Date.now() - startedAt > MAX_QUEUED_POLL_MS) {
           return "stop";
         }
@@ -721,15 +748,16 @@ export default function AgentOpsAgentDetailPage() {
   const schedulerOrWorkerStale =
     !workerConnected ||
     workerStatus === "stale" ||
-    !manualCapability?.schedulerConnected ||
-    (Number.isFinite(nextTickMs) && nextTickMs < Date.now());
+    !manualCapability?.schedulerConnected;
   const nextSchedulerTickLabel = !manualCapability
     ? null
     : schedulerOrWorkerStale
       ? "Next tick unknown — scheduler offline/stale"
-      : nextTickEstimate
-        ? new Date(nextTickEstimate).toLocaleString()
-        : null;
+      : Number.isFinite(nextTickMs) && nextTickMs < Date.now()
+        ? "Next scheduler tick overdue / in progress"
+        : nextTickEstimate
+          ? new Date(nextTickEstimate).toLocaleString()
+          : null;
 
   const openLatestRunDrawer = useCallback(async () => {
     if (

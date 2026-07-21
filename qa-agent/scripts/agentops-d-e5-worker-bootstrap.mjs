@@ -1,6 +1,7 @@
 /**
  * D-E5 — bootstrap staging worker env (local host only).
  * Does not print secrets. Sets a local worker secret if missing (same pattern as D-A/D-B live scripts).
+ * Retries transient Supabase "fetch failed" for heartbeat/status/once.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -28,6 +29,12 @@ function loadEnvFile(filePath) {
   }
 }
 
+function sleepMs(ms) {
+  spawnSync(process.execPath, ["-e", `Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,${ms})`], {
+    stdio: "ignore",
+  });
+}
+
 loadEnvFile(path.join(REPO_ROOT, ".env.local"));
 loadEnvFile(path.join(REPO_ROOT, "qa-agent", "browser-qa", ".env.owner.local"));
 
@@ -53,42 +60,71 @@ if (!process.env.AGENTOPS_BROWSER_QA_STORAGE_STATE) {
 const cmd = process.argv[2] || "doctor";
 const extra = process.argv.slice(3);
 
-let result;
-if (cmd === "doctor") {
-  result = spawnSync(process.execPath, ["scripts/agentops-staging-worker-doctor.mjs", ...extra], {
+function runCommand(stdioInherit = false) {
+  const common = {
     cwd: REPO_ROOT,
     env: process.env,
     encoding: "utf8",
     maxBuffer: 8 * 1024 * 1024,
-  });
-} else if (cmd === "status") {
-  result = spawnSync(
-    process.execPath,
-    ["scripts/agentops-staging-manual-run-worker.mjs", "queue-status", ...extra],
-    { cwd: REPO_ROOT, env: process.env, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
-  );
-} else if (cmd === "heartbeat") {
-  result = spawnSync(
-    process.execPath,
-    ["scripts/agentops-staging-manual-run-worker.mjs", "heartbeat", ...extra],
-    { cwd: REPO_ROOT, env: process.env, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
-  );
-} else if (cmd === "once") {
-  result = spawnSync(
-    process.execPath,
-    ["scripts/agentops-staging-manual-run-worker.mjs", "staging-worker", "--once", ...extra],
-    { cwd: REPO_ROOT, env: process.env, encoding: "utf8", maxBuffer: 8 * 1024 * 1024 },
-  );
-} else if (cmd === "worker") {
-  result = spawnSync(
-    process.execPath,
-    ["scripts/agentops-staging-manual-run-worker.mjs", "staging-worker", ...extra],
-    { cwd: REPO_ROOT, env: process.env, encoding: "utf8", maxBuffer: 8 * 1024 * 1024, stdio: "inherit" },
-  );
-  process.exit(result.status ?? 1);
-} else {
-  console.error(`Unknown command: ${cmd}`);
-  process.exit(2);
+  };
+  if (stdioInherit) common.stdio = "inherit";
+
+  if (cmd === "doctor") {
+    return spawnSync(process.execPath, ["scripts/agentops-staging-worker-doctor.mjs", ...extra], common);
+  }
+  if (cmd === "status") {
+    return spawnSync(
+      process.execPath,
+      ["scripts/agentops-staging-manual-run-worker.mjs", "queue-status", ...extra],
+      common,
+    );
+  }
+  if (cmd === "heartbeat") {
+    return spawnSync(
+      process.execPath,
+      ["scripts/agentops-staging-manual-run-worker.mjs", "heartbeat", ...extra],
+      common,
+    );
+  }
+  if (cmd === "once") {
+    return spawnSync(
+      process.execPath,
+      ["scripts/agentops-staging-manual-run-worker.mjs", "staging-worker", "--once", ...extra],
+      common,
+    );
+  }
+  if (cmd === "worker") {
+    return spawnSync(
+      process.execPath,
+      ["scripts/agentops-staging-manual-run-worker.mjs", "staging-worker", ...extra],
+      common,
+    );
+  }
+  return null;
+}
+
+if (cmd === "worker") {
+  for (;;) {
+    const result = runCommand(true);
+    const code = result?.status ?? 1;
+    if (code === 0) process.exit(0);
+    console.error(`[d-e5-bootstrap] worker exited status=${code}; restarting in 5s`);
+    sleepMs(5000);
+  }
+}
+
+const maxAttempts = ["heartbeat", "once", "status"].includes(cmd) ? 5 : 1;
+let result = null;
+for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  result = runCommand(false);
+  if (!result) {
+    console.error(`Unknown command: ${cmd}`);
+    process.exit(2);
+  }
+  if (result.status === 0) break;
+  const errText = `${result.stderr || ""}${result.stdout || ""}`;
+  if (!/fetch failed/i.test(errText) || attempt === maxAttempts) break;
+  sleepMs(1500 * attempt);
 }
 
 process.stdout.write(result.stdout || "");

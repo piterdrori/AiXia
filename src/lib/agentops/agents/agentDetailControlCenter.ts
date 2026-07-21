@@ -68,10 +68,25 @@ export type StripMemoryStatus =
 export type StripLastScanResult =
   | "Completed"
   | "Failed"
+  | "Queued"
+  | "Running"
   | "Needs attention"
   | "Not run"
+  | "No agent runs yet"
+  | "Fleet fallback failed"
   | "Not recorded"
   | "Unavailable";
+
+/** Minimal agent-scoped run shape for last-run strip (from selectLatestAgentRun). */
+export type StripLatestAgentRunInput = {
+  status: string;
+  createdAt?: string | null;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  trigger?: string | null;
+  mode?: string | null;
+  workType?: string | null;
+};
 
 export type StripCurrentActivity =
   | "Idle"
@@ -139,25 +154,28 @@ export function formatStatusDateTime(value: string | null | undefined): string {
   return date.toLocaleString();
 }
 
+/**
+ * Owner-status strip cell — must match header owner status.
+ * Fleet daily review failure must NOT become OWNER STATUS: ERROR.
+ * Error is reserved for real load/identity/API failures (status === "Error").
+ */
 export function mapOwnerFacingToStripStatus(
   status: OwnerFacingAgentStatus,
-  reviewStatus: AgentDetailReviewStatus,
+  _reviewStatus?: AgentDetailReviewStatus,
 ): StripAgentStatus {
   if (status === "Blocked") return "Blocked";
   if (status === "Paused") return "Paused";
   if (status === "Error") return "Error";
   if (status === "Unknown") return "Unknown";
-  if (reviewStatus === "failed") return "Error";
   return "Active";
 }
 
 export function mapManagedToStripAgentStatus(
   status: AgentOpsManagedAgent["status"] | null | undefined,
-  reviewStatus: AgentDetailReviewStatus,
+  _reviewStatus: AgentDetailReviewStatus,
   isBlocked: boolean,
 ): StripAgentStatus {
   if (isBlocked || status === "blocked") return "Blocked";
-  if (reviewStatus === "failed") return "Error";
   if (status == null) return "Unknown";
   const owner = ownerWorkStatusLabel(status, isBlocked);
   if (owner === "Paused") return "Paused";
@@ -165,15 +183,64 @@ export function mapManagedToStripAgentStatus(
   return "Active";
 }
 
+/** @deprecated Prefer mapLatestAgentRunToStripScan — fleet roster alone is not prime last-run. */
 export function mapReviewToLastScanResult(
   reviewStatus: AgentDetailReviewStatus,
   unavailable: boolean,
 ): StripLastScanResult {
   if (unavailable) return "Unavailable";
   if (reviewStatus === "completed") return "Completed";
-  if (reviewStatus === "failed") return "Failed";
+  // Stale fleet failure is not a prime "Failed" scan — callers should use fleet fallback label.
+  if (reviewStatus === "failed") return "Fleet fallback failed";
   if (reviewStatus === "running") return "Needs attention";
   return "Not run";
+}
+
+/** Map agent-scoped worker run (or absence) into the prime Last run strip cell. */
+export function mapLatestAgentRunToStripScan(input: {
+  latestAgentRun: StripLatestAgentRunInput | null | undefined;
+  fleetReviewFailed?: boolean;
+  monitoringUnavailable?: boolean;
+  monitoringResolving?: boolean;
+}): { result: StripLastScanResult; at: string | null; label: string } {
+  if (input.monitoringResolving) {
+    return { result: "Not recorded", at: null, label: "…" };
+  }
+  if (input.monitoringUnavailable && !input.latestAgentRun && !input.fleetReviewFailed) {
+    return { result: "Unavailable", at: null, label: "Unavailable" };
+  }
+
+  const run = input.latestAgentRun;
+  if (run) {
+    const status = String(run.status || "").toLowerCase();
+    const at = run.endedAt || run.startedAt || run.createdAt || null;
+    const when = formatStatusDateTime(at);
+    if (status === "queued") {
+      return { result: "Queued", at, label: when === "Not recorded" ? "Queued for staging worker" : when };
+    }
+    if (status === "running" || status === "claimed" || status === "in_progress") {
+      return { result: "Running", at, label: when === "Not recorded" ? "Running on staging worker" : when };
+    }
+    if (status === "completed") {
+      return { result: "Completed", at, label: when };
+    }
+    if (status === "failed") {
+      return { result: "Failed", at, label: when };
+    }
+    if (status === "canceled" || status === "cancelled") {
+      return { result: "Needs attention", at, label: when === "Not recorded" ? "Canceled" : when };
+    }
+  }
+
+  if (input.fleetReviewFailed) {
+    return {
+      result: "Fleet fallback failed",
+      at: null,
+      label: "Fleet daily review fallback — not an agent-scoped worker run",
+    };
+  }
+
+  return { result: "No agent runs yet", at: null, label: "No agent-scoped staging-worker runs yet" };
 }
 
 export function mapReviewToCurrentActivity(
@@ -228,6 +295,8 @@ export function buildAgentStatusStrip(input: {
     agentStatus: string;
     lastDailyRunAt: string | null;
   } | null;
+  /** Agent-scoped staging-worker run from selectLatestAgentRun — preferred for Last run. */
+  latestAgentRun?: StripLatestAgentRunInput | null;
   monitoringUnavailable: boolean;
   monitoringResolving: boolean;
   hermes: StripHermesStatus;
@@ -252,11 +321,12 @@ export function buildAgentStatusStrip(input: {
             : "Active");
 
   const ownerPaused = ownerStatus === "Paused";
-
-  const lastScanAt = input.rosterRow?.lastDailyRunAt ?? null;
-  let lastScanLabel = formatStatusDateTime(lastScanAt);
-  if (input.monitoringResolving) lastScanLabel = "…";
-  else if (input.monitoringUnavailable && !input.rosterRow) lastScanLabel = "Unavailable";
+  const lastRun = mapLatestAgentRunToStripScan({
+    latestAgentRun: input.latestAgentRun,
+    fleetReviewFailed: reviewStatus === "failed" && !input.latestAgentRun,
+    monitoringUnavailable: input.monitoringUnavailable,
+    monitoringResolving: input.monitoringResolving,
+  });
 
   return {
     agentStatus: mapOwnerFacingToStripStatus(ownerStatus, reviewStatus),
@@ -264,21 +334,39 @@ export function buildAgentStatusStrip(input: {
     hermesDetail: input.hermesDetail,
     memory: input.memory,
     memoryDetail: input.memoryDetail,
-    lastScanAt,
-    lastScanLabel,
-    lastScanResult: input.monitoringResolving
-      ? "Not recorded"
-      : mapReviewToLastScanResult(reviewStatus, input.monitoringUnavailable && !input.rosterRow),
+    lastScanAt: lastRun.at,
+    lastScanLabel: lastRun.label,
+    lastScanResult: lastRun.result,
     scheduleLabel: input.scheduleLabel,
     scheduleDetail: input.scheduleDetail,
     currentActivity:
       input.currentActivityOverride ??
       (input.monitoringResolving
         ? "Unknown"
-        : mapReviewToCurrentActivity(reviewStatus, ownerPaused)),
+        : input.latestAgentRun
+          ? mapLatestRunToCurrentActivity(input.latestAgentRun, ownerPaused)
+          : // Fleet review failure is not current agent activity.
+            mapReviewToCurrentActivity(
+              reviewStatus === "failed" ? "not_run" : reviewStatus,
+              ownerPaused,
+            )),
     nextRunAt: null,
     nextRunLabel: input.scheduleLabel,
   };
+}
+
+function mapLatestRunToCurrentActivity(
+  run: StripLatestAgentRunInput,
+  ownerPaused: boolean,
+): StripCurrentActivity {
+  const status = String(run.status || "").toLowerCase();
+  if (status === "queued") return "Preparing";
+  if (status === "running" || status === "claimed" || status === "in_progress") {
+    return run.workType === "browser_qa" ? "Running Browser QA" : "Auditing";
+  }
+  if (status === "failed") return "Failed";
+  if (ownerPaused) return "Idle";
+  return "Idle";
 }
 
 /** Map fleet Hermes runtime health into owner-facing strip (not agent-specific). */

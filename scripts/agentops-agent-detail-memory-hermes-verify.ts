@@ -13,6 +13,7 @@ import {
   partitionRuntimeMemory,
   resolveAgentHermesConnectionLabel,
   resolveFleetHermesTransportLabel,
+  usefulRuntimeEmptyCopy,
 } from "../src/lib/agentops/agents/agentDetailMemoryModel.ts";
 import {
   buildHermesConnectionModel,
@@ -292,6 +293,14 @@ function verifySourceFiles(): void {
 
   mustInclude("src/lib/agentops/agents/agentDetailMemoryModel.ts", "isDiagnosticRuntimeMemory");
   mustInclude("src/lib/agentops/agents/agentDetailMemoryModel.ts", "runtime memory records");
+  mustInclude("src/lib/agentops/agents/agentDetailMemoryModel.ts", "usefulRuntimeEmptyCopy");
+  mustInclude(panel, "usefulRuntimeEmptyCopy");
+  {
+    const empty = usefulRuntimeEmptyCopy({ runtimeTotal: 61, diagnosticCount: 61 });
+    if (!/61/.test(empty) || !/diagnostic/i.test(empty)) {
+      fail("usefulRuntimeEmptyCopy must mention diagnostics count when totals exist");
+    }
+  }
 
   mustInclude(
     "src/app/system/agent-ops/agents/[agentId]/page.tsx",

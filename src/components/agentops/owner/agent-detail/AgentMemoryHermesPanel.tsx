@@ -15,6 +15,7 @@ import {
   MEMORY_LOAD_TIMEOUT_MS,
   partitionRuntimeMemory,
   resolveAgentHermesConnectionLabel,
+  usefulRuntimeEmptyCopy,
   resolveFleetHermesTransportLabel,
   runtimeMemoryPreview,
   withTimeout,
@@ -700,10 +701,13 @@ export function AgentMemoryHermesPanel({
           ) : (
             <RuntimeMemoryList
               rows={partition.usefulAgentRows}
-              emptyLabel={AGENT_DETAIL_MEMORY_COPY.noRuntimeMemory}
+              emptyLabel={usefulRuntimeEmptyCopy({
+                runtimeTotal: partition.counts.runtimeTotal,
+                diagnosticCount: partition.counts.diagnostic,
+              })}
             />
           )}
-          {partition.counts.diagnostic > 0 ? (
+          {partition.counts.diagnostic > 0 && partition.usefulAgentRows.length > 0 ? (
             <p className="mt-2 text-xs text-white/40">
               {partition.counts.diagnostic} diagnostic/noisy records are under Diagnostics (collapsed by
               default).

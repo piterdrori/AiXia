@@ -8,6 +8,8 @@ function toneFor(value: string): "emerald" | "amber" | "neutral" {
     value === "Completed" ||
     value === "Idle" ||
     value === "Schedule executable" ||
+    value === "Running" ||
+    value === "Queued" ||
     /^[0-9]+ records/.test(value)
   ) {
     return "emerald";
@@ -17,6 +19,7 @@ function toneFor(value: string): "emerald" | "amber" | "neutral" {
     value === "Fleet degraded" ||
     value === "Fleet unavailable" ||
     value === "Failed" ||
+    value === "Fleet fallback failed" ||
     value === "Error" ||
     value === "Blocked" ||
     value === "Needs attention" ||
@@ -105,7 +108,7 @@ export function AgentStatusStrip({ model }: AgentStatusStripProps) {
         testId="strip-memory-status"
       />
       <Cell
-        label="Last scan"
+        label="Last run"
         value={model.lastScanResult}
         detail={model.lastScanLabel}
         testId="strip-last-scan"

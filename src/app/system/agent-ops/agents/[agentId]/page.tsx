@@ -116,12 +116,15 @@ function activityFromExecution(
   execution: LatestDailyExecutionSummary | null,
   reviewRunning: boolean,
   manualActivity: StripCurrentActivity | null,
+  hasAgentScopedLatestRun: boolean,
 ): StripCurrentActivity {
   if (manualActivity) return manualActivity;
   if (reviewRunning) return "Auditing";
+  // Fleet daily failure is not current agent activity when we prefer agent-scoped runs.
+  if (hasAgentScopedLatestRun) return "Idle";
   if (!execution || execution.error) return "Unknown";
   const status = execution.status.toLowerCase();
-  if (status === "failed" || status === "blocked") return "Failed";
+  if (status === "failed" || status === "blocked") return "Idle";
   if (status === "completed" || status === "skipped_ineligible" || status === "not_run") {
     return "Idle";
   }
@@ -853,10 +856,45 @@ export default function AgentOpsAgentDetailPage() {
         ? AGENT_DETAIL_CC_COPY.runBrowserQaEnginePending
         : manualCapabilityError ?? AGENT_DETAIL_CC_COPY.runBrowserQaNotConnected);
 
+  const selectedLatestRun = useMemo(() => {
+    if (!agentScopedQueue) return null;
+    return selectLatestAgentRun({
+      queued: agentScopedQueue.queued,
+      running: agentScopedQueue.running,
+      recentTerminal: agentScopedQueue.recentTerminal ?? [],
+    });
+  }, [agentScopedQueue]);
+
+  const latestRunStripLabel = useMemo(() => {
+    if (selectedLatestRun) {
+      const status = String(selectedLatestRun.status || "").toLowerCase();
+      if (status === "completed") return "Completed";
+      if (status === "failed") return "Failed";
+      if (status === "queued") return "Queued";
+      if (status === "running" || status === "claimed" || status === "in_progress") {
+        return "Running";
+      }
+      if (status === "canceled" || status === "cancelled") return "Canceled";
+      return status || "Unknown";
+    }
+    if (monitoringResolving) return "…";
+    if (monitoringUnavailable && !rosterRow) return "Unavailable";
+    if (reviewStatus === "failed") return "Fleet fallback failed";
+    if (reviewStatus === "completed") return "Fleet fallback completed";
+    return "No agent runs yet";
+  }, [
+    selectedLatestRun,
+    monitoringResolving,
+    monitoringUnavailable,
+    rosterRow,
+    reviewStatus,
+  ]);
+
   const statusStrip = buildAgentStatusStrip({
     ownerStatus,
     isBlocked,
     rosterRow,
+    latestAgentRun: selectedLatestRun,
     monitoringUnavailable,
     monitoringResolving,
     hermes: hermesStatus,
@@ -869,6 +907,7 @@ export default function AgentOpsAgentDetailPage() {
       latestExecution,
       reviewStatus === "running",
       manualStripActivity,
+      Boolean(selectedLatestRun),
     ),
   });
 
@@ -957,14 +996,14 @@ export default function AgentOpsAgentDetailPage() {
     ? "Unavailable"
     : String(findings.filter((finding) => mapFindingOwnerStatus(finding.status) === "verified").length);
   const failedRunsLabel =
-    latestExecution?.error != null
-      ? "Unavailable"
-      : monitoringResolving
-        ? "…"
-        : latestExecution?.status === "failed"
-          ? "1 recorded"
-          : reviewStatus === "failed"
-            ? "Needs attention"
+    selectedLatestRun?.status === "failed"
+      ? "1 agent-scoped"
+      : latestExecution?.error != null
+        ? "Unavailable"
+        : monitoringResolving
+          ? "…"
+          : reviewStatus === "failed" && !selectedLatestRun
+            ? "Fleet fallback only"
             : "None recorded";
 
   const mergedTimeline = useMemo(() => {
@@ -1272,18 +1311,17 @@ export default function AgentOpsAgentDetailPage() {
           findings={findings}
           findingsUnavailable={findingsUnavailable}
           findingsLoading={loading}
-          lastRunLabel={
-            monitoringResolving
-              ? "…"
-              : monitoringUnavailable && !rosterRow
-                ? "Unavailable"
-                : reviewStatusLabel(reviewStatus)
-          }
+          lastRunLabel={latestRunStripLabel}
           lastRunAt={
-            latestExecution?.completedAt ??
-            latestExecution?.startedAt ??
-            rosterRow?.lastDailyRunAt ??
-            null
+            selectedLatestRun?.endedAt ??
+            selectedLatestRun?.startedAt ??
+            selectedLatestRun?.createdAt ??
+            (selectedLatestRun
+              ? null
+              : latestExecution?.completedAt ??
+                latestExecution?.startedAt ??
+                rosterRow?.lastDailyRunAt ??
+                null)
           }
           durationLabel={durationLabel}
           openFindingsCountLabel={openFindingsLabel}

@@ -207,6 +207,14 @@ function verifyUiContracts(): void {
     "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",
     "workflow_dispatch",
   );
+  mustInclude(
+    "src/app/system/agent-ops/agents/[agentId]/page.tsx",
+    "latestAgentRun: selectedLatestRun",
+  );
+  mustInclude(
+    "src/components/agentops/owner/agent-detail/AgentMemoryHermesPanel.tsx",
+    "usefulRuntimeEmptyCopy",
+  );
 }
 
 function main(): void {

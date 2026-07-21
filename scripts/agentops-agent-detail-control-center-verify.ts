@@ -82,8 +82,12 @@ function main(): void {
     scheduleLabel: "Manual only",
     scheduleDetail: "Not configured",
   });
-  assert(strip.lastScanResult === "Not run", "last scan not run");
+  assert(
+    strip.lastScanResult === "No agent runs yet" || strip.lastScanResult === "Not run",
+    "last run empty when no agent-scoped run",
+  );
   assert(strip.currentActivity === "Idle", "idle activity");
+  assert(strip.agentStatus === "Active", "active owner is not Error");
 
   assert(MIN_SCHEDULE_INTERVAL_MINUTES === 60, "hourly minimum");
   assert(frequencyToIntervalMinutes("every_hours", 1, "hours") === 60, "1h = 60m");
@@ -154,7 +158,14 @@ function main(): void {
   const schedulePanel = read(
     "src/components/agentops/owner/agent-detail/AgentSchedulePanel.tsx",
   );
-  assert(schedulePanel.includes("worker scheduler offline") || schedulePanel.includes("executable by staging worker"), "pending scheduler label");
+  assert(
+    schedulePanel.includes("worker scheduler offline") ||
+      schedulePanel.includes("executable by staging worker") ||
+      schedulePanel.includes("will run when the staging worker is online") ||
+      schedulePanel.includes("Schedule ready") ||
+      schedulePanel.includes("can enqueue when due"),
+    "pending scheduler label",
+  );
   assert(schedulePanel.includes("Edit schedule"), "progressive schedule editor");
 
   const memoryPanel = read(

@@ -29,6 +29,20 @@ export const AGENT_DETAIL_MEMORY_COPY = {
   diagnosticsCollapsed: "Diagnostics / runtime history",
 } as const;
 
+/** Owner-facing empty Runtime tab when totals exist but useful rows are all diagnostic. */
+export function usefulRuntimeEmptyCopy(input: {
+  runtimeTotal: number;
+  diagnosticCount: number;
+}): string {
+  if (input.runtimeTotal > 0 && input.diagnosticCount > 0) {
+    return `No owner-useful runtime memory records are shown here. ${input.runtimeTotal} diagnostic/runtime-history records are available under Diagnostics.`;
+  }
+  if (input.runtimeTotal > 0) {
+    return `No owner-useful runtime memory records are shown here. ${input.runtimeTotal} runtime records exist for this agent.`;
+  }
+  return AGENT_DETAIL_MEMORY_COPY.noRuntimeMemory;
+}
+
 export type AgentHermesConnectionLabel =
   | "Connected"
   | "Not configured"

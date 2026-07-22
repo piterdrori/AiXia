@@ -101,9 +101,9 @@ await page.setViewportSize({ width: 1440, height: 900 });
 
 let detail = {
   opened: false,
-  hasApprove: false,
-  hasDefer: false,
-  hasReject: false,
+  hasFixWithCursor: false,
+  hasDeleteIssue: false,
+  hasAdvancedActions: false,
   hasFixPrompt: false,
   hasChat: false,
   path: null,
@@ -120,14 +120,15 @@ await page.goto(`${base}${detailPath}`, {
 await page.waitForTimeout(6000);
 detail = await page.evaluate(() => {
   const text = document.body.innerText || "";
+  // E-A6 contract: prime actions are Fix with Cursor + Delete issue; Approve/Defer/Reject
+  // live inside collapsed Advanced actions with renamed labels.
   return {
     opened: !/Issue not found|404/i.test(text) && text.length > 200,
-    hasApprove: /\bApprove\b/.test(text),
-    hasDefer: /\bDefer\b|\bLater\b/.test(text),
-    hasReject: /\bReject\b|\bDismiss\b/.test(text),
-    hasNeedsMoreInfo: /Needs more info/i.test(text),
-    hasMarkDuplicate: /Mark duplicate/i.test(text),
-    hasPromote: /Promote to issue/i.test(text),
+    hasFixWithCursor: Boolean(
+      document.querySelector('[data-testid="agentops-fix-with-cursor"]'),
+    ),
+    hasDeleteIssue: Boolean(document.querySelector('[data-testid="agentops-delete-issue"]')),
+    hasAdvancedActions: /Advanced actions/i.test(text),
     hasFixPrompt: /Fix Issue Prompt/i.test(text),
     hasChat:
       /Improve Fix Prompt|Suggested Fix Prompt|Use as Fix Issue Prompt|Chat with/i.test(text) ||
@@ -161,9 +162,9 @@ const ok =
   list.hasNoiseToggle &&
   list.hasTabs &&
   detail.opened &&
-  detail.hasApprove &&
-  detail.hasDefer &&
-  detail.hasReject &&
+  detail.hasFixWithCursor &&
+  detail.hasDeleteIssue &&
+  detail.hasAdvancedActions &&
   detail.hasFixPrompt;
 
 const report = {

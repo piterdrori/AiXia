@@ -106,9 +106,47 @@ async function openDetail(draftId) {
     waitUntil: "domcontentloaded",
     timeout: 90_000,
   });
+  await waitDetailSettled();
+}
+
+async function waitDetailSettled(timeoutMs = 60_000) {
   await page
-    .waitForSelector('[data-testid="agentops-prime-actions"]', { timeout: 60_000 })
+    .waitForFunction(
+      () =>
+        /Current status:/.test(document.body.innerText || "") &&
+        !/Loading finding|Loading issue…/.test(document.body.innerText || ""),
+      { timeout: timeoutMs },
+    )
     .catch(() => null);
+  await page.waitForTimeout(800);
+}
+
+async function waitForStatus(labelRegex, timeoutMs = 30_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const hit = await page.evaluate((pattern) => {
+      const match = (document.body.innerText || "").match(/Current status:\s*([A-Za-z ]+)/);
+      return match ? new RegExp(pattern, "i").test(match[1]) : false;
+    }, labelRegex);
+    if (hit) return true;
+    await page.waitForTimeout(1000);
+  }
+  return false;
+}
+
+async function waitListSettled(timeoutMs = 45_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const ready = await page.evaluate(() => {
+      const text = document.body.innerText || "";
+      const loading = /Loading issues/i.test(text);
+      const cards = document.querySelectorAll('[data-testid="agentops-issue-card"]').length;
+      const empty = /No issues|No fixed issues|No deleted issues/i.test(text);
+      return !loading && (cards > 0 || empty);
+    });
+    if (ready) break;
+    await page.waitForTimeout(1000);
+  }
   await page.waitForTimeout(1500);
 }
 
@@ -122,10 +160,16 @@ try {
   report.detail = await page.evaluate(() => {
     const prime = document.querySelector('[data-testid="agentops-prime-actions"]');
     const primeText = prime?.textContent ?? "";
-    const visible = (el) => Boolean(el && el.offsetParent !== null);
+    // Chrome keeps closed <details> content layout-queryable (hidden-until-found), so
+    // rect/offsetParent checks lie. Semantic check: prime-flow Mark duplicate buttons must
+    // all live inside a collapsed <details> (Advanced actions) — none outside it.
     const markDuplicateBtns = [...document.querySelectorAll("button")].filter((btn) =>
       /^Mark duplicate$/.test((btn.textContent || "").trim()),
     );
+    const visible = (btn) => {
+      const details = btn.closest("details");
+      return !details || details.open;
+    };
     return {
       primeHasFixWithCursor: /Fix with Cursor/.test(primeText),
       primeHasDeleteIssue: /Delete issue/.test(primeText),
@@ -163,12 +207,13 @@ try {
     hasPageChecked: promptValue.includes("Page checked by the agent:"),
   };
   await page.getByRole("button", { name: /Save changes/i }).click();
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(3500);
   await page.reload({ waitUntil: "domcontentloaded" });
+  await waitDetailSettled();
   await page
     .waitForSelector('[data-testid="agentops-fix-issue-prompt"]', { timeout: 60_000 })
     .catch(() => null);
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(1000);
   const persisted = await page
     .locator('[data-testid="agentops-fix-issue-prompt"]')
     .inputValue();
@@ -186,17 +231,13 @@ try {
   const downloadPromise = page.waitForEvent("download", { timeout: 20_000 }).catch(() => null);
   await page.locator('[data-testid="agentops-fix-with-cursor"]').click();
   const download = await downloadPromise;
-  await page.waitForTimeout(2500);
   report.fixWithCursor = {
     downloadName: download ? download.suggestedFilename() : null,
-    handoffStatus: await page.evaluate(
-      () =>
-        document.querySelector('[data-testid="agentops-handoff-status"]')?.textContent ?? null,
-    ),
+    statusFixing: await waitForStatus("Fixing"),
   };
-  await page.waitForTimeout(1500);
-  report.fixWithCursor.statusFixing = await page.evaluate(() =>
-    /Current status:\s*Fixing/i.test(document.body.innerText),
+  report.fixWithCursor.handoffStatus = await page.evaluate(
+    () =>
+      document.querySelector('[data-testid="agentops-handoff-status"]')?.textContent ?? null,
   );
   await page.screenshot({ path: path.join(outDir, "fix-with-cursor-1440.png") });
 
@@ -207,16 +248,13 @@ try {
     .locator('[data-testid="agentops-mark-fixed-confirm"] textarea')
     .fill(`E-A6 live QA verified ${stamp}`);
   await page.getByRole("button", { name: /Confirm mark as fixed/i }).click();
-  await page.waitForTimeout(3000);
   report.markFixed = {
-    statusFixed: await page.evaluate(() =>
-      /Current status:\s*Fixed/i.test(document.body.innerText),
-    ),
+    statusFixed: await waitForStatus("Fixed"),
   };
 
   // ── Fixed hidden from default list, present in Fixed tab ─────────────────
   await page.goto(`${base}/system/agent-ops/issues`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(4000);
+  await waitListSettled();
   report.markFixed.hiddenFromDefaultList = await page.evaluate(
     (title) => !document.body.innerText.includes(title),
     `[E-A6 TEST] fix-flow ${stamp}`,
@@ -224,7 +262,7 @@ try {
   await page.goto(`${base}/system/agent-ops/issues?tab=fixed`, {
     waitUntil: "domcontentloaded",
   });
-  await page.waitForTimeout(4000);
+  await waitListSettled();
   report.markFixed.visibleInFixedTab = await page.evaluate(
     (title) => document.body.innerText.includes(title),
     `[E-A6 TEST] fix-flow ${stamp}`,
@@ -242,14 +280,11 @@ try {
     ),
   };
   await page.getByRole("button", { name: /Confirm delete/i }).click();
-  await page.waitForTimeout(3000);
-  report.deleteFlow.statusDeleted = await page.evaluate(() =>
-    /Current status:\s*Deleted/i.test(document.body.innerText),
-  );
+  report.deleteFlow.statusDeleted = await waitForStatus("Deleted");
   await page.screenshot({ path: path.join(outDir, "delete-issue-1440.png") });
 
   await page.goto(`${base}/system/agent-ops/issues`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(4000);
+  await waitListSettled();
   report.deleteFlow.hiddenFromDefaultList = await page.evaluate(
     (title) => !document.body.innerText.includes(title),
     `[E-A6 TEST] delete-flow ${stamp}`,
@@ -257,7 +292,7 @@ try {
   await page.goto(`${base}/system/agent-ops/issues?tab=deleted`, {
     waitUntil: "domcontentloaded",
   });
-  await page.waitForTimeout(4000);
+  await waitListSettled();
   report.deleteFlow.visibleInDeletedTab = await page.evaluate(
     (title) => document.body.innerText.includes(title),
     `[E-A6 TEST] delete-flow ${stamp}`,

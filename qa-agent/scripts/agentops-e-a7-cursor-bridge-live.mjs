@@ -207,7 +207,8 @@ try {
     report.online.handoffStatus ?? "",
   );
 
-  const promptFile = path.join(PROMPT_DIR, `agentops-fix-draft-${onlineDraftId}.md`);
+  // UI issueId for drafts is the raw draft UUID (detail.draftId).
+  const promptFile = path.join(PROMPT_DIR, `agentops-fix-${onlineDraftId}.md`);
   report.online.promptFileWritten = fs.existsSync(promptFile);
   if (report.online.promptFileWritten) {
     const promptText = fs.readFileSync(promptFile, "utf8");

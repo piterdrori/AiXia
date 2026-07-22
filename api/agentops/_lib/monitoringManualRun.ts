@@ -907,6 +907,11 @@ type QueueRunView = {
   ageMs: number | null;
   waitingReason: string | null;
   suggestedAction: string | null;
+  /** E-A9 — run outcome so Monitoring correlates with Issues/Agent pages. */
+  result: string | null;
+  draftsCreated: number | null;
+  improvementDraftsCreated: number | null;
+  routesCheckedCount: number | null;
 };
 
 function toQueueRunView(
@@ -944,6 +949,25 @@ function toQueueRunView(
         ? "Worker offline/stale"
         : "Waiting for staging worker"
       : null;
+  // E-A9 — surface run outcomes so Monitoring correlates with Issues/Agent pages.
+  const evidenceSummary =
+    summary.evidenceSummary && typeof summary.evidenceSummary === "object"
+      ? (summary.evidenceSummary as Record<string, unknown>)
+      : {};
+  const draftsCreated =
+    typeof evidenceSummary.draftsCreated === "number" ? evidenceSummary.draftsCreated : null;
+  const improvementDraftsCreated =
+    typeof evidenceSummary.improvementDraftsCreated === "number"
+      ? evidenceSummary.improvementDraftsCreated
+      : null;
+  const routesCheckedCount = Array.isArray(summary.routesChecked)
+    ? summary.routesChecked.length
+    : Array.isArray(summary.routesScanned)
+      ? summary.routesScanned.length
+      : Array.isArray(summary.selectedRoutes)
+        ? summary.selectedRoutes.length
+        : null;
+
   return {
     runId: row.run_id,
     agentSlug: typeof summary.agentSlug === "string" ? summary.agentSlug : null,
@@ -959,6 +983,10 @@ function toQueueRunView(
     cancelRequested: summary.cancelRequested === true,
     ageMs: Number.isFinite(createdMs) ? Math.max(0, nowMs - createdMs) : null,
     waitingReason,
+    result: typeof summary.result === "string" ? summary.result : null,
+    draftsCreated,
+    improvementDraftsCreated,
+    routesCheckedCount,
     suggestedAction: stale
       ? "Run cleanup-stale dry-run on worker, or request cancel / mark failed via owner action. No auto-delete."
       : summary.cancelRequested === true

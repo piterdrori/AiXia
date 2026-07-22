@@ -436,7 +436,7 @@ export function AgentScheduledMonitoringCard() {
             <IssueDraftsBlock
               drafts={status.latestIssueDrafts ?? []}
               draftCount={status.issueDraftCounts?.draft ?? 0}
-              onReview={() => navigate("/system/agent-ops/issues?panel=monitoring-drafts")}
+              onReview={() => navigate("/system/agent-ops/issues")}
             />
             <MemoryProposalsBlock
               proposals={status.latestMemoryProposals ?? []}
@@ -498,7 +498,7 @@ export function AgentScheduledMonitoringCard() {
             <AixiaButton
               type="button"
               variant="secondary"
-              onClick={() => navigate("/system/agent-ops/issues?panel=monitoring-drafts")}
+              onClick={() => navigate("/system/agent-ops/issues")}
             >
               {MONITORING_OWNER_DISPLAY.reviewIssueDrafts}
             </AixiaButton>

@@ -38,6 +38,24 @@ function statusTone(
   return "neutral";
 }
 
+/** E-A9 — owner-readable run outcome, matching the Issues inbox vocabulary. */
+function terminalOutcomeLabel(row: WorkerQueueRunView): string | null {
+  if (row.status !== "completed") return null;
+  const issues = row.draftsCreated ?? 0;
+  const improvements = row.improvementDraftsCreated ?? 0;
+  if (issues > 0 && improvements > 0) {
+    return `${issues} issue${issues === 1 ? "" : "s"} + ${improvements} improvement${improvements === 1 ? "" : "s"} filed`;
+  }
+  if (issues > 0) return `${issues} issue${issues === 1 ? "" : "s"} filed`;
+  if (improvements > 0) {
+    return `${improvements} improvement suggestion${improvements === 1 ? "" : "s"} filed`;
+  }
+  if (row.result === "findings_found") return "Findings recorded";
+  if (row.result === "improvements_suggested") return "Improvements suggested";
+  if (row.result === "completed") return "No new findings (existing suggestions still open)";
+  return null;
+}
+
 export function StagingWorkerQueuePanel({
   agentSlug,
   compact = false,
@@ -516,23 +534,65 @@ export function StagingWorkerQueuePanel({
 
       {!compact ? (
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-white/80">Recent terminal</h3>
+          <h3 className="text-sm font-medium text-white/80">Recent runs</h3>
           {(queue?.recentTerminal?.length ?? 0) === 0 ? (
             <p className="text-xs text-white/45">No recent completed/failed/canceled runs.</p>
           ) : (
-            <ul className="space-y-1 text-xs text-white/70">
-              {queue!.recentTerminal.map((row) => (
-                <li
-                  key={row.runId}
-                  className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1"
-                >
-                  <AixiaBadge tone={statusTone(row.status)}>{row.status}</AixiaBadge>
-                  <span className="font-mono">{row.runId}</span>
-                  <span>
-                    {row.agentSlug} · {row.workType} · {row.trigger}
-                  </span>
-                </li>
-              ))}
+            <ul className="space-y-1 text-xs text-white/70" data-testid="agentops-recent-runs">
+              {queue!.recentTerminal.map((row) => {
+                const outcome = terminalOutcomeLabel(row);
+                const filedSomething =
+                  (row.draftsCreated ?? 0) + (row.improvementDraftsCreated ?? 0) > 0;
+                return (
+                  <li
+                    key={row.runId}
+                    className="flex flex-wrap items-center gap-2 rounded border border-white/10 px-2 py-1"
+                  >
+                    <AixiaBadge tone={statusTone(row.status)}>{row.status}</AixiaBadge>
+                    <span className="font-mono">{row.runId}</span>
+                    <span>
+                      {row.agentSlug ? (
+                        <button
+                          type="button"
+                          className="text-cyan-300/90 hover:text-cyan-200"
+                          onClick={() =>
+                            navigate(`/system/agent-ops/agents/${row.agentSlug}`)
+                          }
+                        >
+                          {row.agentSlug}
+                        </button>
+                      ) : (
+                        "?"
+                      )}{" "}
+                      · {row.workType} · {row.trigger}
+                      {row.routesCheckedCount ? ` · ${row.routesCheckedCount} route${row.routesCheckedCount === 1 ? "" : "s"}` : ""}
+                    </span>
+                    {row.endedAt ? (
+                      <span className="text-white/40">
+                        {new Date(row.endedAt).toLocaleString()}
+                      </span>
+                    ) : null}
+                    {outcome ? (
+                      <span
+                        className={filedSomething ? "text-emerald-300/80" : "text-white/50"}
+                        data-testid="agentops-run-outcome"
+                      >
+                        {outcome}
+                      </span>
+                    ) : null}
+                    {filedSomething ? (
+                      <button
+                        type="button"
+                        className="ml-auto text-cyan-300/90 hover:text-cyan-200"
+                        onClick={() => navigate("/system/agent-ops/issues")}
+                        data-testid="agentops-run-open-issues"
+                      >
+                        Open Issues inbox
+                      </button>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

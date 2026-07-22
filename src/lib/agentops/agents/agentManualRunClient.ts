@@ -70,6 +70,11 @@ export type WorkerQueueRunView = {
   ageMs: number | null;
   waitingReason?: string | null;
   suggestedAction: string | null;
+  /** E-A9 — run outcome fields (issues filed / improvements suggested / routes). */
+  result?: string | null;
+  draftsCreated?: number | null;
+  improvementDraftsCreated?: number | null;
+  routesCheckedCount?: number | null;
 };
 
 export type WorkerQueueSnapshot = {

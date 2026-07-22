@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { RefreshCw } from "lucide-react";
 
 import { AixiaButton } from "@/components/aixia";
@@ -17,11 +18,29 @@ import { AgentDaily12ReviewCard } from "@/app/system/agent-ops/agents/AgentDaily
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { MONITORING_OWNER_DISPLAY } from "@/lib/agentops/agents/monitoringOwnerDisplayCopy";
 
+/** E-A9 — truthful freshness health for scheduled checks (no hardcoded Healthy). */
+function freshnessHealth(
+  lastRunAt: string | null | undefined,
+  maxAgeMs: number,
+): { value: string; tone: "success" | "warning" | undefined } {
+  if (!lastRunAt) return { value: "No runs recorded", tone: "warning" };
+  const age = Date.now() - Date.parse(lastRunAt);
+  if (!Number.isFinite(age)) return { value: "No runs recorded", tone: "warning" };
+  if (age <= maxAgeMs) return { value: "Healthy", tone: "success" };
+  return { value: "Overdue", tone: "warning" };
+}
+
+type ScheduleStatusMeta = {
+  lastOperationalRunAt?: string | null;
+  lastWeeklyReviewAt?: string | null;
+};
+
 export default function AgentOpsMonitoringPage() {
   usePageTitle("AgentOps Monitoring");
+  const navigate = useNavigate();
   const { loading: gateLoading, isOwner, error: gateError, refresh: refreshGate } =
     useAgentOpsOwnerGate();
-  const { daily12, loading, error, refresh } = useAgentOpsMonitoringStatus(isOwner);
+  const { status, daily12, loading, error, refresh } = useAgentOpsMonitoringStatus(isOwner);
   const [queueRefreshKey, setQueueRefreshKey] = useState(0);
 
   const refreshAll = () => {
@@ -33,6 +52,15 @@ export default function AgentOpsMonitoringPage() {
     (daily12?.agentsFailedToday ?? 0) === 0 &&
     (daily12?.agentsMissingToday.length ?? 0) === 0 &&
     (daily12?.agentsCompletedToday ?? 0) >= (daily12?.expectedAgents ?? 12);
+
+  const scheduleMeta = (status as { scheduleStatus?: ScheduleStatusMeta } | null)
+    ?.scheduleStatus;
+  // Operational cron runs every 6h; weekly review runs every 7 days (grace included).
+  const operationalHealth = freshnessHealth(scheduleMeta?.lastOperationalRunAt, 12 * 3_600_000);
+  const weeklyHealth = freshnessHealth(
+    scheduleMeta?.lastWeeklyReviewAt,
+    8 * 24 * 3_600_000,
+  );
 
   return (
     <AgentOpsOwnerPageShell
@@ -59,23 +87,42 @@ export default function AgentOpsMonitoringPage() {
               value: dailyHealthy ? "Healthy" : "Needs attention",
               tone: dailyHealthy ? "success" : "warning",
             },
-            { label: "Operational checks", value: "Healthy", tone: "success" },
-            { label: "Weekly review", value: "Healthy", tone: "success" },
+            {
+              label: "Operational checks",
+              value: operationalHealth.value,
+              tone: operationalHealth.tone,
+            },
+            { label: "Weekly review", value: weeklyHealth.value, tone: weeklyHealth.tone },
             { label: "Environment", value: "Staging" },
             {
-              label: "Last successful run",
+              label: "Last daily review",
               value: daily12?.lastCompletedDailyReviewAt
                 ? new Date(daily12.lastCompletedDailyReviewAt).toLocaleString()
                 : "—",
             },
             {
-              label: "Next run",
+              label: "Next daily review",
               value: daily12?.nextExpectedDailyReviewAt
                 ? new Date(daily12.nextExpectedDailyReviewAt).toLocaleString()
                 : "Daily at 01:00 UTC",
             },
           ]}
         />
+
+        <div className="flex flex-wrap gap-2" data-testid="agentops-monitoring-crosslinks">
+          <AixiaButton
+            variant="secondary"
+            onClick={() => navigate("/system/agent-ops/issues")}
+          >
+            Open Issues inbox
+          </AixiaButton>
+          <AixiaButton
+            variant="secondary"
+            onClick={() => navigate("/system/agent-ops/agents")}
+          >
+            Open Agents
+          </AixiaButton>
+        </div>
 
         {isOwner ? <StagingWorkerQueuePanel refreshKey={queueRefreshKey} /> : null}
 
@@ -90,8 +137,12 @@ export default function AgentOpsMonitoringPage() {
 
         <section aria-labelledby="monitoring-run-history">
           <h2 id="monitoring-run-history" className="mb-3 text-lg font-semibold text-white">
-            Run history
+            Fleet run history
           </h2>
+          <p className="mb-3 text-sm text-white/55">
+            Daily 12-agent fleet review. Per-agent hourly scan runs appear in the staging worker
+            queue above and on each agent page.
+          </p>
           {daily12?.lastCompletedDailyReviewAt ? (
             <AgentOpsRunRow
               runAt={daily12.lastCompletedDailyReviewAt}

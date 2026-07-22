@@ -926,7 +926,10 @@ export default function AgentOpsFindingDetailPage() {
                       {bridgeCliAvailable ? " · Cursor CLI ready" : " · Cursor CLI not found"}
                     </span>
                   ) : (
-                    <span className="text-white/50">Local Cursor bridge is not running.</span>
+                    <span className="text-white/50">
+                      Local Cursor bridge is not running. If it is running, allow local network
+                      access when Chrome asks.
+                    </span>
                   )}
                 </p>
                 {handoffFeedback ? (

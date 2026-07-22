@@ -41,9 +41,17 @@ export function storeBridgeToken(token: string): void {
   }
 }
 
-export async function probeCursorBridge(timeoutMs = 2000): Promise<CursorBridgeHealth> {
+/**
+ * Chrome 138+ Local Network Access: fetches from a public HTTPS page to loopback
+ * must declare targetAddressSpace and the owner must click "Allow" once when
+ * Chrome asks for local network permission.
+ */
+const LOOPBACK_INIT = { targetAddressSpace: "loopback" } as RequestInit;
+
+export async function probeCursorBridge(timeoutMs = 3000): Promise<CursorBridgeHealth> {
   try {
     const response = await fetch(`${CURSOR_BRIDGE_URL}/health`, {
+      ...LOOPBACK_INIT,
       method: "GET",
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -70,6 +78,7 @@ export async function sendFixIssueToBridge(input: {
 }): Promise<CursorBridgeFixResult> {
   try {
     const response = await fetch(`${CURSOR_BRIDGE_URL}/fix-issue`, {
+      ...LOOPBACK_INIT,
       method: "POST",
       headers: {
         "Content-Type": "application/json",

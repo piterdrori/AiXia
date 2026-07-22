@@ -15,6 +15,7 @@ import type { AgentOpsRuntimeAgentRow } from "../src/lib/agentops/db/agentOpsRun
 import {
   isCancelRequestedError,
 } from "../src/lib/agentops/runtime/agentOpsCancelCheckpoint";
+import { FULL_SITE_ROUTE_INVENTORY } from "../src/lib/agentops/runtime/fullSiteRouteInventory";
 import { scanStagingWebsite } from "../src/lib/agentops/runtime/scanStagingWebsite";
 import type { StagingScanFinding } from "../src/lib/agentops/runtime/stagingScanTypes";
 import { assertStagingScanUrl } from "../src/lib/agentops/runtime/stagingScanUrlGuard";
@@ -23,17 +24,47 @@ const MONITORING_TABLE = "agentops_monitoring_runs";
 const DRAFTS_TABLE = "agentops_monitoring_issue_drafts";
 const ZERO_FINDINGS = "No qualifying findings were produced by this run.";
 const WORKER_VERSION = "b2-c";
+const FULL_SITE_SOFT_CAP = 400;
 
-function resolveLimitedAuditRoutes(
+function normalizeRouteList(routes: string[]): string[] {
+  const out: string[] = [];
+  for (const raw of routes) {
+    const route = raw.startsWith("/") ? raw : `/${raw}`;
+    if (!out.includes(route)) out.push(route);
+    if (out.length >= FULL_SITE_SOFT_CAP) break;
+  }
+  return out;
+}
+
+function isEntireStagingScope(summary: Record<string, unknown>): boolean {
+  if (summary.roleFirstFullSite === true) return true;
+  const scope =
+    summary.scope && typeof summary.scope === "object"
+      ? (summary.scope as Record<string, unknown>)
+      : null;
+  if (scope?.type === "entire_staging") return true;
+  const mapping = typeof summary.mapping === "string" ? summary.mapping : "";
+  return (
+    mapping === "role_first_full_site" ||
+    mapping === "entire_staging_core_rotation" ||
+    mapping.startsWith("entire_staging")
+  );
+}
+
+/** Role-first: entire_staging uses full inventory; focused runs keep explicit route lists. */
+function resolveAuditRoutes(
   summary: Record<string, unknown>,
   agentSlug: string,
 ): string[] {
+  if (isEntireStagingScope(summary)) {
+    return normalizeRouteList([...FULL_SITE_ROUTE_INVENTORY]);
+  }
   const selected =
     Array.isArray(summary.selectedRoutes) && summary.selectedRoutes.length > 0
       ? summary.selectedRoutes.filter((r): r is string => typeof r === "string" && Boolean(r.trim()))
       : [];
   if (selected.length > 0) {
-    return selected.map((r) => (r.startsWith("/") ? r : `/${r}`)).slice(0, 3);
+    return normalizeRouteList(selected);
   }
   const scope =
     summary.scope && typeof summary.scope === "object"
@@ -43,7 +74,7 @@ function resolveLimitedAuditRoutes(
     ? scope.routes.filter((r): r is string => typeof r === "string" && Boolean(r.trim()))
     : [];
   if (scopeRoutes.length > 0) {
-    return scopeRoutes.map((r) => (r.startsWith("/") ? r : `/${r}`)).slice(0, 3);
+    return normalizeRouteList(scopeRoutes);
   }
   const slug = agentSlug || "system-agent";
   return [`/system/agent-ops/agents/${slug}`];
@@ -250,7 +281,7 @@ async function main(): Promise<void> {
     typeof summary.agentSlug === "string" ? summary.agentSlug : "system-agent";
   const runtimeAgentId =
     typeof summary.runtimeAgentId === "string" ? summary.runtimeAgentId : null;
-  const routes = resolveLimitedAuditRoutes(summary, agentSlug);
+  const routes = resolveAuditRoutes(summary, agentSlug);
   const startedAt =
     typeof row.started_at === "string" ? row.started_at : new Date().toISOString();
   const scanStarted = Date.now();

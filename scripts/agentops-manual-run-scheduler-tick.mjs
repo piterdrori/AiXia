@@ -368,11 +368,12 @@ export async function runSchedulerTick(client, workerId, envConfig, options = {}
         continue;
       }
 
-      const selectedRoutes = scopeResult.routes;
+      // Role-first: enqueue entire_staging with empty selectedRoutes so engines
+      // load the full inventory at claim time (not a frozen subset at tick).
       const scope = {
-        type: "selected_routes",
-        routes: selectedRoutes,
-        modules: scopeResult.modules || [],
+        type: "entire_staging",
+        routes: [],
+        modules: [],
         mapping: scopeResult.mapping,
       };
       const maxDuration = Math.min(
@@ -380,26 +381,30 @@ export async function runSchedulerTick(client, workerId, envConfig, options = {}
         Math.max(5, Number(schedule.maxDurationMinutes) || 15),
       );
       const runId = `scheduled-${slug}-${workType}-${randomUUID().slice(0, 8)}`;
-      const summary = buildScheduledRunSummary({
-        agentSlug: slug,
-        runtimeAgentId: agent.id,
-        workType,
-        scope,
-        selectedRoutes,
-        selectedModules: scope.modules || [],
-        maxDurationMinutes: maxDuration,
-        dueAt: dueInfo.dueAt,
-        nextDueAt: dueInfo.nextDueAt,
-        idempotencyKey,
-        scheduleTickId: tickId,
-        ownerStatusAtQueue: ownerStatus,
-        firstDue: Boolean(dueInfo.firstDue),
-        scopeMapping: scopeResult.mapping,
-        engineAvailabilityAtQueue: {
-          websiteAudit: Boolean(workerHealth.websiteAuditEngine?.connected),
-          browserQa: Boolean(workerHealth.browserQaEngine?.connected),
-        },
-      });
+      const summary = {
+        ...buildScheduledRunSummary({
+          agentSlug: slug,
+          runtimeAgentId: agent.id,
+          workType,
+          scope,
+          selectedRoutes: [],
+          selectedModules: [],
+          maxDurationMinutes: maxDuration,
+          dueAt: dueInfo.dueAt,
+          nextDueAt: dueInfo.nextDueAt,
+          idempotencyKey,
+          scheduleTickId: tickId,
+          ownerStatusAtQueue: ownerStatus,
+          firstDue: Boolean(dueInfo.firstDue),
+          scopeMapping: scopeResult.mapping,
+          engineAvailabilityAtQueue: {
+            websiteAudit: Boolean(workerHealth.websiteAuditEngine?.connected),
+            browserQa: Boolean(workerHealth.browserQaEngine?.connected),
+          },
+        }),
+        roleFirstFullSite: true,
+      };
+      const selectedRoutes = [];
 
       if (dryRun) {
         enqueued.push({

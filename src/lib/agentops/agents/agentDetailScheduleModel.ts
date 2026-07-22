@@ -78,7 +78,7 @@ export const DEFAULT_AGENT_DETAIL_SCHEDULE: AgentDetailScheduleConfig = {
   daysOfWeek: [1],
   localTime: "09:00",
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-  scopeType: "assigned_modules",
+  scopeType: "entire_staging",
   selectedModules: [],
   selectedRoutes: [],
   avoidOverlap: true,
@@ -276,10 +276,7 @@ export function resolveAgentScheduleRuntimeStatus(input: {
       : "Paused";
   }
   if (!config.enableSchedule || config.frequencyType === "manual") return "Manual only";
-  if (
-    input.lastSkippedReason === "Scope not supported by staging scheduler yet." ||
-    config.scopeType === "entire_staging"
-  ) {
+  if (input.lastSkippedReason === "Scope not supported by staging scheduler yet.") {
     return "Unsupported scope";
   }
   const executableTypes = config.workTypes.filter(
@@ -391,9 +388,15 @@ export function normalizeDetailSchedule(
     daysOfWeek: Array.isArray(asAny.daysOfWeek) ? asAny.daysOfWeek : base.daysOfWeek,
     localTime: typeof asAny.localTime === "string" ? asAny.localTime : base.localTime,
     timezone: typeof asAny.timezone === "string" && asAny.timezone ? asAny.timezone : resolveOwnerTimezone(),
-    scopeType: asAny.scopeType ?? base.scopeType,
-    selectedModules: Array.isArray(asAny.selectedModules) ? asAny.selectedModules : [],
-    selectedRoutes: Array.isArray(asAny.selectedRoutes) ? asAny.selectedRoutes : [],
+    scopeType:
+      asAny.scopeType === "selected_routes" ||
+      asAny.scopeType === "assigned_modules" ||
+      asAny.scopeType === "selected_modules" ||
+      !asAny.scopeType
+        ? "entire_staging"
+        : asAny.scopeType,
+    selectedModules: [],
+    selectedRoutes: [],
     avoidOverlap: asAny.avoidOverlap !== false,
     runOnlyWhenPreviousCompleted: asAny.runOnlyWhenPreviousCompleted !== false,
     notifyOnFindings: asAny.notifyOnFindings !== false,

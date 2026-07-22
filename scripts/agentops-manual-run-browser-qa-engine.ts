@@ -80,17 +80,29 @@ function resolveStorageStatePath(): string | null {
   return existsSync(resolved) ? resolved : null;
 }
 
-/** E-A8 — scans must cover the whole configured scope, not only the first route. */
+/** E-A8 / role-first — full-site scans use the shared inventory soft cap. */
 const MAX_ROUTES_PER_RUN = Math.max(
   1,
-  Number(process.env.AGENTOPS_BROWSER_QA_MAX_ROUTES || 5),
+  Number(process.env.AGENTOPS_BROWSER_QA_MAX_ROUTES || 400),
 );
+
+function isEntireStagingScope(summary: Record<string, unknown>): boolean {
+  if (summary.roleFirstFullSite === true) return true;
+  const scope =
+    summary.scope && typeof summary.scope === "object"
+      ? (summary.scope as Record<string, unknown>)
+      : null;
+  if (scope?.type === "entire_staging") return true;
+  const mapping = typeof summary.mapping === "string" ? summary.mapping : "";
+  return mapping === "role_first_full_site" || mapping.startsWith("entire_staging");
+}
 
 function resolveRoutes(
   summary: Record<string, unknown>,
   agentSlug: string,
   appUrl: string,
 ): Array<{ route: string; absoluteUrl: string }> {
+  const base = appUrl.replace(/\/+$/, "");
   const selected =
     Array.isArray(summary.selectedRoutes) && summary.selectedRoutes.length > 0
       ? summary.selectedRoutes.filter((r): r is string => typeof r === "string" && Boolean(r.trim()))
@@ -102,11 +114,26 @@ function resolveRoutes(
   const scopeRoutes = Array.isArray(scope?.routes)
     ? scope.routes.filter((r): r is string => typeof r === "string" && Boolean(r.trim()))
     : [];
-  const merged = [...selected, ...scopeRoutes];
+
+  let merged: string[] = [];
+  if (isEntireStagingScope(summary)) {
+    try {
+      const inventory = JSON.parse(
+        readFileSync(
+          join(process.cwd(), "qa-agent/agentops-agents/_shared/full-site-routes.json"),
+          "utf8",
+        ),
+      );
+      if (Array.isArray(inventory)) merged = inventory.map(String);
+    } catch {
+      merged = [...selected, ...scopeRoutes];
+    }
+  } else {
+    merged = [...selected, ...scopeRoutes];
+  }
   if (merged.length === 0) {
     merged.push(`/system/agent-ops/agents/${agentSlug || "system-agent"}`);
   }
-  const base = appUrl.replace(/\/+$/, "");
   const seen = new Set<string>();
   const routes: Array<{ route: string; absoluteUrl: string }> = [];
   for (const raw of merged) {

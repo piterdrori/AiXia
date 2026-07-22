@@ -146,7 +146,7 @@ export function parseScheduleFromTools(tools) {
       daysOfWeek: [1],
       localTime: "09:00",
       timezone: "UTC",
-      scopeType: "assigned_modules",
+      scopeType: "entire_staging",
       selectedModules: [],
       selectedRoutes: [],
       maxDurationMinutes: 60,
@@ -159,6 +159,14 @@ export function parseScheduleFromTools(tools) {
     const workTypes = Array.isArray(parsed.workTypes)
       ? parsed.workTypes.filter((w) => typeof w === "string")
       : [];
+    // Role-first: coerce legacy selected/assigned scopes to entire_staging at parse time.
+    const rawScope = parsed.scopeType || "entire_staging";
+    const scopeType =
+      rawScope === "selected_routes" ||
+      rawScope === "assigned_modules" ||
+      rawScope === "selected_modules"
+        ? "entire_staging"
+        : rawScope;
     return {
       enableSchedule: Boolean(parsed.enableSchedule),
       ownerEnabled: parsed.ownerEnabled !== false,
@@ -169,9 +177,9 @@ export function parseScheduleFromTools(tools) {
       daysOfWeek: Array.isArray(parsed.daysOfWeek) ? parsed.daysOfWeek : [1],
       localTime: typeof parsed.localTime === "string" ? parsed.localTime : "09:00",
       timezone: typeof parsed.timezone === "string" ? parsed.timezone : "UTC",
-      scopeType: parsed.scopeType || "assigned_modules",
-      selectedModules: Array.isArray(parsed.selectedModules) ? parsed.selectedModules : [],
-      selectedRoutes: Array.isArray(parsed.selectedRoutes) ? parsed.selectedRoutes : [],
+      scopeType,
+      selectedModules: [],
+      selectedRoutes: [],
       maxDurationMinutes:
         typeof parsed.maxDurationMinutes === "number" ? parsed.maxDurationMinutes : 60,
       avoidOverlap: parsed.avoidOverlap !== false,
@@ -190,7 +198,7 @@ export function parseScheduleFromTools(tools) {
       daysOfWeek: [1],
       localTime: "09:00",
       timezone: "UTC",
-      scopeType: "assigned_modules",
+      scopeType: "entire_staging",
       selectedModules: [],
       selectedRoutes: [],
       maxDurationMinutes: 60,
@@ -427,78 +435,17 @@ export function normalizeStagingRoute(raw, agentSlug) {
  * @returns {{ ok: boolean, reason: string|null, routes: string[], modules: string[], scopeType: string, mapping: string }}
  */
 export function resolveScheduledScopeResult(schedule, agentSlug, nowMs = Date.now()) {
-  const scopeType = schedule.scopeType || "assigned_modules";
-
-  if (scopeType === "entire_staging") {
-    // E-A8 — entire staging maps to the core website routes with deterministic
-    // rotation so consecutive scheduled runs cover the whole website.
-    return {
-      ok: true,
-      reason: null,
-      routes: rotateCoreStagingRoutes(nowMs),
-      modules: [],
-      scopeType: "selected_routes",
-      mapping: "entire_staging_core_rotation",
-    };
-  }
-
-  if (scopeType === "selected_routes") {
-    const routes = [];
-    for (const raw of schedule.selectedRoutes || []) {
-      const normalized = normalizeStagingRoute(raw, agentSlug);
-      if (normalized && !routes.includes(normalized)) routes.push(normalized);
-      if (routes.length >= SCHEDULED_ROUTES_PER_RUN) break;
-    }
-    if (routes.length === 0) {
-      return {
-        ok: false,
-        reason: SKIP_UNSUPPORTED_SCOPE,
-        routes: [],
-        modules: [],
-        scopeType,
-        mapping: "selected_routes_empty_or_rejected",
-      };
-    }
-    return {
-      ok: true,
-      reason: null,
-      routes,
-      modules: [],
-      scopeType: "selected_routes",
-      mapping: "selected_routes",
-    };
-  }
-
-  // assigned_modules / selected_modules: agent detail route + normalized module roots.
-  if (scopeType === "assigned_modules" || scopeType === "selected_modules") {
-    const modules =
-      scopeType === "selected_modules" && Array.isArray(schedule.selectedModules)
-        ? schedule.selectedModules.slice(0, 20)
-        : [];
-    const routes = [defaultAgentDetailRoute(agentSlug)];
-    for (const moduleName of modules) {
-      const normalized = normalizeStagingRoute(`/${String(moduleName)}`, agentSlug);
-      if (normalized && !routes.includes(normalized)) routes.push(normalized);
-      if (routes.length >= SCHEDULED_ROUTES_PER_RUN) break;
-    }
-    return {
-      ok: true,
-      reason: null,
-      routes,
-      modules,
-      scopeType: "selected_routes",
-      mapping:
-        routes.length > 1 ? "modules_to_module_routes" : "modules_to_agent_detail_route",
-    };
-  }
-
+  // Role-first: every scheduled run uses the full site inventory (same for all agents).
+  // Stale selected_routes / assigned_modules preferences are ignored at execution time.
+  void schedule;
+  void agentSlug;
   return {
-    ok: false,
-    reason: SKIP_UNSUPPORTED_SCOPE,
-    routes: [],
+    ok: true,
+    reason: null,
+    routes: rotateCoreStagingRoutes(nowMs),
     modules: [],
-    scopeType,
-    mapping: "unknown_scope",
+    scopeType: "entire_staging",
+    mapping: "role_first_full_site",
   };
 }
 
@@ -512,7 +459,7 @@ export function resolveScheduledRoutes(schedule, agentSlug) {
 export function resolveScheduledScope(schedule, agentSlug) {
   const result = resolveScheduledScopeResult(schedule, agentSlug);
   return {
-    type: result.ok ? "selected_routes" : result.scopeType,
+    type: result.ok ? "entire_staging" : result.scopeType,
     routes: result.routes,
     modules: result.modules,
     mapping: result.mapping,

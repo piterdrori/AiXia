@@ -402,13 +402,26 @@ export function buildWebsiteAuditClaimSummary(summary, input) {
   };
 }
 
+/**
+ * @deprecated Prefer website-audit / browser-qa engine resolveAuditRoutes.
+ * Kept for legacy callers — no longer caps at 3; honors role-first full site.
+ */
 export function resolveLimitedAuditRoutes(summary, agentSlug) {
+  const scopeType =
+    summary?.scope && typeof summary.scope === "object" ? summary.scope.type : null;
+  if (
+    summary?.roleFirstFullSite === true ||
+    scopeType === "entire_staging" ||
+    scopeType === "full_site"
+  ) {
+    return [];
+  }
   const selected =
     Array.isArray(summary?.selectedRoutes) && summary.selectedRoutes.length > 0
       ? summary.selectedRoutes.filter((r) => typeof r === "string" && r.trim())
       : [];
   if (selected.length > 0) {
-    return selected.map((r) => (r.startsWith("/") ? r : `/${r}`)).slice(0, 3);
+    return selected.map((r) => (r.startsWith("/") ? r : `/${r}`));
   }
   const scopeRoutes =
     summary?.scope &&
@@ -417,7 +430,7 @@ export function resolveLimitedAuditRoutes(summary, agentSlug) {
       ? summary.scope.routes.filter((r) => typeof r === "string" && r.trim())
       : [];
   if (scopeRoutes.length > 0) {
-    return scopeRoutes.map((r) => (r.startsWith("/") ? r : `/${r}`)).slice(0, 3);
+    return scopeRoutes.map((r) => (r.startsWith("/") ? r : `/${r}`));
   }
   const slug = typeof agentSlug === "string" && agentSlug ? agentSlug : "system-agent";
   return [`/system/agent-ops/agents/${slug}`];

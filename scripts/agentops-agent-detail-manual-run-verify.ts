@@ -70,7 +70,7 @@ function verifyContract(): void {
   );
   if (!browser.ok) fail(`Expected valid browser_qa request: ${browser.error}`);
 
-  const entireForbidden = validateAgentManualRunRequest(
+  const entireAllowed = validateAgentManualRunRequest(
     {
       agentSlug: "system-agent",
       workType: "browser_qa",
@@ -81,7 +81,9 @@ function verifyContract(): void {
     },
     slugs,
   );
-  if (entireForbidden.ok) fail("browser_qa + entire_staging must be rejected");
+  if (!entireAllowed.ok) {
+    fail(`browser_qa + entire_staging must be allowed: ${entireAllowed.error}`);
+  }
 
   const badSlug = validateAgentManualRunRequest(
     {

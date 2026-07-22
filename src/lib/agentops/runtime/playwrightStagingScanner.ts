@@ -364,9 +364,8 @@ export function evaluateSlowPageLoadMetric(input: {
 }
 
 /**
- * Website-audit scans currently run without owner auth storage.
- * Protected AgentOps routes therefore often render the Sign In SPA gate.
- * Slow-load on that gate is not an Agent Detail product defect.
+ * Slow-load on the Sign In gate is not an Agent Detail product defect.
+ * Prefer owner storageState when available (see scanStagingWebsite).
  */
 export function detectStagingScanAuthGate(bodyText: string): boolean {
   const text = bodyText.replace(/\s+/g, " ").trim().toLowerCase();
@@ -404,6 +403,17 @@ async function scanSingleRoute(
       const settleStarted = Date.now();
       await page
         .waitForLoadState("networkidle", { timeout: NETWORK_IDLE_SETTLE_MS })
+        .catch(() => undefined);
+      // SPA AgentOps pages often paint after DCL — wait briefly for readable body/h1.
+      await page
+        .waitForFunction(
+          () => {
+            const text = (document.body?.innerText || "").replace(/\s+/g, " ").trim();
+            if (text.length >= 40) return true;
+            return Boolean(document.querySelector("h1"));
+          },
+          { timeout: 4_000 },
+        )
         .catch(() => undefined);
       settleWaitMs = Date.now() - settleStarted;
     } catch (error) {

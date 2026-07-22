@@ -371,15 +371,20 @@ export async function handleMonitoringManualRunStartRequest(
 
   const runId = `owner-manual-${runRequest.agentSlug}-${randomUUID()}`;
   const startedAt = new Date().toISOString();
+  // Role-first: entire_staging must not invent a self-page selectedRoutes list.
+  // The worker engines expand full inventory from scope.type === "entire_staging".
   const selectedRoutes =
-    runRequest.scope.routes && runRequest.scope.routes.length > 0
-      ? runRequest.scope.routes
-      : runRequest.workType === "browser_qa"
-        ? ["/system/agent-ops"]
-        : runRequest.workType === "website_audit"
-          ? [`/system/agent-ops/agents/${runRequest.agentSlug}`]
-          : [];
-  const selectedModules = runRequest.scope.modules ?? [];
+    runRequest.scope.type === "entire_staging"
+      ? []
+      : runRequest.scope.routes && runRequest.scope.routes.length > 0
+        ? runRequest.scope.routes
+        : runRequest.workType === "browser_qa"
+          ? ["/system/agent-ops"]
+          : runRequest.workType === "website_audit"
+            ? [`/system/agent-ops/agents/${runRequest.agentSlug}`]
+            : [];
+  const selectedModules =
+    runRequest.scope.type === "entire_staging" ? [] : (runRequest.scope.modules ?? []);
 
   const summary = buildManualRunSummary({
     agentSlug: runRequest.agentSlug,
@@ -393,6 +398,7 @@ export async function handleMonitoringManualRunStartRequest(
   summary.activateAndRun = Boolean(runRequest.activateAndRun);
   summary.selectedRoutes = selectedRoutes;
   summary.selectedModules = selectedModules;
+  summary.roleFirstFullSite = runRequest.scope.type === "entire_staging";
   summary.createdByAgentDetail = true;
   summary.queueVersion = QUEUE_VERSION;
   summary.schedulerConnection = "staging_worker_pending";

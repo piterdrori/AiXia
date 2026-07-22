@@ -130,7 +130,7 @@ async function verifyCore(): Promise<void> {
     { ...hourly, scopeType: "entire_staging", selectedRoutes: [] },
     "system-agent",
   );
-  if (!entire.ok || entire.mapping !== "entire_staging_core_rotation") {
+  if (!entire.ok || entire.mapping !== "role_first_full_site") {
     fail("entire_staging must map to full-site staging routes");
   }
   if (entire.routes.length !== core.CORE_STAGING_ROUTES.length) {
@@ -141,17 +141,21 @@ async function verifyCore(): Promise<void> {
     fail("entire_staging must cover all core routes each run");
   }
 
+  // Legacy selected_routes / assigned_modules also resolve to full inventory.
   const selected = core.resolveScheduledScopeResult(hourly, "system-agent");
-  if (!selected.ok || selected.routes[0] !== "/system/agent-ops/agents/system-agent") {
-    fail("selected_routes must normalize");
+  if (!selected.ok || selected.mapping !== "role_first_full_site") {
+    fail("legacy selected_routes must coerce to role_first_full_site");
+  }
+  if (selected.routes.length !== core.CORE_STAGING_ROUTES.length) {
+    fail("legacy selected_routes must return full inventory");
   }
 
   const modules = core.resolveScheduledScopeResult(
     { ...hourly, scopeType: "assigned_modules", selectedRoutes: [] },
     "system-agent",
   );
-  if (!modules.ok || modules.mapping !== "modules_to_agent_detail_route") {
-    fail("assigned_modules must map conservatively");
+  if (!modules.ok || modules.mapping !== "role_first_full_site") {
+    fail("legacy assigned_modules must coerce to role_first_full_site");
   }
 
   if (

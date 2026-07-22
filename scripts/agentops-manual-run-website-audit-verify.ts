@@ -79,6 +79,18 @@ async function verifyCore(): Promise<void> {
     fail("Default limited route for system-agent missing");
   }
 
+  const fullSiteDefer = core.resolveLimitedAuditRoutes(
+    {
+      roleFirstFullSite: true,
+      scope: { type: "entire_staging" },
+      selectedRoutes: [],
+    },
+    "system-agent",
+  );
+  if (fullSiteDefer.length !== 0) {
+    fail("entire_staging must defer route expansion to the website-audit engine");
+  }
+
   if (!core.isWebsiteAuditQueuedSummary({
     trigger: "owner_manual",
     schedulerConnection: "staging_worker_pending",

@@ -35,4 +35,7 @@ qa-agent/hermes/batch43-recall-results.json
 public/agentops/*.json
 !public/agentops/README.md
 
+# E-A7 local Cursor bridge artifacts (owner machine only — never commit)
+.agentops/
+
 supabase/.temp/

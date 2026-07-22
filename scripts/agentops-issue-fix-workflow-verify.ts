@@ -90,6 +90,12 @@ function verifyFixHandoff(): void {
   // Honest handoff — no fake direct Cursor launch claims.
   mustNotInclude(DETAIL, "Sent to Cursor automatically");
   mustInclude(DETAIL, "open Cursor and paste this prompt");
+  // E-A7 — local bridge integration on the detail page.
+  mustInclude(DETAIL, "probeCursorBridge");
+  mustInclude(DETAIL, "sendFixIssueToBridge");
+  mustInclude(DETAIL, "Local bridge connected");
+  mustInclude(DETAIL, "Local Cursor bridge is not running.");
+  mustInclude(DETAIL, "Cursor opened with this fix prompt.");
 }
 
 function verifyStructuredPrompt(): void {

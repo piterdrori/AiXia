@@ -66,6 +66,10 @@ function main(): void {
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Fix with Cursor");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Delete issue");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Mark as fixed");
+  // E-A7 — local Cursor bridge detection with honest offline fallback.
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "probeCursorBridge");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Local Cursor bridge is not running.");
+  mustInclude("src/lib/agentops/findings/cursorBridgeClient.ts", "http://127.0.0.1:17876");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Accept as real issue"');
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Review later"');
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Dismiss"');

@@ -39,6 +39,13 @@ import {
   type OwnerDetailAction,
 } from "@/lib/agentops/findings/findingsDetailModel";
 import {
+  CURSOR_BRIDGE_START_COMMAND,
+  probeCursorBridge,
+  readStoredBridgeToken,
+  sendFixIssueToBridge,
+  storeBridgeToken,
+} from "@/lib/agentops/findings/cursorBridgeClient";
+import {
   buildOwnerSuggestedSolution,
   buildStructuredFixIssuePrompt,
   isStructuredFixPrompt,
@@ -144,6 +151,11 @@ export default function AgentOpsFindingDetailPage() {
   const [confirmMarkFixed, setConfirmMarkFixed] = useState(false);
   const [markFixedNote, setMarkFixedNote] = useState("");
   const [handoffFeedback, setHandoffFeedback] = useState<string | null>(null);
+  const [bridgeState, setBridgeState] = useState<"checking" | "online" | "offline">("checking");
+  const [bridgeCliAvailable, setBridgeCliAvailable] = useState(false);
+  const [bridgeNeedsToken, setBridgeNeedsToken] = useState(false);
+  const [bridgeTokenInput, setBridgeTokenInput] = useState("");
+  const [showBridgeHelp, setShowBridgeHelp] = useState(false);
 
   usePageTitle(
     detail?.issueCode ? `Issue ${detail.issueCode}` : detail?.title ? detail.title : "Issue",
@@ -554,38 +566,106 @@ export default function AgentOpsFindingDetailPage() {
     detail?.ownerStatus !== "fixed" &&
     detail?.ownerStatus !== "deleted";
 
-  const fixWithCursor = async () => {
+  // ── E-A7 — local Cursor bridge detection ──────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    setBridgeState("checking");
+    void probeCursorBridge().then((health) => {
+      if (cancelled) return;
+      setBridgeState(health.online ? "online" : "offline");
+      setBridgeCliAvailable(health.cursorCliAvailable);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [params.issueCode]);
+
+  const markFixingAfterHandoff = async (message: string) => {
     if (!detail) return;
-    setHandoffFeedback(null);
-    const prompt = buildHandoffPrompt();
-    if (!prompt.trim()) {
-      setHandoffFeedback("No Fix Issue Prompt is available yet — edit the prompt first.");
-      return;
-    }
-    let copied = false;
-    try {
-      await navigator.clipboard.writeText(prompt);
-      copied = true;
-    } catch {
-      copied = false;
-    }
-    downloadPromptFile(prompt);
-    // Honest handoff: no direct Cursor launch exists from the browser (local bridge required).
     if (canMarkFixing && detail.draftId) {
       const result = await applyMonitoringDraftDecision(detail.draftId, "mark_fixing");
       if (!result.ok) {
         setHandoffFeedback(result.error ?? "Could not mark this issue as Fixing.");
         return;
       }
-      setHandoffFeedback(
-        `${copied ? "Prompt copied to clipboard and downloaded" : "Prompt file downloaded"} — open Cursor and paste this prompt. Status is now Fixing. Mark as fixed after you verify the fix on staging.`,
-      );
+      setHandoffFeedback(`${message} Status is now Fixing. Mark as fixed after you verify the fix on staging.`);
       await loadDetail();
       return;
     }
+    setHandoffFeedback(message);
+  };
+
+  const fixWithCursor = async () => {
+    if (!detail) return;
+    setHandoffFeedback(null);
+    setShowBridgeHelp(false);
+    const prompt = buildHandoffPrompt();
+    if (!prompt.trim()) {
+      setHandoffFeedback("No Fix Issue Prompt is available yet — edit the prompt first.");
+      return;
+    }
+
+    if (bridgeState === "online") {
+      // Bridge path: no download dialog — the bridge writes the prompt file locally.
+      const issueId = (detail.issueCode ?? detail.draftId ?? detail.findingId ?? "issue")
+        .replace(/[^a-zA-Z0-9_-]/g, "-")
+        .slice(0, 80);
+      const token = bridgeTokenInput.trim() || readStoredBridgeToken();
+      const result = await sendFixIssueToBridge({
+        issueId,
+        issueTitle: detail.title,
+        prompt,
+        token,
+      });
+      if (result.needsToken) {
+        setBridgeNeedsToken(true);
+        setShowBridgeHelp(true);
+        setHandoffFeedback(
+          "Local bridge connected, but it needs the bridge token. Paste the token printed by npm run agentops:cursor-bridge.",
+        );
+        return;
+      }
+      if (!result.accepted) {
+        setShowBridgeHelp(true);
+        setHandoffFeedback(result.error ?? "Local bridge rejected the request.");
+        return;
+      }
+      if (bridgeTokenInput.trim()) {
+        storeBridgeToken(bridgeTokenInput);
+        setBridgeTokenInput("");
+        setBridgeNeedsToken(false);
+      }
+      const message = result.cursorLaunched
+        ? "Cursor opened with this fix prompt."
+        : `Prompt file written locally (${result.promptFile ?? ".agentops/fix-prompts"}) — waiting for owner/Cursor work.`;
+      await markFixingAfterHandoff(message);
+      return;
+    }
+
+    // Bridge offline: honest fallback — no automatic download dialog.
+    setShowBridgeHelp(true);
     setHandoffFeedback(
-      `${copied ? "Prompt copied to clipboard and downloaded" : "Prompt file downloaded"} — open Cursor and paste this prompt. Cursor works on staging only.`,
+      "Local Cursor bridge is not running. Start it once, or use Download prompt / Copy prompt below.",
     );
+  };
+
+  const copyBridgeCommand = async () => {
+    try {
+      await navigator.clipboard.writeText(CURSOR_BRIDGE_START_COMMAND);
+      setHandoffFeedback("Bridge start command copied. Run it in the repo terminal, then retry Fix with Cursor.");
+    } catch {
+      setHandoffFeedback(`Copy failed — run manually: ${CURSOR_BRIDGE_START_COMMAND}`);
+    }
+  };
+
+  const copyHandoffPrompt = async () => {
+    const prompt = buildHandoffPrompt();
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setHandoffFeedback("Fix prompt copied — open Cursor and paste this prompt.");
+    } catch {
+      setHandoffFeedback("Could not copy the prompt.");
+    }
   };
 
   const markFixedByOwner = async () => {
@@ -837,12 +917,82 @@ export default function AgentOpsFindingDetailPage() {
                 <p className="text-xs text-white/45">
                   Delete issue removes this issue from the active list. It does not fix code.
                 </p>
+                <p className="text-xs" data-testid="agentops-bridge-status">
+                  {bridgeState === "checking" ? (
+                    <span className="text-white/45">Checking local Cursor bridge…</span>
+                  ) : bridgeState === "online" ? (
+                    <span className="text-emerald-300/90">
+                      Local bridge connected
+                      {bridgeCliAvailable ? " · Cursor CLI ready" : " · Cursor CLI not found"}
+                    </span>
+                  ) : (
+                    <span className="text-white/50">Local Cursor bridge is not running.</span>
+                  )}
+                </p>
                 {handoffFeedback ? (
                   <AixiaInfoBlock tone="cyan" title="Cursor handoff">
                     <p className="text-sm text-white/80" data-testid="agentops-handoff-status">
                       {handoffFeedback}
                     </p>
                   </AixiaInfoBlock>
+                ) : null}
+                {showBridgeHelp ? (
+                  <div
+                    className="space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-3"
+                    data-testid="agentops-bridge-help"
+                  >
+                    {bridgeState !== "online" ? (
+                      <>
+                        <p className="text-sm text-white/80">
+                          Start the local bridge once on this computer, then click Fix with Cursor
+                          again:
+                        </p>
+                        <pre className="rounded bg-black/40 p-2 text-xs text-white/80">
+                          {CURSOR_BRIDGE_START_COMMAND}
+                        </pre>
+                      </>
+                    ) : null}
+                    {bridgeNeedsToken ? (
+                      <label className="block space-y-1 text-sm">
+                        <span className="text-white/55">
+                          Bridge token (printed in the bridge terminal)
+                        </span>
+                        <input
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/90"
+                          value={bridgeTokenInput}
+                          onChange={(event) => setBridgeTokenInput(event.target.value)}
+                          placeholder="Paste bridge token"
+                          data-testid="agentops-bridge-token-input"
+                        />
+                      </label>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {bridgeState !== "online" ? (
+                        <AixiaButton variant="secondary" onClick={() => void copyBridgeCommand()}>
+                          Copy bridge command
+                        </AixiaButton>
+                      ) : null}
+                      {bridgeNeedsToken ? (
+                        <AixiaButton
+                          variant="primary"
+                          disabled={!bridgeTokenInput.trim()}
+                          onClick={() => void fixWithCursor()}
+                        >
+                          Save token and retry
+                        </AixiaButton>
+                      ) : null}
+                      <AixiaButton
+                        variant="secondary"
+                        onClick={() => downloadPromptFile(buildHandoffPrompt())}
+                        data-testid="agentops-download-prompt"
+                      >
+                        Download prompt
+                      </AixiaButton>
+                      <AixiaButton variant="secondary" onClick={() => void copyHandoffPrompt()}>
+                        Copy prompt
+                      </AixiaButton>
+                    </div>
+                  </div>
                 ) : null}
                 {confirmDelete ? (
                   <div

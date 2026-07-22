@@ -266,10 +266,16 @@ export function AgentSchedulePanel({
       : "Manual preference"
     : "Paused preference";
 
-  const frequencyLabel =
-    config.frequencyType === "manual"
-      ? "Manual"
-      : `${config.frequencyType.replaceAll("_", " ")} · ${config.intervalValue} ${config.intervalUnit}`;
+  const frequencyLabel = (() => {
+    if (config.frequencyType === "manual") return "Manual";
+    if (config.frequencyType === "days_and_time") {
+      return `On selected days at ${config.localTime ?? "09:00"}`;
+    }
+    // every_hours / every_days / every_weeks → "Every 1 hour", "Every 6 hours", …
+    const unitSingular = config.intervalUnit.replace(/s$/, "");
+    const unit = config.intervalValue === 1 ? unitSingular : config.intervalUnit;
+    return `Every ${config.intervalValue} ${unit}`;
+  })();
 
   const workTypesLabel =
     config.workTypes.map((type) => WORK_TYPE_LABELS[type]).join(" · ") || "None selected";

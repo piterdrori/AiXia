@@ -155,9 +155,28 @@ function verifyWiring(): void {
     "src/components/agentops/owner/agent-detail/AgentControlHeader.tsx",
     "agentops-worker-queue-length",
   );
+  // Capability copy moved to manualRunWorkerHealth.ts during the status-strip
+  // alignment phase; the control center exposes capability via the strip model.
   mustInclude(
     "src/lib/agentops/agents/agentDetailControlCenter.ts",
-    "Browser QA engine not connected.",
+    "buildAgentStatusStrip",
+  );
+
+  // E-A8 — Browser QA engine must scan every route in scope and never end a
+  // completed scan empty: no qualifying defects → improvement suggestions.
+  mustInclude("scripts/agentops-manual-run-browser-qa-engine.ts", "resolveRoutes");
+  mustInclude("scripts/agentops-manual-run-browser-qa-engine.ts", "MAX_ROUTES_PER_RUN");
+  mustInclude("scripts/agentops-manual-run-browser-qa-engine.ts", "perRouteResults");
+  mustInclude("scripts/agentops-manual-run-browser-qa-engine.ts", "improvementDraftsCreated");
+  mustInclude("scripts/agentops-manual-run-browser-qa-engine.ts", "asImprovement");
+  mustInclude(
+    "scripts/agentops-manual-run-browser-qa-engine.ts",
+    "improvements_suggested",
+  );
+  // Last-run truthfulness: most recent terminal run wins regardless of trigger.
+  mustInclude(
+    "src/lib/agentops/agents/agentDetailLatestRun.ts",
+    "MOST RECENT terminal run regardless of trigger",
   );
 
   const pkg = readFileSync(join(REPO_ROOT, "package.json"), "utf8");

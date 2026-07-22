@@ -48,19 +48,24 @@ function mustNotInclude(rel: string, needle: string): void {
 }
 
 function verifyLatestRunSelection(): void {
-  const workerManual = {
+  // E-A8 owner correction: "Last run" is the MOST RECENT terminal run regardless of
+  // trigger. The old owner_manual preference showed a stale manual run from a previous
+  // day while hourly scheduled runs kept completing.
+  const workerManualYesterday = {
     runId: "manual-1",
     status: "completed",
     trigger: "owner_manual",
     mode: "owner_manual_single_agent",
     workType: "website_audit",
+    endedAt: "2026-07-21T05:11:00.000Z",
   };
-  const workerScheduled = {
+  const workerScheduledToday = {
     runId: "sched-1",
     status: "completed",
     trigger: "schedule",
     mode: "scheduled_single_agent",
     workType: "browser_qa",
+    endedAt: "2026-07-22T04:14:00.000Z",
   };
   const queued = {
     runId: "queued-1",
@@ -73,25 +78,39 @@ function verifyLatestRunSelection(): void {
   const prefersQueued = selectLatestAgentRun({
     queued: [queued],
     running: [],
-    recentTerminal: [workerManual, workerScheduled],
+    recentTerminal: [workerManualYesterday, workerScheduledToday],
   });
   if (prefersQueued?.runId !== "queued-1") {
     fail("selectLatestAgentRun must prefer active queued/running over terminal");
   }
 
-  const prefersManual = selectLatestAgentRun({
+  const prefersNewest = selectLatestAgentRun({
     queued: [],
     running: [],
-    recentTerminal: [workerScheduled, workerManual],
+    recentTerminal: [workerManualYesterday, workerScheduledToday],
   });
-  if (prefersManual?.runId !== "manual-1") {
-    fail("selectLatestAgentRun must prefer owner_manual completed/failed over scheduled");
+  if (prefersNewest?.runId !== "sched-1") {
+    fail(
+      "selectLatestAgentRun must pick the most recent terminal run (scheduled today beats manual yesterday)",
+    );
+  }
+
+  const prefersNewManual = selectLatestAgentRun({
+    queued: [],
+    running: [],
+    recentTerminal: [
+      { ...workerManualYesterday, endedAt: "2026-07-22T06:00:00.000Z" },
+      workerScheduledToday,
+    ],
+  });
+  if (prefersNewManual?.runId !== "manual-1") {
+    fail("selectLatestAgentRun must pick a newer owner_manual run over older scheduled");
   }
 
   const prefersScheduled = selectLatestAgentRun({
     queued: [],
     running: [],
-    recentTerminal: [workerScheduled],
+    recentTerminal: [workerScheduledToday],
   });
   if (prefersScheduled?.runId !== "sched-1") {
     fail("selectLatestAgentRun must select scheduled worker run when no manual");

@@ -125,12 +125,26 @@ async function verifyCore(): Promise<void> {
     fail("agent detail route must be allowed");
   }
 
+  // E-A8 — entire_staging now maps to rotating core website routes (owner decision:
+  // agents must test all pages of the website across consecutive scheduled runs).
   const entire = core.resolveScheduledScopeResult(
     { ...hourly, scopeType: "entire_staging", selectedRoutes: [] },
     "system-agent",
   );
-  if (entire.ok || entire.reason !== core.SKIP_UNSUPPORTED_SCOPE) {
-    fail("entire_staging must skip unsupported");
+  if (!entire.ok || entire.mapping !== "entire_staging_core_rotation") {
+    fail("entire_staging must map to rotating core staging routes");
+  }
+  if (entire.routes.length === 0 || entire.routes.length > core.SCHEDULED_ROUTES_PER_RUN) {
+    fail("entire_staging rotation must return 1..SCHEDULED_ROUTES_PER_RUN routes");
+  }
+  // Rotation must cover the whole core list across consecutive windows.
+  const covered = new Set<string>();
+  const windows = Math.ceil(core.CORE_STAGING_ROUTES.length / core.SCHEDULED_ROUTES_PER_RUN);
+  for (let i = 0; i < windows; i += 1) {
+    for (const routeName of core.rotateCoreStagingRoutes(i * 3_600_000)) covered.add(routeName);
+  }
+  if (covered.size !== core.CORE_STAGING_ROUTES.length) {
+    fail("entire_staging rotation must cover all core routes across consecutive runs");
   }
 
   const selected = core.resolveScheduledScopeResult(hourly, "system-agent");

@@ -114,6 +114,17 @@ export type LatestRunCandidate = {
   ageMs?: number | null;
 };
 
+function runTimestampMs(row: LatestRunCandidate): number {
+  const stamp = row.endedAt || row.startedAt || row.createdAt || null;
+  const parsed = stamp ? Date.parse(stamp) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/**
+ * E-A8 — "Last run" must be the MOST RECENT terminal run regardless of trigger.
+ * The old trigger-preference (owner_manual over scheduled) showed a stale manual
+ * run from a previous day while hourly scheduled runs kept completing.
+ */
 export function selectLatestAgentRun(input: {
   queued: LatestRunCandidate[];
   running: LatestRunCandidate[];
@@ -125,20 +136,9 @@ export function selectLatestAgentRun(input: {
   const terminal = input.recentTerminal.filter(
     (row) => row.status === "completed" || row.status === "failed" || row.status === "canceled",
   );
+  if (terminal.length === 0) return null;
 
-  const ownerManual = terminal.find(
-    (row) =>
-      row.trigger === "owner_manual" || row.mode === "owner_manual_single_agent",
-  );
-  if (ownerManual) return ownerManual;
-
-  const scheduled = terminal.find(
-    (row) => row.trigger === "schedule" || row.mode === "scheduled_single_agent",
-  );
-  if (scheduled) return scheduled;
-
-  if (terminal[0]) return terminal[0];
-  return null;
+  return [...terminal].sort((a, b) => runTimestampMs(b) - runTimestampMs(a))[0];
 }
 
 function formatDurationMs(durationMs: number | null | undefined): string {

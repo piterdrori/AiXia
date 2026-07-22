@@ -149,8 +149,10 @@ async function insertDraftFindings(
   runId: string,
   agentSlug: string,
   findings: StagingScanFinding[],
+  options?: { asImprovement?: boolean },
 ): Promise<{ created: number; skippedDuplicate: number; draftIds: string[] }> {
   const result = { created: 0, skippedDuplicate: 0, draftIds: [] as string[] };
+  const asImprovement = options?.asImprovement === true;
   for (const finding of findings) {
     const key = duplicateKey(agentSlug, finding);
     const { data: existing } = await client
@@ -172,8 +174,8 @@ async function insertDraftFindings(
       agent_slug: agentSlug,
       module: "agent-ops",
       route: finding.page_url,
-      issue_type: "website_audit",
-      severity: finding.severity,
+      issue_type: asImprovement ? "improvement" : "website_audit",
+      severity: asImprovement ? "low" : finding.severity,
       title: finding.issue.slice(0, 180),
       summary: finding.issue,
       evidence: {
@@ -433,11 +435,60 @@ async function main(): Promise<void> {
     }
   }
 
+  // E-A8 — a completed audit must never end empty: when no qualifying defects were
+  // recorded, record honest improvement suggestions instead (deduplicated across runs).
+  let improvementDraftsCreated = 0;
+  let improvementDraftsSkippedDuplicate = 0;
+  let improvementNote: string | null = null;
+  if (!failureReason && draftsCreated === 0) {
+    let candidates: StagingScanFinding[] = findings
+      .filter((f) => severityRank(f.severity) < 2)
+      .slice(0, 3)
+      .map((f) => ({
+        ...f,
+        issue: `Improvement: ${f.issue}`,
+      }));
+    if (candidates.length === 0) {
+      const routeList = routes.join(", ");
+      candidates = [
+        {
+          page_url: routes[0] ?? "/system/agent-ops",
+          issue:
+            `Improvement: extend website audit coverage for ${routes[0] ?? "the audited routes"}. ` +
+            `The audit passed all current checks on ${routeList} — no defects were found in this run. ` +
+            `Accessibility landmarks, empty-state copy, mobile overflow, and slow-network behavior are not ` +
+            `yet covered, so these pages may still have improvement opportunities the audit cannot rule out.`,
+          severity: "low",
+          evidence: { checkedRoutes: routeList, improvementSuggestion: true },
+        } as unknown as StagingScanFinding,
+      ];
+    }
+    try {
+      const improvementResult = await insertDraftFindings(client, runId, agentSlug, candidates, {
+        asImprovement: true,
+      });
+      improvementDraftsCreated = improvementResult.created;
+      improvementDraftsSkippedDuplicate = improvementResult.skippedDuplicate;
+      improvementNote =
+        improvementDraftsCreated > 0
+          ? `No qualifying defects — recorded ${improvementDraftsCreated} improvement suggestion(s) instead.`
+          : improvementDraftsSkippedDuplicate > 0
+            ? "No qualifying defects — the improvement suggestion from a previous run is still open (duplicate skipped)."
+            : null;
+    } catch (error) {
+      improvementNote = `Improvement suggestion insert failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`;
+    }
+  }
+
   const resultLabel = failureReason
     ? "failed"
     : qualifying.length > 0
       ? "findings_found"
-      : "completed";
+      : improvementDraftsCreated > 0
+        ? "improvements_suggested"
+        : "completed";
 
   const nextSummary: Record<string, unknown> = {
     ...summary,
@@ -454,7 +505,11 @@ async function main(): Promise<void> {
       draftsCreated,
       draftsSkippedDuplicate: draftsSkipped,
       draftIds,
-      zeroFindingsMessage: qualifying.length === 0 && !failureReason ? ZERO_FINDINGS : null,
+      improvementDraftsCreated,
+      improvementDraftsSkippedDuplicate,
+      improvementNote,
+      zeroFindingsMessage:
+        qualifying.length === 0 && !failureReason ? (improvementNote ?? ZERO_FINDINGS) : null,
       stagingUrl: guard.normalizedUrl,
     },
     artifactRefs,
@@ -491,7 +546,7 @@ async function main(): Promise<void> {
       status,
       ended_at: endedAt,
       duration_ms: durationMs,
-      findings_count: draftsCreated || qualifying.length,
+      findings_count: (draftsCreated || qualifying.length) + improvementDraftsCreated,
       errors_count: errorsCount,
       agents_run: 1,
       actual_issues_created: 0,
@@ -519,12 +574,13 @@ async function main(): Promise<void> {
         findingsCount: updated.findings_count,
         errorsCount: updated.errors_count,
         draftsCreated,
+        improvementDraftsCreated,
         startedAt,
         endedAt,
         message: failureReason
           ? failureReason
           : qualifying.length === 0
-            ? ZERO_FINDINGS
+            ? (improvementNote ?? ZERO_FINDINGS)
             : `Website audit completed with ${qualifying.length} qualifying finding(s).`,
       },
       null,

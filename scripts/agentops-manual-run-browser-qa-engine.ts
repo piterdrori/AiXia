@@ -80,7 +80,17 @@ function resolveStorageStatePath(): string | null {
   return existsSync(resolved) ? resolved : null;
 }
 
-function resolveRoute(summary: Record<string, unknown>, agentSlug: string, appUrl: string) {
+/** E-A8 — scans must cover the whole configured scope, not only the first route. */
+const MAX_ROUTES_PER_RUN = Math.max(
+  1,
+  Number(process.env.AGENTOPS_BROWSER_QA_MAX_ROUTES || 5),
+);
+
+function resolveRoutes(
+  summary: Record<string, unknown>,
+  agentSlug: string,
+  appUrl: string,
+): Array<{ route: string; absoluteUrl: string }> {
   const selected =
     Array.isArray(summary.selectedRoutes) && summary.selectedRoutes.length > 0
       ? summary.selectedRoutes.filter((r): r is string => typeof r === "string" && Boolean(r.trim()))
@@ -92,13 +102,21 @@ function resolveRoute(summary: Record<string, unknown>, agentSlug: string, appUr
   const scopeRoutes = Array.isArray(scope?.routes)
     ? scope.routes.filter((r): r is string => typeof r === "string" && Boolean(r.trim()))
     : [];
-  const routeRaw =
-    selected[0] ||
-    scopeRoutes[0] ||
-    `/system/agent-ops/agents/${agentSlug || "system-agent"}`;
-  const route = routeRaw.startsWith("/") ? routeRaw : `/${routeRaw}`;
+  const merged = [...selected, ...scopeRoutes];
+  if (merged.length === 0) {
+    merged.push(`/system/agent-ops/agents/${agentSlug || "system-agent"}`);
+  }
   const base = appUrl.replace(/\/+$/, "");
-  return { route, absoluteUrl: `${base}${route}` };
+  const seen = new Set<string>();
+  const routes: Array<{ route: string; absoluteUrl: string }> = [];
+  for (const raw of merged) {
+    const route = raw.startsWith("/") ? raw : `/${raw}`;
+    if (seen.has(route)) continue;
+    seen.add(route);
+    routes.push({ route, absoluteUrl: `${base}${route}` });
+    if (routes.length >= MAX_ROUTES_PER_RUN) break;
+  }
+  return routes;
 }
 
 function severityRank(severity: string): number {
@@ -127,12 +145,14 @@ function duplicateKey(agentSlug: string, finding: BrowserQaFinding): string {
     .slice(0, 40);
 }
 
+type RoutedFinding = BrowserQaFinding & { route: string };
+
 async function insertDraftFindings(
   client: SupabaseClient,
   runId: string,
   agentSlug: string,
-  route: string,
-  findings: BrowserQaFinding[],
+  findings: RoutedFinding[],
+  options?: { asImprovement?: boolean },
 ): Promise<{ created: number; skippedDuplicate: number; skippedNoise: number; draftIds: string[] }> {
   const result = {
     created: 0,
@@ -141,6 +161,7 @@ async function insertDraftFindings(
     draftIds: [] as string[],
   };
   for (const finding of findings) {
+    const route = finding.route;
     if (
       shouldSkipFailedRequestDraft({
         pageUrl: route,
@@ -162,8 +183,11 @@ async function insertDraftFindings(
       result.skippedDuplicate += 1;
       continue;
     }
+    const asImprovement = options?.asImprovement === true;
     const suggestedFixPrompt = [
-      `Investigate Browser QA finding on staging route ${route}.`,
+      asImprovement
+        ? `Review a Browser QA improvement suggestion on staging route ${route}.`
+        : `Investigate Browser QA finding on staging route ${route}.`,
       `Title: ${finding.title}`,
       `Description: ${finding.description}`,
       finding.evidence ? `Evidence: ${finding.evidence}` : null,
@@ -180,8 +204,8 @@ async function insertDraftFindings(
       agent_slug: agentSlug,
       module: "agent-ops",
       route,
-      issue_type: finding.type,
-      severity: finding.severity,
+      issue_type: asImprovement ? "improvement" : finding.type,
+      severity: asImprovement ? "low" : finding.severity,
       title: finding.title.slice(0, 180),
       summary: finding.description,
       evidence: {
@@ -269,9 +293,13 @@ async function main(): Promise<void> {
     typeof summary.agentSlug === "string" ? summary.agentSlug : "system-agent";
   const runtimeAgentId =
     typeof summary.runtimeAgentId === "string" ? summary.runtimeAgentId : agentSlug;
-  const { route, absoluteUrl } = resolveRoute(summary, agentSlug, guard.normalizedUrl);
-  const targetGuard = assertStagingScanUrl(absoluteUrl);
-  if (!targetGuard.ok) throw new Error(targetGuard.error);
+  const routes = resolveRoutes(summary, agentSlug, guard.normalizedUrl);
+  for (const target of routes) {
+    const targetGuard = assertStagingScanUrl(target.absoluteUrl);
+    if (!targetGuard.ok) throw new Error(targetGuard.error);
+  }
+  const route = routes[0].route;
+  const absoluteUrl = routes[0].absoluteUrl;
 
   const startedAt =
     typeof row.started_at === "string" ? row.started_at : new Date().toISOString();
@@ -334,44 +362,97 @@ async function main(): Promise<void> {
 
   let failureReason: string | null = null;
   let failurePhase: string | null = null;
-  let qaResult;
-  try {
-    qaResult = await runPlaywrightBrowserQA({
-      targetUrl: absoluteUrl,
-      agentId: runtimeAgentId,
-      canonicalAgentId: agentSlug,
-      cancelCheck,
-    });
-  } catch (error) {
-    if (isCancelRequestedError(error)) {
-      const endedAt = new Date().toISOString();
-      await client
-        .from(MONITORING_TABLE)
-        .update({
-          status: "canceled",
-          ended_at: endedAt,
-          duration_ms: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)),
-          summary: {
-            ...summary,
-            cancelRequested: false,
-            canceledAt: endedAt,
-            cancelAcknowledgedAt: endedAt,
-            cancelPhase: error.phase,
-            cancelReason:
-              error.phase.includes("navigation") || error.phase.includes("screenshot")
-                ? `Cancel request recorded; current browser step completed before cancellation (${error.phase}).`
-                : `Canceled at checkpoint: ${error.phase}`,
-          },
-        })
-        .eq("run_id", runId)
-        .eq("status", "running");
-      console.log(
-        JSON.stringify({ ok: true, canceled: true, runId, cancelPhase: error.phase }),
-      );
-      return;
+
+  // E-A8 — scan every route in scope (capped), aggregating findings per route.
+  const routedFindings: RoutedFinding[] = [];
+  const routedSuggestions: Array<{ route: string; text: string }> = [];
+  const perRouteResults: Array<{
+    route: string;
+    findingsCount: number;
+    executionType: string;
+    finalUrl: string | null;
+  }> = [];
+  const screenshotPaths: string[] = [];
+  const consoleErrorsAll: string[] = [];
+  const failedRequestsAll: string[] = [];
+  let lastQaResult: Awaited<ReturnType<typeof runPlaywrightBrowserQA>> | null = null;
+
+  for (const target of routes) {
+    let qaResult;
+    try {
+      qaResult = await runPlaywrightBrowserQA({
+        targetUrl: target.absoluteUrl,
+        agentId: runtimeAgentId,
+        canonicalAgentId: agentSlug,
+        cancelCheck,
+      });
+    } catch (error) {
+      if (isCancelRequestedError(error)) {
+        const endedAt = new Date().toISOString();
+        await client
+          .from(MONITORING_TABLE)
+          .update({
+            status: "canceled",
+            ended_at: endedAt,
+            duration_ms: Math.max(0, Date.parse(endedAt) - Date.parse(startedAt)),
+            summary: {
+              ...summary,
+              cancelRequested: false,
+              canceledAt: endedAt,
+              cancelAcknowledgedAt: endedAt,
+              cancelPhase: error.phase,
+              cancelReason:
+                error.phase.includes("navigation") || error.phase.includes("screenshot")
+                  ? `Cancel request recorded; current browser step completed before cancellation (${error.phase}).`
+                  : `Canceled at checkpoint: ${error.phase}`,
+              partialEvidence: {
+                routesChecked: perRouteResults.map((entry) => entry.route),
+                findingsCount: routedFindings.length,
+              },
+            },
+          })
+          .eq("run_id", runId)
+          .eq("status", "running");
+        console.log(
+          JSON.stringify({ ok: true, canceled: true, runId, cancelPhase: error.phase }),
+        );
+        return;
+      }
+      throw error;
     }
-    throw error;
+
+    lastQaResult = qaResult;
+    perRouteResults.push({
+      route: target.route,
+      findingsCount: qaResult.findings?.length ?? 0,
+      executionType: qaResult.executionType,
+      finalUrl: qaResult.finalUrl ?? null,
+    });
+    for (const finding of qaResult.findings ?? []) {
+      routedFindings.push({ ...finding, route: target.route });
+    }
+    for (const text of qaResult.suggestions ?? []) {
+      if (typeof text === "string" && text.trim()) {
+        routedSuggestions.push({ route: target.route, text: text.trim() });
+      }
+    }
+    if (qaResult.evidence?.screenshotPath) screenshotPaths.push(qaResult.evidence.screenshotPath);
+    consoleErrorsAll.push(...(qaResult.evidence?.consoleErrors ?? []));
+    failedRequestsAll.push(...(qaResult.evidence?.failedRequests ?? []));
+
+    if (qaResult.auth?.redirectedToLogin || qaResult.error?.includes("redirected to login")) {
+      failureReason = AUTH_MISSING;
+      failurePhase = "browser_qa_auth";
+      break;
+    }
+    if (qaResult.executionType === "failed" && qaResult.error) {
+      failureReason = qaResult.error;
+      failurePhase = "runPlaywrightBrowserQA";
+      break;
+    }
   }
+
+  const qaResult = lastQaResult!;
 
   if (await cancelCheck("before_artifact_upload")) {
     const endedAt = new Date().toISOString();
@@ -408,25 +489,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (qaResult.auth?.redirectedToLogin || qaResult.error?.includes("redirected to login")) {
-    failureReason = AUTH_MISSING;
-    failurePhase = "browser_qa_auth";
-  } else if (qaResult.executionType === "failed" && qaResult.error) {
-    failureReason = qaResult.error;
-    failurePhase = "runPlaywrightBrowserQA";
-  }
-
   const durationMs = Math.max(0, Date.now() - scanStarted);
   const endedAt = new Date().toISOString();
-  const findings = qaResult.findings ?? [];
-  const qualifying = failureReason ? [] : qualifyingFindings(findings);
+  const findings = routedFindings;
+  const qualifying = failureReason ? [] : (qualifyingFindings(findings) as RoutedFinding[]);
   const errorsCount = findings.filter((f) => severityRank(f.severity) >= 3).length;
-  const screenshotPath = qaResult.evidence?.screenshotPath;
-  const screenshotLooksSensitive =
-    typeof screenshotPath === "string" &&
-    /storage[-_]?state|service[_-]?role|password|token=/i.test(screenshotPath);
-  const screenshotRefs =
-    screenshotPath && !screenshotLooksSensitive ? [screenshotPath] : [];
+  const screenshotRefs = screenshotPaths.filter(
+    (path) => !/storage[-_]?state|service[_-]?role|password|token=/i.test(path),
+  );
   const artifactRefs = [...screenshotRefs];
 
   let draftsCreated = 0;
@@ -434,13 +504,7 @@ async function main(): Promise<void> {
   let draftIds: string[] = [];
   if (!failureReason && qualifying.length > 0) {
     try {
-      const draftResult = await insertDraftFindings(
-        client,
-        runId,
-        agentSlug,
-        route,
-        qualifying,
-      );
+      const draftResult = await insertDraftFindings(client, runId, agentSlug, qualifying);
       draftsCreated = draftResult.created;
       draftsSkipped = draftResult.skippedDuplicate + draftResult.skippedNoise;
       draftIds = draftResult.draftIds;
@@ -450,11 +514,74 @@ async function main(): Promise<void> {
     }
   }
 
+  // E-A8 — a completed scan must never end empty-handed: when no qualifying issue
+  // was recorded, record real improvement suggestions instead (honest, deduplicated).
+  let improvementDraftsCreated = 0;
+  let improvementDraftsSkippedDuplicate = 0;
+  let improvementNote: string | null = null;
+  if (!failureReason && draftsCreated === 0) {
+    let candidates: RoutedFinding[] = findings
+      .filter((f) => f.type !== "clean_scan" && severityRank(f.severity) < 2)
+      .slice(0, 3)
+      .map((f) => ({
+        ...f,
+        title: `Improvement: ${f.title}`,
+        description: `${f.description} (Low-severity Browser QA observation recorded as an improvement suggestion.)`,
+      }));
+    if (candidates.length === 0 && routedSuggestions.length > 0) {
+      candidates = routedSuggestions.slice(0, 2).map((suggestion) => ({
+        route: suggestion.route,
+        severity: "low" as const,
+        type: "improvement",
+        title: `Improvement suggestion: ${suggestion.text.slice(0, 140)}`,
+        description: `Browser QA suggestion for ${suggestion.route}: ${suggestion.text}`,
+        evidence: undefined,
+      }));
+    }
+    if (candidates.length === 0) {
+      const routeList = routes.map((r) => r.route).join(", ");
+      candidates = [
+        {
+          route,
+          severity: "low" as const,
+          type: "improvement",
+          title: `Improvement: extend Browser QA coverage for ${route}`,
+          description:
+            `Scheduled Browser QA passed all current checks on ${routeList} — no defects were found in this run. ` +
+            `Improvement suggestion: extend the checks for these routes. Accessibility landmarks, empty-state copy, ` +
+            `mobile overflow, and slow-network behavior are not yet covered by the current scan, so these pages may ` +
+            `still have improvement opportunities the scan cannot rule out.`,
+          evidence: `Checked routes: ${routeList}`,
+        },
+      ];
+    }
+    try {
+      const improvementResult = await insertDraftFindings(client, runId, agentSlug, candidates, {
+        asImprovement: true,
+      });
+      improvementDraftsCreated = improvementResult.created;
+      improvementDraftsSkippedDuplicate = improvementResult.skippedDuplicate;
+      improvementNote =
+        improvementDraftsCreated > 0
+          ? `No qualifying defects — recorded ${improvementDraftsCreated} improvement suggestion(s) instead.`
+          : improvementDraftsSkippedDuplicate > 0
+            ? "No qualifying defects — the improvement suggestion from a previous run is still open (duplicate skipped)."
+            : null;
+    } catch (error) {
+      // Improvement fallback must never fail the scan itself.
+      improvementNote = `Improvement suggestion insert failed: ${
+        error instanceof Error ? error.message : String(error)
+      }`;
+    }
+  }
+
   const resultLabel = failureReason
     ? "failed"
     : qualifying.length > 0
       ? "findings_found"
-      : "completed";
+      : improvementDraftsCreated > 0
+        ? "improvements_suggested"
+        : "completed";
 
   const nextSummary: Record<string, unknown> = {
     ...summary,
@@ -463,17 +590,24 @@ async function main(): Promise<void> {
     workerVersion: WORKER_VERSION,
     result: resultLabel,
     route,
-    selectedRoutes: [route],
-    scope: summary.scope ?? { type: "selected_routes", routes: [route] },
+    selectedRoutes: routes.map((r) => r.route),
+    routesChecked: routes.map((r) => r.route),
+    perRouteResults,
+    scope: summary.scope ?? { type: "selected_routes", routes: routes.map((r) => r.route) },
     evidenceSummary: {
       scanFindingsCount: findings.length,
       qualifyingFindingsCount: qualifying.length,
       draftsCreated,
       draftsSkippedDuplicate: draftsSkipped,
       draftIds,
-      zeroFindingsMessage: qualifying.length === 0 && !failureReason ? ZERO_FINDINGS : null,
+      improvementDraftsCreated,
+      improvementDraftsSkippedDuplicate,
+      improvementNote,
+      zeroFindingsMessage:
+        qualifying.length === 0 && !failureReason ? (improvementNote ?? ZERO_FINDINGS) : null,
       stagingUrl: guard.normalizedUrl,
       targetUrl: absoluteUrl,
+      routesChecked: routes.map((r) => r.route),
       finalUrl: qaResult.finalUrl ?? null,
       authenticated: Boolean(qaResult.auth?.authenticated),
       executionType: qaResult.executionType,
@@ -484,16 +618,17 @@ async function main(): Promise<void> {
     artifactVisibility: "local_worker_only",
     artifactNote:
       "Screenshot/artifact paths are local-worker-only and may not be reachable from the browser.",
-    consoleFindings: qaResult.evidence?.consoleErrors ?? [],
-    networkFindings: qaResult.evidence?.failedRequests ?? [],
+    consoleFindings: consoleErrorsAll,
+    networkFindings: failedRequestsAll,
     accessibilityFindings: findings
       .filter((f) => f.type === "missing_h1" || f.type === "missing_app_shell")
-      .map((f) => ({ type: f.type, title: f.title, severity: f.severity })),
+      .map((f) => ({ type: f.type, title: f.title, severity: f.severity, route: f.route })),
     rawObservations: findings.map((f) => ({
       type: f.type,
       title: f.title,
       severity: f.severity,
       description: f.description,
+      route: f.route,
     })),
     autoPromoteBlocked: true,
     autoFixBlocked: true,
@@ -509,9 +644,10 @@ async function main(): Promise<void> {
     nextSummary.partialEvidence = {
       route,
       targetUrl: absoluteUrl,
+      routesChecked: perRouteResults.map((entry) => entry.route),
       screenshotRefs,
-      consoleFindings: qaResult.evidence?.consoleErrors ?? [],
-      networkFindings: qaResult.evidence?.failedRequests ?? [],
+      consoleFindings: consoleErrorsAll,
+      networkFindings: failedRequestsAll,
       scanFindingsCount: findings.length,
     };
   }
@@ -523,7 +659,7 @@ async function main(): Promise<void> {
       status,
       ended_at: endedAt,
       duration_ms: durationMs,
-      findings_count: draftsCreated || qualifying.length,
+      findings_count: (draftsCreated || qualifying.length) + improvementDraftsCreated,
       errors_count: errorsCount,
       agents_run: 1,
       actual_issues_created: 0,
@@ -548,16 +684,18 @@ async function main(): Promise<void> {
         status,
         durationMs,
         route,
+        routesChecked: routes.map((r) => r.route),
         findingsCount: updated.findings_count,
         errorsCount: updated.errors_count,
         draftsCreated,
+        improvementDraftsCreated,
         screenshots: screenshotRefs.length,
         startedAt,
         endedAt,
         message: failureReason
           ? failureReason
           : qualifying.length === 0
-            ? ZERO_FINDINGS
+            ? (improvementNote ?? ZERO_FINDINGS)
             : `Browser QA completed with ${qualifying.length} qualifying finding(s).`,
       },
       null,

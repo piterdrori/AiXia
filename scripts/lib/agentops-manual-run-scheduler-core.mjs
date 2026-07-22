@@ -58,7 +58,50 @@ export const ALLOWED_ROUTE_PREFIXES = [
   "/finance/",
   "/hub",
   "/login",
+  // E-A8 — whole-website scheduled coverage (staging app modules)
+  "/dashboard",
+  "/projects",
+  "/tasks",
+  "/calendar",
+  "/chat",
+  "/inbox",
+  "/mail",
+  "/employees",
+  "/finance",
 ];
+
+/**
+ * E-A8 — core staging website routes for entire_staging scheduled coverage.
+ * Consecutive scheduled runs rotate through this list so the whole website is
+ * covered across runs (each run scans up to SCHEDULED_ROUTES_PER_RUN routes).
+ */
+export const CORE_STAGING_ROUTES = [
+  "/hub",
+  "/dashboard",
+  "/projects",
+  "/tasks",
+  "/calendar",
+  "/chat",
+  "/inbox",
+  "/mail",
+  "/employees",
+  "/finance",
+  "/system/agent-ops",
+  "/system/agent-ops/issues",
+  "/system/agent-ops/agents",
+  "/system/agent-ops/monitoring",
+];
+
+export const SCHEDULED_ROUTES_PER_RUN = 5;
+
+/** Deterministic rotation window so consecutive runs cover the full core list. */
+export function rotateCoreStagingRoutes(nowMs = Date.now()) {
+  const windows = Math.max(1, Math.ceil(CORE_STAGING_ROUTES.length / SCHEDULED_ROUTES_PER_RUN));
+  const windowIndex = Math.floor(nowMs / 3_600_000) % windows;
+  const start = windowIndex * SCHEDULED_ROUTES_PER_RUN;
+  const slice = CORE_STAGING_ROUTES.slice(start, start + SCHEDULED_ROUTES_PER_RUN);
+  return slice.length > 0 ? slice : CORE_STAGING_ROUTES.slice(0, SCHEDULED_ROUTES_PER_RUN);
+}
 
 export const BLOCKED_HOST_SNIPPETS = [
   "ai-xia.vercel.app",
@@ -365,17 +408,19 @@ export function normalizeStagingRoute(raw, agentSlug) {
  * Resolve scheduled scope with honest unsupported skips.
  * @returns {{ ok: boolean, reason: string|null, routes: string[], modules: string[], scopeType: string, mapping: string }}
  */
-export function resolveScheduledScopeResult(schedule, agentSlug) {
+export function resolveScheduledScopeResult(schedule, agentSlug, nowMs = Date.now()) {
   const scopeType = schedule.scopeType || "assigned_modules";
 
   if (scopeType === "entire_staging") {
+    // E-A8 — entire staging maps to the core website routes with deterministic
+    // rotation so consecutive scheduled runs cover the whole website.
     return {
-      ok: false,
-      reason: SKIP_UNSUPPORTED_SCOPE,
-      routes: [],
+      ok: true,
+      reason: null,
+      routes: rotateCoreStagingRoutes(nowMs),
       modules: [],
-      scopeType,
-      mapping: "rejected_entire_staging",
+      scopeType: "selected_routes",
+      mapping: "entire_staging_core_rotation",
     };
   }
 
@@ -384,7 +429,7 @@ export function resolveScheduledScopeResult(schedule, agentSlug) {
     for (const raw of schedule.selectedRoutes || []) {
       const normalized = normalizeStagingRoute(raw, agentSlug);
       if (normalized && !routes.includes(normalized)) routes.push(normalized);
-      if (routes.length >= 3) break;
+      if (routes.length >= SCHEDULED_ROUTES_PER_RUN) break;
     }
     if (routes.length === 0) {
       return {
@@ -406,18 +451,26 @@ export function resolveScheduledScopeResult(schedule, agentSlug) {
     };
   }
 
-  // assigned_modules / selected_modules: conservative map to Agent Detail route only.
+  // assigned_modules / selected_modules: agent detail route + normalized module roots.
   if (scopeType === "assigned_modules" || scopeType === "selected_modules") {
+    const modules =
+      scopeType === "selected_modules" && Array.isArray(schedule.selectedModules)
+        ? schedule.selectedModules.slice(0, 20)
+        : [];
+    const routes = [defaultAgentDetailRoute(agentSlug)];
+    for (const moduleName of modules) {
+      const normalized = normalizeStagingRoute(`/${String(moduleName)}`, agentSlug);
+      if (normalized && !routes.includes(normalized)) routes.push(normalized);
+      if (routes.length >= SCHEDULED_ROUTES_PER_RUN) break;
+    }
     return {
       ok: true,
       reason: null,
-      routes: [defaultAgentDetailRoute(agentSlug)],
-      modules:
-        scopeType === "selected_modules" && Array.isArray(schedule.selectedModules)
-          ? schedule.selectedModules.slice(0, 20)
-          : [],
+      routes,
+      modules,
       scopeType: "selected_routes",
-      mapping: "modules_to_agent_detail_route",
+      mapping:
+        routes.length > 1 ? "modules_to_module_routes" : "modules_to_agent_detail_route",
     };
   }
 

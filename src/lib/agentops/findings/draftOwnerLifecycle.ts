@@ -1,7 +1,8 @@
 /**
- * E-A2 — owner lifecycle overlays on monitoring drafts.
+ * E-A2/E-A6 — owner lifecycle overlays on monitoring drafts.
  * DB status stays within draft|owner_approved|rejected|deferred|promoted.
- * needs_more_info / marked_duplicate are stored as deferred + evidence metadata.
+ * needs_more_info / marked_duplicate / fixing / fixed_by_owner are stored as
+ * deferred + evidence metadata. deleted_by_owner is stored as rejected + overlay.
  */
 
 export type DraftOwnerDecisionKind =
@@ -10,6 +11,9 @@ export type DraftOwnerDecisionKind =
   | "deferred"
   | "needs_more_info"
   | "marked_duplicate"
+  | "fixing"
+  | "fixed_by_owner"
+  | "deleted_by_owner"
   | "save_fix_prompt"
   | "promote";
 
@@ -36,7 +40,10 @@ export function readOwnerDecisionKind(
     kind === "marked_duplicate" ||
     kind === "deferred" ||
     kind === "owner_approved" ||
-    kind === "rejected"
+    kind === "rejected" ||
+    kind === "fixing" ||
+    kind === "fixed_by_owner" ||
+    kind === "deleted_by_owner"
   ) {
     return kind;
   }
@@ -76,16 +83,33 @@ export function appendOwnerActionHistory(
 export function mapDraftStatusWithEvidence(
   status: string | null | undefined,
   evidence: Record<string, unknown> | null | undefined,
-): "needs_review" | "approved" | "rejected" | "deferred" | "duplicate" | "needs_more_info" | "superseded" | "unknown" {
+):
+  | "needs_review"
+  | "approved"
+  | "rejected"
+  | "deferred"
+  | "duplicate"
+  | "needs_more_info"
+  | "fixing"
+  | "fixed"
+  | "deleted"
+  | "superseded"
+  | "unknown" {
   const raw = (status ?? "").trim().toLowerCase();
   if (raw === "promoted") return "superseded";
   if (raw === "owner_approved") return "approved";
-  if (raw === "rejected") return "rejected";
+  if (raw === "rejected") {
+    const kind = readOwnerDecisionKind(evidence);
+    if (kind === "deleted_by_owner") return "deleted";
+    return "rejected";
+  }
   if (raw === "draft") return "needs_review";
   if (raw === "deferred") {
     const kind = readOwnerDecisionKind(evidence);
     if (kind === "needs_more_info") return "needs_more_info";
     if (kind === "marked_duplicate") return "duplicate";
+    if (kind === "fixing") return "fixing";
+    if (kind === "fixed_by_owner") return "fixed";
     return "deferred";
   }
   return "unknown";

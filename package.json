@@ -44,6 +44,7 @@
     "agentops:pre-issues-pages-verify": "tsx scripts/agentops-pre-issues-pages-verify.ts",
     "agentops:issues-verify": "tsx scripts/agentops-issues-verify.ts",
     "agentops:issues-acceptance-verify": "tsx scripts/agentops-issues-acceptance-verify.ts",
+    "agentops:issue-fix-workflow-verify": "tsx scripts/agentops-issue-fix-workflow-verify.ts",
     "agentops:manual-run-worker:once": "node scripts/agentops-staging-manual-run-worker.mjs once",
     "agentops:manual-run-worker:heartbeat": "node scripts/agentops-staging-manual-run-worker.mjs heartbeat",
     "agentops:manual-run-worker:claim-test": "node scripts/agentops-staging-manual-run-worker.mjs claim-test",

@@ -28,6 +28,7 @@ import {
   readOwnerActionHistory,
 } from "@/lib/agentops/findings/draftOwnerLifecycle";
 import { classifyLikelyShellNoiseDraft } from "@/lib/agentops/findings/issueDraftNoise";
+import { ownerActivityLabel } from "@/lib/agentops/findings/issueFixWorkflow";
 import {
   buildSyntheticFindingFromProductIssue,
   mapRuntimeIssueToProductIssue,
@@ -430,7 +431,11 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
 
   const mappedStatus = mapDraftStatusWithEvidence(draft.status, draft.evidence ?? {});
   const ownerStatus =
-    mappedStatus === "needs_more_info" || mappedStatus === "duplicate"
+    mappedStatus === "needs_more_info" ||
+    mappedStatus === "duplicate" ||
+    mappedStatus === "fixing" ||
+    mappedStatus === "fixed" ||
+    mappedStatus === "deleted"
       ? (mappedStatus as OwnerFindingStatus)
       : canonical.ownerStatus;
   const ownerStatusLabel = OWNER_FINDING_STATUS_LABEL[ownerStatus];
@@ -505,7 +510,7 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
       id: `hist-${entry.at}-${entry.action}`,
       at: entry.at,
       actor: entry.ownerEmail || entry.ownerId || "Owner",
-      label: `${entry.action}: ${entry.previousStatus} → ${entry.newStatus}`,
+      label: ownerActivityLabel(entry.action),
       note: [
         entry.note,
         entry.duplicateOf ? `duplicate_of=${entry.duplicateOf}` : null,

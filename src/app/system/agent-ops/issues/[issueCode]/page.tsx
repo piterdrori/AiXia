@@ -38,6 +38,12 @@ import {
   inspectPromptSafety,
   type OwnerDetailAction,
 } from "@/lib/agentops/findings/findingsDetailModel";
+import {
+  buildOwnerSuggestedSolution,
+  buildStructuredFixIssuePrompt,
+  isStructuredFixPrompt,
+  stagingPageUrl,
+} from "@/lib/agentops/findings/issueFixWorkflow";
 import { normalizeReportingAgent } from "@/lib/agentops/findings/reportingAgentIdentity";
 import { supabase } from "@/lib/supabase";
 
@@ -80,20 +86,21 @@ function findingsBackHref(searchParams: URLSearchParams): string {
   return query ? `/system/agent-ops/issues?${query}` : "/system/agent-ops/issues";
 }
 
-function actionLabelSafe(action: OwnerDetailAction): string {
+/** E-A6 — owner-facing labels. Workflow words stay only inside collapsed Advanced actions. */
+function advancedActionLabel(action: OwnerDetailAction): string {
   switch (action) {
     case "approve":
-      return "Approve";
+      return "Accept as real issue";
     case "defer":
-      return "Defer";
+      return "Review later";
     case "reject":
-      return "Reject";
+      return "Dismiss";
     case "needs_more_info":
       return "Needs more info";
     case "mark_duplicate":
       return "Mark duplicate";
     case "promote":
-      return "Promote to issue";
+      return "Promote approved issue";
     case "mark_fixed":
       return "Mark fixed";
     case "request_verification":
@@ -133,6 +140,10 @@ export default function AgentOpsFindingDetailPage() {
   const [duplicateOfInput, setDuplicateOfInput] = useState("");
   const [signedLinkFeedback, setSignedLinkFeedback] = useState<string | null>(null);
   const [openingSignedPath, setOpeningSignedPath] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmMarkFixed, setConfirmMarkFixed] = useState(false);
+  const [markFixedNote, setMarkFixedNote] = useState("");
+  const [handoffFeedback, setHandoffFeedback] = useState<string | null>(null);
 
   usePageTitle(
     detail?.issueCode ? `Issue ${detail.issueCode}` : detail?.title ? detail.title : "Issue",
@@ -464,7 +475,157 @@ export default function AgentOpsFindingDetailPage() {
     }
   };
 
-  const primaryActions = (detail?.validActions ?? []).filter(
+  // ── E-A6 — Fix with Cursor workflow ────────────────────────────────────────
+
+  const pageCheckedUrl = useMemo(() => stagingPageUrl(detail?.route), [detail?.route]);
+
+  const artifactNoteForPrompt =
+    detail && detail.storageArtifacts.length > 0
+      ? `Storage artifacts (owner-only signed links on the issue page): ${detail.storageArtifacts
+          .map((artifact) => artifact.path)
+          .join(", ")}`
+      : null;
+
+  const buildHandoffPrompt = useCallback((): string => {
+    const current = (editingPrompt ? promptDraft : detail?.promptText ?? "").trim();
+    if (isStructuredFixPrompt(current)) return current;
+    if (!detail) return current;
+    return buildStructuredFixIssuePrompt({
+      title: detail.title,
+      agentName,
+      agentSlug: detail.agentSlug,
+      route: detail.route,
+      module: detail.module,
+      createdAt: detail.createdAt,
+      runId: detail.runId,
+      severity: detail.severity,
+      explanation: detail.explanationDisplay,
+      evidenceSummary: detail.evidenceSummary,
+      rawObservations: detail.rawObservations,
+      artifactNote: artifactNoteForPrompt,
+      ownerNotes: current || null,
+    });
+  }, [agentName, artifactNoteForPrompt, detail, editingPrompt, promptDraft]);
+
+  const insertStructuredTemplate = () => {
+    if (!detail) return;
+    const template = buildStructuredFixIssuePrompt({
+      title: detail.title,
+      agentName,
+      agentSlug: detail.agentSlug,
+      route: detail.route,
+      module: detail.module,
+      createdAt: detail.createdAt,
+      runId: detail.runId,
+      severity: detail.severity,
+      explanation: detail.explanationDisplay,
+      evidenceSummary: detail.evidenceSummary,
+      rawObservations: detail.rawObservations,
+      artifactNote: artifactNoteForPrompt,
+      ownerNotes: (editingPrompt ? promptDraft : detail.promptText ?? "").trim() || null,
+    });
+    setPromptDraft(template);
+    setEditingPrompt(true);
+    setPromptSaveState("dirty");
+    setPromptError(null);
+    setFeedback("Structured template loaded into the editor — review and save.");
+  };
+
+  const downloadPromptFile = (text: string) => {
+    const safeCode = (detail?.issueCode ?? detail?.draftId ?? "issue").replace(
+      /[^a-zA-Z0-9_-]/g,
+      "-",
+    );
+    const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `agentops-fix-${safeCode}.md`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const canMarkFixing =
+    detail?.source === "draft" &&
+    Boolean(detail?.draftId) &&
+    detail?.ownerStatus !== "fixing" &&
+    detail?.ownerStatus !== "fixed" &&
+    detail?.ownerStatus !== "deleted";
+
+  const fixWithCursor = async () => {
+    if (!detail) return;
+    setHandoffFeedback(null);
+    const prompt = buildHandoffPrompt();
+    if (!prompt.trim()) {
+      setHandoffFeedback("No Fix Issue Prompt is available yet — edit the prompt first.");
+      return;
+    }
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(prompt);
+      copied = true;
+    } catch {
+      copied = false;
+    }
+    downloadPromptFile(prompt);
+    // Honest handoff: no direct Cursor launch exists from the browser (local bridge required).
+    if (canMarkFixing && detail.draftId) {
+      const result = await applyMonitoringDraftDecision(detail.draftId, "mark_fixing");
+      if (!result.ok) {
+        setHandoffFeedback(result.error ?? "Could not mark this issue as Fixing.");
+        return;
+      }
+      setHandoffFeedback(
+        `${copied ? "Prompt copied to clipboard and downloaded" : "Prompt file downloaded"} — open Cursor and paste this prompt. Status is now Fixing. Mark as fixed after you verify the fix on staging.`,
+      );
+      await loadDetail();
+      return;
+    }
+    setHandoffFeedback(
+      `${copied ? "Prompt copied to clipboard and downloaded" : "Prompt file downloaded"} — open Cursor and paste this prompt. Cursor works on staging only.`,
+    );
+  };
+
+  const markFixedByOwner = async () => {
+    if (!detail) return;
+    if (detail.source === "draft" && detail.draftId) {
+      await runAction("Marked as Fixed. This issue leaves the active list.", () =>
+        applyMonitoringDraftDecision(
+          detail.draftId!,
+          "mark_fixed",
+          markFixedNote.trim() || "Owner verified the fix on staging.",
+        ),
+      );
+    } else if (detail.findingId) {
+      await runAction("Marked as Fixed.", () => markAgentOpsFixed(detail.findingId!));
+    }
+    setConfirmMarkFixed(false);
+    setMarkFixedNote("");
+  };
+
+  const deleteIssueByOwner = async () => {
+    if (!detail) return;
+    if (detail.source === "draft" && detail.draftId) {
+      await runAction(
+        "Issue deleted from the active list. The record is archived for audit.",
+        () => applyMonitoringDraftDecision(detail.draftId!, "delete_issue"),
+      );
+    } else if (detail.findingId) {
+      // Promoted issue records have no separate delete — Dismiss keeps the record for audit.
+      await runAction(
+        "Promoted issue dismissed from the active list. The record is kept for audit.",
+        () =>
+          detail.ownerStatus === "needs_review"
+            ? markAgentOpsFalsePositive(detail.findingId!)
+            : rejectAgentOpsFinding(detail.findingId!),
+      );
+    }
+    setConfirmDelete(false);
+  };
+
+  const advancedActions = (detail?.validActions ?? []).filter(
     (action) =>
       !["open_agent", "chat_agent", "needs_more_info", "mark_duplicate"].includes(action),
   );
@@ -621,34 +782,91 @@ export default function AgentOpsFindingDetailPage() {
                     <dt className="text-white/45">Found</dt>
                     <dd className="text-white/85">{formatDateTime(detail.createdAt)}</dd>
                   </div>
-                  <div>
-                    <dt className="text-white/45">Source route / module</dt>
-                    <dd className="text-white/85">{detail.route ?? detail.module ?? "—"}</dd>
+                  <div data-testid="agentops-page-checked">
+                    <dt className="text-white/45">Page checked by the agent</dt>
+                    <dd className="text-white/85">
+                      {pageCheckedUrl ? (
+                        <a
+                          href={pageCheckedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="break-all text-cyan-300/90 hover:text-cyan-200"
+                        >
+                          {pageCheckedUrl}
+                        </a>
+                      ) : (
+                        detail.route ?? detail.module ?? "Route not recorded"
+                      )}
+                      {detail.module ? (
+                        <span className="block text-xs text-white/45">
+                          Module: {detail.module}
+                        </span>
+                      ) : null}
+                    </dd>
                   </div>
                   <div>
-                    <dt className="text-white/45">Source run</dt>
-                    <dd className="text-white/85">{detail.runId ?? "—"}</dd>
+                    <dt className="text-white/45">Technical source run</dt>
+                    <dd className="break-all text-white/85">{detail.runId ?? "—"}</dd>
                   </div>
                 </dl>
-                <div className="flex flex-wrap gap-2">
-                  {primaryActions.map((action) => (
-                    <AixiaButton
-                      key={action}
-                      variant={
-                        action === "approve" || action === "verify" ? "primary" : "secondary"
-                      }
-                      disabled={submitting}
-                      onClick={() => void handleOwnerAction(action)}
-                      aria-label={`${actionLabelSafe(action)} for ${detail.title}`}
-                    >
-                      {actionLabelSafe(action)}
-                    </AixiaButton>
-                  ))}
+                <div className="flex flex-wrap gap-2" data-testid="agentops-prime-actions">
+                  <AixiaButton
+                    variant="primary"
+                    disabled={submitting}
+                    onClick={() => void fixWithCursor()}
+                    data-testid="agentops-fix-with-cursor"
+                  >
+                    Fix with Cursor
+                  </AixiaButton>
+                  <AixiaButton
+                    variant="secondary"
+                    disabled={submitting || detail.ownerStatus === "deleted"}
+                    onClick={() => setConfirmDelete(true)}
+                    data-testid="agentops-delete-issue"
+                  >
+                    Delete issue
+                  </AixiaButton>
+                  <AixiaButton variant="secondary" onClick={() => navigate(backHref)}>
+                    Back to Issues
+                  </AixiaButton>
                 </div>
                 <p className="text-xs text-white/45">
-                  Approving does not change code, create PRs, deploy, or auto-fix. Promoting
-                  creates an AgentOps issue record only.
+                  Fix with Cursor uses the Fix Issue Prompt on staging only. It does not touch
+                  production.
                 </p>
+                <p className="text-xs text-white/45">
+                  Delete issue removes this issue from the active list. It does not fix code.
+                </p>
+                {handoffFeedback ? (
+                  <AixiaInfoBlock tone="cyan" title="Cursor handoff">
+                    <p className="text-sm text-white/80" data-testid="agentops-handoff-status">
+                      {handoffFeedback}
+                    </p>
+                  </AixiaInfoBlock>
+                ) : null}
+                {confirmDelete ? (
+                  <div
+                    className="space-y-2 rounded-lg border border-rose-400/30 bg-rose-500/5 p-3"
+                    data-testid="agentops-delete-confirm"
+                  >
+                    <p className="text-sm text-white/85">
+                      Delete this issue from the active list? This does not fix code. The record
+                      will be archived for audit.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <AixiaButton
+                        variant="secondary"
+                        disabled={submitting}
+                        onClick={() => void deleteIssueByOwner()}
+                      >
+                        Confirm delete
+                      </AixiaButton>
+                      <AixiaButton variant="secondary" onClick={() => setConfirmDelete(false)}>
+                        Cancel
+                      </AixiaButton>
+                    </div>
+                  </div>
+                ) : null}
               </header>
 
               <OwnerSection title="What happened" id="finding-summary">
@@ -829,30 +1047,28 @@ export default function AgentOpsFindingDetailPage() {
               )}
 
               <OwnerSection title="Suggested solution" id="finding-solution">
-                {detail.suggestedSolution || detail.likelyRootCause ? (
-                  <dl className="grid gap-3 text-sm sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <dt className="text-white/45">Recommended approach</dt>
-                      <dd className="text-white/85">
-                        {detail.suggestedSolution ?? "No suggested solution has been generated yet."}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-white/45">Likely root cause</dt>
-                      <dd className="text-white/85">{detail.likelyRootCause ?? "—"}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-white/45">Validation</dt>
-                      <dd className="text-white/85">
-                        Re-test the affected route on staging after an owner-approved fix.
-                      </dd>
-                    </div>
-                  </dl>
-                ) : (
-                  <p className="text-sm text-white/60">
-                    No suggested solution has been generated yet.
+                <p
+                  className="text-sm leading-relaxed text-white/80"
+                  data-testid="agentops-suggested-solution"
+                >
+                  {buildOwnerSuggestedSolution({
+                    suggestedSolution: detail.suggestedSolution,
+                    route: detail.route,
+                    module: detail.module,
+                    typeLabel: detail.typeLabel,
+                    hasEvidence: Boolean(
+                      detail.evidenceSummary?.trim() ||
+                        detail.storageArtifacts.length > 0 ||
+                        detail.evidenceLinks.length > 0,
+                    ),
+                    likelyShellNoise: detail.likelyShellNoise,
+                  })}
+                </p>
+                {detail.likelyRootCause ? (
+                  <p className="text-xs text-white/50">
+                    Likely root cause: {detail.likelyRootCause}
                   </p>
-                )}
+                ) : null}
               </OwnerSection>
 
               <OwnerSection title="Fix Issue Prompt" id="finding-prompt">
@@ -931,6 +1147,15 @@ export default function AgentOpsFindingDetailPage() {
                   <AixiaButton variant="secondary" onClick={() => void copyPrompt()}>
                     Copy prompt
                   </AixiaButton>
+                  {detail.canSavePrompt ? (
+                    <AixiaButton
+                      variant="secondary"
+                      onClick={insertStructuredTemplate}
+                      data-testid="agentops-structured-template"
+                    >
+                      Use structured template
+                    </AixiaButton>
+                  ) : null}
                   {detail.originalPrompt ? (
                     <>
                       <AixiaButton
@@ -962,99 +1187,210 @@ export default function AgentOpsFindingDetailPage() {
                 </p>
               </OwnerSection>
 
-              <OwnerSection title="Owner decision" id="finding-decision">
+              <OwnerSection title="Issue actions" id="finding-decision">
                 <p className="text-sm text-white/70">
                   Current status: <span className="text-white">{detail.ownerStatusLabel}</span>
                 </p>
                 <p className="text-sm text-white/60">Recommended next step: {detail.nextAction}</p>
-                <AixiaInfoBlock tone="cyan" title="Safety">
-                  Approving does not change code, create PRs, deploy, or auto-fix. Promoting creates
-                  an AgentOps issue record only. Needs more info and Mark duplicate do not delete
-                  drafts or run agents automatically.
+                <AixiaInfoBlock tone="cyan" title="How this works">
+                  Understand the issue, improve the fix prompt, then Fix with Cursor. Cursor works
+                  on staging only. After you verify the fix, mark the issue as Fixed. Delete issue
+                  removes it from the active list without fixing code.
                 </AixiaInfoBlock>
-                <ul className="space-y-3">
-                  {primaryActions.map((action) => {
-                    const meta = detail.actionMeta.find((item) => item.id === action);
-                    return (
-                      <li key={action} className="rounded-lg border border-white/10 p-3">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-sm font-medium text-white">{meta?.label ?? action}</p>
-                          <AixiaButton
-                            variant="secondary"
-                            disabled={submitting}
-                            onClick={() => void handleOwnerAction(action)}
-                          >
-                            {meta?.label ?? action}
-                          </AixiaButton>
-                        </div>
-                        <p className="mt-2 text-xs text-white/50">{meta?.help}</p>
-                      </li>
-                    );
-                  })}
-                </ul>
-                {hasNeedsMoreInfo ? (
-                  <div
-                    className="space-y-2 rounded-lg border border-white/10 p-3"
-                    data-testid="agentops-needs-more-info"
+                <div className="flex flex-wrap gap-2">
+                  <AixiaButton
+                    variant="primary"
+                    disabled={submitting}
+                    onClick={() => void fixWithCursor()}
                   >
-                    <p className="text-sm font-medium text-white">Needs more info</p>
-                    <p className="text-xs text-white/50">
-                      Keeps the issue open but moves it out of the normal approve queue. Follow-up
-                      agent execution is not automatic yet.
+                    Fix with Cursor
+                  </AixiaButton>
+                  <AixiaButton
+                    variant="secondary"
+                    disabled={submitting || detail.ownerStatus === "deleted"}
+                    onClick={() => setConfirmDelete(true)}
+                  >
+                    Delete issue
+                  </AixiaButton>
+                  {detail.ownerStatus === "fixing" ||
+                  (detail.source === "draft" &&
+                    detail.ownerStatus !== "fixed" &&
+                    detail.ownerStatus !== "deleted") ||
+                  (detail.source === "finding" &&
+                    (detail.ownerStatus === "active" || detail.ownerStatus === "in_progress")) ? (
+                    <AixiaButton
+                      variant="secondary"
+                      disabled={submitting}
+                      onClick={() => setConfirmMarkFixed(true)}
+                      data-testid="agentops-mark-as-fixed"
+                    >
+                      Mark as fixed
+                    </AixiaButton>
+                  ) : null}
+                  <AixiaButton variant="secondary" onClick={() => void copyPrompt()}>
+                    Copy fix prompt
+                  </AixiaButton>
+                  <AixiaButton variant="secondary" onClick={() => navigate(backHref)}>
+                    Back to Issues
+                  </AixiaButton>
+                </div>
+                {confirmMarkFixed ? (
+                  <div
+                    className="space-y-2 rounded-lg border border-emerald-400/30 bg-emerald-500/5 p-3"
+                    data-testid="agentops-mark-fixed-confirm"
+                  >
+                    <p className="text-sm text-white/85">
+                      Mark this issue as Fixed? Do this only after you verified the fix on staging.
+                      The issue leaves the active list; the record is kept.
                     </p>
                     <label className="block space-y-1 text-sm">
-                      <span className="text-white/55">What information do you need?</span>
+                      <span className="text-white/55">Optional note / evidence</span>
                       <textarea
-                        className="min-h-[80px] w-full rounded-lg border border-white/10 bg-black/30 p-2 text-sm text-white/90"
-                        value={needsMoreInfoNote}
-                        onChange={(event) => setNeedsMoreInfoNote(event.target.value)}
-                        placeholder="Example: Need a screenshot of the failing console error and the exact route steps."
+                        className="min-h-[60px] w-full rounded-lg border border-white/10 bg-black/30 p-2 text-sm text-white/90"
+                        value={markFixedNote}
+                        onChange={(event) => setMarkFixedNote(event.target.value)}
+                        placeholder="Example: Verified on staging — issue no longer reproduces after commit abc1234."
                       />
                     </label>
-                    <AixiaButton
-                      variant="secondary"
-                      disabled={submitting}
-                      onClick={() => void handleOwnerAction("needs_more_info")}
-                    >
-                      Mark needs more info
-                    </AixiaButton>
+                    <div className="flex flex-wrap gap-2">
+                      <AixiaButton
+                        variant="primary"
+                        disabled={submitting}
+                        onClick={() => void markFixedByOwner()}
+                      >
+                        Confirm mark as fixed
+                      </AixiaButton>
+                      <AixiaButton
+                        variant="secondary"
+                        onClick={() => setConfirmMarkFixed(false)}
+                      >
+                        Cancel
+                      </AixiaButton>
+                    </div>
                   </div>
                 ) : null}
-                {hasMarkDuplicate ? (
-                  <div
-                    className="space-y-2 rounded-lg border border-white/10 p-3"
-                    data-testid="agentops-mark-duplicate"
-                  >
-                    <p className="text-sm font-medium text-white">Mark duplicate</p>
-                    <p className="text-xs text-white/50">
-                      Links this draft to another existing draft. Neither row is deleted.
-                    </p>
-                    <label className="block space-y-1 text-sm">
-                      <span className="text-white/55">Duplicate target draft id</span>
-                      <input
-                        className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/90"
-                        value={duplicateOfInput}
-                        onChange={(event) => setDuplicateOfInput(event.target.value)}
-                        placeholder="draft-<uuid> or <uuid>"
-                      />
-                    </label>
-                    <AixiaButton
-                      variant="secondary"
-                      disabled={submitting}
-                      onClick={() => void handleOwnerAction("mark_duplicate")}
-                    >
-                      Mark duplicate
-                    </AixiaButton>
-                  </div>
-                ) : null}
-                {primaryActions.length === 0 && !hasNeedsMoreInfo && !hasMarkDuplicate ? (
-                  <p className="text-sm text-white/55">No lifecycle actions are available right now.</p>
-                ) : null}
+
+                <AgentOpsAdvancedDisclosure title="Advanced actions">
+                  <p className="mb-3 text-xs text-white/50">
+                    Workflow controls for special cases. The normal owner path is: understand →
+                    improve prompt → Fix with Cursor → verify → Fixed.
+                  </p>
+                  <ul className="space-y-3" data-testid="agentops-advanced-actions">
+                    {advancedActions.map((action) => {
+                      const meta = detail.actionMeta.find((item) => item.id === action);
+                      return (
+                        <li key={action} className="rounded-lg border border-white/10 p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-white">
+                              {advancedActionLabel(action)}
+                            </p>
+                            <AixiaButton
+                              variant="secondary"
+                              disabled={submitting}
+                              onClick={() => void handleOwnerAction(action)}
+                            >
+                              {advancedActionLabel(action)}
+                            </AixiaButton>
+                          </div>
+                          <p className="mt-2 text-xs text-white/50">{meta?.help}</p>
+                        </li>
+                      );
+                    })}
+                    {hasNeedsMoreInfo ? (
+                      <li
+                        className="space-y-2 rounded-lg border border-white/10 p-3"
+                        data-testid="agentops-needs-more-info"
+                      >
+                        <p className="text-sm font-medium text-white">Needs more info</p>
+                        <p className="text-xs text-white/50">
+                          Keeps the issue open but moves it out of the normal review queue.
+                          Follow-up agent execution is not automatic yet.
+                        </p>
+                        <label className="block space-y-1 text-sm">
+                          <span className="text-white/55">What information do you need?</span>
+                          <textarea
+                            className="min-h-[80px] w-full rounded-lg border border-white/10 bg-black/30 p-2 text-sm text-white/90"
+                            value={needsMoreInfoNote}
+                            onChange={(event) => setNeedsMoreInfoNote(event.target.value)}
+                            placeholder="Example: Need a screenshot of the failing console error and the exact route steps."
+                          />
+                        </label>
+                        <AixiaButton
+                          variant="secondary"
+                          disabled={submitting}
+                          onClick={() => void handleOwnerAction("needs_more_info")}
+                        >
+                          Mark needs more info
+                        </AixiaButton>
+                      </li>
+                    ) : null}
+                    {hasMarkDuplicate ? (
+                      <li
+                        className="space-y-2 rounded-lg border border-white/10 p-3"
+                        data-testid="agentops-mark-duplicate"
+                      >
+                        <p className="text-sm font-medium text-white">Mark duplicate</p>
+                        <p className="text-xs text-white/50">
+                          Use this only when two issue records describe the same problem. Neither
+                          row is deleted.
+                        </p>
+                        <label className="block space-y-1 text-sm">
+                          <span className="text-white/55">Duplicate target draft id</span>
+                          <input
+                            className="w-full rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm text-white/90"
+                            value={duplicateOfInput}
+                            onChange={(event) => setDuplicateOfInput(event.target.value)}
+                            placeholder="draft-<uuid> or <uuid>"
+                          />
+                        </label>
+                        <AixiaButton
+                          variant="secondary"
+                          disabled={submitting}
+                          onClick={() => void handleOwnerAction("mark_duplicate")}
+                        >
+                          Mark duplicate
+                        </AixiaButton>
+                      </li>
+                    ) : null}
+                    {advancedActions.length === 0 && !hasNeedsMoreInfo && !hasMarkDuplicate ? (
+                      <li className="text-sm text-white/55">
+                        No workflow actions are available for this status.
+                      </li>
+                    ) : null}
+                  </ul>
+                </AgentOpsAdvancedDisclosure>
               </OwnerSection>
 
-              <OwnerSection title="History" id="finding-history">
+              <OwnerSection title="Activity log" id="finding-history">
+                <p className="text-xs text-white/50">
+                  Records what happened to this issue: when it was created, prompt changes, owner
+                  actions, and fix status.
+                </p>
                 {detail.history.length === 0 ? (
-                  <p className="text-sm text-white/60">No history recorded yet.</p>
+                  <p className="text-sm text-white/60">No activity recorded yet.</p>
+                ) : detail.history.length > 6 ? (
+                  <details className="rounded-lg border border-white/10 p-3">
+                    <summary className="cursor-pointer text-sm text-white/70">
+                      Show {detail.history.length} activity entries
+                    </summary>
+                    <ul className="mt-2 divide-y divide-white/10">
+                      {detail.history.map((item) => (
+                        <li
+                          key={item.id}
+                          className="flex flex-wrap items-baseline justify-between gap-2 py-3 text-sm"
+                        >
+                          <div>
+                            <p className="text-white/85">{item.label}</p>
+                            <p className="text-xs text-white/45">
+                              {item.actor}
+                              {item.note ? ` · ${item.note}` : ""}
+                            </p>
+                          </div>
+                          <time className="text-white/45">{formatDateTime(item.at)}</time>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
                 ) : (
                   <ul className="divide-y divide-white/10">
                     {detail.history.map((item) => (

@@ -52,6 +52,10 @@ const EMPTY_COPY: Record<FindingsTabId, { title: string; description: string }> 
     title: "No items are waiting for verification.",
     description: "Fixed items awaiting owner or agent verification land here.",
   },
+  fixing: {
+    title: "No issues are being fixed right now.",
+    description: "Issues you send to Cursor with Fix with Cursor appear here until verified.",
+  },
   fixed: {
     title: "No fixed issues yet.",
     description: "Fixed and verified issues will appear in this tab.",
@@ -71,6 +75,10 @@ const EMPTY_COPY: Record<FindingsTabId, { title: string; description: string }> 
   rejected: {
     title: "No rejected issues.",
     description: "Rejected issues remain visible for audit.",
+  },
+  deleted: {
+    title: "No deleted issues.",
+    description: "Issues you delete stay here for audit. Nothing is hard-deleted.",
   },
   all: {
     title: "No issues are available.",

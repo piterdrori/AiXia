@@ -62,17 +62,22 @@ function verifyRoutesAndCopy(): void {
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Fix Issue Prompt");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "AgentOpsFindingChatCard");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "saveMonitoringDraftFixPrompt");
+  // E-A6 — prime actions are Fix with Cursor + Delete issue; workflow words live in Advanced.
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Fix with Cursor");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Delete issue");
   mustInclude(
     "src/app/system/agent-ops/issues/[issueCode]/page.tsx",
-    "Approving does not change code",
+    "Fix with Cursor uses the Fix Issue Prompt on staging only",
   );
-  // Detail page keeps full decision workflow
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Approve"');
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Defer"');
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Reject"');
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Promote to issue"');
+  // Detail page keeps the full decision workflow in collapsed Advanced actions
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Accept as real issue"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Review later"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Dismiss"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Promote approved issue"');
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Needs more info");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Mark duplicate");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Activity log");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Page checked by the agent");
 }
 
 function verifyAuthHardening(): void {

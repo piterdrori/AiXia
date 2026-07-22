@@ -1238,6 +1238,9 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
     "deferred",
     "needs_more_info",
     "mark_duplicate",
+    "mark_fixing",
+    "mark_fixed",
+    "delete_issue",
   ];
   if (!allowedDecisions.includes(decision)) {
     return jsonResponse({ ok: false, error: "Invalid decision." }, 400);
@@ -1297,6 +1300,22 @@ export async function handleMonitoringDraftDecisionRequest(request: Request): Pr
     ownerDecisionKind = "marked_duplicate";
     duplicateOf = targetId;
     message = `Marked duplicate of draft ${targetId}. Original rows are retained.`;
+  } else if (decision === "mark_fixing") {
+    // E-A6 — owner sent the Fix Issue Prompt to Cursor. Staging-only; nothing auto-executes.
+    nextStatus = "deferred";
+    ownerDecisionKind = "fixing";
+    message =
+      "Marked as Fixing. Cursor works on staging only — mark as Fixed after you verify the fix.";
+  } else if (decision === "mark_fixed") {
+    nextStatus = "deferred";
+    ownerDecisionKind = "fixed_by_owner";
+    message = "Marked as Fixed after owner verification. The record is kept for audit.";
+  } else if (decision === "delete_issue") {
+    // Soft delete: DB status rejected + deleted_by_owner overlay. No rows are hard-deleted.
+    nextStatus = "rejected";
+    ownerDecisionKind = "deleted_by_owner";
+    message =
+      "Issue deleted from the active list. No code was changed and the record is archived for audit.";
   } else if (decision === "deferred") {
     ownerDecisionKind = "deferred";
   } else if (decision === "owner_approved" || decision === "rejected") {

@@ -10,6 +10,7 @@ export type OwnerFindingStatus =
   | "approved"
   | "active"
   | "in_progress"
+  | "fixing"
   | "fixed"
   | "waiting_for_verification"
   | "verified"
@@ -17,6 +18,7 @@ export type OwnerFindingStatus =
   | "needs_more_info"
   | "rejected"
   | "duplicate"
+  | "deleted"
   | "archived"
   | "unknown";
 
@@ -26,11 +28,13 @@ export type FindingsTabId =
   | "improvements"
   | "new-features"
   | "verification"
+  | "fixing"
   | "fixed"
   | "deferred"
   | "needs-more-info"
   | "rejected"
   | "duplicates"
+  | "deleted"
   | "all";
 
 export const FINDINGS_TABS: Array<{ id: FindingsTabId; label: string }> = [
@@ -39,11 +43,13 @@ export const FINDINGS_TABS: Array<{ id: FindingsTabId; label: string }> = [
   { id: "improvements", label: "Improvements" },
   { id: "new-features", label: "New features" },
   { id: "verification", label: "Verification" },
+  { id: "fixing", label: "Fixing" },
   { id: "fixed", label: "Fixed" },
   { id: "needs-more-info", label: "Needs more info" },
   { id: "deferred", label: "Deferred" },
   { id: "duplicates", label: "Duplicates" },
   { id: "rejected", label: "Rejected" },
+  { id: "deleted", label: "Deleted" },
   { id: "all", label: "All" },
 ];
 
@@ -52,6 +58,7 @@ export const OWNER_FINDING_STATUS_LABEL: Record<OwnerFindingStatus, string> = {
   approved: "Approved",
   active: "Active",
   in_progress: "In progress",
+  fixing: "Fixing",
   fixed: "Fixed",
   waiting_for_verification: "Waiting for verification",
   verified: "Verified",
@@ -59,6 +66,7 @@ export const OWNER_FINDING_STATUS_LABEL: Record<OwnerFindingStatus, string> = {
   needs_more_info: "Needs more info",
   rejected: "Rejected",
   duplicate: "Marked duplicate",
+  deleted: "Deleted",
   archived: "Archived",
   unknown: "Unknown",
 };
@@ -226,14 +234,16 @@ export function nextOwnerActionFor(
   status: OwnerFindingStatus,
   source: CanonicalFindingSource,
 ): string {
-  if (status === "needs_review") return "Approve, defer, reject, ask for more info, or mark duplicate.";
+  if (status === "needs_review") return "Open the issue, improve the fix prompt, then Fix with Cursor or Delete issue.";
   if (status === "approved" && source === "draft") return "Promote to an active issue when ready.";
   if (status === "waiting_for_verification") return "Review verification evidence.";
+  if (status === "fixing") return "Cursor fix in progress. Mark as fixed after you verify on staging.";
   if (status === "verified" || status === "fixed") return "Open finding for history.";
   if (status === "needs_more_info") return "Waiting for clearer evidence or explanation.";
   if (status === "deferred") return "Re-open later if still relevant.";
   if (status === "duplicate") return "Linked as a duplicate — no separate promote.";
   if (status === "rejected") return "No action required.";
+  if (status === "deleted") return "Deleted by owner. Record kept for audit.";
   if (status === "active" || status === "in_progress" || status === "approved") {
     return "Open issue to continue work.";
   }
@@ -326,7 +336,7 @@ export function dedupeCanonicalFindings(items: CanonicalFindingView[]): Canonica
 }
 
 export function isNonRejected(status: OwnerFindingStatus): boolean {
-  return status !== "rejected" && status !== "duplicate";
+  return status !== "rejected" && status !== "duplicate" && status !== "deleted";
 }
 
 export function findingMatchesTab(item: CanonicalFindingView, tab: FindingsTabId): boolean {
@@ -346,6 +356,8 @@ export function findingMatchesTab(item: CanonicalFindingView, tab: FindingsTabId
       return item.type === "feature" && isNonRejected(item.ownerStatus);
     case "verification":
       return item.ownerStatus === "waiting_for_verification";
+    case "fixing":
+      return item.ownerStatus === "fixing";
     case "fixed":
       return item.ownerStatus === "fixed" || item.ownerStatus === "verified";
     case "deferred":
@@ -356,8 +368,11 @@ export function findingMatchesTab(item: CanonicalFindingView, tab: FindingsTabId
       return item.ownerStatus === "duplicate";
     case "rejected":
       return item.ownerStatus === "rejected";
+    case "deleted":
+      return item.ownerStatus === "deleted";
     case "all":
-      return true;
+      // Deleted issues stay out of All by default — they live in the Deleted tab for audit.
+      return item.ownerStatus !== "deleted";
     default:
       return false;
   }

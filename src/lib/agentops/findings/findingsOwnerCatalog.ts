@@ -76,7 +76,10 @@ export type MonitoringDraftOwnerDecision =
   | "rejected"
   | "deferred"
   | "needs_more_info"
-  | "mark_duplicate";
+  | "mark_duplicate"
+  | "mark_fixing"
+  | "mark_fixed"
+  | "delete_issue";
 
 export type FindingsCatalogLoadResult = {
   items: CanonicalFindingView[];
@@ -139,7 +142,11 @@ export function mapDraftToCanonical(draft: MonitoringDraftApiRow): CanonicalFind
   const mapped = mapDraftStatusWithEvidence(draft.status, draft.evidence ?? {});
   if (mapped === "superseded") return null;
   const ownerStatusOverride =
-    mapped === "needs_more_info" || mapped === "duplicate"
+    mapped === "needs_more_info" ||
+    mapped === "duplicate" ||
+    mapped === "fixing" ||
+    mapped === "fixed" ||
+    mapped === "deleted"
       ? (mapped as OwnerFindingStatus)
       : null;
   return toCanonicalFindingView({

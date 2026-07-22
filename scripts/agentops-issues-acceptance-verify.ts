@@ -62,10 +62,14 @@ function main(): void {
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Fix Issue Prompt");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "AgentOpsFindingChatCard");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'data-testid="agentops-issue-header-meta"');
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Approve"');
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Defer"');
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Reject"');
-  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Promote to issue"');
+  // E-A6 — prime actions replaced; workflow decisions live in collapsed Advanced actions.
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Fix with Cursor");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Delete issue");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Mark as fixed");
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Accept as real issue"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Review later"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Dismiss"');
+  mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", 'return "Promote approved issue"');
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Needs more info");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Mark duplicate");
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Open signed link");
@@ -75,7 +79,7 @@ function main(): void {
   );
   mustInclude(
     "src/app/system/agent-ops/issues/[issueCode]/page.tsx",
-    "Approving does not change code",
+    "Fix with Cursor uses the Fix Issue Prompt on staging only",
   );
   mustInclude("src/components/agentops/owner/AgentOpsPageHeader.tsx", 'data-testid="agentops-page-h1"');
   mustInclude("src/app/system/agent-ops/issues/[issueCode]/page.tsx", "Loading issue…");

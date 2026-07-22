@@ -33,7 +33,12 @@ export type LoadAgentSeedMemoryParams = {
 };
 
 const QA_AGENT_MEMORY_GLOB = import.meta.glob<string>(
-  ["../../../qa-agent/agent-memory/*.memory.md", "../../../qa-agent/agents/*/memory.md"],
+  [
+    "../../../qa-agent/agent-memory/*.memory.md",
+    "../../../qa-agent/agents/*/memory.md",
+    "../../../qa-agent/agentops-agents/*/memory.md",
+    "../../../qa-agent/agentops-agents/*/job.md",
+  ],
   { eager: true, query: "?raw", import: "default" },
 );
 
@@ -264,7 +269,15 @@ function parseCanonicalRoleSeed(canonicalId: string, agentKey: string, seen: Set
 function readAgentMemoryFile(agentKey: string): string | null {
   const legacyPath = `../../../qa-agent/agent-memory/${agentKey}.memory.md`;
   const folderPath = `../../../qa-agent/agents/${agentKey}/memory.md`;
-  return QA_AGENT_MEMORY_GLOB[legacyPath] ?? QA_AGENT_MEMORY_GLOB[folderPath] ?? null;
+  const agentOpsPath = `../../../qa-agent/agentops-agents/${agentKey}/memory.md`;
+  const agentOpsJobPath = `../../../qa-agent/agentops-agents/${agentKey}/job.md`;
+  const memory =
+    QA_AGENT_MEMORY_GLOB[legacyPath] ??
+    QA_AGENT_MEMORY_GLOB[folderPath] ??
+    QA_AGENT_MEMORY_GLOB[agentOpsPath] ??
+    null;
+  if (memory) return memory;
+  return QA_AGENT_MEMORY_GLOB[agentOpsJobPath] ?? null;
 }
 
 function resolveAgentSeedKey(params: LoadAgentSeedMemoryParams): string | null {

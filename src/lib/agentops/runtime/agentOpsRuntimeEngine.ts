@@ -80,6 +80,7 @@ import {
 } from "./agentOpsMonitoringRuntimeConfig";
 
 import { scanStagingWebsite, type StagingScanFinding } from "./scanStagingWebsite";
+import { buildAgentScanMemoryProposal } from "./agentScanMemoryProposal";
 import { resolveScopedRoutes } from "./stagingScanTypes";
 
 
@@ -635,7 +636,12 @@ export async function runAgentCycle(
 
   }
 
-
+  const memoryProposal = buildAgentScanMemoryProposal({
+    agentSlug,
+    findings,
+  });
+  // Proposal only — owner/Hermes approval required before durable memory writes.
+  void memoryProposal;
 
   for (const finding of findings) {
 

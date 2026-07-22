@@ -317,7 +317,7 @@ async function main(): Promise<void> {
   try {
     const agent = buildScanAgent(agentSlug, runtimeAgentId, routes);
     findings = await scanStagingWebsite(agent, guard.normalizedUrl, {
-      maxRoutes: Math.min(3, routes.length || 1),
+      maxRoutes: Math.max(routes.length || 1, 1),
       pageTimeoutMs: 10_000,
       screenshotDir: join(process.cwd(), "qa-agent", "reports", "runtime-scans", "manual-b2c"),
       cancelCheck,

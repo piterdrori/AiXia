@@ -106,12 +106,7 @@ export function validateAgentManualRunRequest(
   if (scopeRaw.type === "selected_modules" && (!modules || modules.length === 0)) {
     return { ok: false, error: "selected_modules scope requires at least one module." };
   }
-  if (body.workType === "browser_qa" && scopeRaw.type === "entire_staging") {
-    return {
-      ok: false,
-      error: "Browser QA requires a limited route/module scope for Fix B.",
-    };
-  }
+  // Role-first: browser_qa may use entire_staging.
 
   const maxDurationMinutes = Number(body.maxDurationMinutes);
   if (

@@ -568,17 +568,11 @@ export async function acknowledgeWorkerHealthAlert(alertType: string): Promise<{
 }
 
 export function defaultScopeForWorkType(
-  workType: AgentManualWorkType,
-  agentSlug?: string,
+  _workType: AgentManualWorkType,
+  _agentSlug?: string,
 ): AgentManualRunRequest["scope"] {
-  if (workType === "browser_qa") {
-    return { type: "selected_routes", routes: ["/system/agent-ops"] };
-  }
-  const slug = (agentSlug || "system-agent").trim().toLowerCase() || "system-agent";
-  return {
-    type: "selected_routes",
-    routes: [`/system/agent-ops/agents/${slug}`],
-  };
+  // Role-first: every agent scans the full staging website by default.
+  return { type: "entire_staging" };
 }
 
 export function formatManualRunResultBanner(result: AgentManualRunResult): string {

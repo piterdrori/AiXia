@@ -10,6 +10,8 @@ import {
 
 const SHELL_PROBE_RE =
   /\/(calendar_events|calendar\/events|tasks|api\/tasks|api\/calendar)/i;
+const AGENTOPS_COUNT_HEAD_RE =
+  /\/rest\/v1\/agentops_(findings|verifications)/i;
 const ABORT_RE = /abort|net::err_aborted|cancelled|canceled/i;
 
 export type DraftNoiseView = {
@@ -103,6 +105,60 @@ export function classifyLikelyShellNoiseDraft(input: {
         "Known app-shell calendar/tasks abort pattern on AgentOps route — likely not a product defect.",
       badgeLabel: "Likely shell noise",
     };
+  }
+
+  if (
+    onAgentOps &&
+    AGENTOPS_COUNT_HEAD_RE.test(blob) &&
+    ABORT_RE.test(blob) &&
+    /failed or errored network|network request/i.test(
+      `${input.title ?? ""} ${input.summary ?? ""}`,
+    )
+  ) {
+    return {
+      likelyShellNoise: true,
+      reason:
+        "Known AgentOps dashboard HEAD count abort pattern — likely page-settle noise, not a product HTTP failure.",
+      badgeLabel: "Likely shell noise",
+    };
+  }
+
+  // Legacy website-audit slow-load: wall clock included networkidle settle (~2.5s),
+  // which falsely tripped the 3s threshold on AgentOps SPA routes.
+  const titleSummary = `${input.title ?? ""} ${input.summary ?? ""}`;
+  const slowLoadMatch = /slow page load detected\s*\((\d+)\s*ms\)/i.exec(titleSummary);
+  if (onAgentOps && slowLoadMatch) {
+    const reportedMs = Number(slowLoadMatch[1]);
+    const evidenceBag = input.evidence ?? {};
+    const bqaBag = input.browserQaEvidence ?? {};
+    const measurement =
+      (typeof evidenceBag.measurement === "string" && evidenceBag.measurement) ||
+      (typeof bqaBag.measurement === "string" && bqaBag.measurement) ||
+      null;
+    const navigationMsRaw = evidenceBag.navigation_ms ?? bqaBag.navigation_ms;
+    const navigationMs =
+      typeof navigationMsRaw === "number" ? navigationMsRaw : Number(navigationMsRaw);
+    // Old findings lack measurement/navigation_ms; those used settle-inflated wall clock.
+    if (!measurement || measurement !== "domcontentloaded") {
+      return {
+        likelyShellNoise: true,
+        reason:
+          "Likely website-audit scanner noise: unauthenticated scan timed Sign In SPA bootstrap and/or included networkidle settle wait — not an Agent Detail product defect.",
+        badgeLabel: "Likely scanner noise",
+      };
+    }
+    if (
+      Number.isFinite(navigationMs) &&
+      Number.isFinite(reportedMs) &&
+      reportedMs > navigationMs + 1000
+    ) {
+      return {
+        likelyShellNoise: true,
+        reason:
+          "Reported slow-load wall clock exceeds navigation time - settle wait inflation, not product navigation defect.",
+        badgeLabel: "Likely scanner noise",
+      };
+    }
   }
 
   return { likelyShellNoise: false, reason: null, badgeLabel: null };

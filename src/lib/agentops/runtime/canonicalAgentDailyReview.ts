@@ -1,11 +1,14 @@
 /**
  * Phase 5H — canonical 12-agent daily website review registry (code source of truth).
+ * Role-first: every agent reviews the full site; profiles define skills only (not route subsets).
  */
 
 import { AGENT_IDENTITY_DEFINITIONS } from "../agents/agentIdentityDefinitions";
 import { AGENT_HUMAN_ROLE, AGENT_RESPONSIBILITY_SUMMARY } from "../agents/productAgentDisplay";
 import { getBrowserQaPerspective } from "../browserQa/browserQaAgentPerspective";
 import { CANONICAL_AGENTS, EXPECTED_AGENT_COUNT } from "../canonicalAgents";
+import { FULL_SITE_ROUTE_INVENTORY } from "./fullSiteRouteInventory";
+import { getAgentRoleDetectorPack } from "./agentRoleDetectors";
 
 export const AGENT_USERNAME_PREFIX = "@aixia.";
 
@@ -19,6 +22,7 @@ export type CanonicalAgentDailyReviewProfile = {
   jobDescription: string;
   primaryResponsibility: string;
   secondaryResponsibility: string;
+  /** @deprecated Role-first: always full site. Kept for API compatibility. */
   routeModules: string[];
   errorCategories: string[];
   improvementCategories: string[];
@@ -26,30 +30,6 @@ export type CanonicalAgentDailyReviewProfile = {
   perspectiveTitle: string;
   forbiddenActions: string[];
 };
-
-const MODULE_ROUTES: Record<string, string[]> = {
-  "agent-ops": [
-    "/system/agent-ops",
-    "/system/agent-ops/agents",
-    "/system/agent-ops/issues",
-    "/system/agent-ops/tools",
-    "/system/agent-ops/memory",
-  ],
-  finance: ["/finance/transactions", "/finance/master-data", "/finance/reports"],
-  dashboard: ["/dashboard"],
-  calendar: ["/calendar"],
-  projects: ["/projects"],
-  tasks: ["/tasks"],
-};
-
-function buildUsername(slug: string): string {
-  return `${AGENT_USERNAME_PREFIX}${slug}`;
-}
-
-function routesForModules(modules: string[]): string[] {
-  const routes = modules.flatMap((module) => MODULE_ROUTES[module] ?? []);
-  return [...new Set(routes)];
-}
 
 const FEATURE_CAPABLE_AGENTS = new Set([
   "evolution-agent",
@@ -59,9 +39,14 @@ const FEATURE_CAPABLE_AGENTS = new Set([
   "issue-agent",
 ]);
 
-function buildProfile(slug: string, modules: string[]): CanonicalAgentDailyReviewProfile {
+function buildUsername(slug: string): string {
+  return `${AGENT_USERNAME_PREFIX}${slug}`;
+}
+
+function buildProfile(slug: string): CanonicalAgentDailyReviewProfile {
   const identity = AGENT_IDENTITY_DEFINITIONS[slug];
   const perspective = getBrowserQaPerspective(slug);
+  const pack = getAgentRoleDetectorPack(slug);
   return {
     agentSlug: slug,
     displayName: identity?.displayName ?? slug,
@@ -70,49 +55,32 @@ function buildProfile(slug: string, modules: string[]): CanonicalAgentDailyRevie
     jobDescription: identity?.mission ?? AGENT_RESPONSIBILITY_SUMMARY[slug] ?? "",
     primaryResponsibility: identity?.responsibilities[0] ?? perspective.findingLens,
     secondaryResponsibility: identity?.responsibilities[1] ?? perspective.improvementLens,
-    routeModules: modules,
-    errorCategories: [
-      "broken_functionality",
-      "regression",
-      "navigation_failure",
-      "accessibility_failure",
-      "performance_problem",
-      "content_error",
-      "state_integrity",
-      "configuration_risk",
-    ],
-    improvementCategories: perspective.focusAreas,
+    routeModules: ["full-site"],
+    errorCategories: [...pack.ownedCategories],
+    improvementCategories: [...pack.improvementKinds],
     canProposeFeatures: FEATURE_CAPABLE_AGENTS.has(slug),
     perspectiveTitle: perspective.title,
     forbiddenActions: identity?.forbiddenActions ?? [],
   };
 }
 
-const AGENT_MODULE_MAP: Record<string, string[]> = {
-  "system-agent": ["agent-ops", "dashboard"],
-  "memory-agent": ["agent-ops"],
-  "issue-agent": ["agent-ops"],
-  "evolution-agent": ["agent-ops", "finance", "dashboard"],
-  "fix-agent": ["agent-ops", "finance"],
-  "qa-agent": ["agent-ops", "finance", "dashboard", "calendar", "projects", "tasks"],
-  "design-agent": ["agent-ops", "finance", "dashboard"],
-  "runtime-agent": ["agent-ops"],
-  "logs-agent": ["agent-ops"],
-  "config-agent": ["agent-ops", "finance"],
-  "chat-agent": ["agent-ops", "dashboard"],
-  "analytics-agent": ["agent-ops", "finance", "dashboard"],
-};
-
 export const CANONICAL_DAILY_REVIEW_PROFILES: CanonicalAgentDailyReviewProfile[] = CANONICAL_AGENTS.map(
-  (agent) => buildProfile(agent.id, AGENT_MODULE_MAP[agent.id] ?? ["agent-ops"]),
+  (agent) => buildProfile(agent.id),
 );
 
 export function getCanonicalDailyReviewProfile(slug: string): CanonicalAgentDailyReviewProfile | null {
   return CANONICAL_DAILY_REVIEW_PROFILES.find((profile) => profile.agentSlug === slug) ?? null;
 }
 
-export function routesForDailyReviewProfile(profile: CanonicalAgentDailyReviewProfile): string[] {
-  return routesForModules(profile.routeModules);
+/** Role-first: every agent gets the same full-site inventory. */
+export function routesForDailyReviewProfile(
+  _profile: CanonicalAgentDailyReviewProfile,
+): string[] {
+  return [...FULL_SITE_ROUTE_INVENTORY];
+}
+
+export function routesForModules(_modules: string[]): string[] {
+  return [...FULL_SITE_ROUTE_INVENTORY];
 }
 
 export function canonicalAgentUsernameToolTag(username: string): string {
@@ -162,4 +130,11 @@ export function validateCanonicalDailyReviewRegistry(): DailyRegistryValidationR
 
   if (errors.length > 0) return { ok: false, errors };
   return { ok: true, profiles: CANONICAL_DAILY_REVIEW_PROFILES };
+}
+
+export function assertCanonicalDailyReviewCount(): void {
+  const result = validateCanonicalDailyReviewRegistry();
+  if (!result.ok) {
+    throw new Error(result.errors.join("; "));
+  }
 }

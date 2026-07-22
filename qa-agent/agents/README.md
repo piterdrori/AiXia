@@ -1,8 +1,17 @@
 # AgentOps per-agent folders
 
-Each synthetic QA agent has an isolated folder under `qa-agent/agents/{agentId}/`.
+## Two different trees
 
-## Layout
+| Path | Meaning |
+|------|---------|
+| `qa-agent/agentops-agents/{slug}/` | **Canonical AgentOps agents** (`design-agent`, `qa-agent`, …) — role-first full-site specialists |
+| `qa-agent/agents/{agentId}/` | **Synthetic Browser QA personas** (`finance-admin`, `platform-admin`, …) |
+
+Do not treat persona folders as the 12 AgentOps employees.
+
+## Synthetic persona layout
+
+Each synthetic QA agent has an isolated folder under `qa-agent/agents/{agentId}/`.
 
 ```
 qa-agent/agents/{agentId}/
@@ -14,9 +23,9 @@ qa-agent/agents/{agentId}/
 
 ## Rules
 
-- Agent IDs match `qa-agent/browser-qa/synthetic-browser-users.json`.
-- Runtime prompts load from `manifest.json` via `src/lib/agentops/agentIdentityLoader.ts`.
-- Memory writes always require Piter Yes/No approval and are scoped to one `agentId`.
-- Creative proposals are owner-reviewed metadata only — no auto-issue creation.
+- Persona Agent IDs match `qa-agent/browser-qa/synthetic-browser-users.json`.
+- Runtime prompts for personas load from `manifest.json` via `src/lib/agentops/agentIdentityLoader.ts`.
+- Canonical AgentOps agents use `qa-agent/agentops-agents/` + `agentIdentityDefinitions.ts` + Hermes `agentops.agent.{slug}`.
+- Memory writes always require Piter Yes/No approval and are scoped to one agent id.
 
 Legacy flat files in `qa-agent/agent-memory/` remain during transition.

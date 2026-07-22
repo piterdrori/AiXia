@@ -1,0 +1,192 @@
+/**
+ * Full staging website route inventory for AgentOps role-first scans.
+ * Harvested from src/App.tsx static paths (param routes excluded; expanded via link crawl).
+ * Every canonical agent uses this same inventory — no per-agent route subsets.
+ */
+
+export const FULL_SITE_ROUTE_INVENTORY: readonly string[] = [
+  "/ai-management",
+  "/ai-management/activity",
+  "/ai-management/animation",
+  "/ai-management/approved-answers",
+  "/ai-management/cache-review",
+  "/ai-management/character",
+  "/ai-management/core-settings",
+  "/ai-management/guardrails",
+  "/ai-management/knowledge",
+  "/ai-management/memory",
+  "/ai-management/state-of-mind",
+  "/ai-management/voice",
+  "/calendar",
+  "/calendar/new",
+  "/chat",
+  "/dashboard",
+  "/employees",
+  "/finance",
+  "/finance/access-approvals",
+  "/finance/master-data",
+  "/finance/master-data/bank-accounts",
+  "/finance/master-data/bank-accounts/new",
+  "/finance/master-data/clients",
+  "/finance/master-data/clients/new",
+  "/finance/master-data/companies",
+  "/finance/master-data/companies/new",
+  "/finance/master-data/currencies",
+  "/finance/master-data/employees",
+  "/finance/master-data/expense-categories",
+  "/finance/master-data/items",
+  "/finance/master-data/numbering-sequences",
+  "/finance/master-data/payment-methods",
+  "/finance/master-data/payment-terms",
+  "/finance/master-data/projects",
+  "/finance/master-data/revenue-categories",
+  "/finance/master-data/shipping-terms",
+  "/finance/master-data/tax-codes",
+  "/finance/master-data/units-of-measure",
+  "/finance/master-data/vendor-bank-accounts",
+  "/finance/master-data/vendor-bank-accounts/new",
+  "/finance/master-data/vendors",
+  "/finance/master-data/vendors/new",
+  "/finance/reports",
+  "/finance/reports/ap-aging",
+  "/finance/reports/ar-aging",
+  "/finance/reports/categories",
+  "/finance/reports/export",
+  "/finance/reports/ledger",
+  "/finance/reports/payroll",
+  "/finance/reports/project",
+  "/finance/reports/trial-balance",
+  "/finance/settings",
+  "/finance/transactions",
+  "/finance/transactions/bills",
+  "/finance/transactions/bills/new",
+  "/finance/transactions/customer-pos",
+  "/finance/transactions/customer-pos/new",
+  "/finance/transactions/expense-funding",
+  "/finance/transactions/expense-funding/new",
+  "/finance/transactions/expense-payments",
+  "/finance/transactions/expense-payments/new",
+  "/finance/transactions/expense-review",
+  "/finance/transactions/expenses",
+  "/finance/transactions/expenses-payments-made",
+  "/finance/transactions/expenses-payments-made/funding-batches/new",
+  "/finance/transactions/expenses-payments-made/new",
+  "/finance/transactions/expenses-payments-made/process-book-template",
+  "/finance/transactions/expenses/new",
+  "/finance/transactions/expenses/process",
+  "/finance/transactions/expenses/process/form",
+  "/finance/transactions/invoices",
+  "/finance/transactions/invoices/new",
+  "/finance/transactions/paycheck-requests",
+  "/finance/transactions/paycheck-requests/new",
+  "/finance/transactions/payments-made",
+  "/finance/transactions/payments-made/new",
+  "/finance/transactions/payments-received",
+  "/finance/transactions/payments-received/new",
+  "/finance/transactions/payroll",
+  "/finance/transactions/payroll/funding-batches/new",
+  "/finance/transactions/payroll/new",
+  "/finance/transactions/proforma-invoices",
+  "/finance/transactions/proforma-invoices/new",
+  "/finance/transactions/purchase-orders",
+  "/finance/transactions/purchase-orders/new",
+  "/finance/transactions/quotations",
+  "/finance/transactions/quotations/new",
+  "/finance/transactions/vendor-quotations",
+  "/finance/transactions/vendor-quotations/new",
+  "/inbox",
+  "/mail",
+  "/projects",
+  "/projects/new",
+  "/settings",
+  "/system/agent-ops",
+  "/system/agent-ops/advanced",
+  "/system/agent-ops/agents",
+  "/system/agent-ops/agents/analytics-agent",
+  "/system/agent-ops/agents/chat-agent",
+  "/system/agent-ops/agents/config-agent",
+  "/system/agent-ops/agents/council",
+  "/system/agent-ops/agents/design-agent",
+  "/system/agent-ops/agents/evolution-agent",
+  "/system/agent-ops/agents/fix-agent",
+  "/system/agent-ops/agents/issue-agent",
+  "/system/agent-ops/agents/logs-agent",
+  "/system/agent-ops/agents/memory-agent",
+  "/system/agent-ops/agents/qa-agent",
+  "/system/agent-ops/agents/runtime",
+  "/system/agent-ops/agents/runtime-agent",
+  "/system/agent-ops/agents/system-agent",
+  "/system/agent-ops/automation",
+  "/system/agent-ops/config",
+  "/system/agent-ops/council",
+  "/system/agent-ops/evolution",
+  "/system/agent-ops/execution",
+  "/system/agent-ops/fix",
+  "/system/agent-ops/governance",
+  "/system/agent-ops/history",
+  "/system/agent-ops/intelligence",
+  "/system/agent-ops/issues",
+  "/system/agent-ops/issues/runtime",
+  "/system/agent-ops/knowledge",
+  "/system/agent-ops/memory",
+  "/system/agent-ops/monitoring",
+  "/system/agent-ops/runtime",
+  "/system/agent-ops/runtime/config",
+  "/system/agent-ops/runtime/evolution",
+  "/system/agent-ops/runtime/fix",
+  "/system/agent-ops/runtime/memory",
+  "/system/agent-ops/tools",
+  "/tasks",
+  "/tasks/new",
+] as const;
+
+export const FULL_SITE_ROUTE_COUNT = FULL_SITE_ROUTE_INVENTORY.length;
+
+const ROLE_LIKE_SCOPE = new Set([
+  "scanner",
+  "memory",
+  "issues",
+  "learning",
+  "repair",
+  "testing",
+  "ui",
+  "execution",
+  "logging",
+  "configuration",
+  "conversation",
+  "metrics",
+]);
+
+export function isLikelyRoleScopeToken(value: string): boolean {
+  const v = value.trim().toLowerCase().replace(/^\//, "");
+  return ROLE_LIKE_SCOPE.has(v);
+}
+
+/** Expand inventory with same-origin internal links discovered on a page (subpages). */
+export function mergeDiscoveredSubpages(
+  inventory: readonly string[],
+  discovered: readonly string[],
+  options?: { maxTotal?: number },
+): string[] {
+  const maxTotal = options?.maxTotal ?? 400;
+  const out = new Set(
+    inventory.map((r) => (r.startsWith("/") ? r : `/${r}`)),
+  );
+  for (const raw of discovered) {
+    if (out.size >= maxTotal) break;
+    try {
+      const pathOnly = raw.startsWith("http") ? new URL(raw).pathname : raw;
+      if (!pathOnly.startsWith("/")) continue;
+      if (pathOnly.includes(":")) continue;
+      const clean = pathOnly.split("?")[0].split("#")[0];
+      if (!clean || clean === "/") continue;
+      if (/^\/(login|register|forgot-password|reset-password|onboarding)(\/|$)/i.test(clean)) {
+        continue;
+      }
+      out.add(clean);
+    } catch {
+      /* ignore bad href */
+    }
+  }
+  return [...out].sort();
+}

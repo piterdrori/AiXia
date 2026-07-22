@@ -574,7 +574,10 @@ function fromDraft(draft: MonitoringDraftApiRow): CanonicalFindingDetailView | n
     statusRaw: draft.status,
     title: draft.title,
     explanationDisplay: noise.likelyShellNoise
-      ? `${explanation.display} This may be known AgentOps shell noise (calendar/tasks prefetch abort) rather than a product defect.`
+      ? `${explanation.display} ${
+          noise.reason ??
+          "This may be known AgentOps shell/scanner noise rather than a product defect."
+        }`
       : explanation.display,
     explanationTechnical: explanation.technical,
     explanationInferred: explanation.inferred || noise.likelyShellNoise,

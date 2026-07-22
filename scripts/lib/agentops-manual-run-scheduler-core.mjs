@@ -3,6 +3,10 @@
  * Never runs Playwright / audit / Browser QA engines.
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 export const SCHEDULER_VERSION = "fix-c-b";
 export const SCHEDULER_MODE = "staging_worker_scheduler";
 export const SCHEDULER_FRESH_MS = 15 * 60 * 1000;
@@ -56,9 +60,9 @@ export const ALLOWED_ROUTE_PREFIXES = [
   "/system/agent-ops",
   "/system/",
   "/finance/",
+  "/finance",
   "/hub",
   "/login",
-  // E-A8 — whole-website scheduled coverage (staging app modules)
   "/dashboard",
   "/projects",
   "/tasks",
@@ -67,40 +71,54 @@ export const ALLOWED_ROUTE_PREFIXES = [
   "/inbox",
   "/mail",
   "/employees",
-  "/finance",
+  "/settings",
+  "/ai-management",
 ];
 
 /**
- * E-A8 — core staging website routes for entire_staging scheduled coverage.
- * Consecutive scheduled runs rotate through this list so the whole website is
- * covered across runs (each run scans up to SCHEDULED_ROUTES_PER_RUN routes).
+ * Role-first — full staging website routes for entire_staging scheduled coverage.
+ * Every scheduled run uses the full inventory (same site for every agent).
  */
-export const CORE_STAGING_ROUTES = [
-  "/hub",
-  "/dashboard",
-  "/projects",
-  "/tasks",
-  "/calendar",
-  "/chat",
-  "/inbox",
-  "/mail",
-  "/employees",
-  "/finance",
-  "/system/agent-ops",
-  "/system/agent-ops/issues",
-  "/system/agent-ops/agents",
-  "/system/agent-ops/monitoring",
-];
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const FULL_SITE_JSON = join(
+  __dirname,
+  "..",
+  "..",
+  "qa-agent",
+  "agentops-agents",
+  "_shared",
+  "full-site-routes.json",
+);
 
-export const SCHEDULED_ROUTES_PER_RUN = 5;
+function loadFullSiteRoutes() {
+  try {
+    const raw = JSON.parse(readFileSync(FULL_SITE_JSON, "utf8"));
+    if (Array.isArray(raw) && raw.length > 0) return raw.map(String);
+  } catch {
+    /* fall through */
+  }
+  return [
+    "/dashboard",
+    "/projects",
+    "/tasks",
+    "/calendar",
+    "/chat",
+    "/finance",
+    "/system/agent-ops",
+    "/system/agent-ops/issues",
+    "/system/agent-ops/agents",
+    "/system/agent-ops/monitoring",
+  ];
+}
 
-/** Deterministic rotation window so consecutive runs cover the full core list. */
-export function rotateCoreStagingRoutes(nowMs = Date.now()) {
-  const windows = Math.max(1, Math.ceil(CORE_STAGING_ROUTES.length / SCHEDULED_ROUTES_PER_RUN));
-  const windowIndex = Math.floor(nowMs / 3_600_000) % windows;
-  const start = windowIndex * SCHEDULED_ROUTES_PER_RUN;
-  const slice = CORE_STAGING_ROUTES.slice(start, start + SCHEDULED_ROUTES_PER_RUN);
-  return slice.length > 0 ? slice : CORE_STAGING_ROUTES.slice(0, SCHEDULED_ROUTES_PER_RUN);
+export const CORE_STAGING_ROUTES = loadFullSiteRoutes();
+
+/** Role-first: each run scans the full inventory (no rotation subset). */
+export const SCHEDULED_ROUTES_PER_RUN = CORE_STAGING_ROUTES.length;
+
+/** Returns the full site inventory every run (rotation retained for API compat). */
+export function rotateCoreStagingRoutes(_nowMs = Date.now()) {
+  return [...CORE_STAGING_ROUTES];
 }
 
 export const BLOCKED_HOST_SNIPPETS = [

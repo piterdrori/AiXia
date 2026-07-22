@@ -160,7 +160,7 @@ async function runSingleAgentDailyReview(input: {
       : defaultRoutes;
   const maxRoutes =
     input.maxRoutes ??
-    (input.workType === "browser_qa" ? Math.min(routes.length, 2) : Math.min(routes.length, 6));
+    (input.workType === "browser_qa" ? routes.length : routes.length);
   const scanAgent = agentRowForProfile(input.dbAgent, input.profile, routes);
 
   if (input.dbAgent.status === "blocked") {

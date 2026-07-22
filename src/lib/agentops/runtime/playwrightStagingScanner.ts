@@ -4,17 +4,21 @@
  */
 
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Browser, Page, Response } from "playwright";
+import type { BrowserContext, Page, Response } from "playwright";
 
 import type { AgentOpsRuntimeAgentRow } from "../db/agentOpsRuntimeTypes";
+import { resolveAgentSlugFromRow } from "./agentOpsMonitoringPolicy";
 import {
   honorCancelCheckpoint,
   type AgentOpsCancelCheck,
 } from "./agentOpsCancelCheckpoint";
+import { filterFindingsForAgentRole } from "./agentRoleDetectors";
+import { mergeDiscoveredSubpages } from "./fullSiteRouteInventory";
 import { assertStagingScanUrl } from "./stagingScanUrlGuard";
 import {
   buildAbsolutePageUrl,
@@ -28,12 +32,17 @@ export type PlaywrightStagingScanOptions = {
   slowLoadThresholdMs?: number;
   screenshotDir?: string;
   maxRoutes?: number;
+  /** Optional focused route list (manual dry-run). Defaults to full inventory. */
+  routes?: string[];
+  /** When true (default), expand inventory with in-page internal links (subpages). */
+  expandSubpages?: boolean;
   /** Staging worker cancel probe — throw AgentOpsCancelRequestedError when true. */
   cancelCheck?: AgentOpsCancelCheck;
 };
 
 type PageScanContext = {
   agent: AgentOpsRuntimeAgentRow;
+  agentSlug: string;
   stagingUrl: string;
   pageUrl: string;
   absoluteUrl: string;
@@ -49,10 +58,49 @@ type DetectorResult = {
 };
 
 const DEFAULT_PAGE_TIMEOUT_MS = 8_000;
+/** Slow-load threshold applies to navigation (domcontentloaded), not settle wait. */
 const DEFAULT_SLOW_LOAD_MS = 3_000;
+/** Optional post-nav settle for detectors - must not inflate slow-load metrics. */
+const NETWORK_IDLE_SETTLE_MS = 2_500;
 const HYDRATION_PATTERN =
   /\b(checking\.\.\.|loading issue|loading agent|loading issue workspace|queue summary and issue list are being prepared)\b/i;
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..");
+
+function resolveOwnerStorageStatePath(): string | null {
+  const raw =
+    process.env.AGENTOPS_BROWSER_QA_STORAGE_STATE?.trim() ||
+    "qa-agent/browser-qa-auth/storage-state.json";
+  const resolved = isAbsolute(raw) ? raw : join(REPO_ROOT, raw);
+  return existsSync(resolved) ? resolved : null;
+}
+
+async function collectInternalHrefs(page: Page, stagingUrl: string): Promise<string[]> {
+  const origin = stagingUrl.replace(/\/+$/, "");
+  const hrefs = await page
+    .locator("a[href]")
+    .evaluateAll((nodes) =>
+      nodes
+        .map((node) => (node as HTMLAnchorElement).getAttribute("href") || "")
+        .filter(Boolean),
+    )
+    .catch(() => [] as string[]);
+  const out: string[] = [];
+  for (const href of hrefs) {
+    if (href.startsWith("/")) {
+      out.push(href);
+      continue;
+    }
+    if (href.startsWith(origin)) {
+      try {
+        out.push(new URL(href).pathname);
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+  return out;
+}
+
 
 function slugify(value: string): string {
   return value.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
@@ -289,16 +337,61 @@ async function probeInternalLinks(
   return findings;
 }
 
+/**
+ * Slow-load decision for staging website scans.
+ * Only navigation (domcontentloaded) counts — the optional networkidle settle
+ * wait must not inflate the metric (SPA AgentOps pages rarely go idle).
+ */
+export function evaluateSlowPageLoadMetric(input: {
+  navigationMs: number;
+  settleWaitMs: number;
+  slowLoadThresholdMs?: number;
+}): {
+  shouldFlag: boolean;
+  reportedMs: number;
+  wallClockMs: number;
+  thresholdMs: number;
+} {
+  const thresholdMs = input.slowLoadThresholdMs ?? DEFAULT_SLOW_LOAD_MS;
+  const navigationMs = Math.max(0, Math.round(input.navigationMs));
+  const settleWaitMs = Math.max(0, Math.round(input.settleWaitMs));
+  return {
+    shouldFlag: navigationMs > thresholdMs,
+    reportedMs: navigationMs,
+    wallClockMs: navigationMs + settleWaitMs,
+    thresholdMs,
+  };
+}
+
+/**
+ * Website-audit scans currently run without owner auth storage.
+ * Protected AgentOps routes therefore often render the Sign In SPA gate.
+ * Slow-load on that gate is not an Agent Detail product defect.
+ */
+export function detectStagingScanAuthGate(bodyText: string): boolean {
+  const text = bodyText.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!text) return false;
+  const hasSignIn = /\bsign in\b/.test(text) || /\blog in\b/.test(text);
+  const hasAuthCopy =
+    /access your workspace/.test(text) ||
+    (/\bemail\b/.test(text) && /\bpassword\b/.test(text));
+  return hasSignIn && hasAuthCopy;
+}
+
+
 async function scanSingleRoute(
-  browser: Browser,
+  browserContext: BrowserContext,
   context: PageScanContext,
   options: PlaywrightStagingScanOptions,
-): Promise<StagingScanFinding[]> {
+): Promise<{ findings: StagingScanFinding[]; discoveredHrefs: string[] }> {
   const pageTimeoutMs = options.pageTimeoutMs ?? DEFAULT_PAGE_TIMEOUT_MS;
   const slowLoadThresholdMs = options.slowLoadThresholdMs ?? DEFAULT_SLOW_LOAD_MS;
-  const page = await browser.newPage();
+  const page = await browserContext.newPage();
   const findings: StagingScanFinding[] = [];
+  let discoveredHrefs: string[] = [];
   const started = Date.now();
+  let navigationMs = 0;
+  let settleWaitMs = 0;
 
   try {
     let response: Response | null = null;
@@ -307,7 +400,12 @@ async function scanSingleRoute(
         waitUntil: "domcontentloaded",
         timeout: pageTimeoutMs,
       });
-      await page.waitForLoadState("networkidle", { timeout: 2_500 }).catch(() => undefined);
+      navigationMs = Date.now() - started;
+      const settleStarted = Date.now();
+      await page
+        .waitForLoadState("networkidle", { timeout: NETWORK_IDLE_SETTLE_MS })
+        .catch(() => undefined);
+      settleWaitMs = Date.now() - settleStarted;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       const evidence = await captureIssueScreenshot(page, context, {
@@ -327,11 +425,21 @@ async function scanSingleRoute(
           { load_error: reason, http_status: response?.status() ?? null },
         ),
       );
-      return findings;
+      return { findings, discoveredHrefs };
     }
 
-    const loadTimeMs = Date.now() - started;
-    if (loadTimeMs > slowLoadThresholdMs) {
+    const bodyForGate = ((await page.locator("body").innerText().catch(() => "")) ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+    const authGate = detectStagingScanAuthGate(bodyForGate);
+    const slow = evaluateSlowPageLoadMetric({
+      navigationMs,
+      settleWaitMs,
+      slowLoadThresholdMs,
+    });
+    const loadTimeMs = slow.reportedMs;
+    // Do not promote slow-load when the scan only reached the Sign In gate.
+    if (slow.shouldFlag && !authGate) {
       const detector: DetectorResult = {
         issue: `Slow page load detected (${loadTimeMs}ms)`,
         severity: "low",
@@ -341,32 +449,49 @@ async function scanSingleRoute(
       findings.push(
         buildFinding(context, detector, evidence, {
           load_time_ms: loadTimeMs,
+          navigation_ms: navigationMs,
+          settle_wait_ms: settleWaitMs,
+          wall_clock_ms: slow.wallClockMs,
+          measurement: "domcontentloaded",
+          auth_gate: false,
+          agent_slug: context.agentSlug,
           http_status: response?.status() ?? null,
         }),
       );
     }
 
-    const detectors = [
-      ...(await detectUiAndUxIssues(page)),
-      ...(await detectFunctionalIssues(page, response, context.absoluteUrl)),
-      ...(await probeInternalLinks(page, context.stagingUrl, context.pageUrl)),
-    ];
+    if (!authGate) {
+      const detectors = [
+        ...(await detectUiAndUxIssues(page)),
+        ...(await detectFunctionalIssues(page, response, context.absoluteUrl)),
+        ...(await probeInternalLinks(page, context.stagingUrl, context.pageUrl)),
+      ];
 
-    for (const detector of detectors) {
-      const evidence = await captureIssueScreenshot(page, context, detector);
-      findings.push(
-        buildFinding(context, detector, evidence, {
-          load_time_ms: loadTimeMs,
-          http_status: response?.status() ?? null,
-        }),
-      );
+      for (const detector of detectors) {
+        const evidence = await captureIssueScreenshot(page, context, detector);
+        findings.push(
+          buildFinding(context, detector, evidence, {
+            load_time_ms: loadTimeMs,
+            navigation_ms: navigationMs,
+            settle_wait_ms: settleWaitMs,
+            wall_clock_ms: navigationMs + settleWaitMs,
+            measurement: "domcontentloaded",
+            auth_gate: false,
+            agent_slug: context.agentSlug,
+            http_status: response?.status() ?? null,
+          }),
+        );
+      }
+      discoveredHrefs = await collectInternalHrefs(page, context.stagingUrl);
     }
   } finally {
     await page.close().catch(() => undefined);
   }
 
-  return findings;
+  return { findings, discoveredHrefs };
 }
+
+const FULL_SITE_SOFT_CAP = 400;
 
 export async function runPlaywrightStagingScan(
   agent: AgentOpsRuntimeAgentRow,
@@ -378,41 +503,89 @@ export async function runPlaywrightStagingScan(
     throw new Error(guard.error);
   }
 
+  const agentSlug = resolveAgentSlugFromRow(agent);
   const normalizedStagingUrl = guard.normalizedUrl;
-  const scopedRoutes = resolveScopedRoutes(agent);
+  let scopedRoutes =
+    Array.isArray(options.routes) && options.routes.length > 0
+      ? [...new Set(options.routes.map((route) => (route.startsWith("/") ? route : `/${route}`)))]
+      : resolveScopedRoutes(agent);
   const maxRoutes =
     typeof options.maxRoutes === "number" && options.maxRoutes > 0
       ? options.maxRoutes
       : scopedRoutes.length;
-  const routes = scopedRoutes.slice(0, maxRoutes);
   const screenshotDir =
     options.screenshotDir ?? join(REPO_ROOT, "qa-agent", "reports", "runtime-scans");
+  const expandSubpages = options.expandSubpages !== false;
 
   await honorCancelCheckpoint(options.cancelCheck, "before_browser_launch");
 
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
+  const storagePath = resolveOwnerStorageStatePath();
+  const browserContext = storagePath
+    ? await browser.newContext({ storageState: storagePath })
+    : await browser.newContext();
   const allFindings: StagingScanFinding[] = [];
+  const discovered: string[] = [];
+  const visited = new Set<string>();
 
   try {
-    for (const route of routes) {
+    const queue = scopedRoutes.slice(0, maxRoutes);
+    for (const route of queue) {
       await honorCancelCheckpoint(options.cancelCheck, "before_route");
       const pageUrl = route.startsWith("/") ? route : `/${route}`;
+      if (visited.has(pageUrl)) continue;
+      visited.add(pageUrl);
       const context: PageScanContext = {
         agent,
+        agentSlug,
         stagingUrl: normalizedStagingUrl,
         pageUrl,
         absoluteUrl: buildAbsolutePageUrl(normalizedStagingUrl, pageUrl),
         screenshotDir,
       };
-      const routeFindings = await scanSingleRoute(browser, context, options);
+      const { findings: routeFindings, discoveredHrefs } = await scanSingleRoute(
+        browserContext,
+        context,
+        options,
+      );
       allFindings.push(...routeFindings);
+      if (expandSubpages) discovered.push(...discoveredHrefs);
       await honorCancelCheckpoint(options.cancelCheck, "after_route");
     }
+
+    if (expandSubpages && discovered.length > 0) {
+      scopedRoutes = mergeDiscoveredSubpages(scopedRoutes, discovered, {
+        maxTotal: Math.max(maxRoutes, FULL_SITE_SOFT_CAP),
+      });
+      for (const route of scopedRoutes) {
+        if (visited.size >= maxRoutes) break;
+        const pageUrl = route.startsWith("/") ? route : `/${route}`;
+        if (visited.has(pageUrl)) continue;
+        await honorCancelCheckpoint(options.cancelCheck, "before_route");
+        visited.add(pageUrl);
+        const context: PageScanContext = {
+          agent,
+          agentSlug,
+          stagingUrl: normalizedStagingUrl,
+          pageUrl,
+          absoluteUrl: buildAbsolutePageUrl(normalizedStagingUrl, pageUrl),
+          screenshotDir,
+        };
+        const { findings: routeFindings } = await scanSingleRoute(
+          browserContext,
+          context,
+          options,
+        );
+        allFindings.push(...routeFindings);
+        await honorCancelCheckpoint(options.cancelCheck, "after_route");
+      }
+    }
   } finally {
+    await browserContext.close().catch(() => undefined);
     await browser.close().catch(() => undefined);
   }
 
   await honorCancelCheckpoint(options.cancelCheck, "after_scan_before_persist");
-  return allFindings;
+  return filterFindingsForAgentRole(agentSlug, allFindings);
 }

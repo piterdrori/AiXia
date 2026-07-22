@@ -19,7 +19,20 @@ export {
 
 export { scanStagingWebsite, type ScanStagingWebsiteOptions } from "./scanStagingWebsite";
 export type { StagingScanFinding, StagingScanSeverity } from "./stagingScanTypes";
+export {
+  DEFAULT_SCAN_ROUTES,
+  FULL_SITE_ROUTE_INVENTORY,
+  FULL_SITE_ROUTE_COUNT,
+  resolveScopedRoutes,
+} from "./stagingScanTypes";
 export { runPlaywrightStagingScan, type PlaywrightStagingScanOptions } from "./playwrightStagingScanner";
+export {
+  getAgentRoleDetectorPack,
+  filterFindingsForAgentRole,
+  classifyFindingForAgentPack,
+  listAgentRoleDetectorPacks,
+} from "./agentRoleDetectors";
+export { buildAgentScanMemoryProposal } from "./agentScanMemoryProposal";
 export { assertStagingScanUrl } from "./stagingScanUrlGuard";
 
 export {

@@ -20,7 +20,7 @@ export const MONITORING_CONFIG_DEFAULTS = {
   defaultIntervalMinutes: 60,
   continuousCooldownSeconds: 15,
   maxAgentsPerTick: 2,
-  maxRoutesPerAgent: 4,
+  maxRoutesPerAgent: 400,
 } as const;
 
 export type AgentOpsMonitoringRuntimeConfig = {
@@ -121,8 +121,8 @@ export function loadAgentOpsMonitoringRuntimeConfig(): AgentOpsMonitoringRuntime
 
   const modeLimits =
     monitoringMode === "weekly_improvement"
-      ? { maxAgentsPerTick: 6, maxRoutesPerAgent: 12 }
-      : { maxAgentsPerTick: 3, maxRoutesPerAgent: 6 };
+      ? { maxAgentsPerTick: 6, maxRoutesPerAgent: 400 }
+      : { maxAgentsPerTick: 3, maxRoutesPerAgent: 400 };
 
   const config: AgentOpsMonitoringRuntimeConfig = {
     level,
